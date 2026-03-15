@@ -1,4 +1,4 @@
-.PHONY: build build-release package-bin test check fmt run-local
+.PHONY: build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local
 
 build:
 	cargo build --workspace
@@ -20,6 +20,23 @@ check:
 
 fmt:
 	cargo fmt --all
+
+clippy:
+	cargo clippy --workspace --all-targets --all-features
+
+audit:
+	cargo audit
+
+quality:
+	./scripts/quality_gate.sh full
+
+quality-quick:
+	./scripts/quality_gate.sh quick
+
+quality-release:
+	./scripts/quality_gate.sh release
+
+ci: quality
 
 run-local: package-bin
 	./scripts/run-local.sh
