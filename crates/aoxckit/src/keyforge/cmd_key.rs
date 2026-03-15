@@ -1,5 +1,5 @@
 use crate::keyforge::cli::{KeyCommand, KeySubcommand};
-use core::identity::pq_keys;
+use aoxcore::identity::pq_keys;
 
 pub fn handle(command: KeyCommand) -> Result<(), String> {
     match command.command {

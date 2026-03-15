@@ -1,7 +1,7 @@
 use crate::keyforge::cli::{CertCommand, CertSubcommand};
 use crate::keyforge::util::{read_text_file, write_text_file};
-use core::identity::ca::CertificateAuthority;
-use core::identity::certificate::Certificate;
+use aoxcore::identity::ca::CertificateAuthority;
+use aoxcore::identity::certificate::Certificate;
 
 pub fn handle(command: CertCommand) -> Result<(), String> {
     match command.command {

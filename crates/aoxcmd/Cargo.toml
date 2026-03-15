@@ -9,5 +9,8 @@ tokio = { workspace = true }
 async-trait = { workspace = true }
 
 aoxcai = { path = "../aoxcai" }
+aoxcore = { path = "../aoxcore" }
 aoxcunity = { path = "../aoxcunity" }
+serde_json = { workspace = true }
+hex = { workspace = true }
 
