@@ -1,8 +1,10 @@
 <div align="center">
+  <a href="https://github.com/aoxc/aoxcore">
+    <img src="logos/aoxc_transparent.png" alt="AOXCORE Logo" width="180" />
+  </a>
+</div>
 
-<a href="https://github.com/aoxc/aoxcore">
-  <img src="logos/aoxc_transparent.png" alt="AOXCORE Logo" width="180" />
-</a>
+
 
 
 
