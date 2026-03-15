@@ -43,6 +43,8 @@ Additional hardening helpers:
 
 ```bash
 make clippy
+make audit-install    # install cargo-audit
+make audit            # dependency vulnerability scan
 make audit            # requires cargo-audit installation
 make package-bin
 make supervise-local  # local self-healing supervisor for the node
@@ -60,6 +62,7 @@ The `scripts/quality_gate.sh` entrypoint is CI-friendly and supports three modes
 GitHub Actions CI runs:
 - quick gate on all PRs
 - full gate on pushes to protected branches
+- weekly scheduled `cargo audit` security scan (`Security Audit` workflow)
 
 ## 4. Production Readiness Note
 

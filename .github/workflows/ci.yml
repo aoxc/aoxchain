@@ -8,10 +8,18 @@ on:
       - master
       - work
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quick-gate:
     name: Quick quality gate
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -23,6 +31,8 @@ jobs:
     name: Full quality gate
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
+    needs: quick-gate
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
