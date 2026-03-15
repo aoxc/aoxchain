@@ -1,16 +1,41 @@
 name: CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - work
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  rust:
+  quick-gate:
+    name: Quick quality gate
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Check
-        run: cargo check --workspace
-      - name: Test
-        run: cargo test --workspace
+      - uses: Swatinem/rust-cache@v2
+      - name: Run quick quality gate
+        run: ./scripts/quality_gate.sh quick
+
+  full-gate:
+    name: Full quality gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    needs: quick-gate
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run full quality gate
+        run: ./scripts/quality_gate.sh full
