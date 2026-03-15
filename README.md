@@ -90,6 +90,7 @@ cargo test -p aoxcunity
 cargo run -p aoxcmd -- vision
 
 # 2) Materialize genesis
+
 ## End-to-End CLI Bootstrap (Current Deterministic Path)
 
 ### 1) Chain vision introspection

@@ -224,14 +224,15 @@ mod tests {
     use super::*;
 
     fn sample_certificate() -> Certificate {
-        Certificate {
-            issuer: String::new(),
-            subject: "AOXC-NODE-0001".to_string(),
-            public_key: "A1B2C3D4".to_string(),
-            signature: String::new(),
-            issued_at: 1_700_000_000,
-            expires_at: 1_800_000_000,
-        }
+        Certificate::new_unsigned(
+            "AOXC-0001-MAIN".to_string(),
+            "AOXC-VAL-EU-3F7A9C21D4E8B7AA-K9".to_string(),
+            "VAL".to_string(),
+            "EU".to_string(),
+            "A1B2C3D4".to_string(),
+            1_700_000_000,
+            1_800_000_000,
+        )
     }
 
     #[test]
@@ -274,7 +275,7 @@ mod tests {
             .sign_certificate(cert)
             .expect("certificate signing must succeed");
 
-        signed.subject = "AOXC-NODE-9999".to_string();
+        signed.actor_id = "AOXC-VAL-EU-FFFFFFFFFFFFFFFF-Z9".to_string();
 
         assert!(!ca.verify_certificate(&signed));
     }

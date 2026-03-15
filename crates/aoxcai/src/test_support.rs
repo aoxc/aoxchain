@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::{
     manifest::{
         ActionMap, Audit, Auth, Backend, Bindings, CircuitBreaker, Compatibility, Confidence,
@@ -101,10 +99,7 @@ pub fn base_manifest() -> ModelManifest {
                     "confidence_bps".to_owned(),
                     "rationale".to_owned(),
                 ],
-                optional_fields: vec![
-                    "recommended_action".to_owned(),
-                    "attributes".to_owned(),
-                ],
+                optional_fields: vec!["recommended_action".to_owned(), "attributes".to_owned()],
                 mapping: OutputMapping {
                     label_field: "label".to_owned(),
                     risk_bps_field: "risk_bps".to_owned(),

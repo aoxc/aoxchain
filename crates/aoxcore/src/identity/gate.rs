@@ -34,17 +34,23 @@ impl Gate {
         let mut permissions: HashMap<String, HashSet<String>> = HashMap::new();
 
         permissions.insert(
-            ROLE_VALIDATOR.into(),
-            HashSet::from([MODULE_CONSENSUS.into()]),
+            normalize(ROLE_VALIDATOR),
+            HashSet::from([normalize(MODULE_CONSENSUS)]),
         );
 
-        permissions.insert(ROLE_NODE.into(), HashSet::from([MODULE_NETWORK.into()]));
-
-        permissions.insert(ROLE_ORACLE.into(), HashSet::from([MODULE_ORACLE.into()]));
+        permissions.insert(
+            normalize(ROLE_NODE),
+            HashSet::from([normalize(MODULE_NETWORK)]),
+        );
 
         permissions.insert(
-            ROLE_GOVERNANCE.into(),
-            HashSet::from([MODULE_GOVERNANCE.into()]),
+            normalize(ROLE_ORACLE),
+            HashSet::from([normalize(MODULE_ORACLE)]),
+        );
+
+        permissions.insert(
+            normalize(ROLE_GOVERNANCE),
+            HashSet::from([normalize(MODULE_GOVERNANCE)]),
         );
 
         Self { permissions }

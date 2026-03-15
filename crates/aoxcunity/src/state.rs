@@ -40,18 +40,20 @@ impl ConsensusState {
     }
 
     pub fn admit_block(&mut self, block: Block) -> Result<(), ConsensusError> {
-        if block.header.height > 0 && block.header.parent_hash != [0u8; 32] {
-            if !self.fork_choice.contains(block.header.parent_hash) && block.header.height != 1 {
-                return Err(ConsensusError::UnknownParent);
-            }
+        if block.header.height > 0
+            && block.header.parent_hash != [0u8; 32]
+            && !self.fork_choice.contains(block.header.parent_hash)
+            && block.header.height != 1
+        {
+            return Err(ConsensusError::UnknownParent);
         }
 
-        if let Some(head) = self.fork_choice.get_head() {
-            if let Some(head_meta) = self.fork_choice.get(head) {
-                if block.header.height <= head_meta.height && block.header.parent_hash == head_meta.parent {
-                    return Err(ConsensusError::HeightRegression);
-                }
-            }
+        if let Some(head) = self.fork_choice.get_head()
+            && let Some(head_meta) = self.fork_choice.get(head)
+            && block.header.height <= head_meta.height
+            && block.header.parent_hash == head_meta.parent
+        {
+            return Err(ConsensusError::HeightRegression);
         }
 
         self.fork_choice.insert_block(BlockMeta {
@@ -133,4 +135,3 @@ impl ConsensusState {
         self.rotation.proposer(height)
     }
 }
-

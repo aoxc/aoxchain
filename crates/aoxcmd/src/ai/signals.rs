@@ -13,6 +13,12 @@ use async_trait::async_trait;
 /// mempool state, and other authenticated local inputs.
 pub struct NodeSignalProvider;
 
+impl Default for NodeSignalProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NodeSignalProvider {
     /// Creates a new node-backed signal provider instance.
     pub fn new() -> Self {
@@ -34,4 +40,3 @@ impl SignalProvider for NodeSignalProvider {
         Ok(Vec::new())
     }
 }
-

@@ -3,13 +3,15 @@ use std::collections::{HashMap, HashSet};
 use crate::error::ConsensusError;
 use crate::vote::{Vote, VoteKind};
 
+type VoteKey = ([u8; 32], [u8; 32], u64, u64, VoteKind);
+
 /// In-memory vote pool.
 ///
 /// This structure prevents duplicate vote admission and supports quorum
 /// counting by block hash and vote kind.
 #[derive(Debug, Clone, Default)]
 pub struct VotePool {
-    seen: HashSet<([u8; 32], [u8; 32], u64, u64, VoteKind)>,
+    seen: HashSet<VoteKey>,
     votes_by_block: HashMap<[u8; 32], Vec<Vote>>,
 }
 
@@ -46,4 +48,3 @@ impl VotePool {
             .count()
     }
 }
-

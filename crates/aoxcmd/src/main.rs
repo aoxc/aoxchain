@@ -273,6 +273,8 @@ fn cmd_storage_smoke(args: &[String]) -> Result<(), String> {
 
 }
 
+}
+
 fn cmd_genesis_init(args: &[String]) -> Result<(), String> {
     let path =
         arg_value(args, "--path").unwrap_or_else(|| "AOXC_DATA/identity/genesis.json".to_string());

@@ -11,6 +11,12 @@ use async_trait::async_trait;
 /// It must never participate in active inference flows.
 pub struct NoopContextProvider;
 
+impl Default for NoopContextProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NoopContextProvider {
     /// Creates a new no-op context provider instance.
     pub fn new() -> Self {
@@ -24,11 +30,7 @@ impl ContextProvider for NoopContextProvider {
         "noop_context_provider"
     }
 
-    async fn build(
-        &self,
-        _task: AiTask,
-        subject_id: &str,
-    ) -> Result<InferenceContext, AiError> {
+    async fn build(&self, _task: AiTask, subject_id: &str) -> Result<InferenceContext, AiError> {
         Ok(InferenceContext::new(subject_id, "unknown"))
     }
 }
@@ -40,6 +42,12 @@ impl ContextProvider for NoopContextProvider {
 /// metadata derived from `aoxcore` state, identity material, peer context,
 /// transaction attributes, or artifact descriptors.
 pub struct NodeContextProvider;
+
+impl Default for NodeContextProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NodeContextProvider {
     /// Creates a new node-backed context provider instance.
@@ -54,12 +62,11 @@ impl ContextProvider for NodeContextProvider {
         "node_context_provider"
     }
 
-    async fn build(
-        &self,
-        task: AiTask,
-        subject_id: &str,
-    ) -> Result<InferenceContext, AiError> {
-        Ok(InferenceContext::new(subject_id, subject_kind_for_task(task)))
+    async fn build(&self, task: AiTask, subject_id: &str) -> Result<InferenceContext, AiError> {
+        Ok(InferenceContext::new(
+            subject_id,
+            subject_kind_for_task(task),
+        ))
     }
 }
 
@@ -75,4 +82,3 @@ fn subject_kind_for_task(task: AiTask) -> &'static str {
         AiTask::ArtifactInspection => "artifact",
     }
 }
-

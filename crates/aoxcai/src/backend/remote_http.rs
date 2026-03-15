@@ -17,19 +17,17 @@ pub struct RemoteHttpBackendRuntime {
 impl RemoteHttpBackendRuntime {
     /// Constructs a new remote HTTP backend from manifest configuration.
     pub fn new(manifest: &ModelManifest) -> Result<Self, AiError> {
-        let cfg = manifest
-            .spec
-            .backend
-            .remote_http
-            .as_ref()
-            .ok_or_else(|| AiError::ManifestValidation(
+        let cfg = manifest.spec.backend.remote_http.as_ref().ok_or_else(|| {
+            AiError::ManifestValidation(
                 "remote_http backend requires spec.backend.remote_http".to_owned(),
-            ))?;
+            )
+        })?;
 
         let timeout = std::time::Duration::from_millis(manifest.spec.backend.timeout_ms);
 
         let client = reqwest::Client::builder()
             .timeout(timeout)
+            .no_proxy()
             .build()
             .map_err(|err| AiError::Http(err.to_string()))?;
 
@@ -40,7 +38,7 @@ impl RemoteHttpBackendRuntime {
                 return Err(AiError::ManifestValidation(format!(
                     "unsupported auth mode '{}'",
                     other
-                )))
+                )));
             }
         };
 
@@ -77,8 +75,8 @@ impl InferenceBackend for RemoteHttpBackendRuntime {
         }
 
         if let Some(env_key) = &self.auth_env {
-            let token = std::env::var(env_key)
-                .map_err(|_| AiError::MissingEnvironment(env_key.clone()))?;
+            let token =
+                std::env::var(env_key).map_err(|_| AiError::MissingEnvironment(env_key.clone()))?;
             builder = builder.bearer_auth(token);
         }
 
@@ -108,7 +106,11 @@ impl InferenceBackend for RemoteHttpBackendRuntime {
 fn validate_output(manifest: &ModelManifest, output: &ModelOutput) -> Result<(), AiError> {
     let validation = &manifest.spec.output.validation;
 
-    if !validation.allowed_labels.iter().any(|label| label == &output.label) {
+    if !validation
+        .allowed_labels
+        .iter()
+        .any(|label| label == &output.label)
+    {
         return Err(AiError::BackendFailure(format!(
             "label '{}' is not allowed by manifest",
             output.label
@@ -194,8 +196,8 @@ mod tests {
         });
 
         let manifest = remote_http_manifest(format!("{}/infer", server.base_url()));
-        let backend = RemoteHttpBackendRuntime::new(&manifest)
-            .expect("remote backend must be constructed");
+        let backend =
+            RemoteHttpBackendRuntime::new(&manifest).expect("remote backend must be constructed");
         let request = empty_request();
 
         let output = backend
@@ -227,8 +229,8 @@ mod tests {
         });
 
         let manifest = remote_http_manifest(format!("{}/infer", server.base_url()));
-        let backend = RemoteHttpBackendRuntime::new(&manifest)
-            .expect("remote backend must be constructed");
+        let backend =
+            RemoteHttpBackendRuntime::new(&manifest).expect("remote backend must be constructed");
         let request = empty_request();
 
         let err = backend
@@ -270,8 +272,8 @@ mod tests {
         });
 
         let manifest = remote_http_manifest(format!("{}/infer", server.base_url()));
-        let backend = RemoteHttpBackendRuntime::new(&manifest)
-            .expect("remote backend must be constructed");
+        let backend =
+            RemoteHttpBackendRuntime::new(&manifest).expect("remote backend must be constructed");
         let request = empty_request();
 
         let err = backend
@@ -313,8 +315,8 @@ mod tests {
         });
 
         let manifest = remote_http_manifest(format!("{}/infer", server.base_url()));
-        let backend = RemoteHttpBackendRuntime::new(&manifest)
-            .expect("remote backend must be constructed");
+        let backend =
+            RemoteHttpBackendRuntime::new(&manifest).expect("remote backend must be constructed");
         let request = empty_request();
 
         let err = backend
@@ -356,8 +358,8 @@ mod tests {
         });
 
         let manifest = remote_http_manifest(format!("{}/infer", server.base_url()));
-        let backend = RemoteHttpBackendRuntime::new(&manifest)
-            .expect("remote backend must be constructed");
+        let backend =
+            RemoteHttpBackendRuntime::new(&manifest).expect("remote backend must be constructed");
         let request = empty_request();
 
         let err = backend
@@ -384,8 +386,8 @@ mod tests {
             format!("{}/infer", server.base_url()),
             "AOXC_TEST_MISSING_REMOTE_HTTP_TOKEN_8F6A9C0B",
         );
-        let backend = RemoteHttpBackendRuntime::new(&manifest)
-            .expect("remote backend must be constructed");
+        let backend =
+            RemoteHttpBackendRuntime::new(&manifest).expect("remote backend must be constructed");
         let request = empty_request();
 
         let err = backend
