@@ -108,6 +108,7 @@ cargo run -p aoxcmd -- genesis-init \
   --treasury 1000000000
 
 # 3) Bootstrap key + identity material
+
 ```
 
 ### 3) Key + identity material bootstrap
@@ -155,6 +156,22 @@ cargo run -p aoxcmd -- produce-once --tx "relay-coordination-demo"
 
 # 6) Validate gossip stub behavior
 cargo run -p aoxcmd -- network-smoke
+
+# 7) Validate hybrid data layer (IPFS + SQLite/Redb)
+cargo run -p aoxcmd -- storage-smoke --index sqlite
+cargo run -p aoxcmd -- storage-smoke --index redb
+```
+
+
+## Storage Architecture (Mainnet Direction)
+
+| Data Type | Storage Layer | Rationale |
+|---|---|---|
+| Block Body (immutable data) | IPFS/IPLD-compatible content addressing | Global accessibility, integrity, immutable content IDs |
+| State & Index metadata | SQLite or Redb | Fast local query/index lookups for balances, block-height references, and runtime checks |
+
+Current implementation provides a deterministic hybrid storage abstraction via `aoxcdata` and `aoxcmd storage-smoke`.
+
 ```
 
 ## Mainnet Hardening Backlog (Explicit)
@@ -227,7 +244,6 @@ cargo run -p aoxcmd -- network-smoke
 - `docs/RELAY_CHAIN_MAINNET_BLUEPRINT.md`
 
 ## License
-=======
 ## Security and Audit Readiness Principles
 
 The codebase is being shaped around audit-friendly engineering constraints:
@@ -252,7 +268,6 @@ A dedicated engineering document is provided at:
 - [ ] Formal threat model + external security review + reproducible release pipeline
 
 ## License
-=======
 AOXChain, modüler Rust workspace mimarisi ile geliştirilen çok-katmanlı bir zincir çekirdeği denemesidir.
 
 > Durum: aktif geliştirme / pre-mainnet.

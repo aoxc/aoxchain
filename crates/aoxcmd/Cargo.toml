@@ -12,6 +12,7 @@ aoxcai = { path = "../aoxcai" }
 aoxcore = { path = "../aoxcore" }
 aoxcunity = { path = "../aoxcunity" }
 aoxcnet = { path = "../aoxcnet" }
+aoxcdata = { path = "../aoxcdata" }
 serde_json = { workspace = true }
 hex = { workspace = true }
 
