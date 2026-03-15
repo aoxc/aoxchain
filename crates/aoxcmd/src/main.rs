@@ -35,6 +35,7 @@ fn run_cli() -> Result<(), String> {
         "vision" => cmd_vision(),
         "key-bootstrap" => cmd_key_bootstrap(&args[2..]),
         "genesis-init" => cmd_genesis_init(&args[2..]),
+        "key-bootstrap" => cmd_key_bootstrap(&args[2..]),
         "node-bootstrap" => cmd_node_bootstrap(),
         "produce-once" => cmd_produce_once(&args[2..]),
         "network-smoke" => cmd_network_smoke(),
@@ -67,6 +68,8 @@ fn cmd_key_bootstrap(args: &[String]) -> Result<(), String> {
     let chain = arg_value(args, "--chain").unwrap_or_else(|| "AOXC-MAIN".to_string());
     let role = arg_value(args, "--role").unwrap_or_else(|| "relay".to_string());
     let zone = arg_value(args, "--zone").unwrap_or_else(|| "global".to_string());
+    let role = arg_value(args, "--role").unwrap_or_else(|| "validator".to_string());
+    let zone = arg_value(args, "--zone").unwrap_or_else(|| "core".to_string());
     let issuer = arg_value(args, "--issuer").unwrap_or_else(|| "AOXC-ROOT-CA".to_string());
     let password = arg_value(args, "--password")
         .ok_or_else(|| "--password is required for key-bootstrap".to_string())?;
@@ -165,6 +168,7 @@ fn cmd_node_bootstrap() -> Result<(), String> {
 
 fn cmd_produce_once(args: &[String]) -> Result<(), String> {
     let tx = arg_value(args, "--tx").unwrap_or_else(|| "AOXC_RELAY_DEMO_TX".to_string());
+    let tx = arg_value(args, "--tx").unwrap_or_else(|| "AOXC_DEMO_TX".to_string());
 
     let mut node = state::setup().map_err(|error| error.to_string())?;
     let outcome = produce_single_block(&mut node, vec![tx.into_bytes()])?;
@@ -229,5 +233,6 @@ fn arg_value(args: &[String], key: &str) -> Option<String> {
 fn print_usage() {
     println!(
         "AOXC Command Surface\n\nCommands:\n  vision\n  key-bootstrap --password <secret> [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]\n  genesis-init [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]\n  node-bootstrap\n  produce-once [--tx <payload>]\n  network-smoke\n  help\n"
+        "AOXC Command Surface\n\nCommands:\n  key-bootstrap --password <secret> [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]\n  node-bootstrap\n  produce-once [--tx <payload>]\n  network-smoke\n  help\n"
     );
 }

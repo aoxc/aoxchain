@@ -20,6 +20,10 @@ The current deterministic smoke path is centered on `aoxcmd`:
 4. Node bootstrap (`node-bootstrap`)
 5. Single-block production and local finalization attempt (`produce-once`)
 6. Network compatibility check against gossip stub (`network-smoke`)
+1. Key lifecycle bootstrap (`key-bootstrap`)
+2. Node bootstrap (`node-bootstrap`)
+3. Single-block production and local finalization attempt (`produce-once`)
+4. Network compatibility check against gossip stub (`network-smoke`)
 
 ### Canonical commands
 
