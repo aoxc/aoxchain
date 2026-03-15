@@ -21,6 +21,8 @@ This crate now includes a production-oriented secure API skeleton:
 - split service boundaries for query and transaction submission,
 - HTTP health + Prometheus metrics snapshot export,
 - websocket event framing for block confirmations.
+- rate limiter rejections now include `retry_after_ms` metadata to support client-side backoff UX.
+- in-memory limiter supports stale key pruning to prevent unbounded map growth in long-running nodes.
 
 - API and behavior changes should be evaluated for backward impact.
 - Prefer explicit parameters over implicit defaults in critical paths.
