@@ -56,6 +56,7 @@ AOXc#Mainnet2026!
 
 Detailed guide: [`docs/KEY_TYPES_AND_INTEROP_GUIDE_EN.md`](docs/KEY_TYPES_AND_INTEROP_GUIDE_EN.md).
 
+
 ## 3. Production-Oriented Commands (v0.1.0-alpha Baseline)
 
 For repeatable pre-production validation, use the quality-gate commands:
