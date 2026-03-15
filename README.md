@@ -12,42 +12,43 @@
 
 ---
 
-> ⚠️ **Dürüst Durum Beyanı (Mütevazı Not)**
+> ⚠️ **Project Status **
 >
-> Bu depo aktif geliştirme aşamasındadır. Mimari ve modüller üretim hedefiyle tasarlansa da,
-> bağımsız üçüncü taraf güvenlik denetimi (external audit), ekonomik saldırı modellemesi,
-> stres/chaos testleri ve uzun dönem operasyon verisi tamamlanmadan **mainnet için tek başına yeterli kabul edilmemelidir**.
+> This repository is under active development. While the architecture and modules target production use,
+> it should **not** be treated as mainnet-ready without independent third-party security audits,
+> economic attack simulations, stress/chaos testing, and long-term operational evidence.
 >
-> Lütfen bu projeyi körü körüne kopyalama/forklama ile doğrudan gerçek varlık yöneten ortamlara taşımayın.
-> Kendi risk modeliniz, hukuki değerlendirme, güvenlik testleri ve audit süreçleriniz olmadan üretim kararı almayın.
+> Please do not blindly copy/fork this project into environments that manage real assets.
+> Do not make production decisions without your own risk model, legal review, security testing,
+> and audit process.
 
-## 1) AOXChain Nedir?
+## 1) What is AOXChain?
 
-AOXChain, heterojen zincirler arasında **deterministik koordinasyon** hedefleyen, relay-chain odaklı bir Rust workspace'idir.
+AOXChain is a relay-chain-oriented Rust workspace designed for **deterministic cross-chain coordination**.
 
-Odak alanları:
-- zincirler arası birlikte çalışabilirlik,
-- denetlenebilir consensus/identity yüzeyleri,
-- çoklu yürütme lane modeli (EVM, WASM, Sui Move, Cardano adaptörleri),
-- operasyonel olarak testlenebilir node akışları,
-- audit-readiness ve güvenli değişiklik yönetimi.
+Core focus areas:
+- interoperability across heterogeneous chains,
+- auditable consensus and identity surfaces,
+- multi-lane execution model (EVM, WASM, Sui Move, Cardano adapters),
+- operationally testable node workflows,
+- audit-readiness and disciplined change management.
 
-## 2) Üretim Hedefi ve Güvenlik İlkeleri
+## 2) Production Goals and Security Principles
 
-### Mainnet hedefinin özeti
-1. Deterministik block üretimi + finality geçişleri,
-2. Kimlik ve sertifika tabanlı güven modeli,
-3. Güçlü operasyon (runbook + reproducible build + olay müdahale),
-4. Modüler crate sınırlarında net kontratlar.
+### Mainnet target summary
+1. Deterministic block production and finality transitions,
+2. Identity and certificate-based trust model,
+3. Strong operations (runbooks, reproducible builds, incident response),
+4. Clear crate boundaries and explicit contracts.
 
-### Güvenlik prensipleri
-- **Default deny / explicit allow** yaklaşımı,
-- **Minimum yetki** (least privilege) ve net rol ayrımı,
-- **Typed error surfaces** ile izlenebilir hata yönetimi,
-- **Deterministik davranış** (konsensüs kritik yüzeyde sürpriz yok),
-- **Audit izi**: dokümantasyon + test + PR disiplininin birlikte sürdürülmesi.
+### Security principles
+- **Default deny / explicit allow**,
+- **Least privilege** and clear role separation,
+- **Typed error surfaces** for traceable failures,
+- **Deterministic behavior** on consensus-critical paths,
+- **Audit trail discipline** across documentation, tests, and pull requests.
 
-## 3) Hızlı Başlangıç
+## 3) Quick Start
 
 ```bash
 cargo check --workspace
@@ -55,10 +56,8 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-## 4) Repo Haritası
 
-| Yol | Sorumluluk |
-|---|---|
+## 5) Deterministic Operator Flow (`aoxcmd`)
 | `crates/aoxcore` | Çekirdek domain primitifleri (identity, tx, genesis, mempool) |
 | `crates/aoxcunity` | Consensus çekirdeği (quorum, vote, proposer rotation, fork-choice, seal) |
 | `crates/aoxcvm` | Çok-lane execution uyumluluk katmanı |
@@ -74,10 +73,10 @@ Detaylı crate dizini: **[`crates/README.md`](crates/README.md)**
 ## 5) Deterministik Operatör Akışı (`aoxcmd`)
 
 ```bash
-# 1) Vizyon özeti
+# 1) Vision summary
 cargo run -p aoxcmd -- vision
 
-# 2) Genesis üretimi
+# 2) Generate genesis
 cargo run -p aoxcmd -- genesis-init \
   --path AOXC_DATA/identity/genesis.json \
   --chain-num 1 \
@@ -98,15 +97,17 @@ cargo run -p aoxcmd -- key-bootstrap \
 # 4) Node bootstrap
 cargo run -p aoxcmd -- node-bootstrap
 
-# 5) Tek blok deterministic üretim
+# 5) Produce a deterministic single block
 cargo run -p aoxcmd -- produce-once --tx "relay-coordination-demo"
 
-# 6) Ağ smoke
+# 6) Network smoke
 cargo run -p aoxcmd -- network-smoke
 
 # 7) Storage smoke
 cargo run -p aoxcmd -- storage-smoke --index sqlite
 cargo run -p aoxcmd -- storage-smoke --index redb
+
+# 8) Economy bootstrap (treasury + staking)
 
 # 8) Ekonomi bootstrap (hazine + stake)
 cargo run -p aoxcmd -- economy-init --treasury-supply 1000000000000
@@ -115,42 +116,50 @@ cargo run -p aoxcmd -- stake-delegate --staker validator-1 --validator val-core-
 cargo run -p aoxcmd -- economy-status
 ```
 
+## 6) Dev/Testnet Setup References
+
+- Local script: [`scripts/run-local.sh`](scripts/run-local.sh)
+- Config profiles: [`configs/mainnet.toml`](configs/mainnet.toml), [`configs/testnet.toml`](configs/testnet.toml), [`configs/genesis.json`](configs/genesis.json)
+- Container setup: [`Dockerfile`](Dockerfile), [`docker-compose.yaml`](docker-compose.yaml)
+
+> Note: The repository is actively evolving toward easier setup. Production-grade automated orchestration,
+> long-running fault injection coverage, and full runbook standardization are still ongoing work.
+
+## 7) SDK and Integration Entry Point
+
+Start here for the AOXChain SDK surface:
+- **[`crates/aoxcsdk/README.md`](crates/aoxcsdk/README.md)**
+
+The SDK evolves toward stable integration APIs; track release notes for compatibility changes.
+
+## 8) Documentation Hub
+
+### Operations + Audit
+- [`docs/AUDIT_READINESS_AND_OPERATIONS.md`](docs/AUDIT_READINESS_AND_OPERATIONS.md)
+- [`docs/P2P_AUDIT_GUIDE_EN.md`](docs/P2P_AUDIT_GUIDE_EN.md)
+
+### Architecture + Roadmap
+- [`docs/RELAY_CHAIN_MAINNET_BLUEPRINT.md`](docs/RELAY_CHAIN_MAINNET_BLUEPRINT.md)
+- [`docs/TEKNIK_DERIN_ANALIZ_TR.md`](docs/TEKNIK_DERIN_ANALIZ_TR.md)
+- [`docs/REPO_GAP_ANALIZI_TR.md`](docs/REPO_GAP_ANALIZI_TR.md)
+
+### Responsible use and risk notice
+- [`docs/SECURITY_AND_RISK_NOTICE_TR.md`](docs/SECURITY_AND_RISK_NOTICE_TR.md)
+
+## 9) Contribution and Security Discipline
+
+- Changes touching consensus/identity/networking must include tests.
+- Keep linting clean (`clippy -D warnings`).
+- For large changes, include a design note, threat model update, and rollback plan.
+- Keep key material, certificates, and sensitive artifacts under strict operational controls.
+
+## 10) License
 ## 6) Dev/Testnet Kurulum Referansları
 
 - Local script: [`scripts/run-local.sh`](scripts/run-local.sh)
 - Konfigürasyonlar: [`configs/mainnet.toml`](configs/mainnet.toml), [`configs/testnet.toml`](configs/testnet.toml), [`configs/genesis.json`](configs/genesis.json)
 - Container seti: [`Dockerfile`](Dockerfile), [`docker-compose.yaml`](docker-compose.yaml)
 
-> Not: Bu repo şu anda “kolay kurulum” yönünde ilerlemektedir; üretim-grade otomatik orkestrasyon,
-> uzun süreli fault-injection testleri ve tam runbook standardizasyonu sürekli geliştirme konusudur.
-
-## 7) SDK ve Entegrasyon Başlangıcı
-
-AOXChain SDK yüzeyi için başlangıç noktası:
-- **[`crates/aoxcsdk/README.md`](crates/aoxcsdk/README.md)**
-
-SDK, istemci tarafı entegrasyonlarında stabilize API hedefiyle geliştirilir; sürüm geçişlerinde değişiklik notlarını takip edin.
-
-## 8) Dokümantasyon Merkezi
-
-### Operasyon + Audit
-- [`docs/AUDIT_READINESS_AND_OPERATIONS.md`](docs/AUDIT_READINESS_AND_OPERATIONS.md)
-- [`docs/P2P_AUDIT_GUIDE_EN.md`](docs/P2P_AUDIT_GUIDE_EN.md)
-
-### Mimari + Yol Haritası
-- [`docs/RELAY_CHAIN_MAINNET_BLUEPRINT.md`](docs/RELAY_CHAIN_MAINNET_BLUEPRINT.md)
-- [`docs/TEKNIK_DERIN_ANALIZ_TR.md`](docs/TEKNIK_DERIN_ANALIZ_TR.md)
-- [`docs/REPO_GAP_ANALIZI_TR.md`](docs/REPO_GAP_ANALIZI_TR.md)
-
-### Sorumlu kullanım ve risk bildirimi
-- [`docs/SECURITY_AND_RISK_NOTICE_TR.md`](docs/SECURITY_AND_RISK_NOTICE_TR.md)
-
-## 9) Katkı ve Güvenlik Disiplini
-
-- Konsensüs/kimlik/ağ yüzeyine dokunan değişikliklerde test zorunludur.
-- Lint temizliği (`clippy -D warnings`) korunmalıdır.
-- Büyük değişikliklerde tasarım notu + tehdit modeli + rollback planı önerilir.
-- Operasyonel güvenlik için anahtar materyal, sertifika ve gizli dosyalar ayrı yönetilmelidir.
 
 ## 10) Lisans
 

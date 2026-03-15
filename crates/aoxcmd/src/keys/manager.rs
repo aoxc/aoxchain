@@ -4,7 +4,7 @@ use super::loader::{KeyBootstrapRequest, KeyLoader, KeyLoaderError};
 use super::material::KeyMaterial;
 use super::paths::KeyPaths;
 
-/// High-level façade used by `aoxcmd` runtime bootstrap to resolve local keys.
+/// High-level facade used by `aoxcmd` runtime bootstrap to resolve local keys.
 #[derive(Debug, Clone)]
 pub struct KeyManager {
     paths: KeyPaths,
@@ -31,10 +31,7 @@ impl KeyManager {
     }
 
     /// Loads existing key material or creates it if absent.
-    pub fn load_or_create(
-        &self,
-        ca: &CertificateAuthority,
-    ) -> Result<KeyMaterial, KeyLoaderError> {
+    pub fn load_or_create(&self, ca: &CertificateAuthority) -> Result<KeyMaterial, KeyLoaderError> {
         KeyLoader::load_or_create(&self.paths, &self.request, ca)
     }
 }
