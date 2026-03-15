@@ -1,11 +1,5 @@
 use crate::block::hash::{canonical_section_sort_key, compute_block_hash, compute_body_roots};
-use crate::block::types::{
-    Block,
-    BlockBody,
-    BlockBuildError,
-    BlockHeader,
-    BLOCK_VERSION_V1,
-};
+use crate::block::types::{BLOCK_VERSION_V1, Block, BlockBody, BlockBuildError, BlockHeader};
 
 /// Deterministic block construction utility.
 ///
@@ -25,6 +19,7 @@ impl BlockBuilder {
     /// - parent validity,
     /// - lane-level semantic validation,
     /// - external proof verification.
+    #[allow(clippy::too_many_arguments)]
     pub fn build(
         network_id: u32,
         parent_hash: [u8; 32],
@@ -46,8 +41,7 @@ impl BlockBuilder {
         let _ = u64::try_from(body.sections.len())
             .map_err(|_| BlockBuildError::SectionCountOverflow)?;
 
-        body.sections
-            .sort_by_key(canonical_section_sort_key);
+        body.sections.sort_by_key(canonical_section_sort_key);
 
         let roots = compute_body_roots(&body);
 
@@ -75,15 +69,8 @@ impl BlockBuilder {
 #[cfg(test)]
 mod tests {
     use crate::block::types::{
-        BlockBody,
-        BlockSection,
-        ExternalNetwork,
-        ExternalProofRecord,
-        ExternalProofSection,
-        ExternalProofType,
-        LaneCommitment,
-        LaneCommitmentSection,
-        LaneType,
+        BlockBody, BlockSection, ExternalNetwork, ExternalProofRecord, ExternalProofSection,
+        ExternalProofType, LaneCommitment, LaneCommitmentSection, LaneType,
     };
 
     use super::BlockBuilder;
@@ -117,17 +104,8 @@ mod tests {
         )
         .unwrap();
 
-        let block_b = BlockBuilder::build(
-            1,
-            [9u8; 32],
-            10,
-            0,
-            7,
-            1_735_689_600,
-            [8u8; 32],
-            body,
-        )
-        .unwrap();
+        let block_b =
+            BlockBuilder::build(1, [9u8; 32], 10, 0, 7, 1_735_689_600, [8u8; 32], body).unwrap();
 
         assert_eq!(block_a, block_b);
     }
@@ -189,4 +167,3 @@ mod tests {
         assert_eq!(block_a.header.body_root, block_b.header.body_root);
     }
 }
-

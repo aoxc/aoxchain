@@ -1,4 +1,4 @@
-use consensus::messages::ConsensusMessage;
+use aoxcunity::messages::ConsensusMessage;
 
 /// Gossip engine responsible for propagating and receiving consensus messages
 /// across peers.

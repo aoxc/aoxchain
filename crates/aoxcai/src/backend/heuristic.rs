@@ -20,6 +20,12 @@ impl HeuristicBackendRuntime {
     }
 }
 
+impl Default for HeuristicBackendRuntime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait::async_trait]
 impl InferenceBackend for HeuristicBackendRuntime {
     fn name(&self) -> &'static str {
@@ -31,21 +37,21 @@ impl InferenceBackend for HeuristicBackendRuntime {
         manifest: &ModelManifest,
         request: &InferenceRequest,
     ) -> Result<ModelOutput, AiError> {
-        let heuristic = manifest
-            .spec
-            .backend
-            .heuristic
-            .as_ref()
-            .ok_or_else(|| AiError::ManifestValidation(
+        let heuristic = manifest.spec.backend.heuristic.as_ref().ok_or_else(|| {
+            AiError::ManifestValidation(
                 "heuristic backend requires spec.backend.heuristic".to_owned(),
-            ))?;
+            )
+        })?;
 
         let keywords = &heuristic.anomaly_keywords;
         let mut risk_bps: u16 = 0;
 
         for signal in &request.signals {
             let value = signal.value.to_ascii_lowercase();
-            if keywords.iter().any(|keyword| value.contains(&keyword.to_ascii_lowercase())) {
+            if keywords
+                .iter()
+                .any(|keyword| value.contains(&keyword.to_ascii_lowercase()))
+            {
                 risk_bps = risk_bps.saturating_add(signal.weight_bps.min(2_500));
             }
         }
@@ -75,10 +81,7 @@ impl InferenceBackend for HeuristicBackendRuntime {
 
         let mut attributes = BTreeMap::new();
         attributes.insert("ruleset".to_owned(), heuristic.ruleset.clone());
-        attributes.insert(
-            "signal_count".to_owned(),
-            request.signals.len().to_string(),
-        );
+        attributes.insert("signal_count".to_owned(), request.signals.len().to_string());
         attributes.insert(
             "finding_count".to_owned(),
             request.findings.len().to_string(),
@@ -125,10 +128,7 @@ mod tests {
         assert_eq!(output.label, "trusted");
         assert_eq!(output.risk_bps, 0);
         assert_eq!(output.confidence_bps, 7_500);
-        assert_eq!(
-            output.attributes.get("signal_count"),
-            Some(&"0".to_owned())
-        );
+        assert_eq!(output.attributes.get("signal_count"), Some(&"0".to_owned()));
         assert_eq!(
             output.attributes.get("finding_count"),
             Some(&"0".to_owned())
@@ -170,11 +170,7 @@ mod tests {
                     "Critical identity revocation detected.",
                     "critical",
                 ),
-                InferenceFinding::new(
-                    "runtime_anomaly",
-                    "Runtime anomaly detected.",
-                    "warning",
-                ),
+                InferenceFinding::new("runtime_anomaly", "Runtime anomaly detected.", "warning"),
             ],
         );
 
@@ -229,10 +225,7 @@ mod tests {
 
         match err {
             AiError::ManifestValidation(message) => {
-                assert_eq!(
-                    message,
-                    "heuristic backend requires spec.backend.heuristic"
-                );
+                assert_eq!(message, "heuristic backend requires spec.backend.heuristic");
             }
             other => panic!("unexpected error: {other}"),
         }

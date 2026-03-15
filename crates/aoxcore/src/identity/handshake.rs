@@ -174,23 +174,6 @@ mod tests {
         }
     }
 
-    /// Adapter helper used to mirror the real `RevocationList` API shape in local tests.
-    ///
-    /// This helper exists only because the actual project type is external to this module.
-    fn as_revocation_list(local: &LocalRevocationList) -> RevocationListShim<'_> {
-        RevocationListShim { inner: local }
-    }
-
-    struct RevocationListShim<'a> {
-        inner: &'a LocalRevocationList,
-    }
-
-    impl RevocationListShim<'_> {
-        fn is_revoked(&self, actor_id: &str) -> bool {
-            self.inner.is_revoked(actor_id)
-        }
-    }
-
     fn sample_certificate() -> Certificate {
         Certificate::new_unsigned(
             "AOXC-0001-MAIN".to_string(),
@@ -209,12 +192,11 @@ mod tests {
         let cert = sample_certificate();
 
         let local_crl = LocalRevocationList::new();
-        let crl = as_revocation_list(&local_crl);
 
         let result = if cert.signature.trim().is_empty() {
             Err(HandshakeError::MissingSignature)
         } else {
-            let _ = (&ca, &crl);
+            let _ = (&ca, &local_crl);
             Ok(())
         };
 
