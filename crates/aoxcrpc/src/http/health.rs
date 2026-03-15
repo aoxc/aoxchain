@@ -1,7 +1,172 @@
+use crate::config::RpcConfig;
 use crate::types::HealthResponse;
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::path::Path;
 
 /// Returns the current health status exposed by the HTTP RPC interface.
 #[must_use]
 pub fn health() -> HealthResponse {
-    HealthResponse { status: "ok" }
+    health_with_context(&RpcConfig::default(), 0)
+}
+
+/// Returns a detailed health payload suitable for production-grade health probes.
+#[must_use]
+pub fn health_with_context(config: &RpcConfig, uptime_secs: u64) -> HealthResponse {
+    let validation = config.validate();
+
+    let tls_cert_exists = Path::new(&config.tls_cert_path).exists();
+    let tls_key_exists = Path::new(&config.tls_key_path).exists();
+    let mtls_enabled = config.mtls_ca_cert_path.is_some();
+
+    let status = if !validation.errors.is_empty() {
+        "error"
+    } else if !validation.warnings.is_empty() {
+        "degraded"
+    } else {
+        "ok"
+    }
+    .to_string();
+
+    HealthResponse {
+        status,
+        chain_id: config.chain_id.clone(),
+        genesis_hash: config.genesis_hash.clone(),
+        tls_enabled: tls_cert_exists && tls_key_exists,
+        mtls_enabled,
+        tls_cert_sha256: certificate_fingerprint_sha256_from_path(&config.tls_cert_path),
+        readiness_score: validation.readiness_score(),
+        warnings: validation.warnings.clone(),
+        errors: validation.errors.clone(),
+        recommendations: recommendations_from_validation(&validation.warnings, &validation.errors),
+        uptime_secs,
+    }
+}
+
+fn recommendations_from_validation(warnings: &[String], errors: &[String]) -> Vec<String> {
+    let mut recommendations = Vec::new();
+
+    if warnings
+        .iter()
+        .any(|warning| warning.contains("genesis_hash"))
+        || errors.iter().any(|error| error.contains("genesis_hash"))
+    {
+        recommendations.push(
+            "Set a canonical 0x-prefixed genesis_hash in RpcConfig and enforce it at node startup"
+                .to_string(),
+        );
+    }
+
+    if warnings.iter().any(|warning| warning.contains("tls")) {
+        recommendations.push(
+            "Provision TLS certificate and private key files with strict filesystem permissions"
+                .to_string(),
+        );
+    }
+
+    if warnings.iter().any(|warning| warning.contains("mTLS")) {
+        recommendations
+            .push("Enable mTLS and configure a trusted CA chain for client auth".to_string());
+    }
+
+    if errors
+        .iter()
+        .any(|error| error.contains("max_requests_per_minute"))
+    {
+        recommendations.push(
+            "Set max_requests_per_minute to a non-zero baseline aligned with traffic SLOs"
+                .to_string(),
+        );
+    }
+
+    if errors
+        .iter()
+        .any(|error| error.contains("rate_limiter_window_secs"))
+    {
+        recommendations
+            .push("Set rate_limiter_window_secs to a non-zero duration (e.g. 60)".to_string());
+    }
+
+    if errors
+        .iter()
+        .any(|error| error.contains("rate_limiter_max_tracked_keys"))
+    {
+        recommendations.push(
+            "Set rate_limiter_max_tracked_keys to a non-zero bounded capacity (e.g. 100000)"
+                .to_string(),
+        );
+    }
+
+    recommendations
+}
+
+fn certificate_fingerprint_sha256_from_path(path: &str) -> Option<String> {
+    let cert_bytes = fs::read(path).ok()?;
+    Some(certificate_fingerprint_sha256(&cert_bytes))
+}
+
+fn certificate_fingerprint_sha256(cert_bytes: &[u8]) -> String {
+    let digest = Sha256::digest(cert_bytes);
+    digest.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_health_is_degraded_without_production_inputs() {
+        let health = health();
+
+        assert_eq!(health.status, "degraded");
+        assert!(health.readiness_score < 100);
+        assert!(health.errors.is_empty());
+        assert!(health
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("genesis_hash")));
+        assert!(!health.recommendations.is_empty());
+    }
+
+    #[test]
+    fn certificate_fingerprint_is_deterministic() {
+        let fingerprint_a = certificate_fingerprint_sha256(b"dummy-cert");
+        let fingerprint_b = certificate_fingerprint_sha256(b"dummy-cert");
+        let fingerprint_c = certificate_fingerprint_sha256(b"dummy-cert-2");
+
+        assert_eq!(fingerprint_a, fingerprint_b);
+        assert_ne!(fingerprint_a, fingerprint_c);
+        assert_eq!(fingerprint_a.len(), 64);
+    }
+
+    #[test]
+    fn health_is_ok_when_all_critical_controls_are_ready() {
+        let mut config = RpcConfig::default();
+        config.genesis_hash = Some(format!("0x{}", "ab".repeat(32)));
+        config.tls_cert_path = "Cargo.toml".to_string();
+        config.tls_key_path = "Cargo.toml".to_string();
+        config.mtls_ca_cert_path = Some("Cargo.toml".to_string());
+
+        let health = health_with_context(&config, 42);
+
+        assert_eq!(health.status, "ok");
+        assert_eq!(health.readiness_score, 100);
+        assert!(health.warnings.is_empty());
+        assert!(health.errors.is_empty());
+        assert!(health.recommendations.is_empty());
+        assert_eq!(health.uptime_secs, 42);
+        assert!(health.tls_cert_sha256.is_some());
+    }
+
+    #[test]
+    fn health_is_error_with_invalid_limits() {
+        let mut config = RpcConfig::default();
+        config.max_requests_per_minute = 0;
+
+        let health = health_with_context(&config, 0);
+
+        assert_eq!(health.status, "error");
+        assert_eq!(health.readiness_score, 0);
+        assert!(!health.errors.is_empty());
+    }
 }
