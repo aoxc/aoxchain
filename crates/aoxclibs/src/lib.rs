@@ -1,5 +1,5 @@
-pub fn selam_ver() {
-    println!("Aoxclibs kütüphanesinden merhaba!");
+pub fn greet() {
+    println!("Hello from the aoxclibs library!");
 }
 
 #[cfg(test)]

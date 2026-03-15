@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Default)]
 pub struct WorldState {
-    /// Adres (32 byte public key) -> Hesap verisi.
+    /// Address (32-byte public key) -> account data.
     pub accounts: HashMap<[u8; 32], Account>,
 }
 
@@ -18,7 +18,7 @@ impl WorldState {
         }
     }
 
-    /// Bir hesabın güncel durumunu getirir, yoksa yeni oluşturur.
+    /// Returns the current account state, creating a new account if it does not exist.
     pub fn get_or_create(
         &mut self,
         address: [u8; 32],
@@ -27,11 +27,10 @@ impl WorldState {
         self.accounts.entry(address).or_insert(Account::new(cap))
     }
 
-    /// Eşsiz bir State Root (hash) üretir.
-    /// (Blockchain'in o andaki halinin parmak izi).
+    /// Produces a unique State Root hash (fingerprint of the current chain state).
     pub fn root_hash(&self) -> [u8; 32] {
-        // AOXC Minimalist Yaklaşım: Tüm hesapları sıralı hashle.
-        // İleride buraya Merkle Patricia Trie eklenebilir.
+        // AOXC minimalist approach: hash all accounts in sorted order.
+        // A Merkle Patricia Trie can be introduced here in the future.
         let mut hasher = blake3::Hasher::new();
         let mut sorted_accounts: Vec<_> = self.accounts.iter().collect();
         sorted_accounts.sort_by(|a, b| a.0.cmp(b.0));

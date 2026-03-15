@@ -1,4 +1,4 @@
-// Aoxcmob kütüphanesi başlangıç dosyası
+// aoxcmob library entry file
 pub fn init_mob() {
-    println!("Aoxcmob modülü hazır.");
+    println!("aoxcmob module is ready.");
 }

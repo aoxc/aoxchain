@@ -29,8 +29,8 @@ cargo check -p aoxcmd
 
 ## Extended CLI (Economy + Compatibility)
 
-- `compat-matrix`: lane/transport compatibility görünümü.
-- `economy-init`: hazine bakiyesi ile ekonomi durumunu başlatır.
-- `treasury-transfer`: hazineden hesaba transfer yapar.
-- `stake-delegate` / `stake-undelegate`: stake pozisyonu yönetir.
-- `economy-status`: bakiye ve stake özetini döndürür.
+- `compat-matrix`: lane/transport compatibility overview.
+- `economy-init`: initializes economy state with treasury supply.
+- `treasury-transfer`: moves funds from treasury to an account.
+- `stake-delegate` / `stake-undelegate`: manages staking positions.
+- `economy-status`: returns balance and staking summaries.

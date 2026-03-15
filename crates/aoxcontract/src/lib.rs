@@ -1,4 +1,4 @@
-// Aoxcontract modülü
+// aoxcontract module
 pub fn contract_info() {
-    println!("Aoxcontract kütüphanesi aktif.");
+    println!("aoxcontract library is active.");
 }

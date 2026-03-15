@@ -12,54 +12,73 @@
 
 ---
 
-## AOXChain nedir?
+> ⚠️ **Project Status (Humble Notice)**
+>
+> This repository is under active development. While the architecture and modules target production use,
+> it should **not** be treated as mainnet-ready without independent third-party security audits,
+> economic attack simulations, stress/chaos testing, and long-term operational evidence.
+>
+> Please do not blindly copy/fork this project into environments that manage real assets.
+> Do not make production decisions without your own risk model, legal review, security testing,
+> and audit process.
 
-AOXChain, heterojen zincirler arasında **deterministik koordinasyon** hedefleyen, relay-chain odaklı bir Rust workspace'idir.
+## 1) What is AOXChain?
 
-Odak noktaları:
-- Zincirler arası birlikte çalışabilirlik,
-- Açık ve denetlenebilir consensus/identity akışları,
-- Çoklu yürütme lane modeli (EVM, WASM, Sui Move, Cardano adaptörleri),
-- Operasyonel olarak testlenebilir node akışları.
+AOXChain is a relay-chain-oriented Rust workspace designed for **deterministic cross-chain coordination**.
 
-## Üretim Vizyonu (Mainnet Hedefi)
+Core focus areas:
+- interoperability across heterogeneous chains,
+- auditable consensus and identity surfaces,
+- multi-lane execution model (EVM, WASM, Sui Move, Cardano adapters),
+- operationally testable node workflows,
+- audit-readiness and disciplined change management.
 
-1. Deterministik block üretimi + finality geçişleri,
-2. Güçlü kimlik modeli (actor id, certificate, passport, PQ-ready yüzey),
-3. Güvenli işletim (runbook + reproducible build + audit readiness),
-4. Modüler crate sınırlarında net kontratlar.
+## 2) Production Goals and Security Principles
 
-## Repo Haritası
+### Mainnet target summary
+1. Deterministic block production and finality transitions,
+2. Identity and certificate-based trust model,
+3. Strong operations (runbooks, reproducible builds, incident response),
+4. Clear crate boundaries and explicit contracts.
 
-| Yol | Sorumluluk |
-|---|---|
-| `crates/aoxcore` | Çekirdek domain primitifleri (identity, tx, genesis, mempool) |
-| `crates/aoxcunity` | Consensus çekirdeği (quorum, vote, proposer rotation, fork-choice, seal) |
-| `crates/aoxcvm` | Çok-lane execution uyumluluk katmanı |
-| `crates/aoxcnet` | Gossip/discovery/sync ağ kabuğu |
-| `crates/aoxcrpc` | HTTP / gRPC / WebSocket RPC giriş katmanı |
-| `crates/aoxcmd` | Node orchestration, bootstrap, deterministic smoke komutları |
-| `crates/aoxckit` | Operatör araçları (keyforge vb.) |
-| `crates/aoxchal` | HAL yüzeyi (CPU capability + memory region soyutlaması) |
-| `crates/*` | Destekleyici crate'ler (data, ai, sdk, config, libs, exec, energy, contract...) |
-| `docs/` | Mimari, audit hazırlığı, mainnet blueprint, detaylı analizler |
-| `models/` | Politika/risk model örnekleri |
-| `tests/` | Workspace seviyesinde entegrasyon destek yüzeyi |
+### Security principles
+- **Default deny / explicit allow**,
+- **Least privilege** and clear role separation,
+- **Typed error surfaces** for traceable failures,
+- **Deterministic behavior** on consensus-critical paths,
+- **Audit trail discipline** across documentation, tests, and pull requests.
 
-## Hızlı Başlangıç
+## 3) Quick Start
 
 ```bash
 cargo check --workspace
-cargo test -p aoxcmd
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-## Deterministik Operatör Akışı (`aoxcmd`)
+## 4) Repository Map
+
+| Path | Responsibility |
+|---|---|
+| `crates/aoxcore` | Core protocol primitives (identity, tx, genesis, mempool) |
+| `crates/aoxcunity` | Consensus kernel (quorum, vote, proposer rotation, fork-choice, seal) |
+| `crates/aoxcvm` | Multi-lane execution compatibility layer |
+| `crates/aoxcnet` | Gossip/discovery/sync networking shell |
+| `crates/aoxcrpc` | HTTP / gRPC / WebSocket RPC ingress |
+| `crates/aoxcmd` | Node orchestration and deterministic operator workflows |
+| `crates/aoxckit` | Keyforge and operational cryptographic tooling |
+| `crates/aoxcsdk` | SDK surface for application/integration developers |
+| `docs/` | Architecture, audit-readiness, runbooks, risk and analysis docs |
+
+Detailed crate index: **[`crates/README.md`](crates/README.md)**
+
+## 5) Deterministic Operator Flow (`aoxcmd`)
 
 ```bash
-# 1) Vizyon özeti
+# 1) Vision summary
 cargo run -p aoxcmd -- vision
 
-# 2) Genesis üretimi
+# 2) Generate genesis
 cargo run -p aoxcmd -- genesis-init \
   --path AOXC_DATA/identity/genesis.json \
   --chain-num 1 \
@@ -80,40 +99,60 @@ cargo run -p aoxcmd -- key-bootstrap \
 # 4) Node bootstrap
 cargo run -p aoxcmd -- node-bootstrap
 
-# 5) Tek blok deterministic üretim
+# 5) Produce a deterministic single block
 cargo run -p aoxcmd -- produce-once --tx "relay-coordination-demo"
 
-# 6) Ağ smoke
+# 6) Network smoke
 cargo run -p aoxcmd -- network-smoke
 
 # 7) Storage smoke
 cargo run -p aoxcmd -- storage-smoke --index sqlite
 cargo run -p aoxcmd -- storage-smoke --index redb
 
-
-# 8) Ekonomi bootstrap (hazine + stake)
+# 8) Economy bootstrap (treasury + staking)
 cargo run -p aoxcmd -- economy-init --treasury-supply 1000000000000
 cargo run -p aoxcmd -- treasury-transfer --to validator-1 --amount 500000000
 cargo run -p aoxcmd -- stake-delegate --staker validator-1 --validator val-core-1 --amount 250000000
 cargo run -p aoxcmd -- economy-status
 ```
 
-## Operasyon ve Kalite Dokümanları
+## 6) Dev/Testnet Setup References
 
-- `docs/REPO_GAP_ANALIZI_TR.md` — klasör bazlı eksik/gelişim haritası (TR).
-- `docs/RELAY_CHAIN_MAINNET_BLUEPRINT.md` — mainnet yol haritası.
-- `docs/AUDIT_READINESS_AND_OPERATIONS.md` — operasyonel güvence ve audit hazırlığı.
-- `docs/TEKNIK_DERIN_ANALIZ_TR.md` — teknik değerlendirme.
+- Local script: [`scripts/run-local.sh`](scripts/run-local.sh)
+- Config profiles: [`configs/mainnet.toml`](configs/mainnet.toml), [`configs/testnet.toml`](configs/testnet.toml), [`configs/genesis.json`](configs/genesis.json)
+- Container setup: [`Dockerfile`](Dockerfile), [`docker-compose.yaml`](docker-compose.yaml)
 
-## Lisans
+> Note: The repository is actively evolving toward easier setup. Production-grade automated orchestration,
+> long-running fault injection coverage, and full runbook standardization are still ongoing work.
+
+## 7) SDK and Integration Entry Point
+
+Start here for the AOXChain SDK surface:
+- **[`crates/aoxcsdk/README.md`](crates/aoxcsdk/README.md)**
+
+The SDK evolves toward stable integration APIs; track release notes for compatibility changes.
+
+## 8) Documentation Hub
+
+### Operations + Audit
+- [`docs/AUDIT_READINESS_AND_OPERATIONS.md`](docs/AUDIT_READINESS_AND_OPERATIONS.md)
+- [`docs/P2P_AUDIT_GUIDE_EN.md`](docs/P2P_AUDIT_GUIDE_EN.md)
+
+### Architecture + Roadmap
+- [`docs/RELAY_CHAIN_MAINNET_BLUEPRINT.md`](docs/RELAY_CHAIN_MAINNET_BLUEPRINT.md)
+- [`docs/TEKNIK_DERIN_ANALIZ_TR.md`](docs/TEKNIK_DERIN_ANALIZ_TR.md)
+- [`docs/REPO_GAP_ANALIZI_TR.md`](docs/REPO_GAP_ANALIZI_TR.md)
+
+### Responsible use and risk notice
+- [`docs/SECURITY_AND_RISK_NOTICE_TR.md`](docs/SECURITY_AND_RISK_NOTICE_TR.md)
+
+## 9) Contribution and Security Discipline
+
+- Changes touching consensus/identity/networking must include tests.
+- Keep linting clean (`clippy -D warnings`).
+- For large changes, include a design note, threat model update, and rollback plan.
+- Keep key material, certificates, and sensitive artifacts under strict operational controls.
+
+## 10) License
 
 MIT (`LICENSE`).
-
-
-## Mainnet Operasyon Dosyaları
-
-- `configs/genesis.json` — deterministic genesis örneği.
-- `configs/mainnet.toml` / `configs/testnet.toml` — ağ profilleri.
-- `Dockerfile` + `docker-compose.yaml` — containerize node ve 4-node local simülasyon.
-- `Makefile` + `scripts/run-local.sh` — standart build/test/run komutları.
-- `.github/workflows/ci.yml` — workspace check+test CI akışı.
