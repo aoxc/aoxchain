@@ -26,8 +26,15 @@ Local CLI validation:
 ```bash
 cargo run -p aoxcmd -- version
 cargo run -p aoxcmd -- vision
+cargo run -p aoxcmd -- runtime-status --trace standard --tps 12.4 --peers 7 --error-rate 0.001
 ```
 
+
+## 3.1 CLI Security + Telemetry Baseline
+
+`aoxcmd key-bootstrap` now enforces a strong password baseline (minimum 12 chars with upper/lower/digit/symbol classes) before key material is persisted. On Unix-like systems, key bundle, certificate, and passport artifacts are persisted with restrictive `0600` file permissions.
+
+`aoxcmd runtime-status` provides a production-friendly runtime snapshot for tracing profile + Prometheus-formatted telemetry payloads and can be wired into operator dashboards or external scrape bridges.
 
 ## 3. Production-Oriented Commands (v0.1.0-alpha Baseline)
 
