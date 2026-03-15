@@ -100,6 +100,11 @@ pub fn produce_single_block(
     Ok(SingleBlockOutcome { block, seal })
 }
 
+use aoxcunity::block::{BlockBody, BlockBuilder};
+use aoxcunity::fork_choice::BlockMeta;
+
+const ARCHIVE_ROOT: &str = "AOXC_DATA/db/blocks";
+
 pub fn run(node: &mut AOXCNode) {
     const BLOCK_TIME_SECS: u64 = 6;
     const MEMPOOL_BATCH_LIMIT: usize = 100;
@@ -245,6 +250,10 @@ fn archive_block(height: u64, parent: [u8; 32], hash: [u8; 32]) -> io::Result<()
 
     fs::rename(&temp_path, &final_path)?;
     Ok(())
+}
+
+fn temporary_archive_path(base_dir: &Path, height: u64) -> PathBuf {
+    base_dir.join(format!(".height_{}.data.tmp", height))
 }
 
 fn current_unix_timestamp_secs() -> io::Result<u64> {
