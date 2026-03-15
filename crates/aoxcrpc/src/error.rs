@@ -61,6 +61,7 @@ impl RpcError {
             retry_after_ms: self.retry_after_ms(),
             request_id,
             user_hint: self.user_hint().map(str::to_string),
+
         }
     }
 }

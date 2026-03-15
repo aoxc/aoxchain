@@ -14,6 +14,7 @@ pub fn health() -> HealthResponse {
 #[must_use]
 pub fn health_with_context(config: &RpcConfig, uptime_secs: u64) -> HealthResponse {
     let validation = config.validate();
+    let mut warnings = Vec::new();
 
     let tls_cert_exists = Path::new(&config.tls_cert_path).exists();
     let tls_key_exists = Path::new(&config.tls_key_path).exists();
@@ -27,6 +28,43 @@ pub fn health_with_context(config: &RpcConfig, uptime_secs: u64) -> HealthRespon
         "ok"
     }
     .to_string();
+    let mtls_ca_exists = config
+        .mtls_ca_cert_path
+        .as_ref()
+        .is_some_and(|path| Path::new(path).exists());
+
+    if config.genesis_hash.is_none() {
+        warnings.push("genesis_hash is not configured".to_string());
+    }
+
+    if !tls_cert_exists {
+        warnings.push("tls certificate file is missing".to_string());
+    }
+
+    if !tls_key_exists {
+        warnings.push("tls private key file is missing".to_string());
+    }
+
+    if mtls_enabled && !mtls_ca_exists {
+        warnings.push("mTLS CA certificate file is missing".to_string());
+    }
+
+    if !mtls_enabled {
+        warnings.push("mTLS is disabled".to_string());
+    }
+
+    let readiness_score = readiness_score(
+        config.genesis_hash.is_some(),
+        tls_cert_exists,
+        tls_key_exists,
+        mtls_enabled && mtls_ca_exists,
+    );
+
+    let status = if warnings.is_empty() {
+        "ok".to_string()
+    } else {
+        "degraded".to_string()
+    };
 
     HealthResponse {
         status,
@@ -39,6 +77,8 @@ pub fn health_with_context(config: &RpcConfig, uptime_secs: u64) -> HealthRespon
         warnings: validation.warnings.clone(),
         errors: validation.errors.clone(),
         recommendations: recommendations_from_validation(&validation.warnings, &validation.errors),
+        readiness_score,
+        warnings,
         uptime_secs,
     }
 }
@@ -98,6 +138,28 @@ fn recommendations_from_validation(warnings: &[String], errors: &[String]) -> Ve
     }
 
     recommendations
+fn readiness_score(
+    has_genesis_hash: bool,
+    tls_cert_exists: bool,
+    tls_key_exists: bool,
+    mtls_ready: bool,
+) -> u8 {
+    let mut score = 0_u8;
+
+    if has_genesis_hash {
+        score += 25;
+    }
+    if tls_cert_exists {
+        score += 25;
+    }
+    if tls_key_exists {
+        score += 25;
+    }
+    if mtls_ready {
+        score += 25;
+    }
+
+    score
 }
 
 fn certificate_fingerprint_sha256_from_path(path: &str) -> Option<String> {
@@ -143,6 +205,7 @@ mod tests {
     fn health_is_ok_when_all_critical_controls_are_ready() {
         let mut config = RpcConfig::default();
         config.genesis_hash = Some(format!("0x{}", "ab".repeat(32)));
+        config.genesis_hash = Some("0xabc123".to_string());
         config.tls_cert_path = "Cargo.toml".to_string();
         config.tls_key_path = "Cargo.toml".to_string();
         config.mtls_ca_cert_path = Some("Cargo.toml".to_string());
@@ -168,5 +231,8 @@ mod tests {
         assert_eq!(health.status, "error");
         assert_eq!(health.readiness_score, 0);
         assert!(!health.errors.is_empty());
+    }
+        assert_eq!(health.uptime_secs, 42);
+        assert!(health.tls_cert_sha256.is_some());
     }
 }

@@ -62,6 +62,8 @@ impl RateLimiter {
     }
 
     fn prune_expired_at(&mut self, now: Instant) {
+
+        let now = Instant::now();
         self.requests.retain(|_, entries| {
             entries.retain(|entry| now.duration_since(*entry) <= self.window);
             !entries.is_empty()

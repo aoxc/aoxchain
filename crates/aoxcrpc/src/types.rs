@@ -13,6 +13,7 @@ pub struct HealthResponse {
     pub warnings: Vec<String>,
     pub errors: Vec<String>,
     pub recommendations: Vec<String>,
+
     pub uptime_secs: u64,
 }
 
