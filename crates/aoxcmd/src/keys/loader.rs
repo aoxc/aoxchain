@@ -11,8 +11,13 @@ use aoxcore::identity::pq_keys::{
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 
 use super::material::KeyMaterial;
 use super::paths::KeyPaths;
@@ -63,6 +68,7 @@ struct PersistedKeyBundle {
 #[non_exhaustive]
 pub enum KeyLoaderError {
     EmptyPassword,
+    WeakPassword,
     InvalidValidityWindow,
     FilesystemError(String),
     InvalidKeyfile,
@@ -86,6 +92,7 @@ impl KeyLoaderError {
     pub const fn code(&self) -> &'static str {
         match self {
             Self::EmptyPassword => "KEY_LOADER_EMPTY_PASSWORD",
+            Self::WeakPassword => "KEY_LOADER_WEAK_PASSWORD",
             Self::InvalidValidityWindow => "KEY_LOADER_INVALID_VALIDITY_WINDOW",
             Self::FilesystemError(_) => "KEY_LOADER_FILESYSTEM_ERROR",
             Self::InvalidKeyfile => "KEY_LOADER_INVALID_KEYFILE",
@@ -110,6 +117,10 @@ impl fmt::Display for KeyLoaderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyPassword => write!(f, "key loader failed: password must not be empty"),
+            Self::WeakPassword => write!(
+                f,
+                "key loader failed: password must be at least 12 chars and include upper/lower/digit/symbol"
+            ),
             Self::InvalidValidityWindow => {
                 write!(
                     f,
@@ -121,13 +132,22 @@ impl fmt::Display for KeyLoaderError {
                 write!(f, "key loader failed: stored keyfile is invalid")
             }
             Self::SecretKeyDecryptFailed(error) => {
-                write!(f, "key loader failed: secret key decryption failed: {error}")
+                write!(
+                    f,
+                    "key loader failed: secret key decryption failed: {error}"
+                )
             }
             Self::SecretKeyRestoreFailed(error) => {
-                write!(f, "key loader failed: secret key restoration failed: {error}")
+                write!(
+                    f,
+                    "key loader failed: secret key restoration failed: {error}"
+                )
             }
             Self::PublicKeyRestoreFailed(error) => {
-                write!(f, "key loader failed: public key restoration failed: {error}")
+                write!(
+                    f,
+                    "key loader failed: public key restoration failed: {error}"
+                )
             }
             Self::ActorIdGenerationFailed(error) => {
                 write!(f, "key loader failed: actor id generation failed: {error}")
@@ -139,19 +159,28 @@ impl fmt::Display for KeyLoaderError {
                 write!(f, "key loader failed: certificate signing failed: {error}")
             }
             Self::CertificateSerializeFailed(error) => {
-                write!(f, "key loader failed: certificate serialization failed: {error}")
+                write!(
+                    f,
+                    "key loader failed: certificate serialization failed: {error}"
+                )
             }
             Self::CertificateParseFailed(error) => {
                 write!(f, "key loader failed: certificate parsing failed: {error}")
             }
             Self::PassportSerializeFailed(error) => {
-                write!(f, "key loader failed: passport serialization failed: {error}")
+                write!(
+                    f,
+                    "key loader failed: passport serialization failed: {error}"
+                )
             }
             Self::PassportParseFailed(error) => {
                 write!(f, "key loader failed: passport parsing failed: {error}")
             }
             Self::BundleSerializeFailed(error) => {
-                write!(f, "key loader failed: key bundle serialization failed: {error}")
+                write!(
+                    f,
+                    "key loader failed: key bundle serialization failed: {error}"
+                )
             }
             Self::BundleParseFailed(error) => {
                 write!(f, "key loader failed: key bundle parsing failed: {error}")
@@ -175,6 +204,10 @@ impl KeyLoader {
     ) -> Result<KeyMaterial, KeyLoaderError> {
         if request.password.trim().is_empty() {
             return Err(KeyLoaderError::EmptyPassword);
+        }
+
+        if !is_strong_password(&request.password) {
+            return Err(KeyLoaderError::WeakPassword);
         }
 
         if request.certificate_validity_secs == 0 {
@@ -283,8 +316,9 @@ impl KeyLoader {
         let public_key_bytes = serialize_public_key(&public_key);
         let secret_key_bytes = serialize_secret_key(&secret_key);
 
-        let actor_id = generate_and_validate_actor_id(&public_key_bytes, &request.role, &request.zone)
-            .map_err(|error| KeyLoaderError::ActorIdGenerationFailed(error.to_string()))?;
+        let actor_id =
+            generate_and_validate_actor_id(&public_key_bytes, &request.role, &request.zone)
+                .map_err(|error| KeyLoaderError::ActorIdGenerationFailed(error.to_string()))?;
 
         let public_key_hex = hex::encode_upper(&public_key_bytes);
 
@@ -377,14 +411,14 @@ impl KeyLoader {
         let serialized = serde_json::to_string_pretty(bundle)
             .map_err(|error| KeyLoaderError::BundleSerializeFailed(error.to_string()))?;
 
-        fs::write(path, serialized).map_err(|error| KeyLoaderError::FilesystemError(error.to_string()))
+        write_secure_file(path, serialized.as_bytes())
     }
 
     fn save_certificate(path: &Path, certificate: &Certificate) -> Result<(), KeyLoaderError> {
         let serialized = serde_json::to_string_pretty(certificate)
             .map_err(|error| KeyLoaderError::CertificateSerializeFailed(error.to_string()))?;
 
-        fs::write(path, serialized).map_err(|error| KeyLoaderError::FilesystemError(error.to_string()))
+        write_secure_file(path, serialized.as_bytes())
     }
 
     fn load_certificate(path: &Path) -> Result<Certificate, KeyLoaderError> {
@@ -406,7 +440,7 @@ impl KeyLoader {
             .to_json()
             .map_err(KeyLoaderError::PassportSerializeFailed)?;
 
-        fs::write(path, serialized).map_err(|error| KeyLoaderError::FilesystemError(error.to_string()))
+        write_secure_file(path, serialized.as_bytes())
     }
 
     fn load_passport(path: &Path) -> Result<Passport, KeyLoaderError> {
@@ -426,4 +460,56 @@ fn current_unix_time() -> Result<u64, KeyLoaderError> {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .map_err(|_| KeyLoaderError::TimeError)
+}
+
+fn write_secure_file(path: &Path, bytes: &[u8]) -> Result<(), KeyLoaderError> {
+    #[cfg(unix)]
+    {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .mode(0o600)
+            .open(path)
+            .map_err(|error| KeyLoaderError::FilesystemError(error.to_string()))?;
+
+        file.write_all(bytes)
+            .and_then(|_| file.flush())
+            .map_err(|error| KeyLoaderError::FilesystemError(error.to_string()))
+    }
+
+    #[cfg(not(unix))]
+    {
+        fs::write(path, bytes).map_err(|error| KeyLoaderError::FilesystemError(error.to_string()))
+    }
+}
+
+fn is_strong_password(password: &str) -> bool {
+    if password.chars().count() < 12 {
+        return false;
+    }
+
+    let has_upper = password.chars().any(|c| c.is_ascii_uppercase());
+    let has_lower = password.chars().any(|c| c.is_ascii_lowercase());
+    let has_digit = password.chars().any(|c| c.is_ascii_digit());
+    let has_symbol = password.chars().any(|c| !c.is_ascii_alphanumeric());
+
+    has_upper && has_lower && has_digit && has_symbol
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_strong_password;
+
+    #[test]
+    fn accepts_strong_password() {
+        assert!(is_strong_password("VeryStrong#2026"));
+    }
+
+    #[test]
+    fn rejects_weak_password() {
+        assert!(!is_strong_password("weakpass"));
+        assert!(!is_strong_password("NoSymbol12345"));
+        assert!(!is_strong_password("SHORT#1a"));
+    }
 }
