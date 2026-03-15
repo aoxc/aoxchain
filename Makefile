@@ -1,7 +1,4 @@
-.PHONY: build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local audit-install
-
-.PHONY: build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local
-.PHONY: build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local
+.PHONY: build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local audit-install produce-loop
 build:
 	cargo build --workspace
 
@@ -50,3 +47,6 @@ supervise-local: package-bin
 
 audit-install:
 	cargo install cargo-audit --locked
+
+produce-loop: package-bin
+	./scripts/continuous_producer.sh
