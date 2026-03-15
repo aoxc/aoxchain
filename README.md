@@ -26,8 +26,35 @@ Local CLI validation:
 ```bash
 cargo run -p aoxcmd -- version
 cargo run -p aoxcmd -- vision
+cargo run -p aoxcmd -- runtime-status --trace standard --tps 12.4 --peers 7 --error-rate 0.001
+cargo run -p aoxcmd -- interop-readiness
+cargo run -p aoxcmd -- key-bootstrap --profile testnet --password "TEST#Secure2026!"
 ```
 
+
+## 3.1 CLI Security + Telemetry Baseline
+
+`aoxcmd key-bootstrap` now enforces a strong password baseline (minimum 12 chars with upper/lower/digit/symbol classes) before key material is persisted. On Unix-like systems, key bundle, certificate, and passport artifacts are persisted with restrictive `0600` file permissions.
+
+`key-bootstrap` also supports `--profile mainnet|testnet`. The `testnet` profile uses `TEST-` prefixed chain/issuer defaults (for example `TEST-XXX-XX-LOCAL`) so test keys are clearly separated from mainnet-oriented defaults.
+
+`aoxcmd runtime-status` provides a production-friendly runtime snapshot for tracing profile + Prometheus-formatted telemetry payloads and can be wired into operator dashboards or external scrape bridges.
+
+## 3.2 Key Types (Production-Oriented Summary)
+
+AOXChain currently uses a **post-quantum identity path** plus encrypted keyfile persistence:
+
+- **Dilithium3** for identity signatures (`aoxcore::identity::pq_keys`)
+- **Argon2id + AES-256-GCM** for secret-key encryption at rest (`aoxcore::identity::keyfile`)
+- **Key bootstrap artifacts**: `<name>.key`, `<name>.cert.json`, `<name>.passport.json`
+
+Example strong password for bootstrap:
+
+```text
+AOXc#Mainnet2026!
+```
+
+Detailed guide: [`docs/KEY_TYPES_AND_INTEROP_GUIDE_EN.md`](docs/KEY_TYPES_AND_INTEROP_GUIDE_EN.md).
 
 ## 3. Production-Oriented Commands (v0.1.0-alpha Baseline)
 
