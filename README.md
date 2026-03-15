@@ -53,6 +53,8 @@ Example:
 cargo run -p aoxcmd -- interop-gate --audit-complete true --fuzz-complete true --replay-complete true --finality-matrix-complete true --slo-complete true --enforce
 ```
 
+`aoxcmd runtime-status` provides a production-friendly runtime snapshot for tracing profile + Prometheus-formatted telemetry payloads and can be wired into operator dashboards or external scrape bridges.
+
 ## 3.2 Key Types (Production-Oriented Summary)
 
 AOXChain currently uses a **post-quantum identity path** plus encrypted keyfile persistence:
