@@ -25,16 +25,31 @@ run() {
 
 require_cmd cargo
 
+# This script is intentionally deterministic and CI-friendly. It can be used in
+# local development, CI pipelines, and pre-release validation.
+
+MODE="${1:-full}"
+
+run() {
+  local label="$1"
+  shift
+  echo "\n==> ${label}"
+  "$@"
+}
+
 case "${MODE}" in
   quick)
     run "Format check" cargo fmt --all -- --check
     run "Compile check" cargo check --workspace
     run "Tests" cargo test --workspace --no-fail-fast
+
+    run "Tests (fast fail)" cargo test --workspace --no-fail-fast
     ;;
   full)
     run "Format check" cargo fmt --all -- --check
     run "Compile check" cargo check --workspace
     run "Clippy" cargo clippy --workspace --all-targets --all-features -- -D warnings
+    run "Clippy (warnings as warnings)" cargo clippy --workspace --all-targets --all-features
     run "Tests" cargo test --workspace --no-fail-fast
     ;;
   release)
@@ -46,8 +61,11 @@ case "${MODE}" in
   *)
     echo "Unknown mode: ${MODE}" >&2
     echo "Usage: $0 [quick|full|release]" >&2
+    echo "Unknown mode: ${MODE}"
+    echo "Usage: $0 [quick|full|release]"
     exit 2
     ;;
 esac
 
 printf '\nQuality gate completed successfully in %q mode.\n' "${MODE}"
+echo "\nQuality gate completed successfully in '${MODE}' mode."

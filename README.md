@@ -45,6 +45,7 @@ Additional hardening helpers:
 make clippy
 make audit-install    # install cargo-audit
 make audit            # dependency vulnerability scan
+make audit            # requires cargo-audit installation
 make package-bin
 make supervise-local  # local self-healing supervisor for the node
 ```
