@@ -1,5 +1,5 @@
 use crate::keyforge::cli::{ActorIdCommand, ActorIdSubcommand};
-use core::identity::actor_id;
+use aoxcore::identity::actor_id;
 
 pub fn handle(command: ActorIdCommand) -> Result<(), String> {
     match command.command {

@@ -1,6 +1,6 @@
 use crate::keyforge::cli::{PassportCommand, PassportSubcommand};
 use crate::keyforge::util::read_text_file;
-use core::identity::passport::Passport;
+use aoxcore::identity::passport::Passport;
 
 pub fn handle(command: PassportCommand) -> Result<(), String> {
     match command.command {
