@@ -1,5 +1,5 @@
 .PHONY: build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local
-
+.PHONY: build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local
 build:
 	cargo build --workspace
 
