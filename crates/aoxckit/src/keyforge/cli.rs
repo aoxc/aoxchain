@@ -18,6 +18,7 @@ pub enum Commands {
     Registry(RegistryCommand),
     Revoke(RevokeCommand),
     Quorum(QuorumCommand),
+    ZkpSetup(ZkpSetupCommand),
 }
 
 #[derive(Debug, Args)]
@@ -86,6 +87,12 @@ pub enum CertSubcommand {
     Inspect {
         #[arg(long)]
         file: String,
+    },
+    GenerateMtls {
+        #[arg(long)]
+        common_name: String,
+        #[arg(long)]
+        output: String,
     },
 }
 
@@ -160,4 +167,22 @@ pub struct QuorumCommand {
 #[derive(Debug, Subcommand)]
 pub enum QuorumSubcommand {
     Placeholder,
+}
+
+#[derive(Debug, Args)]
+pub struct ZkpSetupCommand {
+    #[command(subcommand)]
+    pub command: ZkpSetupSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ZkpSetupSubcommand {
+    Init {
+        #[arg(long)]
+        circuit: String,
+        #[arg(long)]
+        output: String,
+        #[arg(long, default_value_t = 18)]
+        powers: u8,
+    },
 }

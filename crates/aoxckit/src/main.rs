@@ -15,6 +15,7 @@ fn main() {
         Commands::Registry(command) => keyforge::cmd_registry::handle(command),
         Commands::Revoke(command) => keyforge::cmd_revoke::handle(command),
         Commands::Quorum(command) => keyforge::cmd_quorum::handle(command),
+        Commands::ZkpSetup(command) => keyforge::cmd_zkp_setup::handle(command),
     };
 
     if let Err(error) = result {

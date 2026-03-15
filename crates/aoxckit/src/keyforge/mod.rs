@@ -8,3 +8,5 @@ pub mod cmd_quorum;
 pub mod cmd_registry;
 pub mod cmd_revoke;
 pub mod util;
+
+pub mod cmd_zkp_setup;

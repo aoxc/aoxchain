@@ -6,12 +6,13 @@ RPC ingress surfaces (HTTP, gRPC, WebSocket) for operator and integration-facing
 
 ## Production Intent
 
-This crate is part of the AOXChain relay-oriented mainnet roadmap. Its interfaces are expected to evolve toward:
+This crate now includes a production-oriented secure API skeleton:
 
-- deterministic behavior in consensus-critical paths,
-- explicit and typed error surfaces,
-- testable integration boundaries with other workspace crates,
-- audit-friendly documentation and change control.
+- `proto/` definitions for binary gRPC contracts,
+- security middleware (`mTLS`, `rate limiting`, `ZKP validation`),
+- split service boundaries for query and transaction submission,
+- HTTP health + Prometheus metrics snapshot export,
+- websocket event framing for block confirmations.
 
 ## Local Development
 

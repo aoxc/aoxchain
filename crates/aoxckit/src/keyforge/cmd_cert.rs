@@ -28,6 +28,10 @@ pub fn handle(command: CertCommand) -> Result<(), String> {
         ),
         CertSubcommand::Verify { file, issuer } => verify(&file, &issuer),
         CertSubcommand::Inspect { file } => inspect(&file),
+        CertSubcommand::GenerateMtls {
+            common_name,
+            output,
+        } => generate_mtls(&common_name, &output),
     }
 }
 
@@ -116,6 +120,27 @@ fn inspect(file: &str) -> Result<(), String> {
         serde_json::to_string_pretty(&cert)
             .map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error))?
     );
+
+    Ok(())
+}
+
+fn generate_mtls(common_name: &str, output: &str) -> Result<(), String> {
+    if common_name.trim().is_empty() || output.trim().is_empty() {
+        return Err("CERT_INVALID_ARGUMENT".to_string());
+    }
+
+    let cert = serde_json::json!({
+        "subject_cn": common_name,
+        "usage": ["serverAuth", "clientAuth"],
+        "mtls": true,
+        "issuer": "AOXC-LOCAL-CA"
+    });
+
+    let body = serde_json::to_string_pretty(&cert)
+        .map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error))?;
+
+    write_text_file(output, &body)?;
+    println!("mTLS certificate template written to {}", output);
 
     Ok(())
 }

@@ -1,7 +1,18 @@
+use thiserror::Error;
+
 /// RPC subsystem errors.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum RpcError {
+    #[error("INVALID_REQUEST")]
     InvalidRequest,
+    #[error("METHOD_NOT_FOUND")]
     MethodNotFound,
+    #[error("RATE_LIMIT_EXCEEDED")]
+    RateLimitExceeded,
+    #[error("MTLS_AUTH_FAILED")]
+    MtlsAuthFailed,
+    #[error("ZKP_VALIDATION_FAILED: {0}")]
+    ZkpValidationFailed(String),
+    #[error("INTERNAL_ERROR")]
     InternalError,
 }

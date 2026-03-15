@@ -11,3 +11,6 @@ pub mod passport;
 pub mod pq_keys;
 pub mod registry;
 pub mod revocation;
+
+pub mod threshold_sig;
+pub mod zkp_engine;

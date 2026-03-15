@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package aoxchain.api.v1;
+
+service QueryService {
+  rpc GetChainStatus(ChainStatusRequest) returns (ChainStatusReply);
+  rpc GetTxStatus(TxStatusRequest) returns (TxStatusReply);
+}
+
+service TxSubmissionService {
+  rpc SubmitTx(SubmitTxRequest) returns (SubmitTxReply);
+}
+
+message ChainStatusRequest {}
+
+message ChainStatusReply {
+  string chain_id = 1;
+  uint64 height = 2;
+  bool syncing = 3;
+}
+
+message TxStatusRequest {
+  string tx_id = 1;
+}
+
+message TxStatusReply {
+  string tx_id = 1;
+  string state = 2;
+}
+
+message SubmitTxRequest {
+  string actor_id = 1;
+  bytes tx_payload = 2;
+  bytes zkp_proof = 3;
+}
+
+message SubmitTxReply {
+  string tx_id = 1;
+  string result = 2;
+}
