@@ -43,12 +43,14 @@ impl VirtualMachine for EvmExecutor {
         tx.validate_basic()?;
 
         if tx.vm_kind != VmKind::Evm {
-            return Err(AovmError::InvalidTransaction("transaction routed to incorrect VM"));
+            return Err(AovmError::InvalidTransaction(
+                "transaction routed to incorrect VM",
+            ));
         }
 
         match tx.payload.first().copied() {
             Some(0x00) if tx.payload.len() >= 2 => Ok(()),
-            Some(0x01) if tx.payload.len() >= 1 + 20 => Ok(()),
+            Some(0x01) if tx.payload.len() > 20 => Ok(()),
             Some(_) => Err(AovmError::DecodeError("unsupported EVM opcode envelope")),
             None => Err(AovmError::DecodeError("missing EVM opcode envelope")),
         }
@@ -72,18 +74,9 @@ impl VirtualMachine for EvmExecutor {
                     code: tx.payload[1..].to_vec(),
                 };
 
-                state.write(
-                    VmKind::Evm,
-                    Self::NS_CONTRACTS,
-                    &address,
-                    account.encode(),
-                )?;
+                state.write(VmKind::Evm, Self::NS_CONTRACTS, &address, account.encode())?;
 
-                state.emit_event(
-                    VmKind::Evm,
-                    Self::TOPIC_DEPLOYED.to_vec(),
-                    address.to_vec(),
-                )?;
+                state.emit_event(VmKind::Evm, Self::TOPIC_DEPLOYED.to_vec(), address.to_vec())?;
 
                 let events = state.drain_events();
                 Ok(ExecutionReceipt::success(
@@ -103,16 +96,13 @@ impl VirtualMachine for EvmExecutor {
                     .read(VmKind::Evm, Self::NS_CONTRACTS, &address)?
                     .ok_or(AovmError::NotFound("contract account not found"))?;
 
-                let _account = EvmContractAccount::decode(&stored)
-                    .ok_or(AovmError::DecodeError("corrupt EVM contract account encoding"))?;
+                let _account = EvmContractAccount::decode(&stored).ok_or(
+                    AovmError::DecodeError("corrupt EVM contract account encoding"),
+                )?;
 
                 let calldata = tx.payload[21..].to_vec();
 
-                state.emit_event(
-                    VmKind::Evm,
-                    Self::TOPIC_CALLED.to_vec(),
-                    calldata.clone(),
-                )?;
+                state.emit_event(VmKind::Evm, Self::TOPIC_CALLED.to_vec(), calldata.clone())?;
 
                 let events = state.drain_events();
                 Ok(ExecutionReceipt::success(
@@ -133,7 +123,9 @@ impl VirtualMachine for EvmExecutor {
         payload: &[u8],
     ) -> Result<Vec<u8>, AovmError> {
         if payload.len() != 20 {
-            return Err(AovmError::DecodeError("EVM query expects a 20-byte address"));
+            return Err(AovmError::DecodeError(
+                "EVM query expects a 20-byte address",
+            ));
         }
 
         state

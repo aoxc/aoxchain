@@ -1,12 +1,12 @@
-use aovm::context::{BlockContext, TxContext};
-use aovm::host::state::{HostStateView, InMemoryHostState};
-use aovm::lanes::cardano::CardanoExecutor;
-use aovm::lanes::evm::EvmExecutor;
-use aovm::lanes::sui_move::SuiMoveExecutor;
-use aovm::lanes::wasm::WasmExecutor;
-use aovm::lanes::VirtualMachine;
-use aovm::routing::dispatcher::Dispatcher;
-use aovm::vm_kind::VmKind;
+use aoxcvm::context::{BlockContext, TxContext};
+use aoxcvm::host::state::{HostStateView, InMemoryHostState};
+use aoxcvm::lanes::VirtualMachine;
+use aoxcvm::lanes::cardano::CardanoExecutor;
+use aoxcvm::lanes::evm::EvmExecutor;
+use aoxcvm::lanes::sui_move::SuiMoveExecutor;
+use aoxcvm::lanes::wasm::WasmExecutor;
+use aoxcvm::routing::dispatcher::Dispatcher;
+use aoxcvm::vm_kind::VmKind;
 
 fn block_context() -> BlockContext {
     BlockContext::new(1952, 1, 1_742_000_000, [7u8; 32], 1)
@@ -71,12 +71,7 @@ fn evm_deploy_and_call_flow_works() {
         [2u8; 32],
         b"alice",
         VmKind::Evm,
-        [
-            vec![0x01],
-            deployed_address.clone(),
-            b"ping".to_vec(),
-        ]
-        .concat(),
+        [vec![0x01], deployed_address.clone(), b"ping".to_vec()].concat(),
         100_000,
     );
 
@@ -164,12 +159,7 @@ fn wasm_upload_instantiate_and_execute_flow_works() {
         [6u8; 32],
         b"carol",
         VmKind::Wasm,
-        [
-            vec![0x01],
-            code_id.clone(),
-            b"state:v1".to_vec(),
-        ]
-        .concat(),
+        [vec![0x01], code_id.clone(), b"state:v1".to_vec()].concat(),
         100_000,
     );
 
@@ -185,12 +175,7 @@ fn wasm_upload_instantiate_and_execute_flow_works() {
         [7u8; 32],
         b"carol",
         VmKind::Wasm,
-        [
-            vec![0x02],
-            instance_id.clone(),
-            b"state:v2".to_vec(),
-        ]
-        .concat(),
+        [vec![0x02], instance_id.clone(), b"state:v2".to_vec()].concat(),
         100_000,
     );
 

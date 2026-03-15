@@ -1,6 +1,6 @@
 use crate::keyforge::cli::{KeyfileCommand, KeyfileSubcommand};
 use crate::keyforge::util::{read_file, read_text_file, write_file, write_text_file};
-use core::identity::keyfile;
+use aoxcore::identity::keyfile;
 
 pub fn handle(command: KeyfileCommand) -> Result<(), String> {
     match command.command {
