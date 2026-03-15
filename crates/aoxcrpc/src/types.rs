@@ -25,3 +25,12 @@ pub struct TxSubmissionResult {
     pub tx_id: String,
     pub accepted: bool,
 }
+
+/// Canonical machine-readable error payload for RPC HTTP/WS surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RpcErrorResponse {
+    pub code: &'static str,
+    pub message: String,
+    pub retry_after_ms: Option<u64>,
+    pub request_id: Option<String>,
+}
