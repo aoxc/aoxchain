@@ -25,6 +25,14 @@ Generated artifacts:
 
 On Unix-like systems, AOXChain persists these artifacts with restrictive file mode (`0600`).
 
+## 1.4 Bootstrap Profiles for Test/Main Network Separation
+- `aoxcmd key-bootstrap --profile mainnet`
+  - defaults: `AOXC-MAIN`, `AOXC-ROOT-CA`, `AOXC_DATA/keys`
+- `aoxcmd key-bootstrap --profile testnet`
+  - defaults: `TEST-XXX-XX-LOCAL`, `TEST-XXX-ROOT-CA`, `TEST_DATA/keys`
+
+This keeps test identities visibly separated from mainnet-like identifiers and reduces operator mix-up risk.
+
 ## 2) Secure Password Examples
 
 Accepted example pattern:

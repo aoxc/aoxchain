@@ -125,12 +125,14 @@ fn cmd_compat_matrix() -> Result<(), String> {
 }
 
 fn cmd_key_bootstrap(args: &[String]) -> Result<(), String> {
-    let base_dir = arg_value(args, "--base-dir").unwrap_or_else(|| "AOXC_DATA/keys".to_string());
-    let name = arg_value(args, "--name").unwrap_or_else(|| "node".to_string());
-    let chain = arg_value(args, "--chain").unwrap_or_else(|| "AOXC-MAIN".to_string());
+    let defaults = bootstrap_defaults(args)?;
+
+    let base_dir = arg_value(args, "--base-dir").unwrap_or(defaults.base_dir);
+    let name = arg_value(args, "--name").unwrap_or(defaults.name);
+    let chain = arg_value(args, "--chain").unwrap_or(defaults.chain);
     let role = arg_value(args, "--role").unwrap_or_else(|| "validator".to_string());
     let zone = arg_value(args, "--zone").unwrap_or_else(|| "core".to_string());
-    let issuer = arg_value(args, "--issuer").unwrap_or_else(|| "AOXC-ROOT-CA".to_string());
+    let issuer = arg_value(args, "--issuer").unwrap_or(defaults.issuer);
     let password = arg_value(args, "--password")
         .ok_or_else(|| "--password is required for key-bootstrap".to_string())?;
 
@@ -148,9 +150,14 @@ fn cmd_key_bootstrap(args: &[String]) -> Result<(), String> {
         .load_or_create(&ca)
         .map_err(|error| format!("key bootstrap failed [{}]: {}", error.code(), error))?;
 
+    let output = serde_json::json!({
+        "profile": defaults.profile,
+        "summary": material.summary(),
+    });
+
     println!(
         "{}",
-        serde_json::to_string_pretty(&material.summary())
+        serde_json::to_string_pretty(&output)
             .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
     );
 
@@ -589,9 +596,65 @@ fn arg_value(args: &[String], key: &str) -> Option<String> {
     })
 }
 
+#[derive(Debug, Clone)]
+struct BootstrapDefaults {
+    profile: &'static str,
+    base_dir: String,
+    name: String,
+    chain: String,
+    issuer: String,
+}
+
+fn bootstrap_defaults(args: &[String]) -> Result<BootstrapDefaults, String> {
+    let profile = arg_value(args, "--profile").unwrap_or_else(|| "mainnet".to_string());
+
+    match profile.as_str() {
+        "mainnet" => Ok(BootstrapDefaults {
+            profile: "mainnet",
+            base_dir: "AOXC_DATA/keys".to_string(),
+            name: "node".to_string(),
+            chain: "AOXC-MAIN".to_string(),
+            issuer: "AOXC-ROOT-CA".to_string(),
+        }),
+        "testnet" | "test" => Ok(BootstrapDefaults {
+            profile: "testnet",
+            base_dir: "TEST_DATA/keys".to_string(),
+            name: "TEST-VALIDATOR-01".to_string(),
+            chain: "TEST-XXX-XX-LOCAL".to_string(),
+            issuer: "TEST-XXX-ROOT-CA".to_string(),
+        }),
+        other => Err(format!(
+            "unsupported --profile value: {other}, expected mainnet|testnet"
+        )),
+    }
+}
+
 fn print_usage() {
     println!(
+        "AOXC Command Surface\n\nCommands:\n  vision\n  compat-matrix\n  version\n  key-bootstrap --password <secret> [--profile mainnet|testnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]\n  genesis-init [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]\n  node-bootstrap\n  produce-once [--tx <payload>]\n  network-smoke\n  storage-smoke [--base-dir <dir>] [--index sqlite|redb]\n  economy-init [--state <file>] [--treasury-supply <u128>]\n  treasury-transfer --to <account> --amount <u128> [--state <file>]\n  stake-delegate --staker <account> --validator <id> --amount <u128> [--state <file>]\n  stake-undelegate --staker <account> --validator <id> --amount <u128> [--state <file>]\n  economy-status [--state <file>]\n  runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]\n  interop-readiness\n  help\n"
         "AOXC Command Surface\n\nCommands:\n  vision\n  compat-matrix\n  version\n  key-bootstrap --password <secret> [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]\n  genesis-init [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]\n  node-bootstrap\n  produce-once [--tx <payload>]\n  network-smoke\n  storage-smoke [--base-dir <dir>] [--index sqlite|redb]\n  economy-init [--state <file>] [--treasury-supply <u128>]\n  treasury-transfer --to <account> --amount <u128> [--state <file>]\n  stake-delegate --staker <account> --validator <id> --amount <u128> [--state <file>]\n  stake-undelegate --staker <account> --validator <id> --amount <u128> [--state <file>]\n  economy-status [--state <file>]\n  runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]\n  interop-readiness\n  help\n"
         "AOXC Command Surface\n\nCommands:\n  vision\n  compat-matrix\n  version\n  key-bootstrap --password <secret> [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]\n  genesis-init [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]\n  node-bootstrap\n  produce-once [--tx <payload>]\n  network-smoke\n  storage-smoke [--base-dir <dir>] [--index sqlite|redb]\n  economy-init [--state <file>] [--treasury-supply <u128>]\n  treasury-transfer --to <account> --amount <u128> [--state <file>]\n  stake-delegate --staker <account> --validator <id> --amount <u128> [--state <file>]\n  stake-undelegate --staker <account> --validator <id> --amount <u128> [--state <file>]\n  economy-status [--state <file>]\n  runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]\n  help\n"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bootstrap_defaults;
+
+    #[test]
+    fn bootstrap_defaults_mainnet() {
+        let args = vec![];
+        let defaults = bootstrap_defaults(&args).expect("mainnet defaults");
+        assert_eq!(defaults.profile, "mainnet");
+        assert_eq!(defaults.chain, "AOXC-MAIN");
+    }
+
+    #[test]
+    fn bootstrap_defaults_testnet() {
+        let args = vec!["--profile".to_string(), "testnet".to_string()];
+        let defaults = bootstrap_defaults(&args).expect("testnet defaults");
+        assert_eq!(defaults.profile, "testnet");
+        assert!(defaults.chain.starts_with("TEST-"));
+        assert!(defaults.issuer.starts_with("TEST-"));
+    }
 }
