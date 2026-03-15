@@ -45,6 +45,7 @@ Additional hardening helpers:
 make clippy
 make audit            # requires cargo-audit installation
 make package-bin
+make supervise-local  # local self-healing supervisor for the node
 ```
 
 The `scripts/quality_gate.sh` entrypoint is CI-friendly and supports three modes:
@@ -54,6 +55,11 @@ The `scripts/quality_gate.sh` entrypoint is CI-friendly and supports three modes
 ./scripts/quality_gate.sh full
 ./scripts/quality_gate.sh release
 ```
+
+
+GitHub Actions CI runs:
+- quick gate on all PRs
+- full gate on pushes to protected branches
 
 ## 4. Production Readiness Note
 
