@@ -1,0 +1,13 @@
+[package]
+name = "aoxcmd"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+aoxcai = { path = "../aoxcai" }
+aoxcunity = { path = "../aoxcunity" }
+

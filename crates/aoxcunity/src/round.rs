@@ -1,0 +1,25 @@
+/// Consensus round state.
+///
+/// This structure remains intentionally compact. Additional pacemaker logic
+/// can be layered later without destabilizing the core state model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RoundState {
+    pub round: u64,
+}
+
+impl RoundState {
+    pub fn new() -> Self {
+        Self { round: 0 }
+    }
+
+    pub fn advance(&mut self) {
+        self.round = self.round.saturating_add(1);
+    }
+}
+
+impl Default for RoundState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+

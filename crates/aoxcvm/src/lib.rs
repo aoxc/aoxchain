@@ -1,0 +1,15 @@
+//! AOXC Multi-VM Runtime (AOVM)
+//!
+//! This crate implements a deterministic multi-lane execution runtime
+//! capable of hosting EVM, Move/Sui-style, WASM and Cardano-style lanes
+//! under a shared settlement host.
+
+pub mod compatibility;
+pub mod context;
+pub mod error;
+pub mod gas;
+pub mod host;
+pub mod lanes;
+pub mod routing;
+pub mod system;
+pub mod vm_kind;

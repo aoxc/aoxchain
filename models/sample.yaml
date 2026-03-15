@@ -1,0 +1,202 @@
+api_version: "aoxc.ai/v1"
+kind: "ModelManifest"
+
+metadata:
+  id: "heuristic-default"
+  name: "Heuristic Default Fallback"
+  version: "1.0.0"
+  description: >
+    Deterministic fallback backend used when no external inference backend
+    is configured or when runtime model execution is unavailable.
+  owner: "AOXC Core"
+
+spec:
+  enabled: true
+
+  lifecycle:
+    hot_reload: true
+    reload_strategy: "graceful"
+    immutable_fields:
+      - "api_version"
+      - "kind"
+      - "metadata.id"
+      - "backend.type"
+
+  bindings:
+    default_for_tasks:
+      - "transaction_screening"
+    optional_tasks:
+      - "validator_admission"
+      - "peer_screening"
+    node_scopes:
+      - "validator"
+      - "observer"
+      - "gateway"
+    tenants: []
+
+  backend:
+    type: "heuristic"
+    driver: "builtin_v1"
+    priority: 10
+    timeout_ms: 100
+    max_retries: 0
+    retry_backoff_ms: 0
+    circuit_breaker:
+      enabled: false
+      failure_threshold: 0
+      cooldown_ms: 0
+
+    remote_http: null
+    local_candle: null
+    local_onnx: null
+    ensemble: null
+
+    heuristic:
+      ruleset: "default"
+      anomaly_keywords:
+        - "invalid"
+        - "rejected"
+        - "anomaly"
+        - "slash"
+        - "revoked"
+
+  input:
+    format: "structured_json"
+    include_narrative: false
+    include_signals: true
+    include_findings: true
+    include_context_metadata: true
+    include_evidence_refs: true
+    max_signal_count: 64
+    max_finding_count: 32
+    max_evidence_refs: 64
+    truncate_strategy: "weight_desc"
+    signal_encoding: "typed"
+    subject:
+      required_fields:
+        - "subject_id"
+        - "subject_kind"
+        - "task"
+        - "mode"
+      optional_fields: []
+
+    prompt:
+      style: "none"
+      system_instructions: ""
+      narrative_template: ""
+
+  output:
+    format: "normalized_json"
+    required_fields:
+      - "label"
+      - "risk_bps"
+      - "confidence_bps"
+      - "rationale"
+    optional_fields:
+      - "recommended_action"
+      - "attributes"
+
+    mapping:
+      label_field: "label"
+      risk_bps_field: "risk_bps"
+      confidence_bps_field: "confidence_bps"
+      rationale_field: "rationale"
+      recommended_action_field: "recommended_action"
+      attributes_field: "attributes"
+
+    validation:
+      allowed_labels:
+        - "trusted"
+        - "review"
+        - "suspicious"
+        - "malicious"
+        - "unknown"
+      risk_bps_min: 0
+      risk_bps_max: 10000
+      confidence_bps_min: 0
+      confidence_bps_max: 10000
+      on_invalid_output: "fallback_review"
+
+  decision:
+    mode: "advisory"
+
+    thresholds:
+      allow_max_risk_bps: 2499
+      review_max_risk_bps: 6999
+      deny_min_risk_bps: 7000
+
+    confidence:
+      minimum_confidence_bps: 2500
+      low_confidence_action: "review"
+
+    fusion:
+      strategy: "weighted"
+      weights:
+        model_risk_bps: 0
+        deterministic_risk_bps: 10000
+      deterministic_overrides:
+        deny_on_critical_finding: true
+        deny_on_revoked_identity: true
+        deny_on_invalid_quorum_proof: true
+        review_on_missing_context: true
+        review_on_model_timeout: false
+
+    actions:
+      trusted: "allow"
+      review: "review"
+      suspicious: "review"
+      malicious: "deny"
+      unknown: "review"
+
+  fallback:
+    enabled: false
+    backend: null
+    action_on_backend_error: "review"
+    action_on_timeout: "review"
+    action_on_schema_error: "review"
+    action_on_unreachable_backend: "review"
+    action_on_empty_response: "review"
+
+  observability:
+    metrics:
+      enabled: true
+      namespace: "aoxc_ai"
+      labels:
+        model_id: "heuristic-default"
+        backend_type: "heuristic"
+    tracing:
+      enabled: true
+      include_request_hash: true
+      include_subject_id: true
+      include_backend_latency: false
+    audit:
+      enabled: true
+      log_decision_input: false
+      log_decision_output: true
+      redact_fields: []
+      persist_reports: true
+      persist_path: "./state/aoxcai/reports"
+
+  security:
+    manifest_signature:
+      required: false
+      algorithm: "ed25519"
+      public_key_path: null
+      signature_field: "signature"
+    allowed_endpoints: []
+    allow_private_networks: false
+    allow_file_backends: false
+
+  compatibility:
+    min_node_version: "0.1.0"
+    max_node_version: null
+    supported_tasks:
+      - "validator_admission"
+      - "peer_screening"
+      - "transaction_screening"
+      - "artifact_inspection"
+    supported_modes:
+      - "advisory"
+      - "enforced"
+
+  extensions: {}

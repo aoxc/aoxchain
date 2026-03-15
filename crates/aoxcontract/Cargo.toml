@@ -1,0 +1,10 @@
+[package]
+name = "aoxcontract"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+tokio = { workspace = true }
+
+
