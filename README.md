@@ -28,7 +28,40 @@ cargo run -p aoxcmd -- version
 cargo run -p aoxcmd -- vision
 ```
 
-## 3. Production Readiness Note
+
+## 3. Production-Oriented Commands (v0.1.0-alpha Baseline)
+
+For repeatable pre-production validation, use the quality-gate commands:
+
+```bash
+make quality-quick    # fmt + check + test
+make quality          # fmt + check + clippy + test
+make quality-release  # release-oriented validation
+```
+
+Additional hardening helpers:
+
+```bash
+make clippy
+make audit            # requires cargo-audit installation
+make package-bin
+make supervise-local  # local self-healing supervisor for the node
+```
+
+The `scripts/quality_gate.sh` entrypoint is CI-friendly and supports three modes:
+
+```bash
+./scripts/quality_gate.sh quick
+./scripts/quality_gate.sh full
+./scripts/quality_gate.sh release
+```
+
+
+GitHub Actions CI runs:
+- quick gate on all PRs
+- full gate on pushes to protected branches
+
+## 4. Production Readiness Note
 
 This repository is under active development. Before production deployment, at minimum complete:
 
@@ -38,7 +71,7 @@ This repository is under active development. Before production deployment, at mi
 4. Operational runbooks, SLO/SLA targets, and observability policies
 5. Release, rollback, and artifact provenance controls
 
-## 4. Repository Map
+## 5. Repository Map
 
 Detailed crate index: [`crates/README.md`](crates/README.md)
 
@@ -52,10 +85,10 @@ Detailed crate index: [`crates/README.md`](crates/README.md)
 | `crates/aoxcmd` | Node and operations command surface |
 | `crates/aoxckit` | Keyforge/certificate tooling |
 
-## 5. Documentation Policy
+## 6. Documentation Policy
 
 README files must remain synchronized with code changes. Any critical behavior update should include a README revision in the same PR.
 
-## 6. License
+## 7. License
 
 MIT (`LICENSE`).
