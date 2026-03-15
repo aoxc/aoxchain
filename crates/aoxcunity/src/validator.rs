@@ -37,11 +37,18 @@ impl Validator {
     }
 
     pub fn is_eligible_for_proposal(&self) -> bool {
-        self.active && matches!(self.role, ValidatorRole::Validator | ValidatorRole::Proposer)
+        self.active
+            && matches!(
+                self.role,
+                ValidatorRole::Validator | ValidatorRole::Proposer
+            )
     }
 
     pub fn is_eligible_for_vote(&self) -> bool {
-        self.active && matches!(self.role, ValidatorRole::Validator | ValidatorRole::Proposer)
+        self.active
+            && matches!(
+                self.role,
+                ValidatorRole::Validator | ValidatorRole::Proposer
+            )
     }
 }
-

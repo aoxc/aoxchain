@@ -10,4 +10,3 @@ pub struct BlockSeal {
     pub finalized_round: u64,
     pub attestation_root: [u8; 32],
 }
-

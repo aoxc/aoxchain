@@ -1,12 +1,7 @@
 use sha2::{Digest, Sha256};
 
 use crate::block::types::{
-    BlockBody,
-    BlockHeader,
-    BlockSection,
-    ExternalNetwork,
-    ExternalProofType,
-    LaneType,
+    BlockBody, BlockHeader, BlockSection, ExternalNetwork, ExternalProofType, LaneType,
 };
 
 const BLOCK_HEADER_DOMAIN_V1: &[u8] = b"AOXC_BLOCK_HEADER_V1";
@@ -186,4 +181,3 @@ fn hash_external_proof_type(value: &ExternalProofType) -> [u8; 32] {
 
     hasher.finalize().into()
 }
-

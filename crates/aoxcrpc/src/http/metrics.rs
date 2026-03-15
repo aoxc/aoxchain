@@ -26,9 +26,7 @@ aox_rpc_health_readiness_score {}\n",
         rejected_requests,
         rate_limited_requests,
         active_rate_limiter_keys,
-        health_readiness_score
-aox_rpc_rate_limiter_active_keys {}\n",
-        total_requests, rejected_requests, rate_limited_requests, active_rate_limiter_keys
+        health_readiness_score,
     )
 }
 
@@ -53,9 +51,5 @@ mod tests {
         assert!(snapshot.contains("# TYPE aox_rpc_requests_total counter"));
         assert!(snapshot.contains("# HELP aox_rpc_health_readiness_score"));
         assert!(snapshot.contains("# TYPE aox_rpc_health_readiness_score gauge"));
-        let snapshot = prometheus_metrics_snapshot(120, 5, 3, 42);
-
-        assert!(snapshot.contains("aox_rpc_rate_limited_total 3"));
-        assert!(snapshot.contains("aox_rpc_rate_limiter_active_keys 42"));
     }
 }

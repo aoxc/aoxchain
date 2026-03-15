@@ -61,7 +61,6 @@ impl RpcError {
             retry_after_ms: self.retry_after_ms(),
             request_id,
             user_hint: self.user_hint().map(str::to_string),
-
         }
     }
 }
@@ -80,10 +79,12 @@ mod tests {
         assert_eq!(response.code, "RATE_LIMIT_EXCEEDED");
         assert_eq!(response.retry_after_ms, Some(250));
         assert_eq!(response.request_id.as_deref(), Some("req-42"));
-        assert!(response
-            .user_hint
-            .as_deref()
-            .is_some_and(|hint| hint.contains("retry_after_ms")));
+        assert!(
+            response
+                .user_hint
+                .as_deref()
+                .is_some_and(|hint| hint.contains("retry_after_ms"))
+        );
     }
 
     #[test]
@@ -101,10 +102,12 @@ mod tests {
         let response = RpcError::ZkpValidationFailed("bad proof".to_string()).to_response(None);
 
         assert_eq!(response.code, "ZKP_VALIDATION_FAILED");
-        assert!(response
-            .user_hint
-            .as_deref()
-            .is_some_and(|hint| hint.contains("valid ZKP proof")));
+        assert!(
+            response
+                .user_hint
+                .as_deref()
+                .is_some_and(|hint| hint.contains("valid ZKP proof"))
+        );
         assert!(response.message.contains("bad proof"));
     }
 }

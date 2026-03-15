@@ -365,7 +365,11 @@ impl TransactionPool {
     /// model is introduced.
     #[must_use]
     pub fn snapshot_ordered(&self) -> Vec<(TransactionId, &Transaction)> {
-        let mut entries: Vec<_> = self.pending.iter().map(|(tx_id, tx)| (*tx_id, tx)).collect();
+        let mut entries: Vec<_> = self
+            .pending
+            .iter()
+            .map(|(tx_id, tx)| (*tx_id, tx))
+            .collect();
 
         entries.sort_unstable_by(|(a_id, a_tx), (b_id, b_tx)| {
             a_tx.sender
@@ -589,7 +593,10 @@ mod tests {
         let selected = pool.select_for_block(2, 6);
         assert_eq!(selected.len(), 2);
         assert_eq!(
-            selected.iter().map(|(_, tx)| tx.payload_len()).sum::<usize>(),
+            selected
+                .iter()
+                .map(|(_, tx)| tx.payload_len())
+                .sum::<usize>(),
             6
         );
     }

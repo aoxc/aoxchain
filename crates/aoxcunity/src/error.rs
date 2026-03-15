@@ -30,4 +30,3 @@ pub enum ConsensusError {
     #[error("invalid quorum threshold")]
     InvalidQuorumThreshold,
 }
-

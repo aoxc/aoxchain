@@ -86,7 +86,8 @@ impl HostStateView for InMemoryHostState {
     }
 
     fn emit_event(&mut self, vm: VmKind, topic: Vec<u8>, data: Vec<u8>) -> Result<(), AovmError> {
-        self.pending_events.push(ExecutionEvent::new(vm, topic, data));
+        self.pending_events
+            .push(ExecutionEvent::new(vm, topic, data));
         Ok(())
     }
 

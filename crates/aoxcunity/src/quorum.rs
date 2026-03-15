@@ -37,4 +37,3 @@ impl QuorumThreshold {
             >= total_power.saturating_mul(self.numerator)
     }
 }
-

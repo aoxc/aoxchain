@@ -83,4 +83,3 @@ impl ForkChoice {
         self.blocks.get(&block_hash)
     }
 }
-

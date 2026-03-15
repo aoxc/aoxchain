@@ -1,12 +1,12 @@
 use crate::error::RpcError;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 
 const DEFAULT_MAX_TRACKED_KEYS: usize = 100_000;
 
 #[derive(Debug, Clone)]
 pub struct RateLimiter {
-    requests: HashMap<String, Vec<Instant>>,
+    requests: HashMap<String, VecDeque<Instant>>,
     max_requests: usize,
     window: Duration,
     max_tracked_keys: usize,
@@ -41,14 +41,14 @@ impl RateLimiter {
         let entries = self.requests.entry(key.to_string()).or_default();
 
         if entries.len() >= self.max_requests {
-            let oldest = entries.iter().min().copied().unwrap_or(now);
+            let oldest = entries.front().copied().unwrap_or(now);
             let elapsed = now.duration_since(oldest);
             let retry_after = self.window.saturating_sub(elapsed);
             let retry_after_ms = u64::try_from(retry_after.as_millis()).unwrap_or(u64::MAX);
             return Err(RpcError::RateLimitExceeded { retry_after_ms });
         }
 
-        entries.push(now);
+        entries.push_back(now);
         Ok(())
     }
 
@@ -62,10 +62,15 @@ impl RateLimiter {
     }
 
     fn prune_expired_at(&mut self, now: Instant) {
-
-        let now = Instant::now();
         self.requests.retain(|_, entries| {
-            entries.retain(|entry| now.duration_since(*entry) <= self.window);
+            while let Some(oldest) = entries.front().copied() {
+                if now.duration_since(oldest) <= self.window {
+                    break;
+                }
+
+                entries.pop_front();
+            }
+
             !entries.is_empty()
         });
     }
@@ -83,7 +88,7 @@ impl RateLimiter {
     fn oldest_key(&self) -> Option<String> {
         self.requests
             .iter()
-            .filter_map(|(key, entries)| entries.iter().min().map(|oldest| (key, oldest)))
+            .filter_map(|(key, entries)| entries.front().map(|oldest| (key, oldest)))
             .min_by_key(|(_, oldest)| **oldest)
             .map(|(key, _)| key.clone())
     }

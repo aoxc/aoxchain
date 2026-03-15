@@ -1,4 +1,4 @@
-use crate::block::{Block, BlockBody, BlockBuilder, BlockBuildError};
+use crate::block::{Block, BlockBody, BlockBuildError, BlockBuilder};
 
 /// Proposer-side block assembly utility.
 ///
@@ -39,4 +39,3 @@ impl Proposer {
         )
     }
 }
-

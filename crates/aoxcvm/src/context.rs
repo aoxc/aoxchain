@@ -47,13 +47,19 @@ impl TxContext {
     /// Performs host-level sanity checks shared across all lanes.
     pub fn validate_basic(&self) -> Result<(), crate::error::AovmError> {
         if self.sender.is_empty() {
-            return Err(crate::error::AovmError::InvalidTransaction("sender is empty"));
+            return Err(crate::error::AovmError::InvalidTransaction(
+                "sender is empty",
+            ));
         }
         if self.payload.is_empty() {
-            return Err(crate::error::AovmError::InvalidTransaction("payload is empty"));
+            return Err(crate::error::AovmError::InvalidTransaction(
+                "payload is empty",
+            ));
         }
         if self.gas_limit == 0 {
-            return Err(crate::error::AovmError::InvalidTransaction("gas limit is zero"));
+            return Err(crate::error::AovmError::InvalidTransaction(
+                "gas limit is zero",
+            ));
         }
         Ok(())
     }

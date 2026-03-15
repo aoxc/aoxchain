@@ -111,9 +111,8 @@ fn update_bytes64(hasher: &mut Hasher, value: &[u8; 64]) {
 /// Encodes a variable-length byte slice using a `u32` length prefix.
 #[inline]
 fn update_bytes(hasher: &mut Hasher, value: &[u8]) {
-    let len = u32::try_from(value.len()).expect(
-        "TX_HASH: byte slice length must fit into u32 for canonical transaction hashing",
-    );
+    let len = u32::try_from(value.len())
+        .expect("TX_HASH: byte slice length must fit into u32 for canonical transaction hashing");
     update_u32(hasher, len);
     hasher.update(value);
 }
@@ -231,8 +230,8 @@ pub fn calculate_transaction_root(transactions: &[Transaction]) -> [u8; HASH_SIZ
 
     let mut hasher = new_tagged_hasher(DOMAIN_TX_ROOT);
 
-    let tx_count = u32::try_from(transactions.len())
-        .expect("TX_HASH: transaction count must fit into u32");
+    let tx_count =
+        u32::try_from(transactions.len()).expect("TX_HASH: transaction count must fit into u32");
     update_u32(&mut hasher, tx_count);
 
     for tx in transactions {

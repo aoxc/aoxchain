@@ -41,7 +41,9 @@ impl VirtualMachine for WasmExecutor {
         tx.validate_basic()?;
 
         if tx.vm_kind != VmKind::Wasm {
-            return Err(AovmError::InvalidTransaction("transaction routed to incorrect VM"));
+            return Err(AovmError::InvalidTransaction(
+                "transaction routed to incorrect VM",
+            ));
         }
 
         match tx.payload.first().copied() {
@@ -172,7 +174,9 @@ impl VirtualMachine for WasmExecutor {
         payload: &[u8],
     ) -> Result<Vec<u8>, AovmError> {
         if payload.len() != 32 {
-            return Err(AovmError::DecodeError("WASM query expects a 32-byte identifier"));
+            return Err(AovmError::DecodeError(
+                "WASM query expects a 32-byte identifier",
+            ));
         }
 
         if let Some(instance) = state.read(VmKind::Wasm, Self::NS_INSTANCES, payload)? {
