@@ -137,3 +137,108 @@ README files must remain synchronized with code changes. Any critical behavior u
 ## 7. License
 
 MIT (`LICENSE`).
+
+## 8. Mainnet/Testnet Operational Playbook (Detailed)
+
+> ⚠️ Important: This repository provides a strong engineering baseline, but **no blockchain deployment can be guaranteed “100% error-free”**. Use staged rollout, audits, and monitored canary deployments.
+
+### 8.1 Build + Binary Packaging
+
+```bash
+make quality-quick
+make package-bin
+```
+
+### 8.2 Testnet First (Recommended)
+
+1. Generate testnet key material:
+
+```bash
+./bin/aoxc key-bootstrap --profile testnet --password 'TEST#Secure2026!'
+```
+
+2. Bootstrap node + one block:
+
+```bash
+./bin/aoxc node-bootstrap
+./bin/aoxc produce-once --tx 'testnet-smoke-1'
+```
+
+3. Verify runtime telemetry snapshot:
+
+```bash
+./bin/aoxc runtime-status --trace standard --tps 25.0 --peers 8 --error-rate 0.001
+```
+
+4. Run release gate checks:
+
+```bash
+./bin/aoxc interop-gate --audit-complete true --fuzz-complete true --replay-complete true --finality-matrix-complete true --slo-complete true --enforce
+```
+
+### 8.3 Mainnet-Oriented Bootstrap (Explicit Opt-In)
+
+Mainnet key generation is intentionally blocked unless you explicitly allow it:
+
+```bash
+./bin/aoxc key-bootstrap --profile mainnet --allow-mainnet --password 'AOXc#Mainnet2026!'
+```
+
+Alternative env-based override:
+
+```bash
+AOXC_ALLOW_MAINNET_KEYS=true ./bin/aoxc key-bootstrap --profile mainnet --password 'AOXc#Mainnet2026!'
+```
+
+### 8.4 Continuous Block Production + Detailed Logs
+
+Use the new script for uninterrupted block attempts and timestamped logs:
+
+```bash
+MAX_ROUNDS=0 SLEEP_SECS=2 LOG_FILE=./logs/continuous-producer.log ./scripts/continuous_producer.sh
+```
+
+- `MAX_ROUNDS=0` means infinite loop.
+- Each round writes:
+  - input payload (`tx=`),
+  - `produce-once` output,
+  - round-level status (`OK` / `ERROR code=...`).
+
+Example finite test run:
+
+```bash
+MAX_ROUNDS=5 TX_PREFIX=testnet-batch ./scripts/continuous_producer.sh
+```
+
+### 8.5 Self-Healing Node Supervision
+
+```bash
+MAX_RESTARTS=50 RESTART_DELAY_SECS=2 ./scripts/node_supervisor.sh
+```
+
+### 8.6 End-to-End Operator Command Set
+
+```bash
+# compile + package
+make quality-quick
+make package-bin
+
+# testnet bootstrap
+./bin/aoxc key-bootstrap --profile testnet --password 'TEST#Secure2026!'
+./bin/aoxc genesis-init --path ./configs/genesis.testnet.local.json --chain-num 2026 --block-time 2 --treasury 1000000000
+./bin/aoxc node-bootstrap
+
+# produce and observe
+./bin/aoxc produce-once --tx 'initial-liquidity-seed'
+./bin/aoxc runtime-status --trace verbose --tps 18.5 --peers 12 --error-rate 0.0005
+
+# continuous producer loop with logs
+MAX_ROUNDS=0 SLEEP_SECS=2 LOG_FILE=./logs/continuous-producer.log ./scripts/continuous_producer.sh
+```
+
+### 8.7 Log Review Commands
+
+```bash
+tail -n 100 ./logs/continuous-producer.log
+rg "ERROR|OK|round=" ./logs/continuous-producer.log
+```
