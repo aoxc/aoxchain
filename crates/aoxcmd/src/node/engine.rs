@@ -100,6 +100,193 @@ pub fn produce_single_block(
     Ok(SingleBlockOutcome { block, seal })
 }
 
+use aoxcunity::fork_choice::BlockMeta;
+use aoxcunity::seal::BlockSeal;
+use aoxcunity::vote::VoteKind;
+
+const ARCHIVE_ROOT: &str = "AOXC_DATA/db/blocks";
+
+#[derive(Debug, Clone)]
+pub struct SingleBlockOutcome {
+    pub block: Block,
+    pub seal: Option<BlockSeal>,
+}
+
+pub fn produce_single_block(
+    node: &mut AOXCNode,
+    payloads: Vec<Vec<u8>>,
+) -> Result<SingleBlockOutcome, String> {
+    if payloads.is_empty() {
+        return Err("at least one payload is required".to_string());
+    }
+
+    for payload in payloads {
+        let id = compute_hash(&payload);
+        node.mempool
+            .add_tx(id, payload)
+            .map_err(|error| format!("mempool admission failed: {error}"))?;
+    }
+
+    let parent_hash = node.fork_choice.get_head().unwrap_or([0u8; 32]);
+    let next_height = node
+        .fork_choice
+        .get(parent_hash)
+        .map(|meta| meta.height + 1)
+        .unwrap_or(1);
+
+    let proposer_id = node
+        .rotation
+        .proposer(next_height)
+        .ok_or_else(|| "no eligible proposer for next height".to_string())?;
+
+    let timestamp = current_unix_timestamp_secs().map_err(|error| error.to_string())?;
+
+    let block = BlockBuilder::build(
+        0,
+        parent_hash,
+        next_height,
+        0,
+        node.consensus.round.round,
+        timestamp,
+        proposer_id,
+        BlockBody::default(),
+    )
+    .map_err(|error| format!("block construction failed: {error}"))?;
+
+    node.consensus
+        .admit_block(block.clone())
+        .map_err(|error| format!("consensus admission failed: {error}"))?;
+
+    node.fork_choice.insert_block(BlockMeta {
+        hash: block.hash,
+        parent: block.header.parent_hash,
+        height: block.header.height,
+        seal: None,
+    });
+
+    let vote = aoxcunity::vote::Vote {
+        voter: proposer_id,
+        block_hash: block.hash,
+        height: block.header.height,
+        round: block.header.round,
+        kind: VoteKind::Commit,
+    };
+
+    node.consensus
+        .add_vote(vote)
+        .map_err(|error| format!("vote admission failed: {error}"))?;
+
+    let seal = node
+        .consensus
+        .try_finalize(block.hash, block.header.round)
+        .inspect(|committed| {
+            let _ = node
+                .fork_choice
+                .mark_finalized(block.hash, committed.clone());
+        });
+
+    archive_block(block.header.height, block.header.parent_hash, block.hash)
+        .map_err(|error| format!("archive failure: {error}"))?;
+
+    Ok(SingleBlockOutcome { block, seal })
+}
+
+use aoxcunity::fork_choice::BlockMeta;
+use aoxcunity::seal::BlockSeal;
+use aoxcunity::vote::VoteKind;
+
+const ARCHIVE_ROOT: &str = "AOXC_DATA/db/blocks";
+
+#[derive(Debug, Clone)]
+pub struct SingleBlockOutcome {
+    pub block: Block,
+    pub seal: Option<BlockSeal>,
+}
+
+pub fn produce_single_block(
+    node: &mut AOXCNode,
+    payloads: Vec<Vec<u8>>,
+) -> Result<SingleBlockOutcome, String> {
+    if payloads.is_empty() {
+        return Err("at least one payload is required".to_string());
+    }
+
+    for payload in payloads {
+        let id = compute_hash(&payload);
+        node.mempool
+            .add_tx(id, payload)
+            .map_err(|error| format!("mempool admission failed: {error}"))?;
+    }
+
+    let parent_hash = node.fork_choice.get_head().unwrap_or([0u8; 32]);
+    let next_height = node
+        .fork_choice
+        .get(parent_hash)
+        .map(|meta| meta.height + 1)
+        .unwrap_or(1);
+
+    let proposer_id = node
+        .rotation
+        .proposer(next_height)
+        .ok_or_else(|| "no eligible proposer for next height".to_string())?;
+
+    let timestamp = current_unix_timestamp_secs().map_err(|error| error.to_string())?;
+
+    let block = BlockBuilder::build(
+        0,
+        parent_hash,
+        next_height,
+        0,
+        node.consensus.round.round,
+        timestamp,
+        proposer_id,
+        BlockBody::default(),
+    )
+    .map_err(|error| format!("block construction failed: {error}"))?;
+
+    node.consensus
+        .admit_block(block.clone())
+        .map_err(|error| format!("consensus admission failed: {error}"))?;
+
+    node.fork_choice.insert_block(BlockMeta {
+        hash: block.hash,
+        parent: block.header.parent_hash,
+        height: block.header.height,
+        seal: None,
+    });
+
+    let vote = aoxcunity::vote::Vote {
+        voter: proposer_id,
+        block_hash: block.hash,
+        height: block.header.height,
+        round: block.header.round,
+        kind: VoteKind::Commit,
+    };
+
+    node.consensus
+        .add_vote(vote)
+        .map_err(|error| format!("vote admission failed: {error}"))?;
+
+    let seal = node
+        .consensus
+        .try_finalize(block.hash, block.header.round)
+        .inspect(|committed| {
+            let _ = node
+                .fork_choice
+                .mark_finalized(block.hash, committed.clone());
+        });
+
+    archive_block(block.header.height, block.header.parent_hash, block.hash)
+        .map_err(|error| format!("archive failure: {error}"))?;
+
+    Ok(SingleBlockOutcome { block, seal })
+}
+
+use aoxcunity::block::{BlockBody, BlockBuilder};
+use aoxcunity::fork_choice::BlockMeta;
+
+const ARCHIVE_ROOT: &str = "AOXC_DATA/db/blocks";
+
 pub fn run(node: &mut AOXCNode) {
     const BLOCK_TIME_SECS: u64 = 6;
     const MEMPOOL_BATCH_LIMIT: usize = 100;
@@ -245,6 +432,10 @@ fn archive_block(height: u64, parent: [u8; 32], hash: [u8; 32]) -> io::Result<()
 
     fs::rename(&temp_path, &final_path)?;
     Ok(())
+}
+
+fn temporary_archive_path(base_dir: &Path, height: u64) -> PathBuf {
+    base_dir.join(format!(".height_{}.data.tmp", height))
 }
 
 fn current_unix_timestamp_secs() -> io::Result<u64> {
