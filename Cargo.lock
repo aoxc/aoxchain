@@ -261,6 +261,9 @@ name = "aoxcrpc"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
  "tokio",
 ]
 
@@ -276,6 +279,7 @@ dependencies = [
 name = "aoxcunity"
 version = "0.1.0"
 dependencies = [
+ "rand 0.10.0",
  "serde",
  "sha2",
  "thiserror",

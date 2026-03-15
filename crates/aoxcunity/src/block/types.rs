@@ -164,4 +164,3 @@ pub enum BlockBuildError {
     #[error("section count exceeds supported u64 range")]
     SectionCountOverflow,
 }
-

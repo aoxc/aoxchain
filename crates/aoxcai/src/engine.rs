@@ -63,7 +63,15 @@ impl AiEngine {
         truncate_signals(manifest, &mut signals);
 
         let findings = deterministic_findings(&signals);
-        let narrative = build_narrative(manifest, task, mode, &context.subject_kind, &subject_id, &signals, &findings);
+        let narrative = build_narrative(
+            manifest,
+            task,
+            mode,
+            &context.subject_kind,
+            &subject_id,
+            &signals,
+            &findings,
+        );
 
         let request = InferenceRequest {
             task,
@@ -122,9 +130,7 @@ fn truncate_signals(manifest: &ModelManifest, signals: &mut Vec<crate::model::In
     }
 }
 
-fn deterministic_findings(
-    signals: &[crate::model::InferenceSignal],
-) -> Vec<InferenceFinding> {
+fn deterministic_findings(signals: &[crate::model::InferenceSignal]) -> Vec<InferenceFinding> {
     let mut findings = Vec::new();
 
     for signal in signals {
@@ -169,13 +175,23 @@ fn build_narrative(
 
     let signals_narrative = signals
         .iter()
-        .map(|signal| format!("{}={} (weight_bps={})", signal.name, signal.value, signal.weight_bps))
+        .map(|signal| {
+            format!(
+                "{}={} (weight_bps={})",
+                signal.name, signal.value, signal.weight_bps
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n");
 
     let findings_narrative = findings
         .iter()
-        .map(|finding| format!("{} [{}] {}", finding.code, finding.severity, finding.message))
+        .map(|finding| {
+            format!(
+                "{} [{}] {}",
+                finding.code, finding.severity, finding.message
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n");
 

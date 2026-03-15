@@ -23,7 +23,12 @@ pub struct Vote {
 
 impl Vote {
     pub fn unique_key(&self) -> ([u8; 32], ValidatorId, u64, u64, VoteKind) {
-        (self.block_hash, self.voter, self.height, self.round, self.kind)
+        (
+            self.block_hash,
+            self.voter,
+            self.height,
+            self.round,
+            self.kind,
+        )
     }
 }
-

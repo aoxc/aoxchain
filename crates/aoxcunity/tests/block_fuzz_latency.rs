@@ -1,6 +1,6 @@
 use aoxcunity::{
-    BlockBody, BlockBuilder, BlockSection, ExternalNetwork, ExternalProofRecord, ExternalProofSection,
-    ExternalProofType, LaneCommitment, LaneCommitmentSection, LaneType,
+    BlockBody, BlockBuilder, BlockSection, ExternalNetwork, ExternalProofRecord,
+    ExternalProofSection, ExternalProofType, LaneCommitment, LaneCommitmentSection, LaneType,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use std::time::{Duration, Instant};
@@ -78,7 +78,9 @@ fn random_body(rng: &mut StdRng) -> BlockBody {
             proof_commitment: random_hash(rng),
         });
     }
-    sections.push(BlockSection::LaneCommitment(LaneCommitmentSection { lanes }));
+    sections.push(BlockSection::LaneCommitment(LaneCommitmentSection {
+        lanes,
+    }));
 
     let proof_count = (rng.random::<u64>() % 6) as usize;
     if proof_count > 0 {

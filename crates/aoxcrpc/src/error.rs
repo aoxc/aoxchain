@@ -40,12 +40,27 @@ impl RpcError {
     }
 
     #[must_use]
+    pub fn user_hint(&self) -> Option<&'static str> {
+        match self {
+            Self::InvalidRequest => Some("Fix request schema and required fields."),
+            Self::MethodNotFound => Some("Use a supported RPC method and API version."),
+            Self::RateLimitExceeded { .. } => {
+                Some("Apply retry_after_ms with exponential backoff and jitter.")
+            }
+            Self::MtlsAuthFailed => Some("Verify client certificate chain and mTLS setup."),
+            Self::ZkpValidationFailed(_) => Some("Regenerate and submit a valid ZKP proof."),
+            Self::InternalError => None,
+        }
+    }
+
+    #[must_use]
     pub fn to_response(&self, request_id: Option<String>) -> RpcErrorResponse {
         RpcErrorResponse {
             code: self.code(),
             message: self.to_string(),
             retry_after_ms: self.retry_after_ms(),
             request_id,
+            user_hint: self.user_hint().map(str::to_string),
         }
     }
 }
@@ -64,5 +79,35 @@ mod tests {
         assert_eq!(response.code, "RATE_LIMIT_EXCEEDED");
         assert_eq!(response.retry_after_ms, Some(250));
         assert_eq!(response.request_id.as_deref(), Some("req-42"));
+        assert!(
+            response
+                .user_hint
+                .as_deref()
+                .is_some_and(|hint| hint.contains("retry_after_ms"))
+        );
+    }
+
+    #[test]
+    fn internal_error_has_no_user_hint_or_retry_after() {
+        let response = RpcError::InternalError.to_response(Some("req-internal".to_string()));
+
+        assert_eq!(response.code, "INTERNAL_ERROR");
+        assert_eq!(response.retry_after_ms, None);
+        assert_eq!(response.user_hint, None);
+        assert_eq!(response.request_id.as_deref(), Some("req-internal"));
+    }
+
+    #[test]
+    fn zkp_error_contains_actionable_user_hint() {
+        let response = RpcError::ZkpValidationFailed("bad proof".to_string()).to_response(None);
+
+        assert_eq!(response.code, "ZKP_VALIDATION_FAILED");
+        assert!(
+            response
+                .user_hint
+                .as_deref()
+                .is_some_and(|hint| hint.contains("valid ZKP proof"))
+        );
+        assert!(response.message.contains("bad proof"));
     }
 }

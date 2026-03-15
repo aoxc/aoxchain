@@ -30,12 +30,7 @@ impl AoxcAiRuntime {
             vec![Box::new(NodeSignalProvider::new())];
         let policy: Box<dyn DecisionPolicy> = Box::new(FusionPolicy::new());
 
-        let engine = AiEngine::new(
-            registry,
-            context_provider,
-            signal_providers,
-            policy,
-        );
+        let engine = AiEngine::new(registry, context_provider, signal_providers, policy);
 
         Ok(Self {
             engine,
@@ -50,12 +45,7 @@ impl AoxcAiRuntime {
         let signal_providers: Vec<Box<dyn SignalProvider>> = Vec::new();
         let policy: Box<dyn DecisionPolicy> = Box::new(FusionPolicy::new());
 
-        let engine = AiEngine::new(
-            registry,
-            context_provider,
-            signal_providers,
-            policy,
-        );
+        let engine = AiEngine::new(registry, context_provider, signal_providers, policy);
 
         Self {
             engine,
@@ -90,4 +80,3 @@ impl AoxcAiRuntime {
         &self.engine
     }
 }
-

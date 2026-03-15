@@ -13,4 +13,3 @@ pub enum ConsensusMessage {
     Vote(Vote),
     Finalize { seal: BlockSeal },
 }
-

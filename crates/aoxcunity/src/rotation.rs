@@ -54,4 +54,3 @@ impl ValidatorRotation {
             .map(|validator| validator.voting_power)
     }
 }
-

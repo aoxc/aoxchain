@@ -1,8 +1,5 @@
 use crate::{
-    backend::{
-        heuristic::HeuristicBackendRuntime,
-        remote_http::RemoteHttpBackendRuntime,
-    },
+    backend::{heuristic::HeuristicBackendRuntime, remote_http::RemoteHttpBackendRuntime},
     error::AiError,
     manifest::ModelManifest,
     traits::InferenceBackend,
@@ -53,8 +50,8 @@ mod tests {
     #[test]
     fn heuristic_backend_is_constructed() {
         let manifest = base_manifest();
-        let backend = BackendFactory::build(&manifest)
-            .expect("heuristic backend must be constructed");
+        let backend =
+            BackendFactory::build(&manifest).expect("heuristic backend must be constructed");
 
         assert_eq!(backend.name(), "heuristic");
     }
@@ -88,47 +85,42 @@ mod tests {
 
         match err {
             AiError::ManifestValidation(message) => {
-                assert_eq!(
-                    message,
-                    "heuristic backend requires spec.backend.heuristic"
-                );
+                assert_eq!(message, "heuristic backend requires spec.backend.heuristic");
             }
             other => panic!("unexpected error: {other}"),
         }
     }
 }
 
-    #[test]
-    fn remote_http_backend_is_constructed() {
-        let manifest = crate::test_support::remote_http_manifest(
-            "http://127.0.0.1:8088/infer"
-        );
+#[test]
+fn remote_http_backend_is_constructed() {
+    let manifest = crate::test_support::remote_http_manifest("http://127.0.0.1:8088/infer");
 
-        let backend = BackendFactory::build(&manifest)
-            .expect("remote_http backend must be constructed");
+    let backend =
+        BackendFactory::build(&manifest).expect("remote_http backend must be constructed");
 
-        assert_eq!(backend.name(), "remote_http");
-    }
+    assert_eq!(backend.name(), "remote_http");
+}
 
-    #[test]
-    fn remote_http_backend_requires_embedded_configuration() {
-        let mut manifest = crate::test_support::base_manifest();
-        manifest.spec.backend.r#type = "remote_http".to_owned();
-        manifest.spec.backend.heuristic = None;
-        manifest.spec.backend.remote_http = None;
+#[test]
+fn remote_http_backend_requires_embedded_configuration() {
+    let mut manifest = crate::test_support::base_manifest();
+    manifest.spec.backend.r#type = "remote_http".to_owned();
+    manifest.spec.backend.heuristic = None;
+    manifest.spec.backend.remote_http = None;
 
-        let err = match BackendFactory::build(&manifest) {
-            Ok(_) => panic!("expected manifest validation error"),
-            Err(err) => err,
-        };
+    let err = match BackendFactory::build(&manifest) {
+        Ok(_) => panic!("expected manifest validation error"),
+        Err(err) => err,
+    };
 
-        match err {
-            AiError::ManifestValidation(message) => {
-                assert_eq!(
-                    message,
-                    "remote_http backend requires spec.backend.remote_http"
-                );
-            }
-            other => panic!("unexpected error: {other}"),
+    match err {
+        AiError::ManifestValidation(message) => {
+            assert_eq!(
+                message,
+                "remote_http backend requires spec.backend.remote_http"
+            );
         }
+        other => panic!("unexpected error: {other}"),
     }
+}

@@ -10,6 +10,9 @@ pub struct HostedTransaction {
 impl HostedTransaction {
     /// Creates a new hosted transaction wrapper.
     pub fn new(tx: TxContext, received_at_unix: u64) -> Self {
-        Self { tx, received_at_unix }
+        Self {
+            tx,
+            received_at_unix,
+        }
     }
 }

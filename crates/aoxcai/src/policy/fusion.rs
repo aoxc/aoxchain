@@ -99,13 +99,17 @@ fn should_force_deny(
     overrides: &crate::manifest::DeterministicOverrides,
 ) -> bool {
     if overrides.deny_on_critical_finding
-        && findings.iter().any(|finding| finding.severity == "critical")
+        && findings
+            .iter()
+            .any(|finding| finding.severity == "critical")
     {
         return true;
     }
 
     if overrides.deny_on_revoked_identity
-        && findings.iter().any(|finding| finding.code == "revoked_identity")
+        && findings
+            .iter()
+            .any(|finding| finding.code == "revoked_identity")
     {
         return true;
     }
@@ -126,13 +130,17 @@ fn should_force_review(
     overrides: &crate::manifest::DeterministicOverrides,
 ) -> bool {
     if overrides.review_on_missing_context
-        && findings.iter().any(|finding| finding.code == "missing_context")
+        && findings
+            .iter()
+            .any(|finding| finding.code == "missing_context")
     {
         return true;
     }
 
     if overrides.review_on_model_timeout
-        && findings.iter().any(|finding| finding.code == "model_timeout")
+        && findings
+            .iter()
+            .any(|finding| finding.code == "model_timeout")
     {
         return true;
     }
@@ -344,10 +352,25 @@ mod tests {
     fn map_label_to_action_uses_manifest_action_mapping() {
         let manifest = crate::test_support::base_manifest();
 
-        assert_eq!(map_label_to_action(&manifest, "trusted"), DecisionAction::Allow);
-        assert_eq!(map_label_to_action(&manifest, "review"), DecisionAction::Review);
-        assert_eq!(map_label_to_action(&manifest, "suspicious"), DecisionAction::Review);
-        assert_eq!(map_label_to_action(&manifest, "malicious"), DecisionAction::Deny);
-        assert_eq!(map_label_to_action(&manifest, "unknown_label"), DecisionAction::Review);
+        assert_eq!(
+            map_label_to_action(&manifest, "trusted"),
+            DecisionAction::Allow
+        );
+        assert_eq!(
+            map_label_to_action(&manifest, "review"),
+            DecisionAction::Review
+        );
+        assert_eq!(
+            map_label_to_action(&manifest, "suspicious"),
+            DecisionAction::Review
+        );
+        assert_eq!(
+            map_label_to_action(&manifest, "malicious"),
+            DecisionAction::Deny
+        );
+        assert_eq!(
+            map_label_to_action(&manifest, "unknown_label"),
+            DecisionAction::Review
+        );
     }
 }

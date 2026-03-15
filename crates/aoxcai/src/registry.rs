@@ -1,8 +1,4 @@
-use crate::{
-    error::AiError,
-    manifest::ModelManifest,
-    model::AiTask,
-};
+use crate::{error::AiError, manifest::ModelManifest, model::AiTask};
 use std::{collections::HashMap, fs, path::Path};
 
 /// Stores loaded manifests and task bindings for runtime lookup.
@@ -116,12 +112,11 @@ impl ModelRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        error::AiError,
-        model::AiTask,
-        test_support::base_manifest,
+    use crate::{error::AiError, model::AiTask, test_support::base_manifest};
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
     };
-    use std::{fs, time::{SystemTime, UNIX_EPOCH}};
 
     fn unique_temp_dir() -> std::path::PathBuf {
         let nanos = SystemTime::now()
@@ -144,7 +139,9 @@ mod tests {
             .register(manifest)
             .expect("manifest registration must succeed");
 
-        let resolved = registry.get(&id).expect("manifest must be retrievable by id");
+        let resolved = registry
+            .get(&id)
+            .expect("manifest must be retrievable by id");
 
         assert_eq!(resolved.metadata.id, id);
     }

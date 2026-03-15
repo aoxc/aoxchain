@@ -37,7 +37,9 @@ impl VirtualMachine for CardanoExecutor {
         tx.validate_basic()?;
 
         if tx.vm_kind != VmKind::Cardano {
-            return Err(AovmError::InvalidTransaction("transaction routed to incorrect VM"));
+            return Err(AovmError::InvalidTransaction(
+                "transaction routed to incorrect VM",
+            ));
         }
 
         match tx.payload.first().copied() {
@@ -67,7 +69,12 @@ impl VirtualMachine for CardanoExecutor {
                     datum: None,
                 };
 
-                state.write(VmKind::Cardano, Self::NS_UTXOS, &utxo.utxo_id, utxo.encode())?;
+                state.write(
+                    VmKind::Cardano,
+                    Self::NS_UTXOS,
+                    &utxo.utxo_id,
+                    utxo.encode(),
+                )?;
                 state.emit_event(
                     VmKind::Cardano,
                     Self::TOPIC_UTXO_CREATED.to_vec(),
@@ -92,11 +99,13 @@ impl VirtualMachine for CardanoExecutor {
                     .read(VmKind::Cardano, Self::NS_UTXOS, &utxo_id)?
                     .ok_or(AovmError::NotFound("UTxO not found"))?;
 
-                let utxo = Utxo::decode(&stored)
-                    .ok_or(AovmError::DecodeError("corrupt UTxO encoding"))?;
+                let utxo =
+                    Utxo::decode(&stored).ok_or(AovmError::DecodeError("corrupt UTxO encoding"))?;
 
                 if utxo.owner != tx.sender {
-                    return Err(AovmError::StateAccessViolation("sender does not own the referenced UTxO"));
+                    return Err(AovmError::StateAccessViolation(
+                        "sender does not own the referenced UTxO",
+                    ));
                 }
 
                 state.delete(VmKind::Cardano, Self::NS_UTXOS, &utxo_id)?;
@@ -125,7 +134,9 @@ impl VirtualMachine for CardanoExecutor {
         payload: &[u8],
     ) -> Result<Vec<u8>, AovmError> {
         if payload.len() != 32 {
-            return Err(AovmError::DecodeError("Cardano query expects a 32-byte UTxO id"));
+            return Err(AovmError::DecodeError(
+                "Cardano query expects a 32-byte UTxO id",
+            ));
         }
 
         state

@@ -1,4 +1,7 @@
-use crate::{error::AiError, model::{AiMode, AiTask}};
+use crate::{
+    error::AiError,
+    model::{AiMode, AiTask},
+};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 

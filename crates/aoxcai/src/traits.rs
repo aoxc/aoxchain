@@ -1,7 +1,10 @@
 use crate::{
     error::AiError,
     manifest::ModelManifest,
-    model::{Assessment, InferenceContext, InferenceFinding, InferenceRequest, InferenceSignal, ModelOutput},
+    model::{
+        Assessment, InferenceContext, InferenceFinding, InferenceRequest, InferenceSignal,
+        ModelOutput,
+    },
 };
 
 /// Supplies normalized signals for a given request domain.

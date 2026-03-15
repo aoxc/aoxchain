@@ -13,19 +13,9 @@ pub mod vote;
 pub mod vote_pool;
 
 pub use block::{
-    Block,
-    BlockBody,
-    BlockBuilder,
-    BlockBuildError,
-    BlockHeader,
-    BlockSection,
-    ExternalNetwork,
-    ExternalProofRecord,
-    ExternalProofSection,
-    ExternalProofType,
-    LaneCommitment,
-    LaneCommitmentSection,
-    LaneType,
+    Block, BlockBody, BlockBuildError, BlockBuilder, BlockHeader, BlockSection, ExternalNetwork,
+    ExternalProofRecord, ExternalProofSection, ExternalProofType, LaneCommitment,
+    LaneCommitmentSection, LaneType,
 };
 pub use error::ConsensusError;
 pub use fork_choice::{BlockMeta, ForkChoice};
@@ -39,4 +29,3 @@ pub use state::ConsensusState;
 pub use validator::{Validator, ValidatorId, ValidatorRole};
 pub use vote::{Vote, VoteKind};
 pub use vote_pool::VotePool;
-

@@ -43,7 +43,9 @@ impl VirtualMachine for SuiMoveExecutor {
         tx.validate_basic()?;
 
         if tx.vm_kind != VmKind::SuiMove {
-            return Err(AovmError::InvalidTransaction("transaction routed to incorrect VM"));
+            return Err(AovmError::InvalidTransaction(
+                "transaction routed to incorrect VM",
+            ));
         }
 
         match tx.payload.first().copied() {
@@ -139,7 +141,9 @@ impl VirtualMachine for SuiMoveExecutor {
                     object_id.to_vec(),
                 ))
             }
-            _ => Err(AovmError::UnsupportedOperation("unknown Sui/Move operation")),
+            _ => Err(AovmError::UnsupportedOperation(
+                "unknown Sui/Move operation",
+            )),
         }
     }
 
@@ -150,7 +154,9 @@ impl VirtualMachine for SuiMoveExecutor {
         payload: &[u8],
     ) -> Result<Vec<u8>, AovmError> {
         if payload.len() != 32 {
-            return Err(AovmError::DecodeError("Sui query expects a 32-byte object or package id"));
+            return Err(AovmError::DecodeError(
+                "Sui query expects a 32-byte object or package id",
+            ));
         }
 
         if let Some(object) = state.read(VmKind::SuiMove, Self::NS_OBJECTS, payload)? {

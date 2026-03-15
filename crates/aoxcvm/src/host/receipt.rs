@@ -11,7 +11,11 @@ pub struct ExecutionEvent {
 impl ExecutionEvent {
     /// Constructs a normalized execution event.
     pub fn new(vm_kind: VmKind, topic: Vec<u8>, data: Vec<u8>) -> Self {
-        Self { vm_kind, topic, data }
+        Self {
+            vm_kind,
+            topic,
+            data,
+        }
     }
 }
 
