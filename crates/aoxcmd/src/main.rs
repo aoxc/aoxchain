@@ -15,29 +15,17 @@ use aoxcore::genesis::loader::GenesisLoader;
 use aoxcore::identity::ca::CertificateAuthority;
 use std::collections::BTreeMap;
 
+mod cli_support;
+
+use cli_support::{
+    CliLanguage, arg_bool_value, arg_flag, arg_value, detect_language, localized_unknown_command,
+    print_usage, usage_text,
+};
+
 use std::env;
 use std::process;
 use std::thread;
 use std::time::Duration;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CliLanguage {
-    En,
-    Tr,
-    Es,
-    De,
-}
-
-impl CliLanguage {
-    fn from_code(input: &str) -> Self {
-        match input.trim().to_ascii_lowercase().as_str() {
-            "tr" | "tr-tr" | "turkish" | "türkçe" => Self::Tr,
-            "es" | "es-es" | "spanish" | "español" => Self::Es,
-            "de" | "de-de" | "german" | "deutsch" => Self::De,
-            _ => Self::En,
-        }
-    }
-}
 
 fn main() {
     if let Err(error) = run_cli() {
@@ -93,24 +81,6 @@ fn apply_home_override(args: &[String]) {
         unsafe {
             env::set_var("AOXC_HOME", home);
         }
-    }
-}
-
-fn detect_language(args: &[String]) -> CliLanguage {
-    if let Some(explicit) = arg_value(args, "--lang") {
-        return CliLanguage::from_code(&explicit);
-    }
-
-    let from_env = env::var("AOXC_LANG").unwrap_or_else(|_| "en".to_string());
-    CliLanguage::from_code(&from_env)
-}
-
-fn localized_unknown_command(lang: CliLanguage, command: &str) -> String {
-    match lang {
-        CliLanguage::Tr => format!("bilinmeyen komut: {command}"),
-        CliLanguage::Es => format!("comando desconocido: {command}"),
-        CliLanguage::De => format!("unbekannter befehl: {command}"),
-        CliLanguage::En => format!("unknown command: {command}"),
     }
 }
 
@@ -1002,16 +972,6 @@ fn ai_control_score(controls: &[(&str, bool)]) -> u8 {
         as u8
 }
 
-fn arg_value(args: &[String], key: &str) -> Option<String> {
-    args.windows(2).find_map(|window| {
-        if window[0] == key {
-            Some(window[1].clone())
-        } else {
-            None
-        }
-    })
-}
-
 #[derive(Debug, Clone)]
 struct BootstrapDefaults {
     profile: &'static str,
@@ -1042,14 +1002,6 @@ fn bootstrap_defaults(args: &[String]) -> Result<BootstrapDefaults, String> {
     }
 }
 
-fn arg_bool_value(args: &[String], key: &str) -> Option<bool> {
-    arg_value(args, key).map(|value| matches!(value.as_str(), "1" | "true" | "yes" | "on"))
-}
-
-fn arg_flag(args: &[String], key: &str) -> bool {
-    args.iter().any(|arg| arg == key)
-}
-
 fn assert_mainnet_key_policy(args: &[String], profile: &str) -> Result<(), String> {
     if profile != "mainnet" {
         return Ok(());
@@ -1068,151 +1020,6 @@ fn assert_mainnet_key_policy(args: &[String], profile: &str) -> Result<(), Strin
         "mainnet key bootstrap blocked: pass --allow-mainnet or set AOXC_ALLOW_MAINNET_KEYS=true"
             .to_string(),
     )
-}
-
-fn print_usage(lang: CliLanguage) {
-    println!("{}", usage_text(lang));
-}
-
-fn usage_text(lang: CliLanguage) -> &'static str {
-    match lang {
-        CliLanguage::Tr => {
-            "AOXC Komut Yüzeyi
-
-Komutlar:
-  vision
-  compat-matrix
-  port-map
-  version
-  key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
-  genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>] [--native-symbol <SYMBOL>] [--native-decimals <u8>] [--settlement-network <name>] [--xlayer-token <0x...>] [--xlayer-main-contract <0x...>] [--xlayer-multisig <0x...>] [--equivalence-mode <text>]
-  node-bootstrap
-  produce-once [--tx <payload>]
-  node-run [--home <dir>] [--rounds <u64>] [--sleep-ms <u64>] [--tx-prefix <text>]
-  network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
-  real-network [--rounds <u64>] [--timeout-ms <u64>] [--pause-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
-  network-smoke [--timeout-ms <u64>] [--payload <text>]
-  network-smoke
-  storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
-  economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
-  treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
-  stake-delegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
-  stake-undelegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
-  economy-status [--home <dir>] [--state <file>]
-  runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]
-  interop-readiness
-  interop-gate [--audit-complete <bool>] [--fuzz-complete <bool>] [--replay-complete <bool>] [--finality-matrix-complete <bool>] [--slo-complete <bool>] [--enforce]
-  production-audit [--home <dir>] [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
-  help
-
-Global:
-  --lang <en|tr|es|de> (veya AOXC_LANG ortam değişkeni)
-  --home <dir> (varsayılan: $HOME/.AOXC-Data, veya AOXC_HOME)
-"
-        }
-        CliLanguage::Es => {
-            "Superficie de Comandos AOXC
-
-Comandos:
-  vision
-  compat-matrix
-  port-map
-  version
-  key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
-  genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>] [--native-symbol <SYMBOL>] [--native-decimals <u8>] [--settlement-network <name>] [--xlayer-token <0x...>] [--xlayer-main-contract <0x...>] [--xlayer-multisig <0x...>] [--equivalence-mode <text>]
-  node-bootstrap
-  produce-once [--tx <payload>]
-  node-run [--home <dir>] [--rounds <u64>] [--sleep-ms <u64>] [--tx-prefix <text>]
-  network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
-  real-network [--rounds <u64>] [--timeout-ms <u64>] [--pause-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
-  network-smoke [--timeout-ms <u64>] [--payload <text>]
-  network-smoke
-  storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
-  economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
-  treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
-  stake-delegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
-  stake-undelegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
-  economy-status [--home <dir>] [--state <file>]
-  runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]
-  interop-readiness
-  interop-gate [--audit-complete <bool>] [--fuzz-complete <bool>] [--replay-complete <bool>] [--finality-matrix-complete <bool>] [--slo-complete <bool>] [--enforce]
-  production-audit [--home <dir>] [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
-  help
-
-Global:
-  --lang <en|tr|es|de> (o variable AOXC_LANG)
-  --home <dir> (por defecto: $HOME/.AOXC-Data, o AOXC_HOME)
-"
-        }
-        CliLanguage::De => {
-            "AOXC Kommandooberfläche
-
-Befehle:
-  vision
-  compat-matrix
-  port-map
-  version
-  key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
-  genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>] [--native-symbol <SYMBOL>] [--native-decimals <u8>] [--settlement-network <name>] [--xlayer-token <0x...>] [--xlayer-main-contract <0x...>] [--xlayer-multisig <0x...>] [--equivalence-mode <text>]
-  node-bootstrap
-  produce-once [--tx <payload>]
-  node-run [--home <dir>] [--rounds <u64>] [--sleep-ms <u64>] [--tx-prefix <text>]
-  network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
-  real-network [--rounds <u64>] [--timeout-ms <u64>] [--pause-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
-  network-smoke [--timeout-ms <u64>] [--payload <text>]
-  network-smoke
-  storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
-  economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
-  treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
-  stake-delegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
-  stake-undelegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
-  economy-status [--home <dir>] [--state <file>]
-  runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]
-  interop-readiness
-  interop-gate [--audit-complete <bool>] [--fuzz-complete <bool>] [--replay-complete <bool>] [--finality-matrix-complete <bool>] [--slo-complete <bool>] [--enforce]
-  production-audit [--home <dir>] [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
-  help
-
-Global:
-  --lang <en|tr|es|de> (oder AOXC_LANG Umgebungsvariable)
-  --home <dir> (Standard: $HOME/.AOXC-Data oder AOXC_HOME)
-"
-        }
-        CliLanguage::En => {
-            "AOXC Command Surface
-
-Commands:
-  vision
-  compat-matrix
-  port-map
-  version
-  key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
-  genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>] [--native-symbol <SYMBOL>] [--native-decimals <u8>] [--settlement-network <name>] [--xlayer-token <0x...>] [--xlayer-main-contract <0x...>] [--xlayer-multisig <0x...>] [--equivalence-mode <text>]
-  node-bootstrap
-  produce-once [--tx <payload>]
-  node-run [--home <dir>] [--rounds <u64>] [--sleep-ms <u64>] [--tx-prefix <text>]
-  network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
-  real-network [--rounds <u64>] [--timeout-ms <u64>] [--pause-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
-  network-smoke [--timeout-ms <u64>] [--payload <text>]
-  network-smoke
-  storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
-  economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
-  treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
-  stake-delegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
-  stake-undelegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
-  economy-status [--home <dir>] [--state <file>]
-  runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]
-  interop-readiness
-  interop-gate [--audit-complete <bool>] [--fuzz-complete <bool>] [--replay-complete <bool>] [--finality-matrix-complete <bool>] [--slo-complete <bool>] [--enforce]
-  production-audit [--home <dir>] [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
-  help
-
-Global:
-  --lang <en|tr|es|de> (or AOXC_LANG environment variable)
-  --home <dir> (default: $HOME/.AOXC-Data, or AOXC_HOME)
-"
-        }
-    }
 }
 
 #[cfg(test)]
