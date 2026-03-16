@@ -34,20 +34,7 @@ AOXChain already has deployed components on **X Layer**.
 
 These references show that AOXChain is positioned with an active, real-network footprint rather than a purely theoretical architecture.
 
----
 
-## 1) Current Live Presence (X Layer References)
-
-AOXChain already has deployed components on **X Layer**.
-
-- **Main contract address:**
-  https://www.oklink.com/tr/x-layer/address/0x97bdd1fd1caf756e00efd42eba9406821465b365/contract
-- **Proxy token address:**
-  https://www.oklink.com/tr/x-layer/token/0xeb9580c3946bb47d73aae1d4f7a94148b554b2f4?tab=contract
-- **Multisig contract address:**
-  https://www.oklink.com/tr/x-layer/address/0x20c0dd8b6559912acfac2ce061b8d5b19db8ca84/contract
-
-These references show that AOXChain is positioned with an active, real-network footprint rather than a purely theoretical architecture.
 
 ---
 
