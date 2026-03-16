@@ -10,7 +10,6 @@ use aoxcmd::telemetry::tracing::TraceProfile;
 use aoxcdata::{BlockEnvelope, HybridDataStore, IndexBackend};
 use aoxcnet::ports::{LIVE_SMOKE_TEST_PORT, PORT_BINDINGS, RPC_HTTP_PORT};
 use aoxcnet::transport::live_tcp::run_live_tcp_smoke_on;
-use aoxcnet::transport::live_tcp::run_live_tcp_smoke;
 use aoxcore::genesis::config::{GenesisConfig, TREASURY_ACCOUNT};
 use aoxcore::genesis::loader::GenesisLoader;
 use aoxcore::identity::ca::CertificateAuthority;
@@ -18,6 +17,7 @@ use std::collections::BTreeMap;
 
 use std::env;
 use std::process;
+use std::thread;
 use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,7 +69,9 @@ fn run_cli() -> Result<(), String> {
         "genesis-init" => cmd_genesis_init(&args[2..]),
         "node-bootstrap" => cmd_node_bootstrap(&args[2..]),
         "produce-once" => cmd_produce_once(&args[2..]),
+        "node-run" => cmd_node_run(&args[2..]),
         "network-smoke" => cmd_network_smoke(&args[2..]),
+        "real-network" => cmd_real_network(&args[2..]),
         "storage-smoke" => cmd_storage_smoke(&args[2..]),
         "economy-init" => cmd_economy_init(&args[2..]),
         "treasury-transfer" => cmd_treasury_transfer(&args[2..]),
@@ -342,6 +344,59 @@ fn cmd_produce_once(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn cmd_node_run(args: &[String]) -> Result<(), String> {
+    let rounds: u64 = arg_value(args, "--rounds")
+        .unwrap_or_else(|| "10".to_string())
+        .parse()
+        .map_err(|_| "--rounds must be a valid u64".to_string())?;
+    let sleep_ms: u64 = arg_value(args, "--sleep-ms")
+        .unwrap_or_else(|| "2000".to_string())
+        .parse()
+        .map_err(|_| "--sleep-ms must be a valid u64".to_string())?;
+    let tx_prefix =
+        arg_value(args, "--tx-prefix").unwrap_or_else(|| "AOXC_NODE_RUN_TX".to_string());
+
+    let home = data_home::resolve_data_home(args);
+    let mut node = state::setup_with_home(&home).map_err(|error| error.to_string())?;
+
+    let mut produced = 0u64;
+    let mut last_height = 0u64;
+    let mut failures = Vec::new();
+
+    for round in 0..rounds {
+        let tx = format!("{}-{}", tx_prefix, round + 1);
+        match produce_single_block(&mut node, vec![tx.into_bytes()]) {
+            Ok(outcome) => {
+                produced += 1;
+                last_height = outcome.block.header.height;
+            }
+            Err(error) => failures.push(format!("round {}: {}", round + 1, error)),
+        }
+
+        if round + 1 < rounds {
+            thread::sleep(Duration::from_millis(sleep_ms));
+        }
+    }
+
+    let output = serde_json::json!({
+        "mode": "continuous-local-node-run",
+        "rounds_requested": rounds,
+        "rounds_produced": produced,
+        "rounds_failed": failures.len(),
+        "sleep_ms": sleep_ms,
+        "final_height": last_height,
+        "errors": failures,
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
 fn cmd_network_smoke(args: &[String]) -> Result<(), String> {
     let timeout_ms: u64 = arg_value(args, "--timeout-ms")
         .unwrap_or_else(|| "3000".to_string())
@@ -352,20 +407,15 @@ fn cmd_network_smoke(args: &[String]) -> Result<(), String> {
         .unwrap_or_else(|| "AOXC_LIVE_TCP_PING".to_string())
         .into_bytes();
 
+    let bind_host = arg_value(args, "--bind-host").unwrap_or_else(|| "127.0.0.1".to_string());
     let bind_port: u16 = arg_value(args, "--port")
         .unwrap_or_else(|| LIVE_SMOKE_TEST_PORT.to_string())
         .parse()
         .map_err(|_| "--port must be a valid u16".to_string())?;
 
-    let bind_addr = format!("127.0.0.1:{bind_port}");
+    let bind_addr = format!("{bind_host}:{bind_port}");
 
     let report = run_live_tcp_smoke_on(&bind_addr, &payload, Duration::from_millis(timeout_ms))
-
-    let payload = arg_value(args, "--payload")
-        .unwrap_or_else(|| "AOXC_LIVE_TCP_PING".to_string())
-        .into_bytes();
-
-    let report = run_live_tcp_smoke(&payload, Duration::from_millis(timeout_ms))
         .map_err(|error| format!("NETWORK_LIVE_SMOKE_ERROR: {error}"))?;
 
     let output = serde_json::json!({
@@ -376,6 +426,86 @@ fn cmd_network_smoke(args: &[String]) -> Result<(), String> {
         "bytes_received": report.bytes_received,
         "payload_echoed": report.payload_echoed,
         "round_trip_ms": report.round_trip_ms,
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn cmd_real_network(args: &[String]) -> Result<(), String> {
+    let rounds: u64 = arg_value(args, "--rounds")
+        .unwrap_or_else(|| "5".to_string())
+        .parse()
+        .map_err(|_| "--rounds must be a valid u64".to_string())?;
+    let timeout_ms: u64 = arg_value(args, "--timeout-ms")
+        .unwrap_or_else(|| "3000".to_string())
+        .parse()
+        .map_err(|_| "--timeout-ms must be a valid u64".to_string())?;
+    let pause_ms: u64 = arg_value(args, "--pause-ms")
+        .unwrap_or_else(|| "250".to_string())
+        .parse()
+        .map_err(|_| "--pause-ms must be a valid u64".to_string())?;
+
+    let payload = arg_value(args, "--payload")
+        .unwrap_or_else(|| "AOXC_REAL_NETWORK_PROBE".to_string())
+        .into_bytes();
+    let bind_host = arg_value(args, "--bind-host").unwrap_or_else(|| "127.0.0.1".to_string());
+    let bind_port: u16 = arg_value(args, "--port")
+        .unwrap_or_else(|| "0".to_string())
+        .parse()
+        .map_err(|_| "--port must be a valid u16".to_string())?;
+
+    let bind_addr = format!("{bind_host}:{bind_port}");
+    let mut passes = 0u64;
+    let mut failures = Vec::new();
+    let mut rtts: Vec<u128> = Vec::new();
+
+    for round in 0..rounds {
+        match run_live_tcp_smoke_on(&bind_addr, &payload, Duration::from_millis(timeout_ms)) {
+            Ok(report) => {
+                if report.payload_echoed {
+                    passes += 1;
+                    rtts.push(report.round_trip_ms);
+                } else {
+                    failures.push(format!("round {}: payload mismatch", round + 1));
+                }
+            }
+            Err(error) => failures.push(format!("round {}: {}", round + 1, error)),
+        }
+
+        if round + 1 < rounds {
+            thread::sleep(Duration::from_millis(pause_ms));
+        }
+    }
+
+    let avg_rtt = if rtts.is_empty() {
+        None
+    } else {
+        Some((rtts.iter().sum::<u128>() / rtts.len() as u128) as u64)
+    };
+
+    let output = serde_json::json!({
+        "command": "real-network",
+        "mode": "multi-round-live-tcp-probe",
+        "rounds_requested": rounds,
+        "rounds_passed": passes,
+        "rounds_failed": failures.len(),
+        "success_ratio": if rounds == 0 { 0.0 } else { passes as f64 / rounds as f64 },
+        "bind_addr": bind_addr,
+        "timeout_ms": timeout_ms,
+        "pause_ms": pause_ms,
+        "rtt_ms": {
+            "min": rtts.iter().min().copied(),
+            "max": rtts.iter().max().copied(),
+            "avg": avg_rtt,
+        },
+        "failures": failures,
+        "note": "This command validates repeated live TCP behavior. For internet-grade production readiness, run multi-host peer tests with partition/recovery scenarios.",
     });
 
     println!(
@@ -925,9 +1055,9 @@ Komutlar:
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
-  network-smoke [--timeout-ms <u64>] [--port <u16>] [--payload <text>]
-  network-smoke [--timeout-ms <u64>] [--payload <text>]
-  network-smoke
+  node-run [--home <dir>] [--rounds <u64>] [--sleep-ms <u64>] [--tx-prefix <text>]
+  network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
+  real-network [--rounds <u64>] [--timeout-ms <u64>] [--pause-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
   treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
@@ -957,9 +1087,9 @@ Comandos:
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
-  network-smoke [--timeout-ms <u64>] [--port <u16>] [--payload <text>]
-  network-smoke [--timeout-ms <u64>] [--payload <text>]
-  network-smoke
+  node-run [--home <dir>] [--rounds <u64>] [--sleep-ms <u64>] [--tx-prefix <text>]
+  network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
+  real-network [--rounds <u64>] [--timeout-ms <u64>] [--pause-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
   treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
@@ -989,9 +1119,9 @@ Befehle:
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
-  network-smoke [--timeout-ms <u64>] [--port <u16>] [--payload <text>]
-  network-smoke [--timeout-ms <u64>] [--payload <text>]
-  network-smoke
+  node-run [--home <dir>] [--rounds <u64>] [--sleep-ms <u64>] [--tx-prefix <text>]
+  network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
+  real-network [--rounds <u64>] [--timeout-ms <u64>] [--pause-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
   treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
@@ -1021,9 +1151,9 @@ Commands:
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
-  network-smoke [--timeout-ms <u64>] [--port <u16>] [--payload <text>]
-  network-smoke [--timeout-ms <u64>] [--payload <text>]
-  network-smoke
+  node-run [--home <dir>] [--rounds <u64>] [--sleep-ms <u64>] [--tx-prefix <text>]
+  network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
+  real-network [--rounds <u64>] [--timeout-ms <u64>] [--pause-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
   treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
@@ -1111,8 +1241,9 @@ mod tests {
         let usage = usage_text(CliLanguage::En);
         assert!(usage.contains("port-map"));
         assert!(
-            usage.contains("network-smoke [--timeout-ms <u64>] [--port <u16>] [--payload <text>]")
+            usage.contains("network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]")
         );
+        assert!(usage.contains("real-network [--rounds <u64>] [--timeout-ms <u64>] [--pause-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]"));
     }
 
     #[test]
