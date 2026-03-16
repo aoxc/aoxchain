@@ -2,6 +2,7 @@ pub mod ai;
 pub mod app;
 pub mod build_info;
 pub mod config;
+pub mod data_home;
 pub mod economy;
 pub mod error;
 pub mod keys;

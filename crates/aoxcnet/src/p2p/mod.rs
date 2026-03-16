@@ -137,7 +137,7 @@ mod tests {
             serial: "s1".to_string(),
         };
 
-        let peer = Peer::new("node-1", "10.0.0.1:26656", cert);
+        let peer = Peer::new("node-1", "10.0.0.1:2727", cert);
         assert!(net.register_peer(peer).is_err());
     }
 
@@ -151,7 +151,7 @@ mod tests {
             valid_until_unix: u64::MAX,
             serial: "s1".to_string(),
         };
-        let peer = Peer::new("node-1", "10.0.0.1:26656", cert);
+        let peer = Peer::new("node-1", "10.0.0.1:2727", cert);
         net.register_peer(peer).expect("peer should register");
         net.establish_session("node-1")
             .expect("session should be established");

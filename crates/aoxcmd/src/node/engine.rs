@@ -13,8 +13,6 @@ use aoxcunity::fork_choice::BlockMeta;
 use aoxcunity::seal::BlockSeal;
 use aoxcunity::vote::VoteKind;
 
-const ARCHIVE_ROOT: &str = "AOXC_DATA/db/blocks";
-
 #[derive(Debug, Clone)]
 pub struct SingleBlockOutcome {
     pub block: Block,
@@ -94,8 +92,13 @@ pub fn produce_single_block(
                 .mark_finalized(block.hash, committed.clone());
         });
 
-    archive_block(block.header.height, block.header.parent_hash, block.hash)
-        .map_err(|error| format!("archive failure: {error}"))?;
+    archive_block(
+        &node.data_home,
+        block.header.height,
+        block.header.parent_hash,
+        block.hash,
+    )
+    .map_err(|error| format!("archive failure: {error}"))?;
 
     Ok(SingleBlockOutcome { block, seal })
 }
@@ -185,7 +188,9 @@ pub fn run(node: &mut AOXCNode) {
                     );
                     init::log(LogLevel::INFO, "PROPOSER", Some(&context), &proposal_msg);
 
-                    if let Err(error) = archive_block(current_height, parent_hash, block_hash) {
+                    if let Err(error) =
+                        archive_block(&node.data_home, current_height, parent_hash, block_hash)
+                    {
                         let storage_msg = format!(
                             "Block archival failed for height {} hash {}: {}",
                             current_height,
@@ -221,8 +226,9 @@ pub fn run(node: &mut AOXCNode) {
     }
 }
 
-fn archive_block(height: u64, parent: [u8; 32], hash: [u8; 32]) -> io::Result<()> {
-    let base_dir = Path::new(ARCHIVE_ROOT);
+fn archive_block(home: &Path, height: u64, parent: [u8; 32], hash: [u8; 32]) -> io::Result<()> {
+    let base_dir = home.join("db/blocks");
+    let base_dir = base_dir.as_path();
     fs::create_dir_all(base_dir)?;
 
     let final_path = base_dir.join(format!("height_{}.data", height));
