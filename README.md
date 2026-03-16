@@ -38,6 +38,8 @@ Local CLI validation:
 cargo run -p aoxcmd -- version
 cargo run -p aoxcmd -- vision
 cargo run -p aoxcmd -- runtime-status --trace standard --tps 12.4 --peers 7 --error-rate 0.001
+cargo run -p aoxcmd -- node-run --rounds 5 --sleep-ms 1000 --tx-prefix AOXC_RUN
+cargo run -p aoxcmd -- real-network --rounds 5 --timeout-ms 3000 --pause-ms 250
 cargo run -p aoxcmd -- interop-readiness
 cargo run -p aoxcmd -- key-bootstrap --profile testnet --password "TEST#Secure2026!"
 cargo run -p aoxcmd -- interop-gate --audit-complete true --fuzz-complete true --replay-complete true --finality-matrix-complete true --slo-complete true --enforce
@@ -120,6 +122,8 @@ GitHub Actions CI runs:
 ## 4. Production Readiness Note
 
 This repository is under active development. Before production deployment, at minimum complete:
+
+For Turkish go/no-go criteria focused on real-chain operations, see [`docs/GERCEK_AG_HAZIRLIK_KRITERLERI_TR.md`](docs/GERCEK_AG_HAZIRLIK_KRITERLERI_TR.md).
 
 1. Independent security audits (consensus, identity, networking, RPC)
 2. Threat modeling and adversarial scenario validation
