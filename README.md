@@ -229,3 +229,20 @@ AOXChain should be understood as:
 - **An operator-first Rust workspace** designed for deterministic, auditable, and governable operation.
 
 If your goal is secure cross-system coordination with clear governance rails, AOXChain is built for that path.
+
+
+## 8) Continuous Local Chain Operation (Make targets)
+
+For continuous local chain runs with verbose logs:
+
+```bash
+make real-chain-run-once
+make real-chain-run
+make real-chain-tail
+make real-chain-health
+```
+
+Detailed Turkish runbook: [`docs/REAL_CHAIN_RUNBOOK_TR.md`](docs/REAL_CHAIN_RUNBOOK_TR.md).
+
+---
+
