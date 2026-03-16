@@ -36,26 +36,6 @@ These references show that AOXChain is positioned with an active, real-network f
 
 
 
----
-
-## 2) Chain Purpose: Why AOXChain Exists
-
-AOXChain is built with a **relay-chain mindset**:
-
-- Coordinate value and messages across systems.
-- Provide deterministic and auditable routing logic.
-- Support governance and controlled operations through clear operator tooling.
-- Prioritize reliability and interoperability over raw speed marketing.
-
-### What AOXChain is **not**
-
-- Not a chain focused only on maximum TPS claims.
-- Not trying to be "just a different network" without a coordination role.
-- Not positioned as a replacement for every execution environment.
-
-### What AOXChain is
-
-
 ## 2) Chain Purpose: Why AOXChain Exists
 
 AOXChain is built with a **relay-chain mindset**:
