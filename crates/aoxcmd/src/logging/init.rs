@@ -57,6 +57,13 @@ impl Logger {
     /// - ensures all required directories exist before opening files,
     /// - opens log files in append mode to preserve prior records,
     /// - fails atomically if any sink cannot be opened.
+    fn initialize(home: &Path) -> Result<Self, io::Error> {
+        ensure_directories(home)?;
+
+        Ok(Self {
+            node: Mutex::new(open_log_file(home, NODE_LOG_NAME)?),
+            warn: Mutex::new(open_log_file(home, WARN_LOG_NAME)?),
+            error: Mutex::new(open_log_file(home, ERROR_LOG_NAME)?),
     fn initialize() -> Result<Self, io::Error> {
         let home = data_home::default_data_home();
         ensure_directories(&home)?;
@@ -100,11 +107,16 @@ impl Logger {
 /// This function is idempotent. Repeated calls succeed as long as the logger
 /// has already been initialized successfully.
 pub fn init() -> Result<(), io::Error> {
+    let home = data_home::default_data_home();
+    init_with_home(&home)
+}
+
+pub fn init_with_home(home: &Path) -> Result<(), io::Error> {
     if LOGGER.get().is_some() {
         return Ok(());
     }
 
-    let logger = Logger::initialize()?;
+    let logger = Logger::initialize(home)?;
 
     match LOGGER.set(logger) {
         Ok(()) => Ok(()),

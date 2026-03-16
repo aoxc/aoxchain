@@ -17,6 +17,7 @@ use aoxcunity::validator::{Validator, ValidatorRole};
 
 use std::error::Error;
 use std::fmt;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 pub struct AOXCNode {
@@ -24,6 +25,7 @@ pub struct AOXCNode {
     pub consensus: ConsensusState,
     pub fork_choice: ForkChoice,
     pub rotation: ValidatorRotation,
+    pub data_home: PathBuf,
 }
 
 #[derive(Debug)]
@@ -58,6 +60,12 @@ impl fmt::Display for NodeInitError {
 impl Error for NodeInitError {}
 
 pub fn setup() -> Result<AOXCNode, NodeInitError> {
+    let home = data_home::default_data_home();
+    setup_with_home(&home)
+}
+
+pub fn setup_with_home(home: &Path) -> Result<AOXCNode, NodeInitError> {
+    let genesis_path = data_home::join(home, "identity/genesis.json");
     let genesis_path = data_home::join(&data_home::default_data_home(), "identity/genesis.json");
     let genesis = GenesisLoader::load_or_create(&genesis_path)
         .map_err(|error| NodeInitError::GenesisBootstrapFailed(error.to_string()))?;
@@ -87,6 +95,7 @@ pub fn setup() -> Result<AOXCNode, NodeInitError> {
         consensus,
         fork_choice,
         rotation,
+        data_home: home.to_path_buf(),
     })
 }
 

@@ -8,17 +8,15 @@ use aoxcmd::telemetry::prometheus::MetricsSnapshot;
 use aoxcmd::telemetry::tracing::TraceProfile;
 
 use aoxcdata::{BlockEnvelope, HybridDataStore, IndexBackend};
-use aoxcnet::gossip::consensus_gossip::GossipEngine;
-use aoxcnet::gossip::peer::{NodeCertificate, Peer};
+use aoxcnet::transport::live_tcp::run_live_tcp_smoke;
 use aoxcore::genesis::config::{GenesisConfig, TREASURY_ACCOUNT};
 use aoxcore::genesis::loader::GenesisLoader;
 use aoxcore::identity::ca::CertificateAuthority;
-use aoxcunity::messages::ConsensusMessage;
-use aoxcunity::vote::{Vote, VoteKind};
 use std::collections::BTreeMap;
 
 use std::env;
 use std::process;
+use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CliLanguage {
@@ -66,9 +64,9 @@ fn run_cli() -> Result<(), String> {
         "compat-matrix" => cmd_compat_matrix(),
         "key-bootstrap" => cmd_key_bootstrap(&args[2..]),
         "genesis-init" => cmd_genesis_init(&args[2..]),
-        "node-bootstrap" => cmd_node_bootstrap(),
+        "node-bootstrap" => cmd_node_bootstrap(&args[2..]),
         "produce-once" => cmd_produce_once(&args[2..]),
-        "network-smoke" => cmd_network_smoke(),
+        "network-smoke" => cmd_network_smoke(&args[2..]),
         "storage-smoke" => cmd_storage_smoke(&args[2..]),
         "economy-init" => cmd_economy_init(&args[2..]),
         "treasury-transfer" => cmd_treasury_transfer(&args[2..]),
@@ -266,8 +264,9 @@ fn cmd_genesis_init(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_node_bootstrap() -> Result<(), String> {
-    let node = state::setup().map_err(|error| error.to_string())?;
+fn cmd_node_bootstrap(args: &[String]) -> Result<(), String> {
+    let home = data_home::resolve_data_home(args);
+    let node = state::setup_with_home(&home).map_err(|error| error.to_string())?;
 
     let output = serde_json::json!({
         "mempool_max_txs": node.mempool.config().max_txs,
@@ -291,7 +290,8 @@ fn cmd_node_bootstrap() -> Result<(), String> {
 fn cmd_produce_once(args: &[String]) -> Result<(), String> {
     let tx = arg_value(args, "--tx").unwrap_or_else(|| "AOXC_RELAY_DEMO_TX".to_string());
 
-    let mut node = state::setup().map_err(|error| error.to_string())?;
+    let home = data_home::resolve_data_home(args);
+    let mut node = state::setup_with_home(&home).map_err(|error| error.to_string())?;
     let outcome = produce_single_block(&mut node, vec![tx.into_bytes()])?;
 
     let output = serde_json::json!({
@@ -311,47 +311,27 @@ fn cmd_produce_once(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_network_smoke() -> Result<(), String> {
-    let mut gossip = GossipEngine::new();
+fn cmd_network_smoke(args: &[String]) -> Result<(), String> {
+    let timeout_ms: u64 = arg_value(args, "--timeout-ms")
+        .unwrap_or_else(|| "3000".to_string())
+        .parse()
+        .map_err(|_| "--timeout-ms must be a valid u64".to_string())?;
 
-    let cert = NodeCertificate {
-        subject: "validator-1".to_string(),
-        issuer: "AOXC-ROOT-CA".to_string(),
-        valid_from_unix: 1,
-        valid_until_unix: u64::MAX,
-        serial: "validator-1-serial".to_string(),
-    };
-    let peer = Peer::new("validator-1", "127.0.0.1:26656", cert);
+    let payload = arg_value(args, "--payload")
+        .unwrap_or_else(|| "AOXC_LIVE_TCP_PING".to_string())
+        .into_bytes();
 
-    gossip
-        .register_peer(peer)
-        .map_err(|error| format!("NETWORK_PEER_REGISTER_ERROR: {error}"))?;
-    gossip
-        .establish_session("validator-1")
-        .map_err(|error| format!("NETWORK_SESSION_ERROR: {error}"))?;
-
-    let vote = Vote {
-        voter: [7u8; 32],
-        block_hash: [9u8; 32],
-        height: 1,
-        round: 0,
-        kind: VoteKind::Prepare,
-    };
-
-    gossip
-        .broadcast_from_peer("validator-1", ConsensusMessage::Vote(vote))
-        .map_err(|error| format!("NETWORK_BROADCAST_ERROR: {error}"))?;
-
-    let inbound = gossip.receive();
-    let (peer_count, session_count) = gossip.stats();
+    let report = run_live_tcp_smoke(&payload, Duration::from_millis(timeout_ms))
+        .map_err(|error| format!("NETWORK_LIVE_SMOKE_ERROR: {error}"))?;
 
     let output = serde_json::json!({
-        "transport": "in-memory-secure-shell",
-        "security": "mutual-auth-session-gated",
-        "registered_peers": peer_count,
-        "active_sessions": session_count,
-        "broadcast": "ok",
-        "inbound_message": inbound,
+        "transport": "tcp",
+        "mode": "live-loopback-socket",
+        "listener": report.listener_addr.to_string(),
+        "bytes_sent": report.bytes_sent,
+        "bytes_received": report.bytes_received,
+        "payload_echoed": report.payload_echoed,
+        "round_trip_ms": report.round_trip_ms,
     });
 
     println!(
@@ -722,7 +702,7 @@ fn cmd_production_audit(args: &[String]) -> Result<(), String> {
         *entry = entry.saturating_add(position.amount);
     }
 
-    let node = state::setup().map_err(|error| error.to_string())?;
+    let node = state::setup_with_home(&home).map_err(|error| error.to_string())?;
 
     let ai_checks = [
         ("model_signature_verification", ai_model_signed),
@@ -900,6 +880,7 @@ Komutlar:
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
+  network-smoke [--timeout-ms <u64>] [--payload <text>]
   network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
@@ -929,6 +910,7 @@ Comandos:
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
+  network-smoke [--timeout-ms <u64>] [--payload <text>]
   network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
@@ -958,6 +940,7 @@ Befehle:
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
+  network-smoke [--timeout-ms <u64>] [--payload <text>]
   network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
@@ -987,6 +970,7 @@ Commands:
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
+  network-smoke [--timeout-ms <u64>] [--payload <text>]
   network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
