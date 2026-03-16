@@ -47,6 +47,7 @@ fn main() {
 fn run_cli() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
     let lang = detect_language(&args[1..]);
+    apply_home_override(&args[1..]);
 
     if args.len() < 2 {
         print_usage(lang);
@@ -77,6 +78,16 @@ fn run_cli() -> Result<(), String> {
         "interop-gate" => cmd_interop_gate(&args[2..]),
         "production-audit" => cmd_production_audit(&args[2..]),
         other => Err(localized_unknown_command(lang, other)),
+    }
+}
+
+fn apply_home_override(args: &[String]) {
+    if let Some(home) = arg_value(args, "--home") {
+        // SAFETY: this process performs environment mutation during single-threaded
+        // CLI bootstrap before any background threads are started.
+        unsafe {
+            env::set_var("AOXC_HOME", home);
+        }
     }
 }
 
@@ -870,6 +881,7 @@ Komutlar:
   node-bootstrap
   produce-once [--tx <payload>]
   network-smoke [--timeout-ms <u64>] [--payload <text>]
+  network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
   treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
@@ -899,6 +911,7 @@ Comandos:
   node-bootstrap
   produce-once [--tx <payload>]
   network-smoke [--timeout-ms <u64>] [--payload <text>]
+  network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
   treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
@@ -928,6 +941,7 @@ Befehle:
   node-bootstrap
   produce-once [--tx <payload>]
   network-smoke [--timeout-ms <u64>] [--payload <text>]
+  network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
   treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
@@ -957,6 +971,7 @@ Commands:
   node-bootstrap
   produce-once [--tx <payload>]
   network-smoke [--timeout-ms <u64>] [--payload <text>]
+  network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
   economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
   treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]

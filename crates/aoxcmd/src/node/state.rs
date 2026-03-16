@@ -66,6 +66,7 @@ pub fn setup() -> Result<AOXCNode, NodeInitError> {
 
 pub fn setup_with_home(home: &Path) -> Result<AOXCNode, NodeInitError> {
     let genesis_path = data_home::join(home, "identity/genesis.json");
+    let genesis_path = data_home::join(&data_home::default_data_home(), "identity/genesis.json");
     let genesis = GenesisLoader::load_or_create(&genesis_path)
         .map_err(|error| NodeInitError::GenesisBootstrapFailed(error.to_string()))?;
 

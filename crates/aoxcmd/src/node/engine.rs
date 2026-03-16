@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::data_home;
 use crate::logging::init::{self, ChainContext, LogLevel};
 use crate::node::state::AOXCNode;
 
@@ -228,6 +229,9 @@ pub fn run(node: &mut AOXCNode) {
 
 fn archive_block(home: &Path, height: u64, parent: [u8; 32], hash: [u8; 32]) -> io::Result<()> {
     let base_dir = home.join("db/blocks");
+fn archive_block(height: u64, parent: [u8; 32], hash: [u8; 32]) -> io::Result<()> {
+    let home = data_home::default_data_home();
+    let base_dir = Path::new(&home).join("db/blocks");
     let base_dir = base_dir.as_path();
     fs::create_dir_all(base_dir)?;
 
