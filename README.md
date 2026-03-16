@@ -18,6 +18,18 @@ Its main objective is **interoperability, routing, and cross-system coordination
 
 This README explains the project in a clear, chronological way: what is already live, why the chain exists, and how to run it locally.
 
+![Status](https://img.shields.io/badge/status-live-success)
+![Network](https://img.shields.io/badge/network-X%20Layer-blue)
+![Model](https://img.shields.io/badge/architecture-relay--chain-purple)
+![Language](https://img.shields.io/badge/stack-Rust-orange)
+
+</div>
+
+AOXChain is a Rust-based blockchain workspace designed as a **relay-first coordination chain**.
+Its main objective is **interoperability, routing, and cross-system coordination**—not competing as a "faster L1" or "just another alternative network."
+
+This README explains the project in a clear, chronological way: what is already live, why the chain exists, and how to run it locally.
+
 ---
 
 ## 1) Current Live Presence (X Layer References)
@@ -78,6 +90,7 @@ AOXChain is built with a **relay-chain mindset**:
 - Not positioned as a replacement for every execution environment.
 
 ### What AOXChain is
+
 
 ## 2) Chain Purpose: Why AOXChain Exists
 
@@ -201,6 +214,32 @@ cargo run -p aoxcmd -- runtime-status --trace standard --tps 12.4 --peers 7 --er
 cargo run -p aoxcmd -- interop-readiness
 cargo run -p aoxcmd -- interop-gate --audit-complete true --fuzz-complete true --replay-complete true --finality-matrix-complete true --slo-complete true --enforce
 ```
+
+---
+
+## 6) Security and Governance Notes
+
+- Multisig operations should remain mandatory for critical parameter changes.
+- Mainnet-sensitive key generation must follow strict policy controls.
+- Audit readiness should be treated as a release gate, not optional documentation.
+
+Related docs are available under [`docs/`](docs/).
+
+---
+
+
+## 7) Enforcing AOXC Native Coin ↔ X Layer Token Equivalence in Code
+
+To make the X Layer connection stronger at protocol level, `genesis-init` now writes a canonical settlement binding into `genesis.json`:
+
+- `native_symbol` (default: `AOXC`)
+- `native_decimals` (default: `18`)
+- `settlement_network` (default: `xlayer`)
+- `settlement_token_address`
+- `settlement_main_contract`
+- `settlement_multisig_contract`
+- `equivalence_mode` (default: `1:1`)
+
 
 ---
 
