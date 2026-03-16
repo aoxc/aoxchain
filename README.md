@@ -34,18 +34,6 @@ AOXChain already has deployed components on **X Layer**.
 
 These references show that AOXChain is positioned with an active, real-network footprint rather than a purely theoretical architecture.
 
-![Status](https://img.shields.io/badge/status-live-success)
-![Network](https://img.shields.io/badge/network-X%20Layer-blue)
-![Model](https://img.shields.io/badge/architecture-relay--chain-purple)
-![Language](https://img.shields.io/badge/stack-Rust-orange)
-
-</div>
-
-AOXChain is a Rust-based blockchain workspace designed as a **relay-first coordination chain**.
-Its main objective is **interoperability, routing, and cross-system coordination**—not competing as a "faster L1" or "just another alternative network."
-
-This README explains the project in a clear, chronological way: what is already live, why the chain exists, and how to run it locally.
-
 ---
 
 ## 1) Current Live Presence (X Layer References)
