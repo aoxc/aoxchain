@@ -64,6 +64,11 @@ impl Logger {
             node: Mutex::new(open_log_file(home, NODE_LOG_NAME)?),
             warn: Mutex::new(open_log_file(home, WARN_LOG_NAME)?),
             error: Mutex::new(open_log_file(home, ERROR_LOG_NAME)?),
+
+        Ok(Self {
+            node: Mutex::new(open_log_file(home, NODE_LOG_NAME)?),
+            warn: Mutex::new(open_log_file(home, WARN_LOG_NAME)?),
+            error: Mutex::new(open_log_file(home, ERROR_LOG_NAME)?),
     fn initialize() -> Result<Self, io::Error> {
         let home = data_home::default_data_home();
         ensure_directories(&home)?;

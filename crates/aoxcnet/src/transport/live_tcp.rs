@@ -13,11 +13,20 @@ pub struct LiveTcpSmokeReport {
 }
 
 pub fn run_live_tcp_smoke(payload: &[u8], timeout: Duration) -> Result<LiveTcpSmokeReport, String> {
+    run_live_tcp_smoke_on("127.0.0.1:0", payload, timeout)
+}
+
+pub fn run_live_tcp_smoke_on(
+    bind_addr: &str,
+    payload: &[u8],
+    timeout: Duration,
+) -> Result<LiveTcpSmokeReport, String> {
     if payload.is_empty() {
         return Err("payload must not be empty".to_string());
     }
 
     let listener =
+        TcpListener::bind(bind_addr).map_err(|error| format!("tcp bind failed: {error}"))?;
         TcpListener::bind("127.0.0.1:0").map_err(|error| format!("tcp bind failed: {error}"))?;
     let listener_addr = listener
         .local_addr()
@@ -108,6 +117,7 @@ pub fn run_live_tcp_smoke(payload: &[u8], timeout: Duration) -> Result<LiveTcpSm
 
 #[cfg(test)]
 mod tests {
+    use super::{run_live_tcp_smoke, run_live_tcp_smoke_on};
     use super::run_live_tcp_smoke;
     use std::time::Duration;
 
@@ -118,5 +128,15 @@ mod tests {
 
         assert!(report.payload_echoed);
         assert_eq!(report.bytes_sent, report.bytes_received);
+    }
+
+    #[test]
+    fn live_tcp_smoke_on_explicit_port() {
+        let report =
+            run_live_tcp_smoke_on("127.0.0.1:3636", b"aoxc-port-3636", Duration::from_secs(2))
+                .expect("live tcp smoke should succeed on explicit port");
+
+        assert_eq!(report.listener_addr.port(), 3636);
+        assert!(report.payload_echoed);
     }
 }

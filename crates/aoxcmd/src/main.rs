@@ -8,6 +8,8 @@ use aoxcmd::telemetry::prometheus::MetricsSnapshot;
 use aoxcmd::telemetry::tracing::TraceProfile;
 
 use aoxcdata::{BlockEnvelope, HybridDataStore, IndexBackend};
+use aoxcnet::ports::{LIVE_SMOKE_TEST_PORT, PORT_BINDINGS, RPC_HTTP_PORT};
+use aoxcnet::transport::live_tcp::run_live_tcp_smoke_on;
 use aoxcnet::transport::live_tcp::run_live_tcp_smoke;
 use aoxcore::genesis::config::{GenesisConfig, TREASURY_ACCOUNT};
 use aoxcore::genesis::loader::GenesisLoader;
@@ -62,6 +64,7 @@ fn run_cli() -> Result<(), String> {
         }
         "vision" => cmd_vision(),
         "compat-matrix" => cmd_compat_matrix(),
+        "port-map" => cmd_port_map(),
         "key-bootstrap" => cmd_key_bootstrap(&args[2..]),
         "genesis-init" => cmd_genesis_init(&args[2..]),
         "node-bootstrap" => cmd_node_bootstrap(&args[2..]),
@@ -141,6 +144,34 @@ fn cmd_vision() -> Result<(), String> {
         "identity_model": "post-quantum capable key/certificate/passport pipeline",
         "consensus_model": "quorum-based proposer/vote/finalization with explicit rotation",
         "status": "pre-mainnet; deterministic local smoke path available"
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn cmd_port_map() -> Result<(), String> {
+    let ports: Vec<_> = PORT_BINDINGS
+        .iter()
+        .map(|binding| {
+            serde_json::json!({
+                "name": binding.name,
+                "protocol": binding.protocol,
+                "bind": binding.bind,
+                "port": binding.port,
+                "purpose": binding.purpose,
+            })
+        })
+        .collect();
+
+    let output = serde_json::json!({
+        "primary_rpc_port": RPC_HTTP_PORT,
+        "ports": ports,
     });
 
     println!(
@@ -316,6 +347,19 @@ fn cmd_network_smoke(args: &[String]) -> Result<(), String> {
         .unwrap_or_else(|| "3000".to_string())
         .parse()
         .map_err(|_| "--timeout-ms must be a valid u64".to_string())?;
+
+    let payload = arg_value(args, "--payload")
+        .unwrap_or_else(|| "AOXC_LIVE_TCP_PING".to_string())
+        .into_bytes();
+
+    let bind_port: u16 = arg_value(args, "--port")
+        .unwrap_or_else(|| LIVE_SMOKE_TEST_PORT.to_string())
+        .parse()
+        .map_err(|_| "--port must be a valid u16".to_string())?;
+
+    let bind_addr = format!("127.0.0.1:{bind_port}");
+
+    let report = run_live_tcp_smoke_on(&bind_addr, &payload, Duration::from_millis(timeout_ms))
 
     let payload = arg_value(args, "--payload")
         .unwrap_or_else(|| "AOXC_LIVE_TCP_PING".to_string())
@@ -875,11 +919,13 @@ fn usage_text(lang: CliLanguage) -> &'static str {
 Komutlar:
   vision
   compat-matrix
+  port-map
   version
   key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
+  network-smoke [--timeout-ms <u64>] [--port <u16>] [--payload <text>]
   network-smoke [--timeout-ms <u64>] [--payload <text>]
   network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
@@ -905,11 +951,13 @@ Global:
 Comandos:
   vision
   compat-matrix
+  port-map
   version
   key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
+  network-smoke [--timeout-ms <u64>] [--port <u16>] [--payload <text>]
   network-smoke [--timeout-ms <u64>] [--payload <text>]
   network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
@@ -935,11 +983,13 @@ Global:
 Befehle:
   vision
   compat-matrix
+  port-map
   version
   key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
+  network-smoke [--timeout-ms <u64>] [--port <u16>] [--payload <text>]
   network-smoke [--timeout-ms <u64>] [--payload <text>]
   network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
@@ -965,11 +1015,13 @@ Global:
 Commands:
   vision
   compat-matrix
+  port-map
   version
   key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
   genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
+  network-smoke [--timeout-ms <u64>] [--port <u16>] [--payload <text>]
   network-smoke [--timeout-ms <u64>] [--payload <text>]
   network-smoke
   storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
@@ -1052,6 +1104,15 @@ mod tests {
         assert!(usage_text(CliLanguage::Tr).contains("AOXC Komut Yüzeyi"));
         assert!(usage_text(CliLanguage::Es).contains("Superficie de Comandos AOXC"));
         assert!(usage_text(CliLanguage::De).contains("AOXC Kommandooberfläche"));
+    }
+
+    #[test]
+    fn usage_text_mentions_port_map_and_network_port_override() {
+        let usage = usage_text(CliLanguage::En);
+        assert!(usage.contains("port-map"));
+        assert!(
+            usage.contains("network-smoke [--timeout-ms <u64>] [--port <u16>] [--payload <text>]")
+        );
     }
 
     #[test]
