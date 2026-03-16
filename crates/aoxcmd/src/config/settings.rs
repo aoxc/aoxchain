@@ -1,3 +1,5 @@
+use crate::data_home;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
     pub data_dir: String,
@@ -12,7 +14,9 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            data_dir: "AOXC_DATA".to_string(),
+            data_dir: data_home::default_data_home()
+                .to_string_lossy()
+                .into_owned(),
             key_name: "relay-1".to_string(),
             chain: "AOXC-MAIN".to_string(),
             role: "relay".to_string(),

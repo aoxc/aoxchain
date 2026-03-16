@@ -1,12 +1,11 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufWriter, Write};
 use std::path::{Path, PathBuf};
+
+use crate::data_home;
 use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-const DATA_ROOT: &str = "AOXC_DATA";
-const LOG_DIR: &str = "AOXC_DATA/logs";
 
 const NODE_LOG_NAME: &str = "node.log";
 const ERROR_LOG_NAME: &str = "critical.log";
@@ -59,12 +58,13 @@ impl Logger {
     /// - opens log files in append mode to preserve prior records,
     /// - fails atomically if any sink cannot be opened.
     fn initialize() -> Result<Self, io::Error> {
-        ensure_directories()?;
+        let home = data_home::default_data_home();
+        ensure_directories(&home)?;
 
         Ok(Self {
-            node: Mutex::new(open_log_file(NODE_LOG_NAME)?),
-            warn: Mutex::new(open_log_file(WARN_LOG_NAME)?),
-            error: Mutex::new(open_log_file(ERROR_LOG_NAME)?),
+            node: Mutex::new(open_log_file(&home, NODE_LOG_NAME)?),
+            warn: Mutex::new(open_log_file(&home, WARN_LOG_NAME)?),
+            error: Mutex::new(open_log_file(&home, ERROR_LOG_NAME)?),
         })
     }
 
@@ -154,13 +154,16 @@ pub fn log(level: LogLevel, module: &str, ctx: Option<&ChainContext>, message: &
 /// Ensures all runtime storage directories required by the node exist.
 ///
 /// This helper keeps bootstrap filesystem concerns localized and consistent.
-fn ensure_directories() -> Result<(), io::Error> {
+fn ensure_directories(home: &Path) -> Result<(), io::Error> {
     let directories = [
-        PathBuf::from(DATA_ROOT).join("logs"),
-        PathBuf::from(DATA_ROOT).join("db/blocks"),
-        PathBuf::from(DATA_ROOT).join("db/state"),
-        PathBuf::from(DATA_ROOT).join("db/mempool"),
-        PathBuf::from(DATA_ROOT).join("identity"),
+        home.join("logs"),
+        home.join("db/blocks"),
+        home.join("db/state"),
+        home.join("db/mempool"),
+        home.join("identity"),
+        home.join("keys"),
+        home.join("economy"),
+        home.join("storage"),
     ];
 
     for directory in directories {
@@ -171,8 +174,8 @@ fn ensure_directories() -> Result<(), io::Error> {
 }
 
 /// Opens a log file in append mode under the configured log directory.
-fn open_log_file(name: &str) -> Result<BufWriter<File>, io::Error> {
-    let path = build_log_path(name);
+fn open_log_file(home: &Path, name: &str) -> Result<BufWriter<File>, io::Error> {
+    let path = build_log_path(home, name);
     let file = OpenOptions::new().create(true).append(true).open(path)?;
     Ok(BufWriter::new(file))
 }
@@ -264,8 +267,8 @@ fn format_chain_context(ctx: Option<&ChainContext>) -> String {
 }
 
 /// Builds a fully qualified log file path.
-fn build_log_path(name: &str) -> PathBuf {
-    Path::new(LOG_DIR).join(name)
+fn build_log_path(home: &Path, name: &str) -> PathBuf {
+    home.join("logs").join(name)
 }
 
 /// Sanitizes an arbitrary input field for safe single-line logging.

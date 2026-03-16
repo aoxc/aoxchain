@@ -1,6 +1,8 @@
 // Copyright (c) AOXC
 // SPDX-License-Identifier: MIT
 
+use crate::data_home;
+
 use aoxcore::genesis::config::GenesisBlock;
 use aoxcore::genesis::loader::GenesisLoader;
 use aoxcore::identity::hd_path::HdPath;
@@ -16,8 +18,6 @@ use aoxcunity::validator::{Validator, ValidatorRole};
 use std::error::Error;
 use std::fmt;
 use std::time::Duration;
-
-const GENESIS_PATH: &str = "AOXC_DATA/identity/genesis.json";
 
 pub struct AOXCNode {
     pub mempool: Mempool,
@@ -58,7 +58,8 @@ impl fmt::Display for NodeInitError {
 impl Error for NodeInitError {}
 
 pub fn setup() -> Result<AOXCNode, NodeInitError> {
-    let genesis = GenesisLoader::load_or_create(GENESIS_PATH)
+    let genesis_path = data_home::join(&data_home::default_data_home(), "identity/genesis.json");
+    let genesis = GenesisLoader::load_or_create(&genesis_path)
         .map_err(|error| NodeInitError::GenesisBootstrapFailed(error.to_string()))?;
 
     genesis

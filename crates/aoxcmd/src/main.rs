@@ -1,4 +1,5 @@
 use aoxcmd::build_info::BuildInfo;
+use aoxcmd::data_home;
 use aoxcmd::economy::ledger::EconomyState;
 use aoxcmd::keys::{KeyBootstrapRequest, KeyManager, KeyPaths};
 use aoxcmd::node::engine::produce_single_block;
@@ -48,6 +49,7 @@ fn main() {
 fn run_cli() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
     let lang = detect_language(&args[1..]);
+    apply_home_override(&args[1..]);
 
     if args.len() < 2 {
         print_usage(lang);
@@ -78,6 +80,16 @@ fn run_cli() -> Result<(), String> {
         "interop-gate" => cmd_interop_gate(&args[2..]),
         "production-audit" => cmd_production_audit(&args[2..]),
         other => Err(localized_unknown_command(lang, other)),
+    }
+}
+
+fn apply_home_override(args: &[String]) {
+    if let Some(home) = arg_value(args, "--home") {
+        // SAFETY: this process performs environment mutation during single-threaded
+        // CLI bootstrap before any background threads are started.
+        unsafe {
+            env::set_var("AOXC_HOME", home);
+        }
     }
 }
 
@@ -168,7 +180,8 @@ fn cmd_key_bootstrap(args: &[String]) -> Result<(), String> {
     let defaults = bootstrap_defaults(args)?;
     assert_mainnet_key_policy(args, defaults.profile)?;
 
-    let base_dir = arg_value(args, "--base-dir").unwrap_or(defaults.base_dir);
+    let home = data_home::resolve_data_home(args);
+    let base_dir = arg_value(args, "--base-dir").unwrap_or_else(|| data_home::join(&home, "keys"));
     let name = arg_value(args, "--name").unwrap_or(defaults.name);
     let chain = arg_value(args, "--chain").unwrap_or(defaults.chain);
     let role = arg_value(args, "--role").unwrap_or_else(|| "validator".to_string());
@@ -206,8 +219,9 @@ fn cmd_key_bootstrap(args: &[String]) -> Result<(), String> {
 }
 
 fn cmd_genesis_init(args: &[String]) -> Result<(), String> {
-    let path =
-        arg_value(args, "--path").unwrap_or_else(|| "AOXC_DATA/identity/genesis.json".to_string());
+    let home = data_home::resolve_data_home(args);
+    let path = arg_value(args, "--path")
+        .unwrap_or_else(|| data_home::join(&home, "identity/genesis.json"));
     let chain_num: u32 = arg_value(args, "--chain-num")
         .unwrap_or_else(|| "1".to_string())
         .parse()
@@ -350,7 +364,9 @@ fn cmd_network_smoke() -> Result<(), String> {
 }
 
 fn cmd_storage_smoke(args: &[String]) -> Result<(), String> {
-    let base_dir = arg_value(args, "--base-dir").unwrap_or_else(|| "AOXC_DATA/storage".to_string());
+    let home = data_home::resolve_data_home(args);
+    let base_dir =
+        arg_value(args, "--base-dir").unwrap_or_else(|| data_home::join(&home, "storage"));
     let backend = arg_value(args, "--index").unwrap_or_else(|| "sqlite".to_string());
 
     let index_backend = match backend.as_str() {
@@ -397,8 +413,9 @@ fn cmd_storage_smoke(args: &[String]) -> Result<(), String> {
 }
 
 fn cmd_economy_init(args: &[String]) -> Result<(), String> {
+    let home = data_home::resolve_data_home(args);
     let state_path =
-        arg_value(args, "--state").unwrap_or_else(|| "AOXC_DATA/economy/state.json".to_string());
+        arg_value(args, "--state").unwrap_or_else(|| data_home::join(&home, "economy/state.json"));
     let treasury_supply: u128 = arg_value(args, "--treasury-supply")
         .unwrap_or_else(|| "1000000000000".to_string())
         .parse()
@@ -423,8 +440,9 @@ fn cmd_economy_init(args: &[String]) -> Result<(), String> {
 }
 
 fn cmd_treasury_transfer(args: &[String]) -> Result<(), String> {
+    let home = data_home::resolve_data_home(args);
     let state_path =
-        arg_value(args, "--state").unwrap_or_else(|| "AOXC_DATA/economy/state.json".to_string());
+        arg_value(args, "--state").unwrap_or_else(|| data_home::join(&home, "economy/state.json"));
     let to = arg_value(args, "--to").ok_or_else(|| "--to is required".to_string())?;
     let amount: u128 = arg_value(args, "--amount")
         .ok_or_else(|| "--amount is required".to_string())?
@@ -452,8 +470,9 @@ fn cmd_treasury_transfer(args: &[String]) -> Result<(), String> {
 }
 
 fn cmd_stake_delegate(args: &[String]) -> Result<(), String> {
+    let home = data_home::resolve_data_home(args);
     let state_path =
-        arg_value(args, "--state").unwrap_or_else(|| "AOXC_DATA/economy/state.json".to_string());
+        arg_value(args, "--state").unwrap_or_else(|| data_home::join(&home, "economy/state.json"));
     let staker = arg_value(args, "--staker").ok_or_else(|| "--staker is required".to_string())?;
     let validator =
         arg_value(args, "--validator").ok_or_else(|| "--validator is required".to_string())?;
@@ -482,8 +501,9 @@ fn cmd_stake_delegate(args: &[String]) -> Result<(), String> {
 }
 
 fn cmd_stake_undelegate(args: &[String]) -> Result<(), String> {
+    let home = data_home::resolve_data_home(args);
     let state_path =
-        arg_value(args, "--state").unwrap_or_else(|| "AOXC_DATA/economy/state.json".to_string());
+        arg_value(args, "--state").unwrap_or_else(|| data_home::join(&home, "economy/state.json"));
     let staker = arg_value(args, "--staker").ok_or_else(|| "--staker is required".to_string())?;
     let validator =
         arg_value(args, "--validator").ok_or_else(|| "--validator is required".to_string())?;
@@ -512,8 +532,9 @@ fn cmd_stake_undelegate(args: &[String]) -> Result<(), String> {
 }
 
 fn cmd_economy_status(args: &[String]) -> Result<(), String> {
+    let home = data_home::resolve_data_home(args);
     let state_path =
-        arg_value(args, "--state").unwrap_or_else(|| "AOXC_DATA/economy/state.json".to_string());
+        arg_value(args, "--state").unwrap_or_else(|| data_home::join(&home, "economy/state.json"));
     let state = EconomyState::load_or_default(&state_path)?;
 
     let output = serde_json::json!({
@@ -674,10 +695,11 @@ fn cmd_interop_gate(args: &[String]) -> Result<(), String> {
 }
 
 fn cmd_production_audit(args: &[String]) -> Result<(), String> {
+    let home = data_home::resolve_data_home(args);
     let genesis_path = arg_value(args, "--genesis")
-        .unwrap_or_else(|| "AOXC_DATA/identity/genesis.json".to_string());
+        .unwrap_or_else(|| data_home::join(&home, "identity/genesis.json"));
     let economy_state_path =
-        arg_value(args, "--state").unwrap_or_else(|| "AOXC_DATA/economy/state.json".to_string());
+        arg_value(args, "--state").unwrap_or_else(|| data_home::join(&home, "economy/state.json"));
 
     let ai_model_signed = arg_bool_value(args, "--ai-model-signed").unwrap_or(false);
     let ai_prompt_guard = arg_bool_value(args, "--ai-prompt-guard").unwrap_or(false);
@@ -806,7 +828,6 @@ fn arg_value(args: &[String], key: &str) -> Option<String> {
 #[derive(Debug, Clone)]
 struct BootstrapDefaults {
     profile: &'static str,
-    base_dir: String,
     name: String,
     chain: String,
     issuer: String,
@@ -818,14 +839,12 @@ fn bootstrap_defaults(args: &[String]) -> Result<BootstrapDefaults, String> {
     match profile.as_str() {
         "mainnet" => Ok(BootstrapDefaults {
             profile: "mainnet",
-            base_dir: "AOXC_DATA/keys".to_string(),
             name: "node".to_string(),
             chain: "AOXC-MAIN".to_string(),
             issuer: "AOXC-ROOT-CA".to_string(),
         }),
         "testnet" | "test" => Ok(BootstrapDefaults {
             profile: "testnet",
-            base_dir: "TEST_DATA/keys".to_string(),
             name: "TEST-VALIDATOR-01".to_string(),
             chain: "TEST-XXX-XX-LOCAL".to_string(),
             issuer: "TEST-XXX-ROOT-CA".to_string(),
@@ -877,25 +896,26 @@ Komutlar:
   vision
   compat-matrix
   version
-  key-bootstrap --password <secret> [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
-  genesis-init [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
+  key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
+  genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
   network-smoke
-  storage-smoke [--base-dir <dir>] [--index sqlite|redb]
-  economy-init [--state <file>] [--treasury-supply <u128>]
-  treasury-transfer --to <account> --amount <u128> [--state <file>]
-  stake-delegate --staker <account> --validator <id> --amount <u128> [--state <file>]
-  stake-undelegate --staker <account> --validator <id> --amount <u128> [--state <file>]
-  economy-status [--state <file>]
+  storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
+  economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
+  treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
+  stake-delegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
+  stake-undelegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
+  economy-status [--home <dir>] [--state <file>]
   runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]
   interop-readiness
   interop-gate [--audit-complete <bool>] [--fuzz-complete <bool>] [--replay-complete <bool>] [--finality-matrix-complete <bool>] [--slo-complete <bool>] [--enforce]
-  production-audit [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
+  production-audit [--home <dir>] [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
   help
 
 Global:
   --lang <en|tr|es|de> (veya AOXC_LANG ortam değişkeni)
+  --home <dir> (varsayılan: $HOME/.AOXC-Data, veya AOXC_HOME)
 "
         }
         CliLanguage::Es => {
@@ -905,25 +925,26 @@ Comandos:
   vision
   compat-matrix
   version
-  key-bootstrap --password <secret> [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
-  genesis-init [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
+  key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
+  genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
   network-smoke
-  storage-smoke [--base-dir <dir>] [--index sqlite|redb]
-  economy-init [--state <file>] [--treasury-supply <u128>]
-  treasury-transfer --to <account> --amount <u128> [--state <file>]
-  stake-delegate --staker <account> --validator <id> --amount <u128> [--state <file>]
-  stake-undelegate --staker <account> --validator <id> --amount <u128> [--state <file>]
-  economy-status [--state <file>]
+  storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
+  economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
+  treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
+  stake-delegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
+  stake-undelegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
+  economy-status [--home <dir>] [--state <file>]
   runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]
   interop-readiness
   interop-gate [--audit-complete <bool>] [--fuzz-complete <bool>] [--replay-complete <bool>] [--finality-matrix-complete <bool>] [--slo-complete <bool>] [--enforce]
-  production-audit [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
+  production-audit [--home <dir>] [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
   help
 
 Global:
   --lang <en|tr|es|de> (o variable AOXC_LANG)
+  --home <dir> (por defecto: $HOME/.AOXC-Data, o AOXC_HOME)
 "
         }
         CliLanguage::De => {
@@ -933,25 +954,26 @@ Befehle:
   vision
   compat-matrix
   version
-  key-bootstrap --password <secret> [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
-  genesis-init [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
+  key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
+  genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
   network-smoke
-  storage-smoke [--base-dir <dir>] [--index sqlite|redb]
-  economy-init [--state <file>] [--treasury-supply <u128>]
-  treasury-transfer --to <account> --amount <u128> [--state <file>]
-  stake-delegate --staker <account> --validator <id> --amount <u128> [--state <file>]
-  stake-undelegate --staker <account> --validator <id> --amount <u128> [--state <file>]
-  economy-status [--state <file>]
+  storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
+  economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
+  treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
+  stake-delegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
+  stake-undelegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
+  economy-status [--home <dir>] [--state <file>]
   runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]
   interop-readiness
   interop-gate [--audit-complete <bool>] [--fuzz-complete <bool>] [--replay-complete <bool>] [--finality-matrix-complete <bool>] [--slo-complete <bool>] [--enforce]
-  production-audit [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
+  production-audit [--home <dir>] [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
   help
 
 Global:
   --lang <en|tr|es|de> (oder AOXC_LANG Umgebungsvariable)
+  --home <dir> (Standard: $HOME/.AOXC-Data oder AOXC_HOME)
 "
         }
         CliLanguage::En => {
@@ -961,25 +983,26 @@ Commands:
   vision
   compat-matrix
   version
-  key-bootstrap --password <secret> [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
-  genesis-init [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
+  key-bootstrap --password <secret> [--home <dir>] [--profile mainnet|testnet] [--allow-mainnet] [--base-dir <dir>] [--name <name>] [--chain <id>] [--role <role>] [--zone <zone>] [--issuer <issuer>] [--validity-secs <u64>]
+  genesis-init [--home <dir>] [--path <file>] [--chain-num <u32>] [--block-time <u64>] [--treasury <u128>]
   node-bootstrap
   produce-once [--tx <payload>]
   network-smoke
-  storage-smoke [--base-dir <dir>] [--index sqlite|redb]
-  economy-init [--state <file>] [--treasury-supply <u128>]
-  treasury-transfer --to <account> --amount <u128> [--state <file>]
-  stake-delegate --staker <account> --validator <id> --amount <u128> [--state <file>]
-  stake-undelegate --staker <account> --validator <id> --amount <u128> [--state <file>]
-  economy-status [--state <file>]
+  storage-smoke [--home <dir>] [--base-dir <dir>] [--index sqlite|redb]
+  economy-init [--home <dir>] [--state <file>] [--treasury-supply <u128>]
+  treasury-transfer --to <account> --amount <u128> [--home <dir>] [--state <file>]
+  stake-delegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
+  stake-undelegate --staker <account> --validator <id> --amount <u128> [--home <dir>] [--state <file>]
+  economy-status [--home <dir>] [--state <file>]
   runtime-status [--trace minimal|standard|verbose] [--tps <f64>] [--peers <usize>] [--error-rate <f64>]
   interop-readiness
   interop-gate [--audit-complete <bool>] [--fuzz-complete <bool>] [--replay-complete <bool>] [--finality-matrix-complete <bool>] [--slo-complete <bool>] [--enforce]
-  production-audit [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
+  production-audit [--home <dir>] [--genesis <file>] [--state <file>] [--ai-model-signed <bool>] [--ai-prompt-guard <bool>] [--ai-anomaly-detection <bool>] [--ai-human-override <bool>]
   help
 
 Global:
   --lang <en|tr|es|de> (or AOXC_LANG environment variable)
+  --home <dir> (default: $HOME/.AOXC-Data, or AOXC_HOME)
 "
         }
     }
