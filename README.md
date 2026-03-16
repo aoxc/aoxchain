@@ -121,6 +121,8 @@ GitHub Actions CI runs:
 
 This repository is under active development. Before production deployment, at minimum complete:
 
+For Turkish go/no-go criteria focused on real-chain operations, see [`docs/GERCEK_AG_HAZIRLIK_KRITERLERI_TR.md`](docs/GERCEK_AG_HAZIRLIK_KRITERLERI_TR.md).
+
 1. Independent security audits (consensus, identity, networking, RPC)
 2. Threat modeling and adversarial scenario validation
 3. Performance and resilience testing (stress/chaos/partition)
