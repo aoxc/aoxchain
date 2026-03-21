@@ -145,6 +145,70 @@ fn cmd_node_connection_policy(args: &[String]) -> Result<(), String> {
     let enforce = arg_flag(args, "--enforce-official");
     let official_release = is_official_release(&build);
     let output = node_connection_policy_payload(&build);
+fn cmd_build_manifest() -> Result<(), String> {
+    let build = BuildInfo::collect();
+    let official_release = is_official_release(&build);
+
+    let output = serde_json::json!({
+        "artifact": {
+            "name": "aoxcmd",
+            "version": build.semver,
+            "git_commit": build.git_commit,
+            "git_dirty": build.git_dirty,
+            "source_date_epoch": build.source_date_epoch,
+            "build_profile": build.build_profile,
+            "release_channel": build.release_channel,
+            "attestation_hash": build.attestation_hash,
+        },
+        "certificate": {
+            "path": build.cert_path,
+            "sha256": build.cert_sha256,
+            "error": build.cert_error,
+        },
+        "supply_chain_policy": {
+            "official_release": official_release,
+            "requires_embedded_certificate": true,
+            "requires_attestation_hash": true,
+            "accept_unofficial_node_builds": false,
+        }
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn cmd_node_connection_policy(args: &[String]) -> Result<(), String> {
+    let build = BuildInfo::collect();
+    let official_release = is_official_release(&build);
+    let enforce = arg_flag(args, "--enforce-official");
+
+    let output = serde_json::json!({
+        "local_build": {
+            "version": build.semver,
+            "release_channel": build.release_channel,
+            "git_dirty": build.git_dirty,
+            "attestation_hash": build.attestation_hash,
+            "embedded_cert_sha256": build.cert_sha256,
+            "official_release": official_release,
+        },
+        "accepted_remote_policy": {
+            "require_mtls": true,
+            "require_certificate_fingerprint_match": true,
+            "require_attestation_hash_exchange": true,
+            "allow_unofficial_remote_builds": false,
+            "accepted_release_channels": ["stable", "official", "mainnet"],
+        },
+        "operator_guidance": [
+            "Embed a node certificate at build time with AOXC_EMBED_CERT_PATH",
+            "Distribute attestation_hash and certificate fingerprint via a signed release manifest",
+            "Reject ad-hoc local builds for production peering unless explicitly approved",
+        ]
+    });
 
     println!(
         "{}",
@@ -176,6 +240,14 @@ fn cmd_vision() -> Result<(), String> {
             "security",
             "settlement",
             "treasury"
+        "execution_strategy": "multi-lane model compatible with heterogeneous external networks",
+        "recommended_topology": "thin relay core + five attached functional modules",
+        "functional_modules": [
+            "identity",
+            "asset_treasury",
+            "smart_execution",
+            "interop_bridge",
+            "data_proof"
         ],
         "identity_model": "post-quantum capable key/certificate/passport pipeline",
         "consensus_model": "quorum-based proposer/vote/finalization with explicit rotation",
@@ -358,6 +430,9 @@ fn cmd_module_architecture() -> Result<(), String> {
             "principle": "keep the relay chain thin, neutral, and durable",
             "canonical_modules": relay_module_names,
             "sovereign_roots": sovereign_roots,
+    let output = serde_json::json!({
+        "relay_core": {
+            "principle": "keep the relay chain thin, neutral, and durable",
             "responsibilities": [
                 "finality_ordering",
                 "shared_security",
@@ -399,6 +474,19 @@ fn cmd_module_architecture() -> Result<(), String> {
         ],
         "message_envelope": {
             "fields": envelope_fields
+            "fields": [
+                "sourceModule",
+                "destinationModule",
+                "sourceChainFamily",
+                "targetChainFamily",
+                "nonce",
+                "payloadType",
+                "payloadHash",
+                "proofReference",
+                "feeClass",
+                "expiry",
+                "replayProtectionTag"
+            ]
         },
         "security_boundaries": {
             "relay_core": [
@@ -1404,6 +1492,11 @@ mod tests {
         bootstrap_defaults, build_manifest_payload, detect_language, interop_assessment,
         is_official_release, localized_unknown_command, node_connection_policy_payload, usage_text,
         version_payload,
+        bootstrap_defaults, detect_language, interop_assessment, is_official_release,
+        localized_unknown_command, usage_text,
+        CliLanguage, ai_control_score, arg_bool_value, assert_mainnet_key_policy,
+        bootstrap_defaults, detect_language, interop_assessment, localized_unknown_command,
+        usage_text,
     };
 
     #[test]
