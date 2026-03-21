@@ -15,6 +15,7 @@ use aoxcore::genesis::loader::GenesisLoader;
 use aoxcore::identity::ca::CertificateAuthority;
 use aoxcore::protocol::{
     canonical_chain_families, canonical_message_envelope_fields, canonical_modules,
+    canonical_sovereign_roots,
 };
 use std::collections::BTreeMap;
 
@@ -57,6 +58,7 @@ fn run_cli() -> Result<(), String> {
         "vision" => cmd_vision(),
         "build-manifest" => cmd_build_manifest(),
         "node-connection-policy" => cmd_node_connection_policy(&args[2..]),
+        "sovereign-core" => cmd_sovereign_core(),
         "module-architecture" => cmd_module_architecture(),
         "compat-matrix" => cmd_compat_matrix(),
         "port-map" => cmd_port_map(),
@@ -202,6 +204,16 @@ fn cmd_vision() -> Result<(), String> {
     let output = serde_json::json!({
         "chain_positioning": "interop relay-oriented coordination chain",
         "primary_goal": "cross-chain compatibility and deterministic coordination over raw throughput",
+        "execution_strategy": "sovereign constitutional local core + remote execution domains",
+        "recommended_topology": "local sovereign root modules + remote chain contracts/execution adapters",
+        "constitutional_roots": [
+            "identity",
+            "supply",
+            "governance",
+            "relay",
+            "security",
+            "settlement",
+            "treasury"
         "execution_strategy": "multi-lane model compatible with heterogeneous external networks",
         "recommended_topology": "thin relay core + five attached functional modules",
         "functional_modules": [
@@ -225,6 +237,90 @@ fn cmd_vision() -> Result<(), String> {
     Ok(())
 }
 
+fn cmd_sovereign_core() -> Result<(), String> {
+    let sovereign_roots: Vec<&str> = canonical_sovereign_roots()
+        .iter()
+        .map(|root| root.as_str())
+        .collect();
+
+    let output = serde_json::json!({
+        "local_chain_role": "sovereign constitutional core",
+        "remote_chain_role": "execution domains connected through contracts and settlement rules",
+        "constitutional_roots": sovereign_roots,
+        "local_must_keep": {
+            "identity": [
+                "root_account_registry",
+                "chain_mappings",
+                "signer_bindings",
+                "recovery_authority",
+                "key_rotation_rules",
+                "delegate_registry"
+            ],
+            "supply": [
+                "total_canonical_supply",
+                "mint_authority_root",
+                "burn_settlement_root",
+                "global_supply_accounting",
+                "emission_policy"
+            ],
+            "governance": [
+                "protocol_upgrades",
+                "module_approvals",
+                "remote_domain_authorization",
+                "risk_parameters",
+                "bridge_mint_ceilings",
+                "validator_policy"
+            ],
+            "relay": [
+                "outbound_message_commitments",
+                "inbound_settlement_acceptance_rules",
+                "nonce_root",
+                "replay_protection_root",
+                "approved_remote_domains",
+                "message_policy_classes"
+            ],
+            "security": [
+                "validator_set",
+                "attester_set",
+                "quorum_thresholds",
+                "slashing_logic",
+                "signature_policy",
+                "emergency_security_overrides"
+            ],
+            "settlement": [
+                "final_settlement_records",
+                "remote_execution_receipts_hash",
+                "dispute_intake",
+                "final_confirmation_state",
+                "cross_domain_settlement_journal"
+            ],
+            "treasury": [
+                "protocol_treasury",
+                "reserve_balances",
+                "insurance_reserve",
+                "strategic_liquidity_authority",
+                "module_funding_authority"
+            ]
+        },
+        "local_must_not_keep": [
+            "heavy_application_logic",
+            "chain_specific_dapp_logic",
+            "remote_integration_implementation_details",
+            "large_data_payloads",
+            "ai_decision_engine",
+            "experimental_app_execution"
+        ]
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
 fn is_official_release(build: &BuildInfo) -> bool {
     let channel_ok = matches!(build.release_channel, "stable" | "official" | "mainnet");
     let cert_ok = !matches!(build.cert_sha256, "not-configured" | "unavailable");
@@ -236,6 +332,10 @@ fn cmd_module_architecture() -> Result<(), String> {
         .iter()
         .map(|module| module.as_str())
         .collect();
+    let sovereign_roots: Vec<&str> = canonical_sovereign_roots()
+        .iter()
+        .map(|root| root.as_str())
+        .collect();
     let supported_chain_families: Vec<&str> = canonical_chain_families()
         .iter()
         .map(|family| family.as_str())
@@ -246,6 +346,7 @@ fn cmd_module_architecture() -> Result<(), String> {
         "relay_core": {
             "principle": "keep the relay chain thin, neutral, and durable",
             "canonical_modules": relay_module_names,
+            "sovereign_roots": sovereign_roots,
     let output = serde_json::json!({
         "relay_core": {
             "principle": "keep the relay chain thin, neutral, and durable",
@@ -1373,6 +1474,7 @@ mod tests {
         assert!(usage.contains("port-map"));
         assert!(usage.contains("build-manifest"));
         assert!(usage.contains("node-connection-policy"));
+        assert!(usage.contains("sovereign-core"));
         assert!(usage.contains("module-architecture"));
         assert!(
             usage.contains("network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]")

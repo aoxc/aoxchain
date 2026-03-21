@@ -71,6 +71,7 @@ Komutlar:
   vision
   build-manifest
   node-connection-policy [--enforce-official]
+  sovereign-core
   module-architecture
   compat-matrix
   port-map
@@ -108,6 +109,7 @@ Comandos:
   vision
   build-manifest
   node-connection-policy [--enforce-official]
+  sovereign-core
   module-architecture
   compat-matrix
   port-map
@@ -145,6 +147,7 @@ Befehle:
   vision
   build-manifest
   node-connection-policy [--enforce-official]
+  sovereign-core
   module-architecture
   compat-matrix
   port-map
@@ -182,6 +185,7 @@ Commands:
   vision
   build-manifest
   node-connection-policy [--enforce-official]
+  sovereign-core
 
   module-architecture
   compat-matrix

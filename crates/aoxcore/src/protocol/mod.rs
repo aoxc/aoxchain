@@ -29,6 +29,32 @@ impl ModuleId {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum SovereignRoot {
+    Identity,
+    Supply,
+    Governance,
+    Relay,
+    Security,
+    Settlement,
+    Treasury,
+}
+
+impl SovereignRoot {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Identity => "identity",
+            Self::Supply => "supply",
+            Self::Governance => "governance",
+            Self::Relay => "relay",
+            Self::Security => "security",
+            Self::Settlement => "settlement",
+            Self::Treasury => "treasury",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ChainFamily {
     Relay,
     Evm,
@@ -174,6 +200,24 @@ pub const fn canonical_message_envelope_fields() -> [&'static str; 11] {
     ]
 }
 
+#[must_use]
+pub const fn canonical_sovereign_roots() -> [SovereignRoot; 7] {
+    [
+        SovereignRoot::Identity,
+        SovereignRoot::Supply,
+        SovereignRoot::Governance,
+        SovereignRoot::Relay,
+        SovereignRoot::Security,
+        SovereignRoot::Settlement,
+        SovereignRoot::Treasury,
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ChainFamily, FeeClass, MessageEnvelope, ModuleId, SovereignRoot, canonical_chain_families,
+        canonical_message_envelope_fields, canonical_modules, canonical_sovereign_roots,
 #[cfg(test)]
 mod tests {
     use super::{
@@ -246,5 +290,13 @@ mod tests {
         assert_eq!(fields.len(), 11);
         assert_eq!(fields[0], "sourceModule");
         assert_eq!(fields[10], "replayProtectionTag");
+    }
+
+    #[test]
+    fn canonical_sovereign_roots_match_local_constitutional_model() {
+        let roots = canonical_sovereign_roots();
+        assert_eq!(roots.len(), 7);
+        assert_eq!(roots[0], SovereignRoot::Identity);
+        assert_eq!(roots[6], SovereignRoot::Treasury);
     }
 }
