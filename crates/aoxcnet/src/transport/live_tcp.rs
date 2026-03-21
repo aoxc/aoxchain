@@ -116,7 +116,6 @@ pub fn run_live_tcp_smoke_on(
 
 #[cfg(test)]
 mod tests {
-    use super::run_live_tcp_smoke;
     use super::{run_live_tcp_smoke, run_live_tcp_smoke_on};
     use std::time::Duration;
 
