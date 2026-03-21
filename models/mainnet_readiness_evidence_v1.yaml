@@ -1,0 +1,81 @@
+version: aoxc-readiness-evidence-v1
+previous_score: 36.0
+criteria:
+  - name: Deterministic genesis and local fixture
+    area: bootstrap
+    status: done
+    weight: 8
+    done_definition: 5-node deterministic fixture, reproducible homes, and funded genesis are committed.
+    evidence:
+      - configs/deterministic-testnet/accounts.json
+      - configs/deterministic-testnet/genesis.json
+    blocker: false
+    stretch_goal: false
+  - name: Single-host load benchmark
+    area: performance
+    status: done
+    weight: 6
+    done_definition: A repeatable local benchmark exists and emits structured throughput/latency data.
+    evidence:
+      - aoxcmd load-benchmark
+    blocker: false
+    stretch_goal: false
+  - name: Multi-host real network validation
+    area: network
+    status: missing
+    weight: 15
+    done_definition: 3-5 nodes run on separate hosts with propagation metrics and consolidated report.
+    evidence: []
+    blocker: true
+    stretch_goal: false
+  - name: Partition and fault scenarios
+    area: resilience
+    status: missing
+    weight: 15
+    done_definition: Partition, restart, delay, drop, timeout, and basic fault injection scenarios are executed and documented.
+    evidence: []
+    blocker: true
+    stretch_goal: false
+  - name: State sync and snapshot recovery
+    area: recovery
+    status: missing
+    weight: 15
+    done_definition: Join/rejoin, snapshot export/import, and recovery consistency are tested.
+    evidence: []
+    blocker: true
+    stretch_goal: false
+  - name: Soak test
+    area: operations
+    status: missing
+    weight: 12
+    done_definition: Long-duration continuous run with resource, error, and stall reporting exists.
+    evidence: []
+    blocker: true
+    stretch_goal: false
+  - name: Telemetry and alerting
+    area: observability
+    status: partial
+    weight: 10
+    done_definition: Health, block time, throughput, peer count, sync state, and error counters are standardized and surfaced.
+    evidence:
+      - runtime-status
+      - production-audit
+    blocker: false
+    stretch_goal: false
+  - name: Upgrade and migration planning
+    area: upgrade
+    status: missing
+    weight: 10
+    done_definition: Versioning, schema migration, rollback, and compatibility tests are written and validated.
+    evidence: []
+    blocker: false
+    stretch_goal: false
+  - name: Operator runbook
+    area: operations
+    status: partial
+    weight: 9
+    done_definition: Start/stop/resync/snapshot/peer troubleshooting and incident checklist are documented.
+    evidence:
+      - docs/REAL_NETWORK_VALIDATION_RUNBOOK_TR.md
+    blocker: false
+    stretch_goal: true
