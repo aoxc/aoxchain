@@ -98,6 +98,16 @@ Meaning:
 - `zone` -> logical or geographic zone
 - `index` -> sequential key index
 
+
+Meaning:
+
+- `44` -> BIP44 purpose
+- `2626` -> AOXC coin type / chain identity namespace
+- `chain` -> chain identifier
+- `role` -> actor role
+- `zone` -> logical or geographic zone
+- `index` -> sequential key index
+
 This path model is implemented in the AOXC identity layer and should be treated as the canonical derivation format for operator and system key material.
 
 ---
@@ -114,6 +124,9 @@ This path model is implemented in the AOXC identity layer and should be treated 
 | Operations | `aoxcmd`, `aoxckit` | bootstrap, runtime ops, manifests, policy commands |
 
 ---
+
+## 6. Fast local start
+
 
 ## 6. Fast local start
 
@@ -225,9 +238,43 @@ make quality-release
 make package-bin
 make manifest
 make policy
+
+## 7. Developer workflow with `make`
+
+AOXChain includes a `Makefile` for the common local workflow.
+
+### Discover available targets
+
+```bash
+make help
 ```
 
----
+### Most useful targets
+
+```bash
+make fmt
+make check
+make test
+make clippy
+make quality-quick
+make quality
+make build-release
+make package-bin
+make version
+make manifest
+make policy
+```
+
+### Real local chain loop
+
+```bash
+make real-chain-run-once
+make real-chain-run
+make real-chain-tail
+make real-chain-health
+```
+
+### Release-oriented flow
 
 ## 8. Important CLI commands
 
@@ -261,6 +308,43 @@ cargo run -p aoxcmd -- real-network --rounds 10 --timeout-ms 3000 --pause-ms 250
 ---
 
 ## 9. Security posture
+```bash
+make quality-release
+make package-bin
+make manifest
+make policy
+```
+
+---
+
+## 8. Important CLI commands
+
+### Chain identity and architecture
+
+```bash
+cargo run -p aoxcmd -- version
+cargo run -p aoxcmd -- vision
+cargo run -p aoxcmd -- sovereign-core
+cargo run -p aoxcmd -- module-architecture
+cargo run -p aoxcmd -- compat-matrix
+```
+
+### Build and supply-chain visibility
+
+```bash
+cargo run -p aoxcmd -- build-manifest
+cargo run -p aoxcmd -- node-connection-policy
+cargo run -p aoxcmd -- node-connection-policy --enforce-official
+```
+
+### Runtime and network inspection
+
+```bash
+cargo run -p aoxcmd -- port-map
+cargo run -p aoxcmd -- runtime-status --trace standard --tps 12.4 --peers 7 --error-rate 0.001
+cargo run -p aoxcmd -- network-smoke --timeout-ms 3000 --bind-host 127.0.0.1 --port 0
+cargo run -p aoxcmd -- real-network --rounds 10 --timeout-ms 3000 --pause-ms 250 --bind-host 127.0.0.1 --port 0
+```
 
 AOXChain is still **experimental**.
 
@@ -313,4 +397,52 @@ That is the path from experimental chain to production candidate.
 ## Deterministic Testnet Fixture
 
 A deterministic 5-node **test-only** network fixture now exists under `configs/deterministic-testnet/`, with public seeds, funded genesis accounts, node TOML files, and a runnable `launch-testnet.sh` helper. See `docs/DETERMINISTIC_TESTNET_TR.md` for the Turkish operator guide.
+## 9. Security posture
 
+AOXChain is still **experimental**.
+
+That means:
+
+- do not market it as finished mainnet software,
+- do not assume all remote-domain threat models are closed,
+- do not treat local ad-hoc builds as production artifacts,
+- do not peer production nodes without certificate and release policy validation.
+
+Recommended production direction:
+
+- embedded node certificate,
+- attestation hash exchange,
+- mTLS,
+- signed release manifest,
+- external audit,
+- replay/finality test matrix,
+- multi-node adversarial simulation.
+
+---
+
+## 10. Docs worth reading next
+
+- `READ.md` -> audit-style operator flow
+- `docs/SOVEREIGN_CORE_MODEL_TR.md` -> local constitutional core model
+- `docs/FIVE_MODULE_RELAY_ARCHITECTURE_TR.md` -> module layout
+- `crates/README.md` -> crate map
+
+---
+
+## 11. Current truth about readiness
+
+AOXChain is no longer only a concept repo: it has protocol modeling, CLI tooling, build metadata, and deterministic local flows.
+
+But it is still **not complete**.
+
+If you want to raise confidence toward `~75%` engineering readiness, the next highest-value additions would be:
+
+1. more deterministic integration tests,
+2. remote-domain contract skeletons,
+3. attestation-aware peer handshake,
+4. cert issue/rotate/revoke CLI,
+5. release manifest signing,
+6. structured terminal dashboard and richer operator logs,
+7. fuzzing and replay suites.
+
+That is the path from experimental chain to production candidate.

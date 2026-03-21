@@ -5,6 +5,9 @@ help:
 	@printf "Branding\n"
 	@printf "  make alpha            - print the current AOXC alpha banner\n\n"
 	@printf "Code quality\n"
+.PHONY: help build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local audit-install produce-loop real-chain-prep real-chain-run real-chain-run-once real-chain-health real-chain-tail version manifest policy dev-bootstrap
+help:
+	@printf "\nAOXChain developer targets\n\n"
 	@printf "  make fmt              - format the workspace\n"
 	@printf "  make check            - compile-check the workspace\n"
 	@printf "  make test             - run workspace tests\n"
@@ -13,6 +16,7 @@ help:
 	@printf "  make quality          - full quality gate\n"
 	@printf "  make quality-release  - release-oriented quality gate\n\n"
 	@printf "Build and release identity\n"
+	@printf "  make quality-release  - release-oriented quality gate\n"
 	@printf "  make build-release    - build the release AOXC CLI\n"
 	@printf "  make package-bin      - copy release binary into ./bin\n"
 	@printf "  make version          - show AOXC build/version metadata\n"
@@ -30,6 +34,10 @@ help:
 
 alpha:
 	@printf "AOXC Alpha: Genesis V1\n"
+	@printf "  make policy           - print node connection policy\n"
+	@printf "  make dev-bootstrap    - print suggested developer bootstrap flow\n"
+	@printf "  make real-chain-run   - run the local real-chain daemon loop\n"
+	@printf "  make real-chain-tail  - tail local runtime logs\n\n"
 
 build:
 	cargo build --workspace

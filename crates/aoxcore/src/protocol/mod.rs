@@ -218,6 +218,11 @@ mod tests {
     use super::{
         ChainFamily, FeeClass, MessageEnvelope, ModuleId, SovereignRoot, canonical_chain_families,
         canonical_message_envelope_fields, canonical_modules, canonical_sovereign_roots,
+#[cfg(test)]
+mod tests {
+    use super::{
+        ChainFamily, FeeClass, MessageEnvelope, ModuleId, canonical_chain_families,
+        canonical_message_envelope_fields, canonical_modules,
     };
 
     fn sample_envelope() -> MessageEnvelope {
