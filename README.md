@@ -4,236 +4,212 @@
   </a>
 
 # AOXChain
-### Relay-First Coordination Chain on X Layer
+### Experimental Sovereign Coordination Chain
+#### AOXC Alpha: Genesis V1
 
-![Status](https://img.shields.io/badge/status-live-success)
-![Network](https://img.shields.io/badge/network-X%20Layer-blue)
-![Model](https://img.shields.io/badge/architecture-relay--chain-purple)
-![Language](https://img.shields.io/badge/stack-Rust-orange)
+![Status](https://img.shields.io/badge/status-experimental-orange)
+![Model](https://img.shields.io/badge/architecture-sovereign--core-purple)
+![Stack](https://img.shields.io/badge/stack-rust-orange)
+![CLI](https://img.shields.io/badge/tooling-aoxcmd-blue)
 
 </div>
 
+AOXChain is an experimental Rust blockchain workspace built around a simple idea:
 
-AOXChain is a Rust-based blockchain workspace designed as a **relay-first coordination chain**.
-Its main objective is **interoperability, routing, and cross-system coordination**—not competing as a "faster L1" or "just another alternative network."
+> **the local chain is the sovereign constitutional core, and remote systems are execution domains.**
 
-This README explains the project in a clear, chronological way: what is already live, why the chain exists, and how to run it locally.
-
----
-
-## 1) Current Live Presence (X Layer References)
-
-AOXChain already has deployed components on **X Layer**.
-
-- **Main contract address:**
-  https://www.oklink.com/tr/x-layer/address/0x97bdd1fd1caf756e00efd42eba9406821465b365/contract
-- **Proxy token address:**
-  https://www.oklink.com/tr/x-layer/token/0xeb9580c3946bb47d73aae1d4f7a94148b554b2f4?tab=contract
-- **Multisig contract address:**
-  https://www.oklink.com/tr/x-layer/address/0x20c0dd8b6559912acfac2ce061b8d5b19db8ca84/contract
-
-These references show that AOXChain is positioned with an active, real-network footprint rather than a purely theoretical architecture.
-
-
-
-## 2) Chain Purpose: Why AOXChain Exists
-
-AOXChain is built with a **relay-chain mindset**:
-
-- Coordinate value and messages across systems.
-- Provide deterministic and auditable routing logic.
-- Support governance and controlled operations through clear operator tooling.
-- Prioritize reliability and interoperability over raw speed marketing.
-
-### What AOXChain is **not**
-
-- Not a chain focused only on maximum TPS claims.
-- Not trying to be "just a different network" without a coordination role.
-- Not positioned as a replacement for every execution environment.
-
-### What AOXChain is
-
-- A practical coordination layer.
-- A bridge-oriented, operations-first chain model.
-- A system where security, policy, and governance controls are explicit.
+This repository should be read as a **new chain project**. It is not positioned as a wrapper around another network, and this README intentionally describes AOXChain on its own terms.
 
 ---
 
-## 3) Workspace Architecture (Rust Multi-Crate)
+## 1. What AOXChain is
+
+AOXChain is designed to own the parts of a system that must remain canonical:
+
+- identity,
+- supply,
+- governance,
+- relay authorization,
+- validator/security policy,
+- settlement finality,
+- treasury and reserves.
+
+Remote domains may execute logic, hold contract adapters, and provide ecosystem-specific integrations, but the **final constitutional authority** stays on AOXChain.
+
+---
+
+## 2. Current architecture in one sentence
+
+- **Local chain:** sovereign constitutional core.
+- **Remote chains/domains:** execution, integration, liquidity, and application surfaces.
+
+If you want the machine-readable view, run:
+
+```bash
+cargo run -p aoxcmd -- vision
+cargo run -p aoxcmd -- sovereign-core
+cargo run -p aoxcmd -- module-architecture
+```
+
+---
+
+## 3. Canonical local roots
+
+AOXChain currently models the following local constitutional roots:
+
+1. `identity`
+2. `supply`
+3. `governance`
+4. `relay`
+5. `security`
+6. `settlement`
+7. `treasury`
+
+These can be inspected from the CLI:
+
+```bash
+cargo run -p aoxcmd -- sovereign-core
+```
+
+---
+
+## 4. Address and key derivation format
+
+AOXChain uses a BIP44-style derivation prefix centered on the AOXC coin type.
+
+### Canonical HD path
+
+```text
+m/44/2626/<chain>/<role>/<zone>/<index>
+```
+
+Example:
+
+```text
+m/44/2626/1/1/2/0
+```
+
+Meaning:
+
+- `44` -> BIP44 purpose
+- `2626` -> AOXC coin type / chain identity namespace
+- `chain` -> chain identifier
+- `role` -> actor role
+- `zone` -> logical or geographic zone
+- `index` -> sequential key index
+
+This path model is implemented in the AOXC identity layer and should be treated as the canonical derivation format for operator and system key material.
+
+---
+
+## 5. Workspace layout
 
 | Layer | Crate(s) | Responsibility |
 |---|---|---|
-| Protocol Core | `aoxcore` | Identity, genesis, transactions, protocol primitives |
-| Consensus | `aoxcunity` | Quorum, rounds, voting, finality-oriented state |
-| Networking | `aoxcnet` | Discovery, gossip, sync, transport |
-| API Ingress | `aoxcrpc` | HTTP / gRPC / WebSocket surfaces |
-| Execution Compatibility | `aoxcvm` | EVM/WASM/Move/UTXO-facing compatibility lanes |
-| Operator Tooling | `aoxcmd`, `aoxckit` | Node lifecycle, bootstrap, economics and readiness commands |
-
-For crate-level details, see [`crates/README.md`](crates/README.md).
+| Protocol | `aoxcore` | identity, protocol primitives, genesis, tx, receipts |
+| Consensus | `aoxcunity` | rounds, quorum, vote/finality state |
+| Networking | `aoxcnet` | transport, discovery, gossip, sync |
+| RPC / Ingress | `aoxcrpc` | HTTP, gRPC, WebSocket, security middleware |
+| Execution | `aoxcvm` | multi-lane runtime and compatibility layers |
+| Operations | `aoxcmd`, `aoxckit` | bootstrap, runtime ops, manifests, policy commands |
 
 ---
 
-## 4) Chronological Local Setup (Simple Path)
+## 6. Fast local start
 
-### Step 1 — Prerequisites
-
-
-### Step 1 — Prerequisites
+### Prerequisites
 
 - Rust stable
 - `cargo`
-- Linux/macOS shell (recommended)
+- Linux/macOS shell
 
-### Step 2 — Validate workspace
+### Validate workspace
 
 ```bash
-cargo fmt --all
+cargo fmt --all -- --check
 cargo check --workspace
 cargo test --workspace
 ```
 
-### Step 3 — Isolate runtime directory
+### Create isolated runtime directory
 
 ```bash
-export AOXC_HOME=$PWD/.aoxc-local
+export AOXC_HOME="$PWD/.aoxc-local"
+umask 077
+mkdir -p "$AOXC_HOME"
 ```
 
-### Step 4 — Create key material (wallet-like identity)
+### Bootstrap operator keys
 
 ```bash
 cargo run -p aoxcmd -- key-bootstrap \
+  --home "$AOXC_HOME" \
   --profile testnet \
   --name validator-01 \
-  --password "TEST#Secure2026!"
+  --password 'TEST#Secure2026!'
 ```
 
-### Step 5 — Initialize genesis
+### Initialize genesis
 
 ```bash
 cargo run -p aoxcmd -- genesis-init \
+  --home "$AOXC_HOME" \
   --chain-num 1001 \
   --block-time 6 \
   --treasury 1000000000000
 ```
 
-### Step 6 — Bootstrap node runtime
+### Bootstrap the node
 
 ```bash
-cargo run -p aoxcmd -- node-bootstrap
+cargo run -p aoxcmd -- node-bootstrap --home "$AOXC_HOME"
 ```
 
-### Step 7 — Produce first block (smoke check)
+### Produce a smoke block
 
 ```bash
-cargo run -p aoxcmd -- produce-once --tx "boot-sequence-1"
+cargo run -p aoxcmd -- produce-once --home "$AOXC_HOME" --tx 'boot-sequence-1'
 ```
 
-### Step 8 — Run node rounds
+### Run bounded rounds
 
 ```bash
-cargo run -p aoxcmd -- node-run --rounds 20 --sleep-ms 1000 --tx-prefix AOXC_RUN
-```
-
-### Step 9 — Probe network path
-
-```bash
-cargo run -p aoxcmd -- real-network \
-  --rounds 10 \
-  --timeout-ms 3000 \
-  --pause-ms 250 \
-  --bind-host 127.0.0.1 \
-  --port 0
+cargo run -p aoxcmd -- node-run \
+  --home "$AOXC_HOME" \
+  --rounds 20 \
+  --sleep-ms 1000 \
+  --tx-prefix AOXC_RUN
 ```
 
 ---
 
-## 5) Core Operator Commands
+## 7. Developer workflow with `make`
+
+AOXChain includes a `Makefile` for the common local workflow.
+
+### Discover available targets
 
 ```bash
-cargo run -p aoxcmd -- version
-cargo run -p aoxcmd -- vision
-cargo run -p aoxcmd -- port-map
-cargo run -p aoxcmd -- runtime-status --trace standard --tps 12.4 --peers 7 --error-rate 0.001
-cargo run -p aoxcmd -- interop-readiness
-cargo run -p aoxcmd -- interop-gate --audit-complete true --fuzz-complete true --replay-complete true --finality-matrix-complete true --slo-complete true --enforce
+make help
 ```
 
----
-
-## 6) Security and Governance Notes
-
-- Multisig operations should remain mandatory for critical parameter changes.
-- Mainnet-sensitive key generation must follow strict policy controls.
-- Audit readiness should be treated as a release gate, not optional documentation.
-
-Related docs are available under [`docs/`](docs/).
-
----
-
-
-## 7) Enforcing AOXC Native Coin ↔ X Layer Token Equivalence in Code
-
-To make the X Layer connection stronger at protocol level, `genesis-init` now writes a canonical settlement binding into `genesis.json`:
-
-- `native_symbol` (default: `AOXC`)
-- `native_decimals` (default: `18`)
-- `settlement_network` (default: `xlayer`)
-- `settlement_token_address`
-- `settlement_main_contract`
-- `settlement_multisig_contract`
-- `equivalence_mode` (default: `1:1`)
-
-
----
-
-## 6) Security and Governance Notes
-
-- Multisig operations should remain mandatory for critical parameter changes.
-- Mainnet-sensitive key generation must follow strict policy controls.
-- Audit readiness should be treated as a release gate, not optional documentation.
-
-Related docs are available under [`docs/`](docs/).
-
----
-
-
-## 7) Enforcing AOXC Native Coin ↔ X Layer Token Equivalence in Code
-
-To make the X Layer connection stronger at protocol level, `genesis-init` now writes a canonical settlement binding into `genesis.json`:
-
-- `native_symbol` (default: `AOXC`)
-- `native_decimals` (default: `18`)
-- `settlement_network` (default: `xlayer`)
-- `settlement_token_address`
-- `settlement_main_contract`
-- `settlement_multisig_contract`
-- `equivalence_mode` (default: `1:1`)
-
-Example:
+### Most useful targets
 
 ```bash
-cargo run -p aoxcmd -- genesis-init   --chain-num 1001   --block-time 6   --treasury 1000000000000   --native-symbol AOXC   --native-decimals 18   --settlement-network xlayer   --xlayer-token 0xeb9580c3946bb47d73aae1d4f7a94148b554b2f4   --xlayer-main-contract 0x97bdd1fd1caf756e00efd42eba9406821465b365   --xlayer-multisig 0x20c0dd8b6559912acfac2ce061b8d5b19db8ca84   --equivalence-mode 1:1
+make fmt
+make check
+make test
+make clippy
+make quality-quick
+make quality
+make build-release
+make package-bin
+make version
+make manifest
+make policy
 ```
 
-This settlement link is part of genesis validation and state hashing, so deployments cannot silently drift from the AOXC/X Layer contract mapping.
-
----
-## 8) Final Positioning
-## 7) Final Positioning
-
-AOXChain should be understood as:
-
-- **A live, X Layer-referenced system** with verifiable on-chain endpoints.
-- **A relay and coordination architecture**, not a speed-only narrative.
-- **An operator-first Rust workspace** designed for deterministic, auditable, and governable operation.
-
-If your goal is secure cross-system coordination with clear governance rails, AOXChain is built for that path.
-
-
-## 8) Continuous Local Chain Operation (Make targets)
-
-For continuous local chain runs with verbose logs:
+### Real local chain loop
 
 ```bash
 make real-chain-run-once
@@ -242,7 +218,100 @@ make real-chain-tail
 make real-chain-health
 ```
 
-Detailed Turkish runbook: [`docs/REAL_CHAIN_RUNBOOK_TR.md`](docs/REAL_CHAIN_RUNBOOK_TR.md).
+### Release-oriented flow
+
+```bash
+make quality-release
+make package-bin
+make manifest
+make policy
+```
 
 ---
+
+## 8. Important CLI commands
+
+### Chain identity and architecture
+
+```bash
+cargo run -p aoxcmd -- version
+cargo run -p aoxcmd -- vision
+cargo run -p aoxcmd -- sovereign-core
+cargo run -p aoxcmd -- module-architecture
+cargo run -p aoxcmd -- compat-matrix
+```
+
+### Build and supply-chain visibility
+
+```bash
+cargo run -p aoxcmd -- build-manifest
+cargo run -p aoxcmd -- node-connection-policy
+cargo run -p aoxcmd -- node-connection-policy --enforce-official
+```
+
+### Runtime and network inspection
+
+```bash
+cargo run -p aoxcmd -- port-map
+cargo run -p aoxcmd -- runtime-status --trace standard --tps 12.4 --peers 7 --error-rate 0.001
+cargo run -p aoxcmd -- network-smoke --timeout-ms 3000 --bind-host 127.0.0.1 --port 0
+cargo run -p aoxcmd -- real-network --rounds 10 --timeout-ms 3000 --pause-ms 250 --bind-host 127.0.0.1 --port 0
+```
+
+---
+
+## 9. Security posture
+
+AOXChain is still **experimental**.
+
+That means:
+
+- do not market it as finished mainnet software,
+- do not assume all remote-domain threat models are closed,
+- do not treat local ad-hoc builds as production artifacts,
+- do not peer production nodes without certificate and release policy validation.
+
+Recommended production direction:
+
+- embedded node certificate,
+- attestation hash exchange,
+- mTLS,
+- signed release manifest,
+- external audit,
+- replay/finality test matrix,
+- multi-node adversarial simulation.
+
+---
+
+## 10. Docs worth reading next
+
+- `READ.md` -> audit-style operator flow
+- `docs/SOVEREIGN_CORE_MODEL_TR.md` -> local constitutional core model
+- `docs/FIVE_MODULE_RELAY_ARCHITECTURE_TR.md` -> module layout
+- `crates/README.md` -> crate map
+
+---
+
+## 11. Current truth about readiness
+
+AOXChain is no longer only a concept repo: it has protocol modeling, CLI tooling, build metadata, and deterministic local flows.
+
+But it is still **not complete**.
+
+If you want to raise confidence toward `~75%` engineering readiness, the next highest-value additions would be:
+
+1. more deterministic integration tests,
+2. remote-domain contract skeletons,
+3. attestation-aware peer handshake,
+4. cert issue/rotate/revoke CLI,
+5. release manifest signing,
+6. structured terminal dashboard and richer operator logs,
+7. fuzzing and replay suites.
+
+That is the path from experimental chain to production candidate.
+
+## Deterministic Testnet Fixture
+
+A deterministic 5-node **test-only** network fixture now exists under `configs/deterministic-testnet/`, with public seeds, funded genesis accounts, node TOML files, and a runnable `launch-testnet.sh` helper. See `docs/DETERMINISTIC_TESTNET_TR.md` for the Turkish operator guide.
+A local benchmark and quantified mainnet-readiness report are also available via `aoxcmd` (`load-benchmark` and `mainnet-readiness`). See `docs/LOCAL_BENCHMARK_AND_MAINNET_READINESS_TR.md`.
 

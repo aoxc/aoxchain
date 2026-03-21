@@ -1,0 +1,111 @@
+{
+  "profile": "deterministic-testnet",
+  "chain_num": 77,
+  "chain_id": "AOXC-0077-MAIN",
+  "block_time_secs": 4,
+  "security_mode": "mutual_auth_test_fixture",
+  "fund_amount_per_account": "2500000000000000000000",
+  "warning": "TEST ONLY: all seeds in this fixture are public and must never be used in production.",
+  "accounts": [
+    {
+      "slug": "atlas",
+      "display_name": "Atlas Validator",
+      "chain_num": 77,
+      "hd_path": "m/44/2626/77/1/1/0",
+      "master_seed_hex": "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+      "node_seed_path": "identity/test-node-seed.hex",
+      "account_address": "AOXC_TEST_5E5FAB724D3F4EF6041FC403310559D432890CFC",
+      "validator_id_hex": "444F33A9C2D32F09AD23A53917F6BB9DC86A464C11C78E4A1B2C1C974F0598D3",
+      "account_funding": "2500000000000000000000",
+      "p2p_listen_addr": "127.0.0.1:39001",
+      "rpc_addr": "127.0.0.1:19101",
+      "peers": [
+        "127.0.0.1:39002",
+        "127.0.0.1:39003",
+        "127.0.0.1:39004",
+        "127.0.0.1:39005"
+      ],
+      "key_engine_fingerprint": "E22A38DA6FFF161C343E8CD6F19C23B8"
+    },
+    {
+      "slug": "boreal",
+      "display_name": "Boreal Validator",
+      "chain_num": 77,
+      "hd_path": "m/44/2626/77/1/2/0",
+      "master_seed_hex": "22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222",
+      "node_seed_path": "identity/test-node-seed.hex",
+      "account_address": "AOXC_TEST_A67AFF66569331EB6716F950DEE5082F2769628B",
+      "validator_id_hex": "977BBA913F0C7CB29024F5BFFD430E239FBEA070FD967CF49C0CA8FA4911FA98",
+      "account_funding": "2500000000000000000000",
+      "p2p_listen_addr": "127.0.0.1:39002",
+      "rpc_addr": "127.0.0.1:19102",
+      "peers": [
+        "127.0.0.1:39001",
+        "127.0.0.1:39003",
+        "127.0.0.1:39004",
+        "127.0.0.1:39005"
+      ],
+      "key_engine_fingerprint": "57BBB9786E92D3C7B5FD87D00512958E"
+    },
+    {
+      "slug": "cypher",
+      "display_name": "Cypher Validator",
+      "chain_num": 77,
+      "hd_path": "m/44/2626/77/1/3/0",
+      "master_seed_hex": "33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333",
+      "node_seed_path": "identity/test-node-seed.hex",
+      "account_address": "AOXC_TEST_072A6043BC9D9345CC80D6103185A3574F6F7E17",
+      "validator_id_hex": "B360D37B4021781CBAE132874B442B99D095FBD10E3FB90844C3D4239E34CBCC",
+      "account_funding": "2500000000000000000000",
+      "p2p_listen_addr": "127.0.0.1:39003",
+      "rpc_addr": "127.0.0.1:19103",
+      "peers": [
+        "127.0.0.1:39001",
+        "127.0.0.1:39002",
+        "127.0.0.1:39004",
+        "127.0.0.1:39005"
+      ],
+      "key_engine_fingerprint": "4B44B82A3D6EAE4EACEB1FC2D617E2D7"
+    },
+    {
+      "slug": "delta",
+      "display_name": "Delta Validator",
+      "chain_num": 77,
+      "hd_path": "m/44/2626/77/1/4/0",
+      "master_seed_hex": "44444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444",
+      "node_seed_path": "identity/test-node-seed.hex",
+      "account_address": "AOXC_TEST_55A1E82E6A386D5D9562B8BFDD5CADEF4503BAE8",
+      "validator_id_hex": "43112070F9B543B647EA87A8E8207D462D5D2886CB002A041C50EEFA75F603F2",
+      "account_funding": "2500000000000000000000",
+      "p2p_listen_addr": "127.0.0.1:39004",
+      "rpc_addr": "127.0.0.1:19104",
+      "peers": [
+        "127.0.0.1:39001",
+        "127.0.0.1:39002",
+        "127.0.0.1:39003",
+        "127.0.0.1:39005"
+      ],
+      "key_engine_fingerprint": "29CBA4D58B222BEF887A6795C5D62682"
+    },
+    {
+      "slug": "ember",
+      "display_name": "Ember Validator",
+      "chain_num": 77,
+      "hd_path": "m/44/2626/77/1/5/0",
+      "master_seed_hex": "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
+      "node_seed_path": "identity/test-node-seed.hex",
+      "account_address": "AOXC_TEST_4F7FD92DEA7AA536FF01E767E7510D962AA0B5F3",
+      "validator_id_hex": "70B616606DBABAE26909D091CCD188ACC53593F4C71127CE6908099221355F0C",
+      "account_funding": "2500000000000000000000",
+      "p2p_listen_addr": "127.0.0.1:39005",
+      "rpc_addr": "127.0.0.1:19105",
+      "peers": [
+        "127.0.0.1:39001",
+        "127.0.0.1:39002",
+        "127.0.0.1:39003",
+        "127.0.0.1:39004"
+      ],
+      "key_engine_fingerprint": "1A980F57FBA6064C13AE9E56C6D05900"
+    }
+  ]
+}

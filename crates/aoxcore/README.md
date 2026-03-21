@@ -12,6 +12,7 @@
 - `mempool/`
 - `state/`
 - `block/`
+- `native_token.rs`
 
 ## Operational Notes
 
@@ -29,3 +30,7 @@ cargo check -p aoxcore && cargo test -p aoxcore
 
 - Top-level architecture: [`../../README.md`](../../README.md)
 - Crate catalog: [`../README.md`](../README.md)
+
+## Native Token Support
+
+`aoxcore` now exposes a minimal in-memory native AOXC ledger with deterministic transfer/mint receipt helpers for higher-level execution layers.
