@@ -75,8 +75,8 @@ pub fn setup_with_home(home: &Path) -> Result<AOXCNode, NodeInitError> {
         .validate()
         .map_err(NodeInitError::GenesisValidationFailed)?;
 
-    let key_engine = load_key_engine_for_home(home)
-        .map_err(NodeInitError::ValidatorSetInitializationFailed)?;
+    let key_engine =
+        load_key_engine_for_home(home).map_err(NodeInitError::ValidatorSetInitializationFailed)?;
     let validators = build_validators(&key_engine, &genesis);
 
     let rotation = ValidatorRotation::new(validators)
@@ -124,8 +124,7 @@ fn load_key_engine_for_home(home: &Path) -> Result<KeyEngine, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(KeyEngine::new(None)),
         Err(error) => Err(format!(
             "failed to read deterministic node seed {}: {}",
-            seed_path,
-            error
+            seed_path, error
         )),
     }
 }
