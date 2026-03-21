@@ -83,50 +83,6 @@ const TESTNET_FIXTURE_MEMBERS: [(&str, &str, u16, u16, u16, &str); 5] = [
     ),
 ];
 
-const AOXC_RELEASE_NAME: &str = "AOXC Alpha: Genesis V1";
-const TESTNET_FIXTURE_MEMBERS: [(&str, &str, u16, u16, u16, &str); 5] = [
-    (
-        "atlas",
-        "Atlas Validator",
-        39001,
-        19101,
-        1,
-        "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
-    ),
-    (
-        "boreal",
-        "Boreal Validator",
-        39002,
-        19102,
-        2,
-        "22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222",
-    ),
-    (
-        "cypher",
-        "Cypher Validator",
-        39003,
-        19103,
-        3,
-        "33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333",
-    ),
-    (
-        "delta",
-        "Delta Validator",
-        39004,
-        19104,
-        4,
-        "44444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444",
-    ),
-    (
-        "ember",
-        "Ember Validator",
-        39005,
-        19105,
-        5,
-        "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
-    ),
-];
-
 fn main() {
     if let Err(error) = run_cli() {
         eprintln!("AOXCMD_ERROR: {error}");
@@ -371,29 +327,23 @@ fn cmd_node_connection_policy(args: &[String]) -> Result<(), String> {
 }
 
 fn cmd_vision() -> Result<(), String> {
+    let sovereign_roots: Vec<&str> = canonical_sovereign_roots()
+        .iter()
+        .map(|root| root.as_str())
+        .collect();
+    let attached_modules: Vec<&str> = canonical_modules()
+        .iter()
+        .map(|module| module.as_str())
+        .collect();
+
     let output = serde_json::json!({
         "release_name": AOXC_RELEASE_NAME,
         "chain_positioning": "interop relay-oriented coordination chain",
         "primary_goal": "cross-chain compatibility and deterministic coordination over raw throughput",
         "execution_strategy": "sovereign constitutional local core + remote execution domains",
-        "recommended_topology": "local sovereign root modules + remote chain contracts/execution adapters",
-        "constitutional_roots": [
-            "identity",
-            "supply",
-            "governance",
-            "relay",
-            "security",
-            "settlement",
-            "treasury"
-        "execution_strategy": "multi-lane model compatible with heterogeneous external networks",
         "recommended_topology": "thin relay core + five attached functional modules",
-        "functional_modules": [
-            "identity",
-            "asset_treasury",
-            "smart_execution",
-            "interop_bridge",
-            "data_proof"
-        ],
+        "constitutional_roots": sovereign_roots,
+        "functional_modules": attached_modules,
         "identity_model": "post-quantum capable key/certificate/passport pipeline",
         "consensus_model": "quorum-based proposer/vote/finalization with explicit rotation",
         "status": "pre-mainnet; deterministic local smoke path available"
@@ -575,9 +525,6 @@ fn cmd_module_architecture() -> Result<(), String> {
             "principle": "keep the relay chain thin, neutral, and durable",
             "canonical_modules": relay_module_names,
             "sovereign_roots": sovereign_roots,
-    let output = serde_json::json!({
-        "relay_core": {
-            "principle": "keep the relay chain thin, neutral, and durable",
             "responsibilities": [
                 "finality_ordering",
                 "shared_security",
@@ -619,19 +566,6 @@ fn cmd_module_architecture() -> Result<(), String> {
         ],
         "message_envelope": {
             "fields": envelope_fields
-            "fields": [
-                "sourceModule",
-                "destinationModule",
-                "sourceChainFamily",
-                "targetChainFamily",
-                "nonce",
-                "payloadType",
-                "payloadHash",
-                "proofReference",
-                "feeClass",
-                "expiry",
-                "replayProtectionTag"
-            ]
         },
         "security_boundaries": {
             "relay_core": [
