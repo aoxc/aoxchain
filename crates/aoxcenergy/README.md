@@ -1,26 +1,30 @@
 # aoxcenergy
 
-## Purpose
+`aoxcenergy` provides a deterministic economic floor engine for AOXC.
 
-`aoxcenergy` is responsible for the **placeholder domain for future economics/energy modeling** domain within the AOXChain workspace.
+This crate does **not** attempt to predict speculative market price. Instead, it
+computes a governance-auditable **full network cost floor** derived from:
 
-## Code Scope
+- energy expenditure
+- infrastructure and operations expenditure
+- continuity and risk buffers
+- tax burden
+- treasury formation policy
+- target sustainability margin
 
-- `lib.rs`
+## Core outputs
 
-## Operational Notes
+- `minimum_survival_floor`
+- `sustainability_floor`
+- `treasury_build_floor`
+- `governance approval status`
+- `audit summary`
 
-- API and behavior changes should be evaluated for backward impact.
-- Prefer explicit parameters over implicit defaults in critical paths.
-- Security-impacting changes in this crate should be accompanied by test/example updates.
-
-## Local Validation
+## Validation goals
 
 ```bash
+cargo fmt --all
 cargo check -p aoxcenergy
+cargo test -p aoxcenergy -- --nocapture
+cargo clippy -p aoxcenergy --all-targets --all-features -- -D warnings
 ```
-
-## Related Components
-
-- Top-level architecture: [`../../README.md`](../../README.md)
-- Crate catalog: [`../README.md`](../README.md)

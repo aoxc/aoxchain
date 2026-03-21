@@ -1,21 +1,20 @@
 use crate::{
     manifest::{
-        ActionMap, Audit, Auth, Backend, Bindings, CircuitBreaker, Compatibility, Confidence,
-        Decision, DeterministicOverrides, Fallback, Fusion, FusionWeights, HeuristicBackend, Input,
-        Lifecycle, ManifestSignature, Metadata, Metrics, ModelManifest, Observability, Output,
-        OutputMapping, OutputValidation, Prompt, RateLimit, RemoteHttpBackend, Security, Spec,
-        SubjectShape, Thresholds, Tls, Tracing,
+        ActionMap, Audit, Auth, AuthMode, Backend, BackendFailureAction, BackendType, Bindings,
+        CircuitBreaker, Compatibility, Confidence, Decision, DeterministicOverrides, Fallback,
+        Fusion, FusionStrategy, FusionWeights, HeuristicBackend, HttpMethod, Input,
+        InvalidOutputBehavior, Lifecycle, ManifestSignature, Metadata, Metrics, ModelManifest,
+        Observability, Output, OutputMapping, OutputValidation, Prompt, RateLimit,
+        RemoteHttpBackend, Security, Spec, SubjectShape, Thresholds, Tls, Tracing,
+        TruncateStrategy,
     },
     model::{
-        AiMode, AiTask, InferenceContext, InferenceFinding, InferenceRequest, InferenceSignal,
+        ActionName, AiMode, AiTask, InferenceContext, InferenceFinding, InferenceRequest,
+        InferenceSignal, ModelOutput, OutputLabel,
     },
 };
 use std::collections::BTreeMap;
 
-/// Builds a structurally valid baseline manifest for unit tests.
-///
-/// This fixture is intentionally complete so that individual tests can mutate
-/// only the fields relevant to the behavior under examination.
 pub fn base_manifest() -> ModelManifest {
     ModelManifest {
         api_version: "aoxc.ai/v1".to_owned(),
@@ -44,7 +43,7 @@ pub fn base_manifest() -> ModelManifest {
                 tenants: vec![],
             },
             backend: Backend {
-                r#type: "heuristic".to_owned(),
+                r#type: BackendType::Heuristic,
                 driver: "builtin".to_owned(),
                 priority: 1,
                 timeout_ms: 1_000,
@@ -74,7 +73,7 @@ pub fn base_manifest() -> ModelManifest {
                 max_signal_count: 64,
                 max_finding_count: 32,
                 max_evidence_refs: 0,
-                truncate_strategy: "weight_desc".to_owned(),
+                truncate_strategy: TruncateStrategy::WeightDesc,
                 signal_encoding: "typed".to_owned(),
                 subject: SubjectShape {
                     required_fields: vec![
@@ -110,17 +109,17 @@ pub fn base_manifest() -> ModelManifest {
                 },
                 validation: OutputValidation {
                     allowed_labels: vec![
-                        "trusted".to_owned(),
-                        "review".to_owned(),
-                        "suspicious".to_owned(),
-                        "malicious".to_owned(),
-                        "unknown".to_owned(),
+                        OutputLabel::Trusted,
+                        OutputLabel::Review,
+                        OutputLabel::Suspicious,
+                        OutputLabel::Malicious,
+                        OutputLabel::Unknown,
                     ],
                     risk_bps_min: 0,
                     risk_bps_max: 10_000,
                     confidence_bps_min: 0,
                     confidence_bps_max: 10_000,
-                    on_invalid_output: "reject".to_owned(),
+                    on_invalid_output: InvalidOutputBehavior::Reject,
                 },
             },
             decision: Decision {
@@ -132,10 +131,10 @@ pub fn base_manifest() -> ModelManifest {
                 },
                 confidence: Confidence {
                     minimum_confidence_bps: 3_500,
-                    low_confidence_action: "review".to_owned(),
+                    low_confidence_action: ActionName::Review,
                 },
                 fusion: Fusion {
-                    strategy: "weighted".to_owned(),
+                    strategy: FusionStrategy::Weighted,
                     weights: FusionWeights {
                         model_risk_bps: 6_000,
                         deterministic_risk_bps: 4_000,
@@ -149,21 +148,21 @@ pub fn base_manifest() -> ModelManifest {
                     },
                 },
                 actions: ActionMap {
-                    trusted: "allow".to_owned(),
-                    review: "review".to_owned(),
-                    suspicious: "review".to_owned(),
-                    malicious: "deny".to_owned(),
-                    unknown: "review".to_owned(),
+                    trusted: ActionName::Allow,
+                    review: ActionName::Review,
+                    suspicious: ActionName::Review,
+                    malicious: ActionName::Deny,
+                    unknown: ActionName::Review,
                 },
             },
             fallback: Fallback {
-                enabled: false,
+                enabled: true,
                 backend: None,
-                action_on_backend_error: "review".to_owned(),
-                action_on_timeout: "review".to_owned(),
-                action_on_schema_error: "review".to_owned(),
-                action_on_unreachable_backend: "review".to_owned(),
-                action_on_empty_response: "review".to_owned(),
+                action_on_backend_error: BackendFailureAction::Review,
+                action_on_timeout: BackendFailureAction::Review,
+                action_on_schema_error: BackendFailureAction::Review,
+                action_on_unreachable_backend: BackendFailureAction::Review,
+                action_on_empty_response: BackendFailureAction::Review,
             },
             observability: Observability {
                 metrics: Metrics {
@@ -193,7 +192,7 @@ pub fn base_manifest() -> ModelManifest {
                     public_key_path: None,
                     signature_field: String::new(),
                 },
-                allowed_endpoints: vec![],
+                allowed_endpoints: vec!["https://inference.aoxc.local".to_owned()],
                 allow_private_networks: false,
                 allow_file_backends: false,
             },
@@ -213,55 +212,59 @@ pub fn base_manifest() -> ModelManifest {
     }
 }
 
-/// Returns a manifest configured for the built-in heuristic backend.
 pub fn heuristic_manifest() -> ModelManifest {
     base_manifest()
 }
 
-/// Returns a manifest configured for the remote HTTP backend without auth.
 pub fn remote_http_manifest(endpoint: impl Into<String>) -> ModelManifest {
+    let endpoint = endpoint.into();
     let mut manifest = base_manifest();
-    manifest.spec.backend.r#type = "remote_http".to_owned();
+    manifest.spec.backend.r#type = BackendType::RemoteHttp;
     manifest.spec.backend.driver = "openai_compatible_json".to_owned();
     manifest.spec.backend.heuristic = None;
     manifest.spec.backend.remote_http = Some(RemoteHttpBackend {
-        endpoint: endpoint.into(),
-        method: "POST".to_owned(),
+        endpoint: endpoint.clone(),
+        method: HttpMethod::Post,
         headers: {
             let mut headers = BTreeMap::new();
             headers.insert("Content-Type".to_owned(), "application/json".to_owned());
             headers
         },
         auth: Auth {
-            mode: "none".to_owned(),
+            mode: AuthMode::None,
             env_key: String::new(),
         },
         tls: Tls {
-            enabled: false,
-            verify_peer: false,
+            enabled: endpoint.starts_with("https://"),
+            verify_peer: endpoint.starts_with("https://"),
         },
         rate_limit: RateLimit {
             requests_per_minute: 60,
             burst: 10,
         },
     });
+
+    if let Some((prefix, _)) = endpoint.rsplit_once('/') {
+        manifest.spec.security.allowed_endpoints = vec![prefix.to_owned()];
+    } else {
+        manifest.spec.security.allowed_endpoints = vec![endpoint];
+    }
+
     manifest
 }
 
-/// Returns a manifest configured for the remote HTTP backend using bearer_env auth.
 pub fn bearer_remote_http_manifest(
     endpoint: impl Into<String>,
     env_key: impl Into<String>,
 ) -> ModelManifest {
     let mut manifest = remote_http_manifest(endpoint);
     if let Some(cfg) = manifest.spec.backend.remote_http.as_mut() {
-        cfg.auth.mode = "bearer_env".to_owned();
+        cfg.auth.mode = AuthMode::BearerEnv;
         cfg.auth.env_key = env_key.into();
     }
     manifest
 }
 
-/// Builds a deterministic request fixture for backend execution tests.
 pub fn request_with(
     signals: Vec<InferenceSignal>,
     findings: Vec<InferenceFinding>,
@@ -276,7 +279,19 @@ pub fn request_with(
     }
 }
 
-/// Returns a baseline request with no findings and no signals.
 pub fn empty_request() -> InferenceRequest {
     request_with(vec![], vec![])
+}
+
+pub fn model_output(label: OutputLabel, risk_bps: u16, confidence_bps: u16) -> ModelOutput {
+    ModelOutput {
+        backend: "heuristic".to_owned(),
+        model_id: "test-model".to_owned(),
+        label,
+        risk_bps,
+        confidence_bps,
+        rationale: "Unit test model output.".to_owned(),
+        recommended_action: None,
+        attributes: Default::default(),
+    }
 }

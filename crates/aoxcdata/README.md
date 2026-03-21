@@ -2,27 +2,36 @@
 
 ## Purpose
 
-`aoxcdata` is responsible for the **storage layer (KV + state tree)** domain within the AOXChain workspace.
+`aoxcdata` is the production-oriented AOXChain data layer. It intentionally avoids
+traditional database engines and instead implements a deterministic, auditable,
+content-addressed storage architecture composed of:
 
-## Code Scope
+- atomic filesystem-backed block blob storage,
+- append-only metadata journal indexing with snapshot compaction,
+- bounded and explicit key-value persistence primitives,
+- deterministic Merkle state tree generation and proof verification.
 
-- `store/kv_db.rs`
-- `store/state_tree.rs`
-- `store/column_families.rs`
+## Design Principles
 
-## Operational Notes
+- No silent data loss paths
+- Explicit integrity validation
+- Atomic write discipline
+- Crash-safe persistence patterns
+- Deterministic hashing
+- Strict error propagation
+- Pluggable storage boundaries
 
-- API and behavior changes should be evaluated for backward impact.
-- Prefer explicit parameters over implicit defaults in critical paths.
-- Security-impacting changes in this crate should be accompanied by test/example updates.
+## Current Storage Architecture
+
+- `FsCasBlobStore`: content-addressed block persistence
+- `FileMetaIndexStore`: append-only block metadata index with replay
+- `FileKvDb`: filesystem KV surface with atomic per-key writes
+- `StateTree`: deterministic ordered Merkle tree and proof engine
 
 ## Local Validation
 
 ```bash
-cargo check -p aoxcdata && cargo test -p aoxcdata
+cargo check -p aoxcdata
+cargo test -p aoxcdata -- --nocapture
+cargo clippy -p aoxcdata --all-targets --all-features -- -D warnings
 ```
-
-## Related Components
-
-- Top-level architecture: [`../../README.md`](../../README.md)
-- Crate catalog: [`../README.md`](../README.md)

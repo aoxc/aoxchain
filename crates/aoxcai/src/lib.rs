@@ -1,9 +1,8 @@
 //! AOXC AI runtime.
 //!
-//! This crate provides a runtime-loadable AI orchestration layer driven by
-//! declarative model manifests. Backends are selected through configuration
-//! rather than compile-time coupling, allowing the node to adopt new models
-//! with minimal operational friction.
+//! This crate provides a manifest-driven AI orchestration layer for AOXChain.
+//! The design goal is operational determinism, explicit policy enforcement, and
+//! conservative failure handling suitable for security-sensitive node workflows.
 
 pub mod backend;
 pub mod engine;
@@ -14,15 +13,17 @@ pub mod policy;
 pub mod registry;
 pub mod traits;
 
+#[cfg(test)]
+mod test_support;
+
 pub use engine::AiEngine;
 pub use error::AiError;
 pub use manifest::ModelManifest;
 pub use model::{
-    AiMode, AiTask, Assessment, DecisionAction, DecisionReport, InferenceContext, InferenceFinding,
-    InferenceRequest, InferenceSignal, ModelOutput,
+    ActionName, AiMode, AiTask, Assessment, DecisionAction, DecisionReport, FindingSeverity,
+    InferenceContext, InferenceFinding, InferenceRequest, InferenceSignal, ModelOutput,
+    OutputLabel,
 };
+pub use policy::fusion::FusionPolicy;
 pub use registry::ModelRegistry;
 pub use traits::{ContextProvider, DecisionPolicy, InferenceBackend, SignalProvider};
-
-#[cfg(test)]
-mod test_support;

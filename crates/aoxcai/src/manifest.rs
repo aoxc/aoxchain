@@ -1,11 +1,67 @@
 use crate::{
     error::AiError,
-    model::{AiMode, AiTask},
+    model::{ActionName, AiMode, AiTask, OutputLabel},
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-/// Represents the root runtime manifest for a loadable AOXC AI model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BackendType {
+    Heuristic,
+    RemoteHttp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthMode {
+    None,
+    BearerEnv,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HttpMethod {
+    Post,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TruncateStrategy {
+    WeightDesc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FusionStrategy {
+    Weighted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InvalidOutputBehavior {
+    Reject,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BackendFailureAction {
+    Allow,
+    Review,
+    Deny,
+}
+
+impl From<BackendFailureAction> for crate::model::DecisionAction {
+    fn from(value: BackendFailureAction) -> Self {
+        match value {
+            BackendFailureAction::Allow => crate::model::DecisionAction::Allow,
+            BackendFailureAction::Review => crate::model::DecisionAction::Review,
+            BackendFailureAction::Deny => crate::model::DecisionAction::Deny,
+        }
+    }
+}
+
+/// Runtime manifest for a loadable AOXC AI model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelManifest {
     pub api_version: String,
@@ -15,7 +71,6 @@ pub struct ModelManifest {
 }
 
 impl ModelManifest {
-    /// Loads and validates a manifest from a YAML file.
     pub fn from_yaml_file(path: impl AsRef<Path>) -> Result<Self, AiError> {
         let path_ref = path.as_ref();
         let raw = fs::read_to_string(path_ref).map_err(|err| AiError::Io {
@@ -25,12 +80,10 @@ impl ModelManifest {
 
         let manifest: Self =
             serde_yaml::from_str(&raw).map_err(|err| AiError::ManifestParse(err.to_string()))?;
-
         manifest.validate()?;
         Ok(manifest)
     }
 
-    /// Applies structural validation required by the runtime.
     pub fn validate(&self) -> Result<(), AiError> {
         if self.api_version.trim().is_empty() {
             return Err(AiError::ManifestValidation(
@@ -51,45 +104,156 @@ impl ModelManifest {
             ));
         }
 
-        if self.spec.backend.r#type.trim().is_empty() {
-            return Err(AiError::ManifestValidation(
-                "spec.backend.type must not be empty".to_owned(),
-            ));
-        }
-
         if self.spec.output.required_fields.is_empty() {
             return Err(AiError::ManifestValidation(
                 "spec.output.required_fields must not be empty".to_owned(),
             ));
         }
 
+        if self.spec.input.max_signal_count == 0 {
+            return Err(AiError::ManifestValidation(
+                "spec.input.max_signal_count must be greater than zero".to_owned(),
+            ));
+        }
+
+        if self.spec.decision.thresholds.allow_max_risk_bps
+            > self.spec.decision.thresholds.review_max_risk_bps
+        {
+            return Err(AiError::ManifestValidation(
+                "decision thresholds are not ordered: allow_max_risk_bps must be less than or equal to review_max_risk_bps".to_owned(),
+            ));
+        }
+
+        if self.spec.decision.thresholds.review_max_risk_bps
+            >= self.spec.decision.thresholds.deny_min_risk_bps
+        {
+            return Err(AiError::ManifestValidation(
+                "decision thresholds are not ordered: review_max_risk_bps must be less than deny_min_risk_bps".to_owned(),
+            ));
+        }
+
+        validate_output_validation(&self.spec.output.validation)?;
+        validate_backend(&self.spec.backend)?;
+        validate_security(&self.spec.security, &self.spec.backend)?;
+        validate_bindings(&self.spec.bindings, &self.spec.compatibility)?;
         Ok(())
     }
 
-    /// Returns true when this manifest is enabled for runtime use.
+    #[must_use]
     pub fn is_enabled(&self) -> bool {
         self.spec.enabled
     }
 
-    /// Returns the manifest identifier.
+    #[must_use]
     pub fn id(&self) -> &str {
         &self.metadata.id
     }
 
-    /// Returns the configured backend type.
-    pub fn backend_type(&self) -> &str {
-        &self.spec.backend.r#type
-    }
-
-    /// Returns true when the manifest declares the supplied task as default.
+    #[must_use]
     pub fn binds_task(&self, task: AiTask) -> bool {
         self.spec.bindings.default_for_tasks.contains(&task)
     }
+}
 
-    /// Returns the decision mode declared by the manifest.
-    pub fn decision_mode(&self) -> AiMode {
-        self.spec.decision.mode
+fn validate_output_validation(value: &OutputValidation) -> Result<(), AiError> {
+    if value.risk_bps_min > value.risk_bps_max {
+        return Err(AiError::ManifestValidation(
+            "output.validation risk bounds are invalid".to_owned(),
+        ));
     }
+
+    if value.confidence_bps_min > value.confidence_bps_max {
+        return Err(AiError::ManifestValidation(
+            "output.validation confidence bounds are invalid".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_backend(value: &Backend) -> Result<(), AiError> {
+    match value.r#type {
+        BackendType::Heuristic => {
+            if value.heuristic.is_none() {
+                return Err(AiError::ManifestValidation(
+                    "heuristic backend requires spec.backend.heuristic".to_owned(),
+                ));
+            }
+        }
+        BackendType::RemoteHttp => {
+            let cfg = value.remote_http.as_ref().ok_or_else(|| {
+                AiError::ManifestValidation(
+                    "remote_http backend requires spec.backend.remote_http".to_owned(),
+                )
+            })?;
+
+            if cfg.endpoint.trim().is_empty() {
+                return Err(AiError::ManifestValidation(
+                    "remote_http endpoint must not be empty".to_owned(),
+                ));
+            }
+
+            if matches!(cfg.auth.mode, AuthMode::BearerEnv) && cfg.auth.env_key.trim().is_empty() {
+                return Err(AiError::ManifestValidation(
+                    "remote_http bearer_env mode requires a non-empty env_key".to_owned(),
+                ));
+            }
+
+            if matches!(cfg.auth.mode, AuthMode::None) && !cfg.auth.env_key.trim().is_empty() {
+                return Err(AiError::ManifestValidation(
+                    "remote_http auth env_key must be empty when auth mode is none".to_owned(),
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_security(security: &Security, backend: &Backend) -> Result<(), AiError> {
+    if security.manifest_signature.required {
+        if security.manifest_signature.public_key_path.is_none() {
+            return Err(AiError::ManifestValidation(
+                "manifest signature is required but public_key_path is missing".to_owned(),
+            ));
+        }
+        if security
+            .manifest_signature
+            .signature_field
+            .trim()
+            .is_empty()
+        {
+            return Err(AiError::ManifestValidation(
+                "manifest signature is required but signature_field is empty".to_owned(),
+            ));
+        }
+    }
+
+    if matches!(backend.r#type, BackendType::RemoteHttp) && security.allowed_endpoints.is_empty() {
+        return Err(AiError::ManifestValidation(
+            "remote_http backend requires at least one allowed endpoint".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_bindings(bindings: &Bindings, compatibility: &Compatibility) -> Result<(), AiError> {
+    for task in &bindings.default_for_tasks {
+        if !compatibility.supported_tasks.contains(task) {
+            return Err(AiError::ManifestValidation(format!(
+                "binding task '{task:?}' is not declared in compatibility.supported_tasks"
+            )));
+        }
+    }
+
+    if compatibility.supported_modes.is_empty() {
+        return Err(AiError::ManifestValidation(
+            "compatibility.supported_modes must not be empty".to_owned(),
+        ));
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -138,7 +302,7 @@ pub struct Bindings {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Backend {
     #[serde(rename = "type")]
-    pub r#type: String,
+    pub r#type: BackendType,
     pub driver: String,
     pub priority: u32,
     pub timeout_ms: u64,
@@ -162,7 +326,7 @@ pub struct CircuitBreaker {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteHttpBackend {
     pub endpoint: String,
-    pub method: String,
+    pub method: HttpMethod,
     pub headers: BTreeMap<String, String>,
     pub auth: Auth,
     pub tls: Tls,
@@ -171,7 +335,7 @@ pub struct RemoteHttpBackend {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Auth {
-    pub mode: String,
+    pub mode: AuthMode,
     pub env_key: String,
 }
 
@@ -220,7 +384,7 @@ pub struct Input {
     pub max_signal_count: usize,
     pub max_finding_count: usize,
     pub max_evidence_refs: usize,
-    pub truncate_strategy: String,
+    pub truncate_strategy: TruncateStrategy,
     pub signal_encoding: String,
     pub subject: SubjectShape,
     pub prompt: Prompt,
@@ -260,12 +424,12 @@ pub struct OutputMapping {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OutputValidation {
-    pub allowed_labels: Vec<String>,
+    pub allowed_labels: Vec<OutputLabel>,
     pub risk_bps_min: u16,
     pub risk_bps_max: u16,
     pub confidence_bps_min: u16,
     pub confidence_bps_max: u16,
-    pub on_invalid_output: String,
+    pub on_invalid_output: InvalidOutputBehavior,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -287,12 +451,12 @@ pub struct Thresholds {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Confidence {
     pub minimum_confidence_bps: u16,
-    pub low_confidence_action: String,
+    pub low_confidence_action: ActionName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Fusion {
-    pub strategy: String,
+    pub strategy: FusionStrategy,
     pub weights: FusionWeights,
     pub deterministic_overrides: DeterministicOverrides,
 }
@@ -314,22 +478,22 @@ pub struct DeterministicOverrides {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActionMap {
-    pub trusted: String,
-    pub review: String,
-    pub suspicious: String,
-    pub malicious: String,
-    pub unknown: String,
+    pub trusted: ActionName,
+    pub review: ActionName,
+    pub suspicious: ActionName,
+    pub malicious: ActionName,
+    pub unknown: ActionName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Fallback {
     pub enabled: bool,
     pub backend: Option<String>,
-    pub action_on_backend_error: String,
-    pub action_on_timeout: String,
-    pub action_on_schema_error: String,
-    pub action_on_unreachable_backend: String,
-    pub action_on_empty_response: String,
+    pub action_on_backend_error: BackendFailureAction,
+    pub action_on_timeout: BackendFailureAction,
+    pub action_on_schema_error: BackendFailureAction,
+    pub action_on_unreachable_backend: BackendFailureAction,
+    pub action_on_empty_response: BackendFailureAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

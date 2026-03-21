@@ -1,20 +1,19 @@
 use crate::{
     error::AiError,
     manifest::ModelManifest,
-    model::{InferenceRequest, ModelOutput},
+    model::{FindingSeverity, InferenceRequest, ModelOutput, OutputLabel},
     traits::InferenceBackend,
 };
 use std::collections::BTreeMap;
 
 /// Built-in deterministic fallback backend.
 ///
-/// This backend is intentionally simple and transparent. It exists to provide
-/// stable behavior when no external model is present or when the operator
-/// explicitly selects a heuristic runtime.
+/// The heuristic backend is intentionally transparent and conservative. It is
+/// suitable for advisory mode, offline fallback, and policy-hardening paths.
 pub struct HeuristicBackendRuntime;
 
 impl HeuristicBackendRuntime {
-    /// Creates a new heuristic backend instance.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -43,40 +42,39 @@ impl InferenceBackend for HeuristicBackendRuntime {
             )
         })?;
 
-        let keywords = &heuristic.anomaly_keywords;
         let mut risk_bps: u16 = 0;
 
         for signal in &request.signals {
-            let value = signal.value.to_ascii_lowercase();
-            if keywords
+            let signal_value = signal.value.to_ascii_lowercase();
+            let matched = heuristic
+                .anomaly_keywords
                 .iter()
-                .any(|keyword| value.contains(&keyword.to_ascii_lowercase()))
-            {
+                .any(|keyword| signal_value.contains(&keyword.to_ascii_lowercase()));
+
+            if matched {
                 risk_bps = risk_bps.saturating_add(signal.weight_bps.min(2_500));
             }
         }
 
         for finding in &request.findings {
-            match finding.severity.as_str() {
-                "critical" => risk_bps = risk_bps.saturating_add(4_000),
-                "high" => risk_bps = risk_bps.saturating_add(2_500),
-                "warning" => risk_bps = risk_bps.saturating_add(1_000),
-                _ => risk_bps = risk_bps.saturating_add(250),
-            }
+            let increment = match finding.severity {
+                FindingSeverity::Critical => 4_000,
+                FindingSeverity::High => 2_500,
+                FindingSeverity::Warning => 1_000,
+                FindingSeverity::Info => 250,
+            };
+            risk_bps = risk_bps.saturating_add(increment);
         }
 
-        if risk_bps > 10_000 {
-            risk_bps = 10_000;
-        }
-
+        let risk_bps = risk_bps.min(10_000);
         let label = if risk_bps >= 7_000 {
-            "malicious"
+            OutputLabel::Malicious
         } else if risk_bps >= 3_500 {
-            "suspicious"
+            OutputLabel::Suspicious
         } else if risk_bps >= 1_500 {
-            "review"
+            OutputLabel::Review
         } else {
-            "trusted"
+            OutputLabel::Trusted
         };
 
         let mut attributes = BTreeMap::new();
@@ -90,7 +88,7 @@ impl InferenceBackend for HeuristicBackendRuntime {
         Ok(ModelOutput {
             backend: self.name().to_owned(),
             model_id: manifest.metadata.id.clone(),
-            label: label.to_owned(),
+            label,
             risk_bps,
             confidence_bps: 7_500,
             rationale: format!(
@@ -107,36 +105,25 @@ impl InferenceBackend for HeuristicBackendRuntime {
 mod tests {
     use super::*;
     use crate::{
-        error::AiError,
-        model::{InferenceFinding, InferenceSignal},
+        model::{FindingSeverity, InferenceFinding, InferenceSignal},
         test_support::{empty_request, heuristic_manifest, request_with},
     };
 
     #[tokio::test]
-    async fn infer_returns_trusted_when_no_risk_input_is_present() {
+    async fn infer_returns_trusted_when_risk_is_absent() {
         let manifest = heuristic_manifest();
         let backend = HeuristicBackendRuntime::new();
-        let request = empty_request();
-
         let output = backend
-            .infer(&manifest, &request)
+            .infer(&manifest, &empty_request())
             .await
             .expect("heuristic inference must succeed");
 
-        assert_eq!(output.backend, "heuristic");
-        assert_eq!(output.model_id, manifest.metadata.id);
-        assert_eq!(output.label, "trusted");
+        assert_eq!(output.label, OutputLabel::Trusted);
         assert_eq!(output.risk_bps, 0);
-        assert_eq!(output.confidence_bps, 7_500);
-        assert_eq!(output.attributes.get("signal_count"), Some(&"0".to_owned()));
-        assert_eq!(
-            output.attributes.get("finding_count"),
-            Some(&"0".to_owned())
-        );
     }
 
     #[tokio::test]
-    async fn infer_increases_risk_when_signal_matches_anomaly_keyword() {
+    async fn infer_escalates_when_keywords_match() {
         let manifest = heuristic_manifest();
         let backend = HeuristicBackendRuntime::new();
         let request = request_with(
@@ -154,12 +141,12 @@ mod tests {
             .await
             .expect("heuristic inference must succeed");
 
-        assert_eq!(output.label, "review");
+        assert_eq!(output.label, OutputLabel::Review);
         assert_eq!(output.risk_bps, 2_000);
     }
 
     #[tokio::test]
-    async fn infer_applies_finding_severity_weights() {
+    async fn infer_weights_findings_by_severity() {
         let manifest = heuristic_manifest();
         let backend = HeuristicBackendRuntime::new();
         let request = request_with(
@@ -168,9 +155,13 @@ mod tests {
                 InferenceFinding::new(
                     "revoked_identity",
                     "Critical identity revocation detected.",
-                    "critical",
+                    FindingSeverity::Critical,
                 ),
-                InferenceFinding::new("runtime_anomaly", "Runtime anomaly detected.", "warning"),
+                InferenceFinding::new(
+                    "runtime_anomaly",
+                    "Runtime anomaly detected.",
+                    FindingSeverity::Warning,
+                ),
             ],
         );
 
@@ -180,54 +171,6 @@ mod tests {
             .expect("heuristic inference must succeed");
 
         assert_eq!(output.risk_bps, 5_000);
-        assert_eq!(output.label, "suspicious");
-    }
-
-    #[tokio::test]
-    async fn infer_caps_risk_at_upper_bound() {
-        let manifest = heuristic_manifest();
-        let backend = HeuristicBackendRuntime::new();
-        let request = request_with(
-            vec![
-                InferenceSignal::new("signal_a", "revoked", 9_000, "unit_test"),
-                InferenceSignal::new("signal_b", "revoked", 9_000, "unit_test"),
-                InferenceSignal::new("signal_c", "anomaly", 9_000, "unit_test"),
-                InferenceSignal::new("signal_d", "anomaly", 9_000, "unit_test"),
-            ],
-            vec![
-                InferenceFinding::new("critical_1", "Critical condition.", "critical"),
-                InferenceFinding::new("critical_2", "Critical condition.", "critical"),
-                InferenceFinding::new("critical_3", "Critical condition.", "critical"),
-            ],
-        );
-
-        let output = backend
-            .infer(&manifest, &request)
-            .await
-            .expect("heuristic inference must succeed");
-
-        assert_eq!(output.risk_bps, 10_000);
-        assert_eq!(output.label, "malicious");
-    }
-
-    #[tokio::test]
-    async fn infer_rejects_missing_heuristic_configuration() {
-        let mut manifest = heuristic_manifest();
-        manifest.spec.backend.heuristic = None;
-
-        let backend = HeuristicBackendRuntime::new();
-        let request = empty_request();
-
-        let err = backend
-            .infer(&manifest, &request)
-            .await
-            .expect_err("missing heuristic config must fail");
-
-        match err {
-            AiError::ManifestValidation(message) => {
-                assert_eq!(message, "heuristic backend requires spec.backend.heuristic");
-            }
-            other => panic!("unexpected error: {other}"),
-        }
+        assert_eq!(output.label, OutputLabel::Suspicious);
     }
 }

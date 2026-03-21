@@ -1,28 +1,36 @@
-/// Logical column families used by the persistent data layer.
+/// Logical column families used by the AOXC data layer.
+///
+/// The enum is intentionally stable because it forms part of the storage path
+/// namespace for the filesystem-backed KV surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ColumnFamily {
     Blocks,
     Transactions,
     Receipts,
     State,
+    Metadata,
 }
 
 impl ColumnFamily {
-    pub fn as_str(self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Blocks => "blocks",
             Self::Transactions => "transactions",
             Self::Receipts => "receipts",
             Self::State => "state",
+            Self::Metadata => "metadata",
         }
     }
 }
 
-pub fn all_column_families() -> [ColumnFamily; 4] {
+#[must_use]
+pub const fn all_column_families() -> [ColumnFamily; 5] {
     [
         ColumnFamily::Blocks,
         ColumnFamily::Transactions,
         ColumnFamily::Receipts,
         ColumnFamily::State,
+        ColumnFamily::Metadata,
     ]
 }

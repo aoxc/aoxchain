@@ -1,30 +1,16 @@
 # aoxcai
 
-## Purpose
+Production-oriented AI orchestration layer for AOXChain.
 
-`aoxcai` is responsible for the **AI policy/engine integration layer** domain within the AOXChain workspace.
+This package is intentionally manifest-driven and policy-centric. It provides:
 
-## Code Scope
+- deterministic request normalization,
+- typed manifest validation,
+- bounded backend execution,
+- hardened remote HTTP endpoint policy enforcement,
+- deterministic fusion of model output and pre-model findings,
+- registry-safe task binding,
+- focused unit tests for critical behaviors.
 
-- `backend/`
-- `policy/`
-- `engine.rs`
-- `registry.rs`
-- `traits.rs`
-
-## Operational Notes
-
-- API and behavior changes should be evaluated for backward impact.
-- Prefer explicit parameters over implicit defaults in critical paths.
-- Security-impacting changes in this crate should be accompanied by test/example updates.
-
-## Local Validation
-
-```bash
-cargo check -p aoxcai
-```
-
-## Related Components
-
-- Top-level architecture: [`../../README.md`](../../README.md)
-- Crate catalog: [`../README.md`](../README.md)
+This implementation is designed to be auditable, deterministic where possible,
+and conservative in failure handling.

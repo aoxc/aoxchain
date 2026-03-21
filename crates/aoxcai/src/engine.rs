@@ -1,17 +1,23 @@
 use crate::{
     backend::factory::BackendFactory,
     error::AiError,
-    manifest::ModelManifest,
-    model::{AiMode, AiTask, DecisionReport, InferenceFinding, InferenceRequest},
+    manifest::{BackendFailureAction, ModelManifest},
+    model::{
+        AiMode, AiTask, Assessment, DecisionAction, DecisionReport, FindingSeverity,
+        InferenceFinding, InferenceRequest,
+    },
     registry::ModelRegistry,
     traits::{ContextProvider, DecisionPolicy, SignalProvider},
 };
 
 /// Runtime AI engine.
 ///
-/// This engine is manifest-driven. It resolves a task binding to a concrete
-/// model manifest, constructs a normalized inference request, invokes the
-/// selected backend, and applies a deterministic fusion policy to the result.
+/// The engine is intentionally manifest-driven. It resolves a task binding,
+/// normalizes context and signals, executes a validated backend, and fuses the
+/// result using a deterministic policy.
+///
+/// Failure handling is conservative. Backend failures may be mapped into
+/// manifest-declared fallback actions rather than being silently ignored.
 pub struct AiEngine {
     registry: ModelRegistry,
     context_provider: Box<dyn ContextProvider>,
@@ -20,7 +26,6 @@ pub struct AiEngine {
 }
 
 impl AiEngine {
-    /// Creates a new AI engine with the supplied registry and providers.
     pub fn new(
         registry: ModelRegistry,
         context_provider: Box<dyn ContextProvider>,
@@ -35,7 +40,6 @@ impl AiEngine {
         }
     }
 
-    /// Evaluates the supplied subject under the given task and mode.
     pub async fn evaluate(
         &self,
         task: AiTask,
@@ -43,6 +47,7 @@ impl AiEngine {
         subject_id: impl Into<String>,
     ) -> Result<DecisionReport, AiError> {
         let subject_id = subject_id.into();
+
         if subject_id.trim().is_empty() {
             return Err(AiError::InvalidInput(
                 "subject identifier must not be empty".to_owned(),
@@ -50,7 +55,7 @@ impl AiEngine {
         }
 
         let manifest = self.registry.resolve_for_task(task)?;
-        self.ensure_task_supported(manifest, task, mode)?;
+        ensure_task_supported(manifest, task, mode)?;
 
         let context = self.context_provider.build(task, &subject_id).await?;
         let mut signals = Vec::new();
@@ -61,7 +66,6 @@ impl AiEngine {
         }
 
         truncate_signals(manifest, &mut signals);
-
         let findings = deterministic_findings(&signals);
         let narrative = build_narrative(
             manifest,
@@ -83,48 +87,65 @@ impl AiEngine {
         };
 
         let backend = BackendFactory::build(manifest)?;
-        let output = backend.infer(manifest, &request).await?;
-        let assessment = self
-            .policy
-            .decide(manifest, &request, &output, &findings)
-            .await?;
+        match backend.infer(manifest, &request).await {
+            Ok(output) => {
+                let assessment = self
+                    .policy
+                    .decide(manifest, &request, &output, &findings)
+                    .await?;
 
-        Ok(DecisionReport {
-            request,
-            model_output: output,
-            assessment,
-            manifest_id: manifest.metadata.id.clone(),
-            backend_type: manifest.spec.backend.r#type.clone(),
-        })
+                Ok(DecisionReport {
+                    request,
+                    model_output: output,
+                    assessment,
+                    manifest_id: manifest.metadata.id.clone(),
+                    backend_type: format!("{:?}", manifest.spec.backend.r#type),
+                })
+            }
+            Err(err) => {
+                if !manifest.spec.fallback.enabled {
+                    return Err(err);
+                }
+
+                let assessment = fallback_assessment(manifest, &err, &findings);
+                let output = fallback_model_output(manifest, &err);
+
+                Ok(DecisionReport {
+                    request,
+                    model_output: output,
+                    assessment,
+                    manifest_id: manifest.metadata.id.clone(),
+                    backend_type: format!("{:?}", manifest.spec.backend.r#type),
+                })
+            }
+        }
+    }
+}
+
+fn ensure_task_supported(
+    manifest: &ModelManifest,
+    task: AiTask,
+    mode: AiMode,
+) -> Result<(), AiError> {
+    if !manifest.spec.compatibility.supported_tasks.contains(&task) {
+        return Err(AiError::ManifestValidation(format!(
+            "task '{task:?}' is not supported by manifest '{}'",
+            manifest.metadata.id
+        )));
     }
 
-    fn ensure_task_supported(
-        &self,
-        manifest: &ModelManifest,
-        task: AiTask,
-        mode: AiMode,
-    ) -> Result<(), AiError> {
-        if !manifest.spec.compatibility.supported_tasks.contains(&task) {
-            return Err(AiError::ManifestValidation(format!(
-                "task '{task:?}' is not supported by manifest '{}'",
-                manifest.metadata.id
-            )));
-        }
-
-        if !manifest.spec.compatibility.supported_modes.contains(&mode) {
-            return Err(AiError::ManifestValidation(format!(
-                "mode '{mode:?}' is not supported by manifest '{}'",
-                manifest.metadata.id
-            )));
-        }
-
-        Ok(())
+    if !manifest.spec.compatibility.supported_modes.contains(&mode) {
+        return Err(AiError::ManifestValidation(format!(
+            "mode '{mode:?}' is not supported by manifest '{}'",
+            manifest.metadata.id
+        )));
     }
+
+    Ok(())
 }
 
 fn truncate_signals(manifest: &ModelManifest, signals: &mut Vec<crate::model::InferenceSignal>) {
     signals.sort_by(|a, b| b.weight_bps.cmp(&a.weight_bps));
-
     if signals.len() > manifest.spec.input.max_signal_count {
         signals.truncate(manifest.spec.input.max_signal_count);
     }
@@ -140,19 +161,19 @@ fn deterministic_findings(signals: &[crate::model::InferenceSignal]) -> Vec<Infe
             findings.push(InferenceFinding::new(
                 "revoked_identity",
                 "Subject exhibits a revoked identity signal.",
-                "critical",
+                FindingSeverity::Critical,
             ));
         } else if value.contains("invalid_quorum") {
             findings.push(InferenceFinding::new(
                 "invalid_quorum_proof",
                 "Subject exhibits an invalid quorum proof signal.",
-                "critical",
+                FindingSeverity::Critical,
             ));
         } else if value.contains("timeout") || value.contains("anomaly") {
             findings.push(InferenceFinding::new(
                 "runtime_anomaly",
                 "Subject exhibits a runtime anomaly signal.",
-                "warning",
+                FindingSeverity::Warning,
             ));
         }
     }
@@ -188,7 +209,7 @@ fn build_narrative(
         .iter()
         .map(|finding| {
             format!(
-                "{} [{}] {}",
+                "{} [{:?}] {}",
                 finding.code, finding.severity, finding.message
             )
         })
@@ -198,4 +219,58 @@ fn build_narrative(
     Some(format!(
         "Task: {task:?}\nMode: {mode:?}\nSubjectKind: {subject_kind}\nSubjectId: {subject_id}\n\nSignals:\n{signals_narrative}\n\nFindings:\n{findings_narrative}"
     ))
+}
+
+fn fallback_assessment(
+    manifest: &ModelManifest,
+    err: &AiError,
+    findings: &[InferenceFinding],
+) -> Assessment {
+    let action_name = if err.is_timeout() {
+        manifest.spec.fallback.action_on_timeout
+    } else if err.is_schema_error() {
+        manifest.spec.fallback.action_on_schema_error
+    } else if err.is_backend_unreachable() {
+        manifest.spec.fallback.action_on_unreachable_backend
+    } else {
+        manifest.spec.fallback.action_on_backend_error
+    };
+
+    let action: DecisionAction = action_name.into();
+    let effective_risk_bps = match action {
+        DecisionAction::Allow => 0,
+        DecisionAction::Review => 5_000,
+        DecisionAction::Deny => 10_000,
+    };
+
+    Assessment {
+        action,
+        effective_risk_bps,
+        confidence_bps: 0,
+        rationale: format!(
+            "Fallback assessment applied due to backend failure: {}. deterministic_findings={}.",
+            err,
+            findings.len()
+        ),
+    }
+}
+
+fn fallback_model_output(manifest: &ModelManifest, err: &AiError) -> crate::model::ModelOutput {
+    crate::model::ModelOutput {
+        backend: "fallback".to_owned(),
+        model_id: manifest.metadata.id.clone(),
+        label: crate::model::OutputLabel::Unknown,
+        risk_bps: 0,
+        confidence_bps: 0,
+        rationale: format!(
+            "Fallback model output synthesized due to backend failure: {}.",
+            err
+        ),
+        recommended_action: Some(match manifest.spec.fallback.action_on_backend_error {
+            BackendFailureAction::Allow => crate::model::ActionName::Allow,
+            BackendFailureAction::Review => crate::model::ActionName::Review,
+            BackendFailureAction::Deny => crate::model::ActionName::Deny,
+        }),
+        attributes: Default::default(),
+    }
 }

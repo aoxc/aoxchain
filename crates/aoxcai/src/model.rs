@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// Identifies the high-level AI task requested by the node.
+/// High-level node task categories supported by the AI runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AiTask {
@@ -11,7 +11,7 @@ pub enum AiTask {
     ArtifactInspection,
 }
 
-/// Defines whether the AI pipeline is advisory or enforced.
+/// Execution mode for the AI pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AiMode {
@@ -19,7 +19,56 @@ pub enum AiMode {
     Enforced,
 }
 
-/// Represents a normalized signal supplied to the inference layer.
+/// Deterministic severity contract for pre-model findings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FindingSeverity {
+    Info,
+    Warning,
+    High,
+    Critical,
+}
+
+/// Normalized model output label.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputLabel {
+    Trusted,
+    Review,
+    Suspicious,
+    Malicious,
+    Unknown,
+}
+
+/// Canonical action mapping used across policy and fallback paths.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionName {
+    Allow,
+    Review,
+    Deny,
+}
+
+/// Final action emitted by the engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DecisionAction {
+    Allow,
+    Review,
+    Deny,
+}
+
+impl From<ActionName> for DecisionAction {
+    fn from(value: ActionName) -> Self {
+        match value {
+            ActionName::Allow => Self::Allow,
+            ActionName::Review => Self::Review,
+            ActionName::Deny => Self::Deny,
+        }
+    }
+}
+
+/// Normalized signal collected before model inference.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InferenceSignal {
     pub name: String,
@@ -30,7 +79,7 @@ pub struct InferenceSignal {
 }
 
 impl InferenceSignal {
-    /// Constructs a new normalized signal.
+    #[must_use]
     pub fn new(
         name: impl Into<String>,
         value: impl Into<String>,
@@ -47,32 +96,32 @@ impl InferenceSignal {
     }
 }
 
-/// Represents a deterministic finding collected before model inference.
+/// Deterministic finding produced before model inference.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InferenceFinding {
     pub code: String,
     pub message: String,
-    pub severity: String,
+    pub severity: FindingSeverity,
     pub attributes: BTreeMap<String, String>,
 }
 
 impl InferenceFinding {
-    /// Constructs a new finding.
+    #[must_use]
     pub fn new(
         code: impl Into<String>,
         message: impl Into<String>,
-        severity: impl Into<String>,
+        severity: FindingSeverity,
     ) -> Self {
         Self {
             code: code.into(),
             message: message.into(),
-            severity: severity.into(),
+            severity,
             attributes: BTreeMap::new(),
         }
     }
 }
 
-/// Captures contextual metadata associated with a subject under evaluation.
+/// Context associated with the evaluated subject.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InferenceContext {
     pub subject_id: String,
@@ -81,7 +130,7 @@ pub struct InferenceContext {
 }
 
 impl InferenceContext {
-    /// Constructs a new inference context.
+    #[must_use]
     pub fn new(subject_id: impl Into<String>, subject_kind: impl Into<String>) -> Self {
         Self {
             subject_id: subject_id.into(),
@@ -91,7 +140,7 @@ impl InferenceContext {
     }
 }
 
-/// Represents the canonical request submitted to a backend.
+/// Canonical backend request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InferenceRequest {
     pub task: AiTask,
@@ -103,35 +152,26 @@ pub struct InferenceRequest {
 }
 
 impl InferenceRequest {
-    /// Returns a stable subject identifier reference.
+    #[must_use]
     pub fn subject_id(&self) -> &str {
         &self.context.subject_id
     }
 }
 
-/// Represents a backend-normalized inference output.
+/// Canonical backend output.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelOutput {
     pub backend: String,
     pub model_id: String,
-    pub label: String,
+    pub label: OutputLabel,
     pub risk_bps: u16,
     pub confidence_bps: u16,
     pub rationale: String,
-    pub recommended_action: Option<String>,
+    pub recommended_action: Option<ActionName>,
     pub attributes: BTreeMap<String, String>,
 }
 
-/// Describes the final action to be enforced or advised by the node.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DecisionAction {
-    Allow,
-    Review,
-    Deny,
-}
-
-/// Represents the final fused assessment emitted by the engine.
+/// Final fused assessment.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Assessment {
     pub action: DecisionAction,
@@ -140,7 +180,7 @@ pub struct Assessment {
     pub rationale: String,
 }
 
-/// Represents the full decision report returned by the AI engine.
+/// Full engine decision report.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecisionReport {
     pub request: InferenceRequest,
