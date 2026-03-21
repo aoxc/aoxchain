@@ -69,6 +69,7 @@ pub(crate) fn usage_text(lang: CliLanguage) -> &'static str {
 
 Komutlar:
   vision
+  module-architecture
   compat-matrix
   port-map
   version
@@ -103,6 +104,7 @@ Global:
 
 Comandos:
   vision
+  module-architecture
   compat-matrix
   port-map
   version
@@ -137,6 +139,7 @@ Global:
 
 Befehle:
   vision
+  module-architecture
   compat-matrix
   port-map
   version
@@ -171,6 +174,7 @@ Global:
 
 Commands:
   vision
+  module-architecture
   compat-matrix
   port-map
   version
