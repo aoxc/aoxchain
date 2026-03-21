@@ -1,5 +1,12 @@
 use crate::{
     error::{AppError, ErrorCode},
+<<<<<<< HEAD
+=======
+    node::{
+        lifecycle::{load_state, persist_state},
+        state::{ConsensusSnapshot, NodeState},
+    error::AppError,
+>>>>>>> origin/main
     node::{
         lifecycle::{load_state, persist_state},
         state::{ConsensusSnapshot, NodeState},
@@ -43,15 +50,22 @@ fn build_block_for_tx(state: &NodeState, tx: &str) -> Result<Block, AppError> {
     let height = state.current_height.saturating_add(1);
     let round = state.consensus.last_round.saturating_add(1);
     let timestamp = unix_now();
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/main
     let parent_hash = decode_hash32(
         &state.consensus.last_block_hash_hex,
         "last_block_hash_hex",
         ErrorCode::NodeStateInvalid,
     )?;
+<<<<<<< HEAD
 
     let proposer_key = derive_digest32("AOXC-CMD-PROPOSER", tx.as_bytes());
 
+=======
+    let proposer = derive_digest32("AOXC-CMD-PROPOSER", tx.as_bytes());
+>>>>>>> origin/main
     let lane_commitment = LaneCommitment {
         lane_id: 1,
         lane_type: LaneType::Native,
@@ -69,8 +83,12 @@ fn build_block_for_tx(state: &NodeState, tx: &str) -> Result<Block, AppError> {
         })],
     };
 
+<<<<<<< HEAD
     let proposer = Proposer::new(state.consensus.network_id.max(1), proposer_key);
 
+=======
+    let proposer = Proposer::new(state.consensus.network_id.max(1), proposer);
+>>>>>>> origin/main
     proposer
         .propose(parent_hash, height, 0, round, timestamp, body)
         .map_err(|error| {
@@ -182,7 +200,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("clock should be after epoch")
             .as_nanos();
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/main
         let path = env::temp_dir().join(format!("aoxcmd-node-tests-{nonce}"));
         fs::create_dir_all(&path).expect("temp dir should be created");
         path.display().to_string()
