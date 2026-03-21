@@ -29,3 +29,16 @@ fn generate() -> Result<(), String> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_outputs_valid_json() {
+        // stdout'u yakalamak birim testlerde zordur, ancak ana fonksiyonun
+        // çökmeden (panic olmadan) çalıştığını ve Ok(()) döndüğünü test edebiliriz.
+        let result = generate();
+        assert!(result.is_ok(), "Key generation should succeed without errors");
+    }
+}

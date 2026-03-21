@@ -14,3 +14,7 @@ hex = "0.4.3"
 serde = { workspace = true }
 
 aoxcore = { path = "../aoxcore" }
+
+[dev-dependencies]
+assert_cmd = "2.2.0"
+predicates = "3.1.4"
