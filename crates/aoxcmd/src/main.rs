@@ -36,7 +36,51 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::process;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+const AOXC_RELEASE_NAME: &str = "AOXC Alpha: Genesis V1";
+const TESTNET_FIXTURE_MEMBERS: [(&str, &str, u16, u16, u16, &str); 5] = [
+    (
+        "atlas",
+        "Atlas Validator",
+        39001,
+        19101,
+        1,
+        "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+    ),
+    (
+        "boreal",
+        "Boreal Validator",
+        39002,
+        19102,
+        2,
+        "22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222",
+    ),
+    (
+        "cypher",
+        "Cypher Validator",
+        39003,
+        19103,
+        3,
+        "33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333",
+    ),
+    (
+        "delta",
+        "Delta Validator",
+        39004,
+        19104,
+        4,
+        "44444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444",
+    ),
+    (
+        "ember",
+        "Ember Validator",
+        39005,
+        19105,
+        5,
+        "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
+    ),
+];
 
 const AOXC_RELEASE_NAME: &str = "AOXC Alpha: Genesis V1";
 const TESTNET_FIXTURE_MEMBERS: [(&str, &str, u16, u16, u16, &str); 5] = [
@@ -113,6 +157,8 @@ fn run_cli() -> Result<(), String> {
         "compat-matrix" => cmd_compat_matrix(),
         "port-map" => cmd_port_map(),
         "testnet-fixture-init" => cmd_testnet_fixture_init(&args[2..]),
+        "load-benchmark" => cmd_load_benchmark(&args[2..]),
+        "mainnet-readiness" => cmd_mainnet_readiness(),
         "key-bootstrap" => cmd_key_bootstrap(&args[2..]),
         "genesis-init" => cmd_genesis_init(&args[2..]),
         "node-bootstrap" => cmd_node_bootstrap(&args[2..]),
@@ -258,6 +304,27 @@ fn cmd_node_connection_policy(args: &[String]) -> Result<(), String> {
             "Reject ad-hoc local builds for production peering unless explicitly approved",
         ]
     });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    if enforce && !official_release {
+        return Err(
+            "official node policy failed: build is not an official release artifact".to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+fn cmd_node_connection_policy(args: &[String]) -> Result<(), String> {
+    let build = BuildInfo::collect();
+    let enforce = arg_flag(args, "--enforce-official");
+    let official_release = is_official_release(&build);
+    let output = node_connection_policy_payload(&build);
 
     println!(
         "{}",
@@ -833,6 +900,300 @@ fn cmd_testnet_fixture_init(args: &[String]) -> Result<(), String> {
     );
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct MainnetReadinessControl {
+    name: &'static str,
+    area: &'static str,
+    status: &'static str,
+    weight: u8,
+    rationale: &'static str,
+}
+
+fn cmd_load_benchmark(args: &[String]) -> Result<(), String> {
+    let rounds: u64 = arg_value(args, "--rounds")
+        .unwrap_or_else(|| "25".to_string())
+        .parse()
+        .map_err(|_| "--rounds must be a valid u64".to_string())?;
+    let tx_per_block: usize = arg_value(args, "--tx-per-block")
+        .unwrap_or_else(|| "50".to_string())
+        .parse()
+        .map_err(|_| "--tx-per-block must be a valid usize".to_string())?;
+    let payload_bytes: usize = arg_value(args, "--payload-bytes")
+        .unwrap_or_else(|| "256".to_string())
+        .parse()
+        .map_err(|_| "--payload-bytes must be a valid usize".to_string())?;
+    let network_rounds: u64 = arg_value(args, "--network-rounds")
+        .unwrap_or_else(|| "10".to_string())
+        .parse()
+        .map_err(|_| "--network-rounds must be a valid u64".to_string())?;
+    let timeout_ms: u64 = arg_value(args, "--timeout-ms")
+        .unwrap_or_else(|| "2000".to_string())
+        .parse()
+        .map_err(|_| "--timeout-ms must be a valid u64".to_string())?;
+
+    if rounds == 0 {
+        return Err("--rounds must be greater than zero".to_string());
+    }
+    if tx_per_block == 0 {
+        return Err("--tx-per-block must be greater than zero".to_string());
+    }
+    if payload_bytes == 0 {
+        return Err("--payload-bytes must be greater than zero".to_string());
+    }
+
+    let home = data_home::resolve_data_home(args);
+    let mut node = state::setup_with_home(&home).map_err(|error| error.to_string())?;
+
+    let started = Instant::now();
+    let mut produced_blocks = 0u64;
+    let mut failed_rounds = Vec::new();
+    let mut last_height = 0u64;
+
+    for round in 0..rounds {
+        let payloads = (0..tx_per_block)
+            .map(|tx_index| synthetic_benchmark_payload(round, tx_index, payload_bytes))
+            .collect::<Vec<_>>();
+
+        match produce_single_block(&mut node, payloads) {
+            Ok(outcome) => {
+                produced_blocks += 1;
+                last_height = outcome.block.header.height;
+            }
+            Err(error) => failed_rounds.push(format!("round {}: {}", round + 1, error)),
+        }
+    }
+
+    let elapsed = started.elapsed();
+    let total_txs_attempted = rounds as usize * tx_per_block;
+    let total_txs_committed = produced_blocks as usize * tx_per_block;
+    let tx_per_sec = if elapsed.as_secs_f64() == 0.0 {
+        0.0
+    } else {
+        total_txs_committed as f64 / elapsed.as_secs_f64()
+    };
+    let blocks_per_sec = if elapsed.as_secs_f64() == 0.0 {
+        0.0
+    } else {
+        produced_blocks as f64 / elapsed.as_secs_f64()
+    };
+
+    let mut network_rtts = Vec::new();
+    let network_payload = synthetic_benchmark_payload(0, 0, payload_bytes.min(1024));
+    for _ in 0..network_rounds {
+        let report =
+            run_live_tcp_smoke_on("127.0.0.1:0", &network_payload, Duration::from_millis(timeout_ms))
+                .map_err(|error| format!("NETWORK_BENCHMARK_ERROR: {error}"))?;
+        network_rtts.push(report.round_trip_ms);
+    }
+
+    let avg_network_rtt_ms = if network_rtts.is_empty() {
+        None
+    } else {
+        Some((network_rtts.iter().sum::<u128>() / network_rtts.len() as u128) as u64)
+    };
+
+    let output = serde_json::json!({
+        "command": "load-benchmark",
+        "scope": "single-process local synthetic benchmark",
+        "home": home,
+        "configuration": {
+            "rounds": rounds,
+            "tx_per_block": tx_per_block,
+            "payload_bytes": payload_bytes,
+            "network_rounds": network_rounds,
+            "network_timeout_ms": timeout_ms,
+        },
+        "results": {
+            "elapsed_ms": elapsed.as_millis() as u64,
+            "blocks_requested": rounds,
+            "blocks_produced": produced_blocks,
+            "rounds_failed": failed_rounds.len(),
+            "error_free": failed_rounds.is_empty(),
+            "last_height": last_height,
+            "tx_attempted": total_txs_attempted,
+            "tx_committed": total_txs_committed,
+            "blocks_per_sec": blocks_per_sec,
+            "tx_per_sec": tx_per_sec,
+        },
+        "network": {
+            "loopback_round_trip_ms": {
+                "min": network_rtts.iter().min().copied(),
+                "max": network_rtts.iter().max().copied(),
+                "avg": avg_network_rtt_ms,
+            }
+        },
+        "failures": failed_rounds,
+        "note": "These numbers represent a local synthetic benchmark, not internet-scale mainnet throughput or adversarial-load certification.",
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn cmd_mainnet_readiness() -> Result<(), String> {
+    let controls = mainnet_readiness_controls();
+    let total_weight: u32 = controls.iter().map(|control| u32::from(control.weight)).sum();
+    let achieved_weight: u32 = controls
+        .iter()
+        .filter(|control| control.status == "ready")
+        .map(|control| u32::from(control.weight))
+        .sum();
+    let readiness_percent = if total_weight == 0 {
+        0.0
+    } else {
+        (achieved_weight as f64 / total_weight as f64) * 100.0
+    };
+
+    let blockers = controls
+        .iter()
+        .filter(|control| control.status == "missing")
+        .map(|control| format!("{} ({})", control.name, control.area))
+        .collect::<Vec<_>>();
+
+    let partials = controls
+        .iter()
+        .filter(|control| control.status == "partial")
+        .map(|control| format!("{} ({})", control.name, control.area))
+        .collect::<Vec<_>>();
+
+    let output = serde_json::json!({
+        "command": "mainnet-readiness",
+        "readiness_percent": readiness_percent,
+        "grade": readiness_grade(readiness_percent),
+        "summary": readiness_summary(readiness_percent),
+        "controls": controls,
+        "hard_blockers": blockers,
+        "partial_gaps": partials,
+        "recommendations": [
+            "Complete multi-host p2p tests and sustained peer churn recovery.",
+            "Add adversarial partition/byzantine/fault-injection suites.",
+            "Implement state sync, replay recovery, and snapshot restore validation.",
+            "Add long-duration soak tests and public testnet telemetry/SLO dashboards.",
+            "Validate real-world latency and throughput on multiple machines before any mainnet claim."
+        ],
+        "note": "This is an engineering readiness estimate, not a security audit or a guarantee of production safety."
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn mainnet_readiness_controls() -> Vec<MainnetReadinessControl> {
+    vec![
+        MainnetReadinessControl {
+            name: "Deterministic genesis and test fixture",
+            area: "bootstrap",
+            status: "ready",
+            weight: 10,
+            rationale: "Deterministic local fixture, funded genesis, and reproducible node homes exist.",
+        },
+        MainnetReadinessControl {
+            name: "Single-node block production path",
+            area: "consensus",
+            status: "ready",
+            weight: 10,
+            rationale: "Local block production/finalization path is implemented and covered by tests.",
+        },
+        MainnetReadinessControl {
+            name: "Loopback transport smoke tests",
+            area: "network",
+            status: "ready",
+            weight: 8,
+            rationale: "TCP loopback path and repeated local network probes are available.",
+        },
+        MainnetReadinessControl {
+            name: "Storage smoke path",
+            area: "data",
+            status: "ready",
+            weight: 8,
+            rationale: "Hybrid block storage smoke flow exists for local verification.",
+        },
+        MainnetReadinessControl {
+            name: "Multi-host peer network validation",
+            area: "network",
+            status: "missing",
+            weight: 15,
+            rationale: "No evidence yet of sustained cross-host production-grade p2p validation.",
+        },
+        MainnetReadinessControl {
+            name: "Partition, byzantine, and fault-injection tests",
+            area: "resilience",
+            status: "missing",
+            weight: 15,
+            rationale: "Adversarial recovery evidence is not present in the current repo.",
+        },
+        MainnetReadinessControl {
+            name: "State sync and snapshot recovery",
+            area: "operations",
+            status: "missing",
+            weight: 12,
+            rationale: "State sync/replay/snapshot recovery needs explicit validation before mainnet.",
+        },
+        MainnetReadinessControl {
+            name: "Long-duration soak and SLO telemetry",
+            area: "operations",
+            status: "partial",
+            weight: 12,
+            rationale: "There are runtime/health probes, but no evidence of long-duration audited soak benchmarks.",
+        },
+        MainnetReadinessControl {
+            name: "Official release / attestation controls",
+            area: "supply-chain",
+            status: "partial",
+            weight: 10,
+            rationale: "Build attestation surfaces exist, but deployment discipline still depends on release process.",
+        },
+    ]
+}
+
+fn readiness_grade(percent: f64) -> &'static str {
+    if percent >= 85.0 {
+        "A"
+    } else if percent >= 70.0 {
+        "B"
+    } else if percent >= 55.0 {
+        "C"
+    } else if percent >= 40.0 {
+        "D"
+    } else {
+        "E"
+    }
+}
+
+fn readiness_summary(percent: f64) -> &'static str {
+    if percent >= 85.0 {
+        "Close to production candidate, but still requires external validation."
+    } else if percent >= 70.0 {
+        "Strong pre-mainnet engineering base with several critical gaps still open."
+    } else if percent >= 55.0 {
+        "Mid-stage readiness: useful local/system validation exists, but mainnet blockers remain."
+    } else {
+        "Early-stage readiness: architecture exists, but operational and adversarial evidence is insufficient."
+    }
+}
+
+fn synthetic_benchmark_payload(round: u64, tx_index: usize, payload_bytes: usize) -> Vec<u8> {
+    let prefix = format!("AOXC_BENCH_{round}_{tx_index}_");
+    let mut payload = prefix.into_bytes();
+
+    while payload.len() < payload_bytes {
+        payload.extend_from_slice(b"X");
+    }
+
+    payload.truncate(payload_bytes);
+    payload
 }
 
 fn build_testnet_fixture_manifest(
@@ -1796,6 +2157,8 @@ mod tests {
         BuildInfo, CliLanguage, ai_control_score, arg_bool_value, assert_mainnet_key_policy,
         bootstrap_defaults, build_manifest_payload, build_testnet_fixture_manifest,
         detect_language, interop_assessment, is_official_release, localized_unknown_command,
+        mainnet_readiness_controls, node_connection_policy_payload, readiness_grade,
+        render_launch_script, synthetic_benchmark_payload, usage_text, version_payload,
         node_connection_policy_payload, render_launch_script, usage_text, version_payload,
         bootstrap_defaults, build_manifest_payload, detect_language, interop_assessment,
         is_official_release, localized_unknown_command, node_connection_policy_payload, usage_text,
@@ -1870,6 +2233,8 @@ mod tests {
         assert!(usage.contains("node-connection-policy"));
         assert!(usage.contains("sovereign-core"));
         assert!(usage.contains("module-architecture"));
+        assert!(usage.contains("load-benchmark"));
+        assert!(usage.contains("mainnet-readiness"));
         assert!(
             usage.contains("network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]")
         );
@@ -2010,5 +2375,20 @@ mod tests {
         assert!(script.contains("homes/delta"));
         assert!(script.contains("homes/ember"));
         assert!(script.contains("TEST ONLY seeds are public"));
+    }
+
+    #[test]
+    fn readiness_controls_include_hard_blockers() {
+        let controls = mainnet_readiness_controls();
+        assert!(controls.iter().any(|control| control.status == "missing"));
+        assert_eq!(readiness_grade(42.0), "D");
+        assert_eq!(readiness_grade(88.0), "A");
+    }
+
+    #[test]
+    fn synthetic_benchmark_payload_has_requested_size() {
+        let payload = synthetic_benchmark_payload(3, 9, 128);
+        assert_eq!(payload.len(), 128);
+        assert!(String::from_utf8_lossy(&payload).starts_with("AOXC_BENCH_3_9_"));
     }
 }
