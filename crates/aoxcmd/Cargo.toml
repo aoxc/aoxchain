@@ -16,6 +16,7 @@ aoxcunity = { path = "../aoxcunity" }
 aoxcnet = { path = "../aoxcnet" }
 aoxcdata = { path = "../aoxcdata" }
 serde_json = { workspace = true }
+serde_yaml = "0.9.34"
 hex = { workspace = true }
 
 

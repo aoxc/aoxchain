@@ -19,6 +19,7 @@ use aoxcore::protocol::{
     canonical_chain_families, canonical_message_envelope_fields, canonical_modules,
     canonical_sovereign_roots,
 };
+use serde::{Deserialize, Serialize};
 use serde::Serialize;
 use sha3::{Digest, Sha3_256};
 use std::collections::BTreeMap;
@@ -114,6 +115,7 @@ fn run_cli() -> Result<(), String> {
         "port-map" => cmd_port_map(),
         "testnet-fixture-init" => cmd_testnet_fixture_init(&args[2..]),
         "load-benchmark" => cmd_load_benchmark(&args[2..]),
+        "mainnet-readiness" => cmd_mainnet_readiness(&args[2..]),
         "mainnet-readiness" => cmd_mainnet_readiness(),
         "key-bootstrap" => cmd_key_bootstrap(&args[2..]),
         "genesis-init" => cmd_genesis_init(&args[2..]),
@@ -187,6 +189,118 @@ fn cmd_build_manifest() -> Result<(), String> {
         serde_json::to_string_pretty(&output)
             .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
     );
+
+    Ok(())
+}
+
+fn cmd_node_connection_policy(args: &[String]) -> Result<(), String> {
+    let build = BuildInfo::collect();
+    let enforce = arg_flag(args, "--enforce-official");
+    let official_release = is_official_release(&build);
+    let output = node_connection_policy_payload(&build);
+fn cmd_build_manifest() -> Result<(), String> {
+    let build = BuildInfo::collect();
+    let official_release = is_official_release(&build);
+
+    let output = serde_json::json!({
+        "artifact": {
+            "name": "aoxcmd",
+            "version": build.semver,
+            "git_commit": build.git_commit,
+            "git_dirty": build.git_dirty,
+            "source_date_epoch": build.source_date_epoch,
+            "build_profile": build.build_profile,
+            "release_channel": build.release_channel,
+            "attestation_hash": build.attestation_hash,
+        },
+        "certificate": {
+            "path": build.cert_path,
+            "sha256": build.cert_sha256,
+            "error": build.cert_error,
+        },
+        "supply_chain_policy": {
+            "official_release": official_release,
+            "requires_embedded_certificate": true,
+            "requires_attestation_hash": true,
+            "accept_unofficial_node_builds": false,
+        }
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    if enforce && !official_release {
+        return Err(
+            "official node policy failed: build is not an official release artifact".to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+fn cmd_node_connection_policy(args: &[String]) -> Result<(), String> {
+    let build = BuildInfo::collect();
+    let official_release = is_official_release(&build);
+    let enforce = arg_flag(args, "--enforce-official");
+
+    let output = serde_json::json!({
+        "local_build": {
+            "version": build.semver,
+            "release_channel": build.release_channel,
+            "git_dirty": build.git_dirty,
+            "attestation_hash": build.attestation_hash,
+            "embedded_cert_sha256": build.cert_sha256,
+            "official_release": official_release,
+        },
+        "accepted_remote_policy": {
+            "require_mtls": true,
+            "require_certificate_fingerprint_match": true,
+            "require_attestation_hash_exchange": true,
+            "allow_unofficial_remote_builds": false,
+            "accepted_release_channels": ["stable", "official", "mainnet"],
+        },
+        "operator_guidance": [
+            "Embed a node certificate at build time with AOXC_EMBED_CERT_PATH",
+            "Distribute attestation_hash and certificate fingerprint via a signed release manifest",
+            "Reject ad-hoc local builds for production peering unless explicitly approved",
+        ]
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    if enforce && !official_release {
+        return Err(
+            "official node policy failed: build is not an official release artifact".to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+fn cmd_node_connection_policy(args: &[String]) -> Result<(), String> {
+    let build = BuildInfo::collect();
+    let enforce = arg_flag(args, "--enforce-official");
+    let official_release = is_official_release(&build);
+    let output = node_connection_policy_payload(&build);
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    if enforce && !official_release {
+        return Err(
+            "official node policy failed: build is not an official release artifact".to_string(),
+        );
+    }
 
     Ok(())
 }
@@ -730,6 +844,23 @@ fn cmd_testnet_fixture_init(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReadinessEvidenceFile {
+    version: String,
+    previous_score: Option<f64>,
+    criteria: Vec<ReadinessCriterion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReadinessCriterion {
+    name: String,
+    area: String,
+    status: String,
+    weight: u8,
+    done_definition: String,
+    evidence: Vec<String>,
+    blocker: bool,
+    stretch_goal: bool,
 #[derive(Debug, Clone, Serialize)]
 struct MainnetReadinessControl {
     name: &'static str,
@@ -865,6 +996,22 @@ fn cmd_load_benchmark(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn cmd_mainnet_readiness(args: &[String]) -> Result<(), String> {
+    let evidence_path = arg_value(args, "--evidence");
+    let evidence = match &evidence_path {
+        Some(path) => load_readiness_evidence(path)?,
+        None => default_readiness_evidence(),
+    };
+
+    let total_weight: u32 = evidence
+        .criteria
+        .iter()
+        .map(|criterion| u32::from(criterion.weight))
+        .sum();
+    let achieved_weight: f64 = evidence
+        .criteria
+        .iter()
+        .map(|criterion| readiness_credit(&criterion.status) * f64::from(criterion.weight))
 fn cmd_mainnet_readiness() -> Result<(), String> {
     let controls = mainnet_readiness_controls();
     let total_weight: u32 = controls.iter().map(|control| u32::from(control.weight)).sum();
@@ -876,6 +1023,51 @@ fn cmd_mainnet_readiness() -> Result<(), String> {
     let readiness_percent = if total_weight == 0 {
         0.0
     } else {
+        (achieved_weight / total_weight as f64) * 100.0
+    };
+
+    let blockers = evidence
+        .criteria
+        .iter()
+        .filter(|criterion| criterion.blocker && criterion.status != "done")
+        .map(|criterion| format!("{} ({})", criterion.name, criterion.area))
+        .collect::<Vec<_>>();
+
+    let partials = evidence
+        .criteria
+        .iter()
+        .filter(|criterion| criterion.status == "partial")
+        .map(|criterion| format!("{} ({})", criterion.name, criterion.area))
+        .collect::<Vec<_>>();
+
+    let stretch_goals = evidence
+        .criteria
+        .iter()
+        .filter(|criterion| criterion.stretch_goal)
+        .map(|criterion| format!("{} ({})", criterion.name, criterion.area))
+        .collect::<Vec<_>>();
+
+    let delta_from_previous = evidence
+        .previous_score
+        .map(|previous| ((readiness_percent - previous) * 100.0).round() / 100.0);
+
+    let output = serde_json::json!({
+        "command": "mainnet-readiness",
+        "evidence_version": evidence.version,
+        "evidence_path": evidence_path,
+        "readiness_percent": readiness_percent,
+        "grade": readiness_grade(readiness_percent),
+        "summary": readiness_summary(readiness_percent),
+        "delta_from_previous": delta_from_previous,
+        "criteria": evidence.criteria,
+        "hard_blockers": blockers,
+        "partial_gaps": partials,
+        "stretch_goals": stretch_goals,
+        "scoring_policy": {
+            "done": 1.0,
+            "partial": 0.5,
+            "missing": 0.0,
+        },
         (achieved_weight as f64 / total_weight as f64) * 100.0
     };
 
@@ -906,6 +1098,7 @@ fn cmd_mainnet_readiness() -> Result<(), String> {
             "Add long-duration soak tests and public testnet telemetry/SLO dashboards.",
             "Validate real-world latency and throughput on multiple machines before any mainnet claim."
         ],
+        "note": "This is an engineering readiness estimate backed by explicit evidence entries, not a security audit or a guarantee of production safety."
         "note": "This is an engineering readiness estimate, not a security audit or a guarantee of production safety."
     });
 
@@ -918,6 +1111,131 @@ fn cmd_mainnet_readiness() -> Result<(), String> {
     Ok(())
 }
 
+fn readiness_credit(status: &str) -> f64 {
+    match status {
+        "done" | "ready" => 1.0,
+        "partial" => 0.5,
+        _ => 0.0,
+    }
+}
+
+fn load_readiness_evidence(path: &str) -> Result<ReadinessEvidenceFile, String> {
+    let raw = fs::read_to_string(path).map_err(|error| format!("READINESS_EVIDENCE_READ_ERROR: {error}"))?;
+
+    if path.ends_with(".yaml") || path.ends_with(".yml") {
+        serde_yaml::from_str(&raw)
+            .map_err(|error| format!("READINESS_EVIDENCE_PARSE_ERROR: {error}"))
+    } else {
+        serde_json::from_str(&raw)
+            .map_err(|error| format!("READINESS_EVIDENCE_PARSE_ERROR: {error}"))
+    }
+}
+
+fn default_readiness_evidence() -> ReadinessEvidenceFile {
+    ReadinessEvidenceFile {
+        version: "aoxc-readiness-evidence-v1".to_string(),
+        previous_score: Some(36.0),
+        criteria: vec![
+            ReadinessCriterion {
+                name: "Deterministic genesis and local fixture".to_string(),
+                area: "bootstrap".to_string(),
+                status: "done".to_string(),
+                weight: 8,
+                done_definition: "5-node deterministic fixture, reproducible homes, and funded genesis are committed.".to_string(),
+                evidence: vec![
+                    "configs/deterministic-testnet/accounts.json".to_string(),
+                    "configs/deterministic-testnet/genesis.json".to_string(),
+                ],
+                blocker: false,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Single-host load benchmark".to_string(),
+                area: "performance".to_string(),
+                status: "done".to_string(),
+                weight: 6,
+                done_definition: "A repeatable local benchmark exists and emits structured throughput/latency data.".to_string(),
+                evidence: vec!["aoxcmd load-benchmark".to_string()],
+                blocker: false,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Multi-host real network validation".to_string(),
+                area: "network".to_string(),
+                status: "missing".to_string(),
+                weight: 15,
+                done_definition: "3-5 nodes run on separate hosts with propagation metrics and consolidated report.".to_string(),
+                evidence: vec![],
+                blocker: true,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Partition and fault scenarios".to_string(),
+                area: "resilience".to_string(),
+                status: "missing".to_string(),
+                weight: 15,
+                done_definition: "Partition, restart, delay, drop, timeout, and basic fault injection scenarios are executed and documented.".to_string(),
+                evidence: vec![],
+                blocker: true,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "State sync and snapshot recovery".to_string(),
+                area: "recovery".to_string(),
+                status: "missing".to_string(),
+                weight: 15,
+                done_definition: "Join/rejoin, snapshot export/import, and recovery consistency are tested.".to_string(),
+                evidence: vec![],
+                blocker: true,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Soak test".to_string(),
+                area: "operations".to_string(),
+                status: "missing".to_string(),
+                weight: 12,
+                done_definition: "Long-duration continuous run with resource, error, and stall reporting exists.".to_string(),
+                evidence: vec![],
+                blocker: true,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Telemetry and alerting".to_string(),
+                area: "observability".to_string(),
+                status: "partial".to_string(),
+                weight: 10,
+                done_definition: "Health, block time, throughput, peer count, sync state, and error counters are standardized and surfaced.".to_string(),
+                evidence: vec![
+                    "runtime-status".to_string(),
+                    "production-audit".to_string(),
+                ],
+                blocker: false,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Upgrade and migration planning".to_string(),
+                area: "upgrade".to_string(),
+                status: "missing".to_string(),
+                weight: 10,
+                done_definition: "Versioning, schema migration, rollback, and compatibility tests are written and validated.".to_string(),
+                evidence: vec![],
+                blocker: false,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Operator runbook".to_string(),
+                area: "operations".to_string(),
+                status: "partial".to_string(),
+                weight: 9,
+                done_definition: "Start/stop/resync/snapshot/peer troubleshooting and incident checklist are documented.".to_string(),
+                evidence: vec![
+                    "docs/REAL_NETWORK_VALIDATION_RUNBOOK_TR.md".to_string(),
+                ],
+                blocker: false,
+                stretch_goal: true,
+            },
+        ],
+    }
 fn mainnet_readiness_controls() -> Vec<MainnetReadinessControl> {
     vec![
         MainnetReadinessControl {
@@ -1984,6 +2302,10 @@ mod tests {
     use super::{
         BuildInfo, CliLanguage, ai_control_score, arg_bool_value, assert_mainnet_key_policy,
         bootstrap_defaults, build_manifest_payload, build_testnet_fixture_manifest,
+        default_readiness_evidence, detect_language, interop_assessment, is_official_release,
+        load_readiness_evidence, localized_unknown_command, node_connection_policy_payload,
+        readiness_credit, readiness_grade, render_launch_script, synthetic_benchmark_payload,
+        usage_text, version_payload,
         detect_language, interop_assessment, is_official_release, localized_unknown_command,
         mainnet_readiness_controls, node_connection_policy_payload, readiness_grade,
         render_launch_script, synthetic_benchmark_payload, usage_text, version_payload,
@@ -2207,6 +2529,16 @@ mod tests {
 
     #[test]
     fn readiness_controls_include_hard_blockers() {
+        let evidence = default_readiness_evidence();
+        assert!(evidence
+            .criteria
+            .iter()
+            .any(|criterion| criterion.status == "missing"));
+        assert_eq!(readiness_grade(42.0), "D");
+        assert_eq!(readiness_grade(88.0), "A");
+        assert_eq!(readiness_credit("done"), 1.0);
+        assert_eq!(readiness_credit("partial"), 0.5);
+        assert_eq!(readiness_credit("missing"), 0.0);
         let controls = mainnet_readiness_controls();
         assert!(controls.iter().any(|control| control.status == "missing"));
         assert_eq!(readiness_grade(42.0), "D");
@@ -2219,4 +2551,27 @@ mod tests {
         assert_eq!(payload.len(), 128);
         assert!(String::from_utf8_lossy(&payload).starts_with("AOXC_BENCH_3_9_"));
     }
+
+    #[test]
+    fn default_readiness_evidence_contains_blockers_and_done_definitions() {
+        let evidence = default_readiness_evidence();
+        assert!(!evidence.criteria.is_empty());
+        assert!(evidence.criteria.iter().any(|criterion| criterion.blocker));
+        assert!(evidence
+            .criteria
+            .iter()
+            .all(|criterion| !criterion.done_definition.is_empty()));
+    }
+
+    #[test]
+    fn readiness_evidence_yaml_can_be_loaded() {
+        let path = format!(
+            "{}/../../models/mainnet_readiness_evidence_v1.yaml",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let evidence = load_readiness_evidence(&path).expect("yaml");
+        assert_eq!(evidence.version, "aoxc-readiness-evidence-v1");
+        assert!(evidence.criteria.iter().any(|criterion| criterion.blocker));
+    }
+
 }
