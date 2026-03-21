@@ -2,8 +2,16 @@ use aoxcmd::cli::run_cli;
 use std::process;
 
 fn main() {
-    if let Err(error) = run_cli() {
-        eprintln!("AOXCMD_ERROR: {error}");
-        process::exit(1);
+    match run_cli() {
+        Ok(()) => process::exit(0),
+        Err(error) => {
+            eprintln!(
+                "AOXCMD_ERROR code={} exit={} message={}",
+                error.code(),
+                error.exit_code(),
+                error
+            );
+            process::exit(error.exit_code());
+        }
     }
 }

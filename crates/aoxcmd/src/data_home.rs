@@ -1,39 +1,66 @@
-use std::env;
-use std::path::{Path, PathBuf};
+use crate::error::{AppError, ErrorCode};
+use std::{
+    env,
+    fs,
+    path::{Path, PathBuf},
+};
 
-pub const DEFAULT_HOME_DIR_NAME: &str = ".AOXC-Data";
-
-#[must_use]
-pub fn default_data_home() -> PathBuf {
-    if let Ok(path) = env::var("AOXC_HOME") {
-        return PathBuf::from(path);
-    }
-
-    if let Ok(home) = env::var("HOME") {
-        return PathBuf::from(home).join(DEFAULT_HOME_DIR_NAME);
-    }
-
-    PathBuf::from(DEFAULT_HOME_DIR_NAME)
-}
-
-#[must_use]
-pub fn resolve_data_home(args: &[String]) -> PathBuf {
-    arg_value(args, "--home")
+pub fn default_home_dir() -> Result<PathBuf, AppError> {
+    let home = env::var("HOME")
         .map(PathBuf::from)
-        .unwrap_or_else(default_data_home)
+        .map_err(|_| AppError::new(ErrorCode::HomeResolutionFailed, "HOME environment variable is not set"))?;
+    Ok(home.join(".aoxc-data"))
 }
 
-#[must_use]
-pub fn join(home: &Path, section: &str) -> String {
-    home.join(section).to_string_lossy().into_owned()
+pub fn resolve_home() -> Result<PathBuf, AppError> {
+    match env::var("AOXC_HOME") {
+        Ok(value) if !value.trim().is_empty() => Ok(PathBuf::from(value)),
+        _ => default_home_dir(),
+    }
 }
 
-fn arg_value(args: &[String], key: &str) -> Option<String> {
-    args.windows(2).find_map(|window| {
-        if window[0] == key {
-            Some(window[1].clone())
-        } else {
-            None
-        }
+pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
+    for relative in [
+        "config",
+        "identity",
+        "keys",
+        "ledger",
+        "runtime",
+        "telemetry",
+        "reports",
+        "support",
+    ] {
+        fs::create_dir_all(home.join(relative))
+            .map_err(|e| AppError::with_source(ErrorCode::FilesystemIoFailed, format!("Failed to create directory {}", home.join(relative).display()), e))?;
+    }
+    Ok(())
+}
+
+pub fn write_file(path: &Path, content: &str) -> Result<(), AppError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!("Failed to create parent directory {}", parent.display()),
+                e,
+            )
+        })?;
+    }
+    fs::write(path, content).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to write file {}", path.display()),
+            e,
+        )
+    })
+}
+
+pub fn read_file(path: &Path) -> Result<String, AppError> {
+    fs::read_to_string(path).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to read file {}", path.display()),
+            e,
+        )
     })
 }

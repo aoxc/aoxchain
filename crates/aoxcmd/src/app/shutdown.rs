@@ -1,5 +1,9 @@
-use crate::runtime::handles::RuntimeHandles;
+use crate::{error::AppError, node::lifecycle::{load_state, persist_state}};
 
-pub fn shutdown(_handles: RuntimeHandles) {
-    // deterministic no-op shutdown hook for now.
+pub fn graceful_shutdown() -> Result<(), AppError> {
+    let mut state = load_state()?;
+    state.running = false;
+    state.touch();
+    persist_state(&state)?;
+    Ok(())
 }

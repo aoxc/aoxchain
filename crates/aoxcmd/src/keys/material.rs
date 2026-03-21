@@ -1,59 +1,43 @@
-use aoxcore::identity::certificate::Certificate;
-use aoxcore::identity::passport::Passport;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use sha3::{Digest, Sha3_256};
 
-/// Runtime key material resolved for the local node.
-///
-/// This structure intentionally separates:
-/// - secret-bearing encrypted persistence payloads,
-/// - public identity material used by runtime services,
-/// - optional trust artifacts such as certificates and passports.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyMaterial {
-    /// Canonical actor identifier derived from the public key, role, and zone.
-    pub actor_id: String,
-
-    /// Canonical role code used during actor-id derivation and certificate issuance.
-    pub role: String,
-
-    /// Canonical zone code used during actor-id derivation and certificate issuance.
-    pub zone: String,
-
-    /// Public key encoded as uppercase hexadecimal.
-    pub public_key_hex: String,
-
-    /// Secret key encrypted into a serialized AOXC keyfile envelope.
-    pub encrypted_secret_key: String,
-
-    /// Optional signed certificate issued for this actor.
-    pub certificate: Option<Certificate>,
-
-    /// Optional runtime passport derived from the certificate.
-    pub passport: Option<Passport>,
+    pub name: String,
+    pub profile: String,
+    pub created_at: String,
+    pub fingerprint: String,
+    pub public_key: String,
+    pub encrypted_private_key: String,
 }
 
 impl KeyMaterial {
-    /// Returns a lightweight runtime summary suitable for logs and diagnostics.
-    #[must_use]
-    pub fn summary(&self) -> KeyMaterialSummary {
-        KeyMaterialSummary {
-            actor_id: self.actor_id.clone(),
-            role: self.role.clone(),
-            zone: self.zone.clone(),
-            public_key_hex: self.public_key_hex.clone(),
-            has_certificate: self.certificate.is_some(),
-            has_passport: self.passport.is_some(),
+    pub fn generate(name: &str, profile: &str, password: &str) -> Self {
+        let created_at = Utc::now().to_rfc3339();
+
+        let mut public_hasher = Sha3_256::new();
+        public_hasher.update(name.as_bytes());
+        public_hasher.update(profile.as_bytes());
+        public_hasher.update(created_at.as_bytes());
+        let public_key = hex::encode(public_hasher.finalize());
+
+        let mut private_hasher = Sha3_256::new();
+        private_hasher.update(public_key.as_bytes());
+        private_hasher.update(password.as_bytes());
+        let encrypted_private_key = hex::encode(private_hasher.finalize());
+
+        let mut fp_hasher = Sha3_256::new();
+        fp_hasher.update(public_key.as_bytes());
+        let fingerprint_full = hex::encode(fp_hasher.finalize());
+
+        Self {
+            name: name.to_string(),
+            profile: profile.to_string(),
+            created_at,
+            fingerprint: fingerprint_full[..16].to_string(),
+            public_key,
+            encrypted_private_key,
         }
     }
-}
-
-/// Non-secret summary view intended for operator-facing diagnostics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyMaterialSummary {
-    pub actor_id: String,
-    pub role: String,
-    pub zone: String,
-    pub public_key_hex: String,
-    pub has_certificate: bool,
-    pub has_passport: bool,
 }

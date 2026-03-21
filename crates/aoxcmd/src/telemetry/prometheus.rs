@@ -1,48 +1,34 @@
-/// Static metrics snapshot used by `/metrics` style exporters.
-#[derive(Debug, Clone, Copy, PartialEq)]
+use crate::{
+    data_home::{resolve_home, write_file},
+    error::{AppError, ErrorCode},
+};
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsSnapshot {
-    pub tps: f64,
-    pub peer_count: usize,
-    pub error_rate: f64,
+    pub node_height: u64,
+    pub produced_blocks: u64,
+    pub treasury_balance: u64,
+    pub recorded_at: String,
 }
 
-impl Default for MetricsSnapshot {
-    fn default() -> Self {
-        Self {
-            tps: 0.0,
-            peer_count: 0,
-            error_rate: 0.0,
-        }
-    }
+pub fn metrics_path() -> Result<PathBuf, AppError> {
+    Ok(resolve_home()?.join("telemetry").join("metrics.json"))
 }
 
-impl MetricsSnapshot {
-    /// Encodes a minimal Prometheus exposition payload for runtime dashboards.
-    #[must_use]
-    pub fn to_prometheus(self) -> String {
-        format!(
-            "aox_tps {}\naox_peer_count {}\naox_error_rate {}\n",
-            self.tps, self.peer_count, self.error_rate
-        )
-    }
+pub fn persist_metrics(snapshot: &MetricsSnapshot) -> Result<(), AppError> {
+    let content = serde_json::to_string_pretty(snapshot)
+        .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode metrics snapshot", e))?;
+    write_file(&metrics_path()?, &content)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::MetricsSnapshot;
-
-    #[test]
-    fn renders_prometheus_payload() {
-        let snapshot = MetricsSnapshot {
-            tps: 17.5,
-            peer_count: 9,
-            error_rate: 0.02,
-        };
-
-        let payload = snapshot.to_prometheus();
-
-        assert!(payload.contains("aox_tps 17.5"));
-        assert!(payload.contains("aox_peer_count 9"));
-        assert!(payload.contains("aox_error_rate 0.02"));
+pub fn now(node_height: u64, produced_blocks: u64, treasury_balance: u64) -> MetricsSnapshot {
+    MetricsSnapshot {
+        node_height,
+        produced_blocks,
+        treasury_balance,
+        recorded_at: Utc::now().to_rfc3339(),
     }
 }

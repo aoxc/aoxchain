@@ -1,31 +1,116 @@
-# aoxcmd
+# AOXCMD
 
-## Purpose
+AOXCMD is the audit-oriented operator command plane for AOXChain-style local node bootstrap, identity material handling, ledger initialization, diagnostics, and readiness reporting.
 
-`aoxcmd` is responsible for the **node lifecycle and operations CLI** domain within the AOXChain workspace.
+## Design posture
 
-## Code Scope
+This package is designed for:
 
-- `app/`
-- `node/`
-- `runtime/`
-- `telemetry/`
-- `economy/`
-- `main.rs`
+- deterministic local bootstrap,
+- reproducible operator workflows,
+- explicit filesystem layout,
+- machine-readable audit output,
+- conservative failure handling.
 
-## Operational Notes
+## Default home directory
 
-- API and behavior changes should be evaluated for backward impact.
-- Prefer explicit parameters over implicit defaults in critical paths.
-- Security-impacting changes in this crate should be accompanied by test/example updates.
+Unless overridden by `--home` or `AOXC_HOME`, AOXCMD uses:
 
-## Local Validation
-
-```bash
-cargo check -p aoxcmd
+```text
+$HOME/.aoxc-data
 ```
 
-## Related Components
+## Core command groups
 
-- Top-level architecture: [`../../README.md`](../../README.md)
-- Crate catalog: [`../README.md`](../README.md)
+### Describe / policy / manifest
+
+```bash
+cargo run -- version
+cargo run -- vision
+cargo run -- build-manifest
+cargo run -- node-connection-policy
+cargo run -- sovereign-core
+cargo run -- module-architecture
+cargo run -- compat-matrix
+cargo run -- port-map
+```
+
+### Bootstrap / identity / genesis
+
+```bash
+cargo run -- key-bootstrap --name validator-01 --password "Example#2026!"
+cargo run -- genesis-init --chain-num 1001 --treasury 1000000000000
+cargo run -- genesis-validate
+cargo run -- genesis-hash
+cargo run -- keys-show-fingerprint
+cargo run -- keys-verify
+```
+
+### Node / runtime / economy
+
+```bash
+cargo run -- node-bootstrap
+cargo run -- produce-once --tx boot-sequence-1
+cargo run -- node-run --rounds 5 --tx-prefix AOXC
+cargo run -- node-health
+cargo run -- economy-init
+cargo run -- treasury-transfer --to ops --amount 1000
+cargo run -- economy-status
+cargo run -- runtime-status
+```
+
+### Diagnostics / audit
+
+```bash
+cargo run -- diagnostics-doctor
+cargo run -- diagnostics-bundle
+cargo run -- interop-readiness
+cargo run -- interop-gate --enforce-official
+cargo run -- production-audit
+cargo run -- mainnet-readiness
+```
+
+### Config
+
+```bash
+cargo run -- config-init
+cargo run -- config-validate
+cargo run -- config-print --redact
+```
+
+## Filesystem layout
+
+The command plane provisions the following structure:
+
+```text
+~/.aoxc-data/
+  config/
+    settings.json
+  identity/
+    genesis.json
+    node_identity.json
+  keys/
+    operator_key.json
+  ledger/
+    ledger.json
+  runtime/
+    node_state.json
+  telemetry/
+    metrics.json
+  reports/
+  support/
+```
+
+## Output modes
+
+Most commands support:
+
+```text
+--format text
+--format json
+--format yaml
+```
+
+## Operational note
+
+No software package should be treated as “guaranteed error-free.” This package is written with audit-oriented discipline, but all production promotion decisions should still be gated by review, integration testing, and environment-specific verification.

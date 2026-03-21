@@ -1,42 +1,14 @@
-use aoxcai::{
-    error::AiError,
-    model::{AiTask, InferenceSignal},
-    traits::SignalProvider,
-};
-use async_trait::async_trait;
+use serde::Serialize;
 
-/// Node-backed signal provider.
-///
-/// This initial implementation intentionally emits no inference signals.
-/// Future iterations should derive deterministic evidence from validated
-/// node state, handshake metadata, revocation registries, quorum proofs,
-/// mempool state, and other authenticated local inputs.
-pub struct NodeSignalProvider;
-
-impl Default for NodeSignalProvider {
-    fn default() -> Self {
-        Self::new()
-    }
+#[derive(Debug, Clone, Serialize)]
+pub struct AiSignalSet {
+    pub anomaly_score: f64,
+    pub recommendation: &'static str,
 }
 
-impl NodeSignalProvider {
-    /// Creates a new node-backed signal provider instance.
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-#[async_trait]
-impl SignalProvider for NodeSignalProvider {
-    fn name(&self) -> &'static str {
-        "node_signal_provider"
-    }
-
-    async fn collect(
-        &self,
-        _task: AiTask,
-        _subject_id: &str,
-    ) -> Result<Vec<InferenceSignal>, AiError> {
-        Ok(Vec::new())
+pub fn baseline_signals() -> AiSignalSet {
+    AiSignalSet {
+        anomaly_score: 0.0,
+        recommendation: "No anomaly detected in the current local workflow surface",
     }
 }

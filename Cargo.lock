@@ -189,26 +189,29 @@ dependencies = [
 name = "aoxcmd"
 version = "0.1.0"
 dependencies = [
- "aoxcai",
- "aoxcdata",
- "aoxcnet",
- "aoxcore",
- "aoxcunity",
- "async-trait",
+ "chrono",
  "hex",
  "serde",
  "serde_json",
  "serde_yaml",
  "sha2",
  "sha3",
- "tokio",
+ "thiserror",
 ]
 
 [[package]]
 name = "aoxcmob"
 version = "0.1.0"
 dependencies = [
+ "aoxcore",
+ "aoxcsdk",
+ "async-trait",
+ "base64",
+ "ed25519-dalek",
+ "hex",
  "serde",
+ "serde_json",
+ "sha3",
  "tokio",
 ]
 

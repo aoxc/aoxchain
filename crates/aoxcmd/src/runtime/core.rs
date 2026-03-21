@@ -1,13 +1,12 @@
-#[derive(Debug, Clone)]
-pub struct CoreRuntime {
-    pub chain_id: String,
-}
+use crate::{
+    config::loader::load_or_init,
+    error::AppError,
+    node::lifecycle::load_state,
+    runtime::context::RuntimeContext,
+};
 
-impl CoreRuntime {
-    #[must_use]
-    pub fn new(chain_id: impl Into<String>) -> Self {
-        Self {
-            chain_id: chain_id.into(),
-        }
-    }
+pub fn runtime_context() -> Result<RuntimeContext, AppError> {
+    let settings = load_or_init()?;
+    let node_state = load_state().ok();
+    Ok(RuntimeContext { settings, node_state })
 }

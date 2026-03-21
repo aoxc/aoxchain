@@ -1,180 +1,102 @@
+use crate::{
+    data_home::{read_file, resolve_home, write_file},
+    error::{AppError, ErrorCode},
+};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::fs;
-use std::path::Path;
+use std::{collections::BTreeMap, path::PathBuf};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct StakePosition {
-    pub staker: String,
-    pub validator: String,
-    pub amount: u128,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LedgerState {
+    pub treasury_balance: u64,
+    pub transfers: u64,
+    pub delegations: BTreeMap<String, u64>,
+    pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct EconomyState {
-    pub treasury_account: String,
-    pub balances: BTreeMap<String, u128>,
-    pub stakes: Vec<StakePosition>,
-}
-
-impl Default for EconomyState {
-    fn default() -> Self {
-        let treasury_account = "AOXC_TREASURY".to_string();
-        let mut balances = BTreeMap::new();
-        balances.insert(treasury_account.clone(), 0);
-
+impl LedgerState {
+    pub fn new() -> Self {
         Self {
-            treasury_account,
-            balances,
-            stakes: Vec::new(),
+            treasury_balance: 1_000_000_000_000,
+            transfers: 0,
+            delegations: BTreeMap::new(),
+            updated_at: Utc::now().to_rfc3339(),
         }
     }
 }
 
-impl EconomyState {
-    pub fn load_or_default(path: impl AsRef<Path>) -> Result<Self, String> {
-        let path = path.as_ref();
-        if !path.exists() {
-            return Ok(Self::default());
-        }
-
-        let bytes = fs::read(path).map_err(|e| format!("failed to read state: {e}"))?;
-        serde_json::from_slice(&bytes).map_err(|e| format!("failed to decode state: {e}"))
-    }
-
-    pub fn save(&self, path: impl AsRef<Path>) -> Result<(), String> {
-        let path = path.as_ref();
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("failed to create state dir: {e}"))?;
-        }
-
-        let bytes =
-            serde_json::to_vec_pretty(self).map_err(|e| format!("failed to encode state: {e}"))?;
-        fs::write(path, bytes).map_err(|e| format!("failed to write state: {e}"))
-    }
-
-    pub fn ensure_account(&mut self, account: &str) {
-        self.balances.entry(account.to_string()).or_insert(0);
-    }
-
-    pub fn mint_to_treasury(&mut self, amount: u128) {
-        let balance = self
-            .balances
-            .entry(self.treasury_account.clone())
-            .or_insert(0);
-        *balance = balance.saturating_add(amount);
-    }
-
-    pub fn transfer(&mut self, from: &str, to: &str, amount: u128) -> Result<(), String> {
-        if amount == 0 {
-            return Err("amount must be > 0".to_string());
-        }
-
-        self.ensure_account(from);
-        self.ensure_account(to);
-
-        let from_balance = self.balances.get_mut(from).expect("account exists");
-        if *from_balance < amount {
-            return Err(format!("insufficient balance in {from}"));
-        }
-        *from_balance -= amount;
-
-        let to_balance = self.balances.get_mut(to).expect("account exists");
-        *to_balance = to_balance.saturating_add(amount);
-        Ok(())
-    }
-
-    pub fn delegate(&mut self, staker: &str, validator: &str, amount: u128) -> Result<(), String> {
-        if amount == 0 {
-            return Err("stake amount must be > 0".to_string());
-        }
-
-        self.ensure_account(staker);
-        let staker_balance = self.balances.get_mut(staker).expect("account exists");
-        if *staker_balance < amount {
-            return Err(format!("insufficient balance in {staker}"));
-        }
-        *staker_balance -= amount;
-
-        if let Some(position) = self
-            .stakes
-            .iter_mut()
-            .find(|p| p.staker == staker && p.validator == validator)
-        {
-            position.amount = position.amount.saturating_add(amount);
-        } else {
-            self.stakes.push(StakePosition {
-                staker: staker.to_string(),
-                validator: validator.to_string(),
-                amount,
-            });
-        }
-
-        Ok(())
-    }
-
-    pub fn undelegate(
-        &mut self,
-        staker: &str,
-        validator: &str,
-        amount: u128,
-    ) -> Result<(), String> {
-        if amount == 0 {
-            return Err("unstake amount must be > 0".to_string());
-        }
-
-        let Some(position) = self
-            .stakes
-            .iter_mut()
-            .find(|p| p.staker == staker && p.validator == validator)
-        else {
-            return Err("stake position not found".to_string());
-        };
-
-        if position.amount < amount {
-            return Err("stake position too small".to_string());
-        }
-
-        position.amount -= amount;
-        self.stakes.retain(|p| p.amount > 0);
-        self.ensure_account(staker);
-        let staker_balance = self.balances.get_mut(staker).expect("account exists");
-        *staker_balance = staker_balance.saturating_add(amount);
-        Ok(())
-    }
-
-    pub fn total_staked(&self) -> u128 {
-        self.stakes.iter().map(|s| s.amount).sum()
-    }
-
-    pub fn treasury_balance(&self) -> u128 {
-        self.balances
-            .get(&self.treasury_account)
-            .copied()
-            .unwrap_or_default()
-    }
+pub fn ledger_path() -> Result<PathBuf, AppError> {
+    Ok(resolve_home()?.join("ledger").join("ledger.json"))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::EconomyState;
+pub fn load() -> Result<LedgerState, AppError> {
+    let path = ledger_path()?;
+    let raw = read_file(&path).map_err(|_| {
+        AppError::new(
+            ErrorCode::LedgerInvalid,
+            format!("Ledger file is missing at {}", path.display()),
+        )
+    })?;
+    serde_json::from_str(&raw)
+        .map_err(|e| AppError::with_source(ErrorCode::LedgerInvalid, "Failed to parse ledger state", e))
+}
 
-    #[test]
-    fn delegation_roundtrip_works() {
-        let mut state = EconomyState::default();
-        state.mint_to_treasury(1_000);
-        state
-            .transfer("AOXC_TREASURY", "alice", 300)
-            .expect("treasury transfer should work");
+pub fn persist(ledger: &LedgerState) -> Result<(), AppError> {
+    let path = ledger_path()?;
+    let content = serde_json::to_string_pretty(ledger)
+        .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode ledger state", e))?;
+    write_file(&path, &content)
+}
 
-        state
-            .delegate("alice", "validator-1", 200)
-            .expect("delegate should work");
-        assert_eq!(state.total_staked(), 200);
+pub fn init() -> Result<LedgerState, AppError> {
+    let ledger = LedgerState::new();
+    persist(&ledger)?;
+    Ok(ledger)
+}
 
-        state
-            .undelegate("alice", "validator-1", 50)
-            .expect("undelegate should work");
-        assert_eq!(state.total_staked(), 150);
+pub fn transfer(to: &str, amount: u64) -> Result<LedgerState, AppError> {
+    let mut ledger = load()?;
+    if ledger.treasury_balance < amount {
+        return Err(AppError::new(
+            ErrorCode::LedgerInvalid,
+            "Treasury balance is insufficient for the requested transfer",
+        ));
     }
+    ledger.treasury_balance -= amount;
+    ledger.transfers += 1;
+    ledger.delegations.entry(to.to_string()).or_insert(0);
+    ledger.updated_at = Utc::now().to_rfc3339();
+    persist(&ledger)?;
+    Ok(ledger)
+}
+
+pub fn delegate(validator: &str, amount: u64) -> Result<LedgerState, AppError> {
+    let mut ledger = load()?;
+    if ledger.treasury_balance < amount {
+        return Err(AppError::new(
+            ErrorCode::LedgerInvalid,
+            "Treasury balance is insufficient for delegation",
+        ));
+    }
+    ledger.treasury_balance -= amount;
+    *ledger.delegations.entry(validator.to_string()).or_insert(0) += amount;
+    ledger.updated_at = Utc::now().to_rfc3339();
+    persist(&ledger)?;
+    Ok(ledger)
+}
+
+pub fn undelegate(validator: &str, amount: u64) -> Result<LedgerState, AppError> {
+    let mut ledger = load()?;
+    let entry = ledger.delegations.entry(validator.to_string()).or_insert(0);
+    if *entry < amount {
+        return Err(AppError::new(
+            ErrorCode::LedgerInvalid,
+            "Delegation balance is insufficient for undelegation",
+        ));
+    }
+    *entry -= amount;
+    ledger.treasury_balance += amount;
+    ledger.updated_at = Utc::now().to_rfc3339();
+    persist(&ledger)?;
+    Ok(ledger)
 }
