@@ -1,11 +1,5 @@
-pub fn greet() {
-    println!("Hello from the aoxclibs library!");
-}
+pub mod encoding;
+pub mod time;
+pub mod types;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+// Eski 'it_works' fonksiyonunu sildik, yerine gerçek modülleri açtık.

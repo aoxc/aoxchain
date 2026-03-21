@@ -1,10 +1,12 @@
 [package]
-name = "aoxclib"
+name = "aoxclibs"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-serde = { workspace = true }
+hex.workspace = true
+serde = { workspace = true, features = ["derive"] }
+thiserror.workspace = true
 tokio = { workspace = true }
 
 
