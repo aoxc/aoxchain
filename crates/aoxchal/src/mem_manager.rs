@@ -1,3 +1,4 @@
+use std::sync::atomic::{compiler_fence, Ordering};
 use thiserror::Error;
 
 /// Upper allocation bound for a single managed region.
@@ -45,6 +46,7 @@ pub enum MemoryRegionError {
 /// - Checked read/write operations
 /// - No implicit growth semantics
 /// - No unsafe code
+/// - Secure wiping on drop (Zeroization)
 ///
 /// This type is intentionally a strict in-memory region abstraction rather than
 /// a full allocator or virtual memory subsystem.
@@ -149,6 +151,19 @@ impl MemoryRegion {
     /// Fills the entire region with the provided byte value.
     pub fn fill(&mut self, value: u8) {
         self.data.fill(value);
+    }
+}
+
+// === GÜVENLİK ZIRHI: SECURE WIPING ===
+impl Drop for MemoryRegion {
+    fn drop(&mut self) {
+        // RAM'deki hassas veriyi zorla 0 ile ez (Secure Wiping).
+        // Bu sayede ZKP kanıtları veya Private Key'ler RAM'de kalıp sızdırılamaz.
+        self.data.fill(0);
+
+        // Derleyicinin (LLVM) "zaten değişken ölüyor, 0 yazmaya gerek yok" 
+        // diyerek bu adımı pas geçmesini engellemek için bariyer koyulur.
+        compiler_fence(Ordering::SeqCst);
     }
 }
 

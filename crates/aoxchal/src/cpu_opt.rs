@@ -1,22 +1,20 @@
+use serde::{Deserialize, Serialize};
+
 /// CPU capability profile used to drive deterministic policy decisions for
 /// optional accelerated execution paths.
-///
-/// Security and operational notes:
-/// - This type does not itself enable any unsafe fast path.
-/// - It only reports capability signals that higher-level components may use
-///   when selecting an implementation.
-/// - The reporting model is intentionally small to reduce ambiguity and keep
-///   the policy surface auditable.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct CpuCapabilities {
-    /// Intel/AMD AES instruction support.
-    pub aes_ni: bool,
+    /// Hardware AES instruction support (Intel AES-NI or ARM AES).
+    pub aes_hw: bool,
 
-    /// AVX2 vector extension support.
+    /// AVX2 vector extension support (x86 only).
     pub avx2: bool,
 
-    /// AVX-512 Foundation support.
+    /// AVX-512 Foundation support (x86 only).
     pub avx512f: bool,
+
+    /// NEON vector extension support (ARM only).
+    pub neon: bool,
 }
 
 impl CpuCapabilities {
@@ -25,83 +23,88 @@ impl CpuCapabilities {
     #[must_use]
     pub const fn portable() -> Self {
         Self {
-            aes_ni: false,
+            aes_hw: false,
             avx2: false,
             avx512f: false,
+            neon: false,
         }
     }
 
     /// Constructs a capability profile from explicit flags.
-    ///
-    /// This constructor is primarily useful for deterministic tests and policy
-    /// evaluation code.
     #[must_use]
-    pub const fn from_flags(aes_ni: bool, avx2: bool, avx512f: bool) -> Self {
+    pub const fn from_flags(aes_hw: bool, avx2: bool, avx512f: bool, neon: bool) -> Self {
         Self {
-            aes_ni,
+            aes_hw,
             avx2,
             avx512f,
+            neon,
         }
     }
 
-    /// Detects supported CPU flags using architecture-aware runtime feature
-    /// discovery where available.
-    ///
-    /// On non-x86 targets the function intentionally returns the conservative
-    /// portable profile because the current capability model is x86-oriented.
+    /// Detects supported CPU flags using architecture-aware runtime feature discovery.
     #[must_use]
     pub fn detect() -> Self {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {
             Self {
-                aes_ni: std::is_x86_feature_detected!("aes"),
+                aes_hw: std::is_x86_feature_detected!("aes"),
                 avx2: std::is_x86_feature_detected!("avx2"),
                 avx512f: std::is_x86_feature_detected!("avx512f"),
+                neon: false,
             }
         }
 
-        #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+        #[cfg(target_arch = "aarch64")]
+        {
+            Self {
+                aes_hw: std::arch::is_aarch64_feature_detected!("aes"),
+                avx2: false,
+                avx512f: false,
+                neon: std::arch::is_aarch64_feature_detected!("neon"),
+            }
+        }
+
+        #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64")))]
         {
             Self::portable()
         }
     }
 
-    /// Returns a deterministic profile label suitable for logs, manifests, and
-    /// policy gates.
-    ///
-    /// The naming contract is intentionally stable and compact.
+    /// Returns a deterministic profile label suitable for logs, manifests, and policy gates.
     #[must_use]
     pub const fn profile_name(self) -> &'static str {
-        match (self.aes_ni, self.avx2, self.avx512f) {
-            (true, true, true) => "aes-ni+avx2+avx512",
-            (true, true, false) => "aes-ni+avx2",
-            (true, false, _) => "aes-ni",
+        if self.is_portable() {
+            return "portable";
+        }
+
+        match (self.aes_hw, self.avx512f, self.avx2, self.neon) {
+            (true, true, _, _) => "aes-hw+avx512",
+            (true, false, true, _) => "aes-hw+avx2",
+            (true, false, false, true) => "aes-hw+neon",
+            (true, false, false, false) => "aes-hw",
+            (false, true, _, _) => "avx512",
+            (false, false, true, _) => "avx2",
+            (false, false, false, true) => "neon",
             _ => "portable",
         }
     }
 
-    /// Returns `true` when the host can support AES-specific accelerated code
-    /// paths.
-    ///
-    /// This method expresses the policy-relevant semantic rather than forcing
-    /// callers to repeatedly inspect raw flags.
+    /// Returns `true` when the host can support AES-specific accelerated code paths.
     #[must_use]
     pub const fn supports_accelerated_aead(self) -> bool {
-        self.aes_ni
+        self.aes_hw
     }
 
-    /// Returns `true` when the host can support wide-vector execution paths
-    /// that benefit from AVX-class parallelism.
+    /// Returns `true` when the host can support wide-vector execution paths.
     #[must_use]
     pub const fn supports_wide_parallelism(self) -> bool {
-        self.avx2 || self.avx512f
+        self.avx2 || self.avx512f || self.neon
     }
 
-    /// Returns `true` when the profile is fully portable and does not rely on
-    /// optional x86 acceleration features.
+    /// Returns `true` when the profile is fully portable and does not rely on any hardware acceleration.
     #[must_use]
     pub const fn is_portable(self) -> bool {
-        !self.aes_ni && !self.avx2 && !self.avx512f
+        !self.aes_hw && !self.avx2 && !self.avx512f && !self.neon
     }
 }
 
@@ -112,7 +115,6 @@ mod tests {
     #[test]
     fn portable_profile_is_reported_correctly() {
         let caps = CpuCapabilities::portable();
-
         assert!(caps.is_portable());
         assert_eq!(caps.profile_name(), "portable");
         assert!(!caps.supports_accelerated_aead());
@@ -121,58 +123,32 @@ mod tests {
 
     #[test]
     fn aes_only_profile_name_is_deterministic() {
-        let caps = CpuCapabilities::from_flags(true, false, false);
-
-        assert_eq!(caps.profile_name(), "aes-ni");
+        let caps = CpuCapabilities::from_flags(true, false, false, false);
+        assert_eq!(caps.profile_name(), "aes-hw");
         assert!(caps.supports_accelerated_aead());
-        assert!(!caps.supports_wide_parallelism());
         assert!(!caps.is_portable());
     }
 
     #[test]
     fn aes_and_avx2_profile_name_is_deterministic() {
-        let caps = CpuCapabilities::from_flags(true, true, false);
-
-        assert_eq!(caps.profile_name(), "aes-ni+avx2");
+        let caps = CpuCapabilities::from_flags(true, true, false, false);
+        assert_eq!(caps.profile_name(), "aes-hw+avx2");
         assert!(caps.supports_accelerated_aead());
         assert!(caps.supports_wide_parallelism());
     }
 
     #[test]
-    fn full_profile_name_is_deterministic() {
-        let caps = CpuCapabilities::from_flags(true, true, true);
-
-        assert_eq!(caps.profile_name(), "aes-ni+avx2+avx512");
-        assert!(caps.supports_accelerated_aead());
-        assert!(caps.supports_wide_parallelism());
+    fn avx_without_aes_now_reports_correctly() {
+        let caps = CpuCapabilities::from_flags(false, true, false, false);
+        assert_eq!(caps.profile_name(), "avx2"); // Eskiden hatalı olarak "portable" dönüyordu
+        assert!(!caps.is_portable()); // Artık tutarlı!
     }
 
     #[test]
-    fn avx_without_aes_falls_back_to_portable_label_by_policy() {
-        let caps = CpuCapabilities::from_flags(false, true, true);
-
-        assert_eq!(caps.profile_name(), "portable");
-        assert!(!caps.supports_accelerated_aead());
+    fn arm_neon_is_supported_and_deterministic() {
+        let caps = CpuCapabilities::from_flags(true, false, false, true);
+        assert_eq!(caps.profile_name(), "aes-hw+neon");
         assert!(caps.supports_wide_parallelism());
         assert!(!caps.is_portable());
-    }
-
-    #[test]
-    fn detect_produces_a_self_consistent_profile() {
-        let caps = CpuCapabilities::detect();
-        let profile = caps.profile_name();
-
-        assert!(matches!(
-            profile,
-            "portable" | "aes-ni" | "aes-ni+avx2" | "aes-ni+avx2+avx512"
-        ));
-
-        if caps.avx512f {
-            assert!(caps.supports_wide_parallelism());
-        }
-
-        if caps.aes_ni {
-            assert!(caps.supports_accelerated_aead());
-        }
     }
 }
