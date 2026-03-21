@@ -13,13 +13,17 @@ use aoxcnet::transport::live_tcp::run_live_tcp_smoke_on;
 use aoxcore::genesis::config::{GenesisConfig, SettlementLink, TREASURY_ACCOUNT};
 use aoxcore::genesis::loader::GenesisLoader;
 use aoxcore::identity::ca::CertificateAuthority;
+use aoxcore::protocol::{
+    canonical_chain_families, canonical_message_envelope_fields, canonical_modules,
+};
 use std::collections::BTreeMap;
 
 mod cli_support;
 
+#[cfg(test)]
+use cli_support::{CliLanguage, usage_text};
 use cli_support::{
-    CliLanguage, arg_bool_value, arg_flag, arg_value, detect_language, localized_unknown_command,
-    print_usage, usage_text,
+    arg_bool_value, arg_flag, arg_value, detect_language, localized_unknown_command, print_usage,
 };
 
 use std::env;
@@ -51,6 +55,7 @@ fn run_cli() -> Result<(), String> {
             Ok(())
         }
         "vision" => cmd_vision(),
+        "module-architecture" => cmd_module_architecture(),
         "compat-matrix" => cmd_compat_matrix(),
         "port-map" => cmd_port_map(),
         "key-bootstrap" => cmd_key_bootstrap(&args[2..]),
@@ -113,9 +118,106 @@ fn cmd_vision() -> Result<(), String> {
         "chain_positioning": "interop relay-oriented coordination chain",
         "primary_goal": "cross-chain compatibility and deterministic coordination over raw throughput",
         "execution_strategy": "multi-lane model compatible with heterogeneous external networks",
+        "recommended_topology": "thin relay core + five attached functional modules",
+        "functional_modules": [
+            "identity",
+            "asset_treasury",
+            "smart_execution",
+            "interop_bridge",
+            "data_proof"
+        ],
         "identity_model": "post-quantum capable key/certificate/passport pipeline",
         "consensus_model": "quorum-based proposer/vote/finalization with explicit rotation",
         "status": "pre-mainnet; deterministic local smoke path available"
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn cmd_module_architecture() -> Result<(), String> {
+    let relay_module_names: Vec<&str> = canonical_modules()
+        .iter()
+        .map(|module| module.as_str())
+        .collect();
+    let supported_chain_families: Vec<&str> = canonical_chain_families()
+        .iter()
+        .map(|family| family.as_str())
+        .collect();
+    let envelope_fields = canonical_message_envelope_fields();
+
+    let output = serde_json::json!({
+        "relay_core": {
+            "principle": "keep the relay chain thin, neutral, and durable",
+            "canonical_modules": relay_module_names,
+            "responsibilities": [
+                "finality_ordering",
+                "shared_security",
+                "validator_set_management",
+                "cross_module_message_routing",
+                "universal_identity_root",
+                "state_commitment_and_proof_root_anchoring",
+                "governance_and_upgrades",
+                "fee_and_staking_settlement_root"
+            ]
+        },
+        "attached_modules": [
+            {
+                "name": "AOXC-MODULE-IDENTITY",
+                "purpose": "universal identity, address binding, recovery, delegates, chain account mapping",
+                "must_depend_on_relay": ["identity_root", "governance", "state_commitment"]
+            },
+            {
+                "name": "AOXC-MODULE-ASSET",
+                "purpose": "native asset, wrapped assets, treasury accounting, bridge escrow and settlement balances",
+                "must_depend_on_relay": ["settlement_root", "governance", "security_policy"]
+            },
+            {
+                "name": "AOXC-MODULE-EXECUTION",
+                "purpose": "contracts, programmable actions, intents, and app-specific logic outside the relay core",
+                "must_depend_on_relay": ["checkpoint_acceptance", "message_bus", "governance"]
+            },
+            {
+                "name": "AOXC-MODULE-INTEROP",
+                "purpose": "single bridge domain with adapter families for external chain connectivity",
+                "adapters": ["evm", "solana", "utxo", "ibc", "object"],
+                "must_depend_on_relay": ["message_bus", "identity_root", "proof_anchoring", "security_policy"]
+            },
+            {
+                "name": "AOXC-MODULE-PROOF",
+                "purpose": "data commitments, proof publication, light-client support data, batch/blob references",
+                "must_depend_on_relay": ["state_commitment", "finality", "governance"]
+            }
+        ],
+        "message_envelope": {
+            "fields": envelope_fields
+        },
+        "security_boundaries": {
+            "relay_core": [
+                "minimum_attack_surface",
+                "critical_state_only",
+                "no_heavy_app_logic",
+                "governance_controlled_upgrades"
+            ],
+            "modules": [
+                "separate_risk_domains",
+                "separate_rate_limits",
+                "separate_circuit_breakers",
+                "separate_fee_policies",
+                "separate_storage_proof_domains"
+            ]
+        },
+        "compatibility_strategy": {
+            "model": "functional modules + adapter families",
+            "supported_chain_families": supported_chain_families,
+            "do_not_do": "do not turn the relay chain into a heavy application chain",
+            "why": "chain families evolve, but identity, asset, execution, interop, and proof responsibilities remain stable"
+        }
     });
 
     println!(
@@ -160,13 +262,24 @@ fn cmd_compat_matrix() -> Result<(), String> {
         "execution_lanes": ["EVM", "WASM", "Sui Move", "Cardano UTXO"],
         "network_surface": ["Gossip", "Discovery", "Sync", "RPC"],
         "transport_profiles": ["TCP", "UDP", "QUIC"],
+        "support_model": {
+            "evm_family": "partial",
+            "wasm_family": "partial",
+            "move_family": "partial",
+            "utxo_family": "partial",
+            "all_chains_full_compatibility": false
+        },
         "compatibility": {
             "evm_chains": "bridge-compatible via aoxcvm::lanes::evm",
             "wasm_chains": "bridge-compatible via aoxcvm::lanes::wasm",
             "move_ecosystem": "bridge-compatible via aoxcvm::lanes::sui_move",
             "utxo_ecosystem": "bridge-compatible via aoxcvm::lanes::cardano"
         },
-        "note": "Deterministic coordination is implemented; production interoperability requires chain-specific bridge adapters and audits."
+        "hard_limits": [
+            "No relay chain can honestly guarantee 100% security",
+            "Full compatibility with every chain requires chain-specific adapters, test vectors, and finality proofs"
+        ],
+        "note": "Deterministic coordination is implemented; production interoperability requires chain-specific bridge adapters, replay/finality validation, and audits."
     });
 
     println!(
@@ -767,7 +880,15 @@ fn cmd_runtime_status(args: &[String]) -> Result<(), String> {
 }
 
 fn cmd_interop_readiness() -> Result<(), String> {
+    let assessment = interop_assessment();
+
     let output = serde_json::json!({
+        "assessment": {
+            "estimated_readiness_percent": assessment.estimated_readiness_percent,
+            "status": assessment.status,
+            "ready_for_all_chains": assessment.ready_for_all_chains,
+            "can_claim_100_percent_security": assessment.can_claim_100_percent_security,
+        },
         "identity": {
             "key_algorithms": [
                 {
@@ -794,7 +915,11 @@ fn cmd_interop_readiness() -> Result<(), String> {
             "deterministic serialization and replay tests",
             "observability SLOs and alerting thresholds",
             "external security audit for bridge and key lifecycle"
-        ]
+        ],
+        "implemented_controls": assessment.implemented_controls,
+        "missing_critical_controls": assessment.missing_critical_controls,
+        "hard_blockers": assessment.hard_blockers,
+        "next_priority_actions": assessment.next_priority_actions
     });
 
     println!(
@@ -803,6 +928,53 @@ fn cmd_interop_readiness() -> Result<(), String> {
     );
 
     Ok(())
+}
+
+#[derive(Debug, Clone)]
+struct InteropAssessment {
+    estimated_readiness_percent: f64,
+    status: &'static str,
+    ready_for_all_chains: bool,
+    can_claim_100_percent_security: bool,
+    implemented_controls: Vec<&'static str>,
+    missing_critical_controls: Vec<&'static str>,
+    hard_blockers: Vec<&'static str>,
+    next_priority_actions: Vec<&'static str>,
+}
+
+fn interop_assessment() -> InteropAssessment {
+    InteropAssessment {
+        estimated_readiness_percent: 38.0,
+        status: "pre-mainnet-hardening",
+        ready_for_all_chains: false,
+        can_claim_100_percent_security: false,
+        implemented_controls: vec![
+            "relay-oriented multi-crate architecture",
+            "multi-lane execution model (EVM/WASM/Sui Move/Cardano UTXO)",
+            "runtime health/readiness and telemetry surfaces",
+            "mainnet key generation explicit opt-in guard",
+            "production audit CLI surface",
+        ],
+        missing_critical_controls: vec![
+            "independent external security audit with remediation closure",
+            "continuous fuzz/property testing for bridge and serialization paths",
+            "deterministic replay suite across historical state transitions",
+            "multi-node adversarial consensus and partition recovery tests",
+            "chain-specific bridge adapter conformance vectors",
+            "signed release artifacts, SBOM, and provenance attestation",
+        ],
+        hard_blockers: vec![
+            "No proof that relay logic is safe against all target-chain finality differences",
+            "No evidence of completed external audit closure for core/bridge/network paths",
+            "No evidence of exhaustive cross-chain compatibility vectors per target family",
+        ],
+        next_priority_actions: vec![
+            "Add 3+ node deterministic adversarial simulation suite",
+            "Add replay fixtures and bridge proof failure-injection tests",
+            "Add release signing, SBOM generation, and provenance verification",
+            "Publish chain-family-specific compatibility matrices and acceptance criteria",
+        ],
+    }
 }
 
 fn cmd_interop_gate(args: &[String]) -> Result<(), String> {
@@ -1026,7 +1198,8 @@ fn assert_mainnet_key_policy(args: &[String], profile: &str) -> Result<(), Strin
 mod tests {
     use super::{
         CliLanguage, ai_control_score, arg_bool_value, assert_mainnet_key_policy,
-        bootstrap_defaults, detect_language, localized_unknown_command, usage_text,
+        bootstrap_defaults, detect_language, interop_assessment, localized_unknown_command,
+        usage_text,
     };
 
     #[test]
@@ -1088,6 +1261,7 @@ mod tests {
     fn usage_text_mentions_port_map_and_network_port_override() {
         let usage = usage_text(CliLanguage::En);
         assert!(usage.contains("port-map"));
+        assert!(usage.contains("module-architecture"));
         assert!(
             usage.contains("network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]")
         );
@@ -1121,5 +1295,16 @@ mod tests {
 
         assert_eq!(ai_control_score(&controls), 50);
         assert_eq!(ai_control_score(&[]), 0);
+    }
+
+    #[test]
+    fn interop_assessment_is_explicitly_not_full_or_universal() {
+        let assessment = interop_assessment();
+
+        assert!(assessment.estimated_readiness_percent < 100.0);
+        assert!(!assessment.ready_for_all_chains);
+        assert!(!assessment.can_claim_100_percent_security);
+        assert!(!assessment.hard_blockers.is_empty());
+        assert!(!assessment.missing_critical_controls.is_empty());
     }
 }
