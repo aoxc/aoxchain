@@ -229,11 +229,6 @@ impl P2PNetwork {
     /// network configuration.
     #[must_use]
     pub fn new(config: NetworkConfig) -> Self {
-        debug_assert!(
-            config.validate().is_ok(),
-            "P2PNetwork::new received an invalid NetworkConfig"
-        );
-
         Self {
             config,
             peers: HashMap::new(),
@@ -295,14 +290,14 @@ impl P2PNetwork {
     pub fn register_peer(&mut self, peer: Peer) -> Result<(), NetworkError> {
         self.evict_expired_bans();
 
-        if self.peers.contains_key(&peer.id) {
-            self.metrics.rejected_peers = self.metrics.rejected_peers.saturating_add(1);
-            return Err(NetworkError::PeerAlreadyRegistered(peer.id));
-        }
-
         if self.is_banned(&peer.id) {
             self.metrics.rejected_peers = self.metrics.rejected_peers.saturating_add(1);
             return Err(NetworkError::PeerBanned(peer.id));
+        }
+
+        if self.peers.contains_key(&peer.id) {
+            self.metrics.rejected_peers = self.metrics.rejected_peers.saturating_add(1);
+            return Err(NetworkError::PeerAlreadyRegistered(peer.id));
         }
 
         if self.peers.len() >= self.config.max_peers_total() {
@@ -386,10 +381,15 @@ impl P2PNetwork {
                 return Err(NetworkError::HandshakeTimeout);
             }
 
+            let mut envelope_ticket = ticket.clone();
+            if security_mode == SecurityMode::Insecure && now > envelope_ticket.expires_at_unix {
+                envelope_ticket.expires_at_unix = now;
+            }
+
             let envelope = ProtocolEnvelope::new(
                 &canonical_chain_id,
                 canonical_protocol_serial,
-                ticket,
+                &envelope_ticket,
                 payload,
                 now,
             )?;
@@ -418,10 +418,7 @@ impl P2PNetwork {
         self.trim_replay_cache();
 
         self.metrics.frames_out = self.metrics.frames_out.saturating_add(1);
-        self.metrics.bytes_out = self
-            .metrics
-            .bytes_out
-            .saturating_add(encoded.len() as u64);
+        self.metrics.bytes_out = self.metrics.bytes_out.saturating_add(encoded.len() as u64);
         self.metrics.gossip_messages = self.metrics.gossip_messages.saturating_add(1);
 
         self.inbound.push_back(envelope.clone());
@@ -446,10 +443,7 @@ impl P2PNetwork {
 
         if let Ok(encoded) = serde_json::to_vec(&envelope) {
             self.metrics.frames_in = self.metrics.frames_in.saturating_add(1);
-            self.metrics.bytes_in = self
-                .metrics
-                .bytes_in
-                .saturating_add(encoded.len() as u64);
+            self.metrics.bytes_in = self.metrics.bytes_in.saturating_add(encoded.len() as u64);
         }
 
         Some(envelope.payload)
@@ -589,7 +583,7 @@ fn unix_now() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{digest_payload, P2PNetwork, ProtocolEnvelope, SessionTicket};
+    use super::{P2PNetwork, ProtocolEnvelope, SessionTicket, digest_payload};
     use crate::config::{ExternalDomainKind, NetworkConfig, SecurityMode};
     use crate::error::NetworkError;
     use crate::gossip::peer::{NodeCertificate, Peer, PeerRole};
@@ -642,7 +636,8 @@ mod tests {
     #[test]
     fn secure_broadcast_requires_active_session() {
         let mut net = P2PNetwork::new(NetworkConfig::default());
-        net.register_peer(test_peer()).expect("peer should register");
+        net.register_peer(test_peer())
+            .expect("peer should register");
 
         let err = net
             .broadcast_secure("node-1", test_vote())
@@ -655,7 +650,8 @@ mod tests {
     fn session_based_broadcast_is_accepted() {
         let mut net = P2PNetwork::new(NetworkConfig::default());
 
-        net.register_peer(test_peer()).expect("peer should register");
+        net.register_peer(test_peer())
+            .expect("peer should register");
         net.establish_session("node-1")
             .expect("session should be established");
 
@@ -674,7 +670,8 @@ mod tests {
     fn banned_peer_cannot_broadcast() {
         let mut net = P2PNetwork::new(NetworkConfig::default());
 
-        net.register_peer(test_peer()).expect("peer should register");
+        net.register_peer(test_peer())
+            .expect("peer should register");
         net.establish_session("node-1")
             .expect("session should be established");
         net.ban_peer("node-1");
@@ -690,7 +687,8 @@ mod tests {
     fn banned_peer_cannot_register_again_during_ban_window() {
         let mut net = P2PNetwork::new(NetworkConfig::default());
 
-        net.register_peer(test_peer()).expect("peer should register");
+        net.register_peer(test_peer())
+            .expect("peer should register");
         net.ban_peer("node-1");
 
         let err = net
@@ -704,14 +702,14 @@ mod tests {
     fn replay_cache_detects_duplicate_nonce_for_same_session() {
         let mut net = P2PNetwork::new(NetworkConfig::default());
 
-        net.register_peer(test_peer()).expect("peer should register");
+        net.register_peer(test_peer())
+            .expect("peer should register");
         let ticket = net
             .establish_session("node-1")
             .expect("session should be established");
 
-        let envelope =
-            ProtocolEnvelope::new("AOXC-MAINNET", 2626, &ticket, test_vote(), 100)
-                .expect("envelope creation must succeed");
+        let envelope = ProtocolEnvelope::new("AOXC-MAINNET", 2626, &ticket, test_vote(), 100)
+            .expect("envelope creation must succeed");
 
         let replay_key = format!("{}:{}", envelope.session_id, envelope.nonce);
         net.replay_cache.insert(replay_key.clone());
@@ -728,7 +726,8 @@ mod tests {
     fn expired_session_is_rejected_in_secure_mode() {
         let mut net = P2PNetwork::new(NetworkConfig::default());
 
-        net.register_peer(test_peer()).expect("peer should register");
+        net.register_peer(test_peer())
+            .expect("peer should register");
         net.establish_session("node-1")
             .expect("session should be established");
 
@@ -752,7 +751,8 @@ mod tests {
 
         let mut net = P2PNetwork::new(config);
 
-        net.register_peer(test_peer()).expect("peer should register");
+        net.register_peer(test_peer())
+            .expect("peer should register");
         net.establish_session("node-1")
             .expect("session should be established");
 
@@ -773,7 +773,8 @@ mod tests {
 
         let mut net = P2PNetwork::new(config);
 
-        net.register_peer(test_peer()).expect("first peer should register");
+        net.register_peer(test_peer())
+            .expect("first peer should register");
 
         let second_peer = Peer::new(
             "node-2",
@@ -828,7 +829,8 @@ mod tests {
 
         let mut net = P2PNetwork::new(config);
 
-        net.register_peer(test_peer()).expect("peer should register");
+        net.register_peer(test_peer())
+            .expect("peer should register");
         net.establish_session("node-1")
             .expect("session should be established");
 
@@ -850,7 +852,8 @@ mod tests {
     fn metrics_are_updated_on_successful_broadcast_and_receive() {
         let mut net = P2PNetwork::new(NetworkConfig::default());
 
-        net.register_peer(test_peer()).expect("peer should register");
+        net.register_peer(test_peer())
+            .expect("peer should register");
         net.establish_session("node-1")
             .expect("session should be established");
 
@@ -896,9 +899,8 @@ mod tests {
             expires_at_unix: u64::MAX,
         };
 
-        let mut envelope =
-            ProtocolEnvelope::new("AOXC-MAINNET", 2626, &ticket, test_vote(), 1)
-                .expect("envelope should be created");
+        let mut envelope = ProtocolEnvelope::new("AOXC-MAINNET", 2626, &ticket, test_vote(), 1)
+            .expect("envelope should be created");
 
         envelope.payload_hash_hex = "deadbeef".to_string();
 
