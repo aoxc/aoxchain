@@ -1,105 +1,128 @@
-# AOXChain Audit-Grade Operational Readbook
+# AOXChain Developer and Operator Readbook
 
-This document is a **clean, chronological, audit-oriented runbook** for operating AOXChain.
-It is written for operators, reviewers, and security teams who need a deterministic sequence from environment preparation to post-run evidence collection.
+This document is the practical companion to `README.md`.
+It focuses on:
 
----
-
-## 0) Scope and Intent
-
-This readbook defines a minimal, reliable flow for:
-
-1. Preparing a controlled environment.
-2. Building and validating binaries.
-3. Creating operator identity material.
-4. Initializing deterministic genesis.
-5. Bootstrapping node state.
-6. Running controlled production loops.
-7. Capturing verifiable audit evidence.
-
-Use this file as the **primary execution order**. Use other docs only for deep-dive references.
+- developers building AOXChain locally,
+- operators bootstrapping deterministic nodes,
+- reviewers validating that the repository behaves like a real chain project.
 
 ---
 
-## 1) Security Preconditions (Before Any Command)
+## 1. Chain identity summary
 
-- Use a dedicated host or isolated CI runner.
-- Ensure shell history handling is compliant with your secret policy.
-- Never commit private keys, passwords, or generated runtime data.
-- Keep a timestamped command log for audit trails.
-- For mainnet-sensitive actions, require multi-party review approval.
+AOXChain should be treated as:
 
-Recommended environment isolation:
+- an **experimental sovereign chain**,
+- with a **constitutional local core**,
+- and **remote execution domains** attached through policy and settlement.
+
+The shortest architecture commands are:
 
 ```bash
-export AOXC_HOME="$PWD/.aoxc-audit-home"
+cargo run -p aoxcmd -- vision
+cargo run -p aoxcmd -- sovereign-core
+cargo run -p aoxcmd -- module-architecture
+```
+
+---
+
+## 2. Canonical address / key derivation rule
+
+AOXC HD derivation format:
+
+```text
+m/44/2626/<chain>/<role>/<zone>/<index>
+```
+
+Examples:
+
+```text
+m/44/2626/1/1/1/0
+m/44/2626/1001/2/4/7
+```
+
+This repo uses `2626` as the AOXC coin-type namespace.
+
+Do not document or implement alternate local derivation roots unless there is an explicit migration plan.
+
+---
+
+## 3. Clean local development flow
+
+### Step 1 — format, check, test
+
+```bash
+make fmt
+make check
+make test
+```
+
+### Step 2 — lint and quality gates
+
+```bash
+make clippy
+make quality-quick
+```
+
+### Step 3 — release-style validation
+
+```bash
+make quality-release
+make package-bin
+```
+
+---
+
+## 4. Build metadata and release policy
+
+Inspect build identity:
+
+```bash
+make version
+make manifest
+make policy
+```
+
+Direct CLI equivalents:
+
+```bash
+cargo run -p aoxcmd -- version
+cargo run -p aoxcmd -- build-manifest
+cargo run -p aoxcmd -- node-connection-policy
+```
+
+These outputs are important because they expose:
+
+- version,
+- commit,
+- dirty/clean state,
+- build profile,
+- release channel,
+- attestation hash,
+- embedded certificate fingerprint status.
+
+---
+
+## 5. Deterministic node bootstrap
+
+```bash
+export AOXC_HOME="$PWD/.aoxc-devhome"
 umask 077
 mkdir -p "$AOXC_HOME"
 ```
 
----
-
-## 2) Build and Integrity Gate
-
-Run these commands in order and do not continue if any step fails.
-
-```bash
-cargo fmt --all
-cargo check --workspace
-cargo test --workspace
-```
-
-Optional release-style packaging:
-
-```bash
-make quality-quick
-make package-bin
-```
-
-Audit note: archive stdout/stderr of these commands as build evidence.
-
----
-
-## 3) Identity Bootstrap (Wallet-Like Operator Material)
-
-Create cryptographic identity material for the node operator.
-
-### Testnet profile (recommended first)
+### Key material
 
 ```bash
 cargo run -p aoxcmd -- key-bootstrap \
   --home "$AOXC_HOME" \
   --profile testnet \
   --name validator-01 \
-  --password "TEST#Secure2026!"
+  --password 'TEST#Secure2026!'
 ```
 
-### Mainnet profile (explicit safety gate)
-
-```bash
-cargo run -p aoxcmd -- key-bootstrap \
-  --home "$AOXC_HOME" \
-  --profile mainnet \
-  --allow-mainnet \
-  --name validator-01 \
-  --password "AOXc#Mainnet2026!"
-```
-
-Alternative policy switch:
-
-```bash
-AOXC_ALLOW_MAINNET_KEYS=true cargo run -p aoxcmd -- key-bootstrap \
-  --home "$AOXC_HOME" \
-  --profile mainnet \
-  --name validator-01 \
-  --password "AOXc#Mainnet2026!"
-```
-
----
-
-## 4) Deterministic Genesis Initialization
-
-Initialize a reproducible genesis configuration.
+### Genesis
 
 ```bash
 cargo run -p aoxcmd -- genesis-init \
@@ -109,146 +132,97 @@ cargo run -p aoxcmd -- genesis-init \
   --treasury 1000000000000
 ```
 
-Expected outcome:
-
-- Genesis file is written under `$AOXC_HOME/identity/genesis.json` (unless `--path` is provided).
-- Output includes deterministic fields such as `chain_id`, `total_supply`, and `state_hash`.
-
-Audit note: persist the resulting `state_hash` into your change/control ticket.
-
----
-
-## 5) Node Bootstrap and State Activation
-
-Bootstrap the local node runtime from generated identity + genesis.
+### Node bootstrap
 
 ```bash
 cargo run -p aoxcmd -- node-bootstrap --home "$AOXC_HOME"
 ```
 
-This step validates readiness of core runtime components (mempool, validators, and quorum-visible state).
-
----
-
-## 6) Controlled Block Production Sequence
-
-### 6.1 One-block deterministic smoke
+### Single block
 
 ```bash
-cargo run -p aoxcmd -- produce-once --home "$AOXC_HOME" --tx "boot-sequence-1"
+cargo run -p aoxcmd -- produce-once --home "$AOXC_HOME" --tx 'hello-aoxc'
 ```
 
-### 6.2 Short bounded run
+### Short run
 
 ```bash
 cargo run -p aoxcmd -- node-run \
   --home "$AOXC_HOME" \
-  --rounds 20 \
+  --rounds 15 \
   --sleep-ms 1000 \
-  --tx-prefix AOXC_RUN
+  --tx-prefix AOXC_DEV
 ```
 
-### 6.3 Network probe sequence
+---
+
+## 6. Make targets for developers
+
+### Fast day-to-day
 
 ```bash
-cargo run -p aoxcmd -- real-network \
-  --home "$AOXC_HOME" \
-  --rounds 10 \
-  --timeout-ms 3000 \
-  --pause-ms 250 \
-  --bind-host 127.0.0.1 \
-  --port 0
+make help
+make fmt
+make check
+make test
+make clippy
 ```
 
----
-
-## 7) Operational Status and Release Gates
-
-Capture runtime posture:
+### Packaging
 
 ```bash
-cargo run -p aoxcmd -- runtime-status --trace standard --tps 12.4 --peers 7 --error-rate 0.001
+make build-release
+make package-bin
 ```
 
-Check interoperability readiness:
+### Chain loop
 
 ```bash
-cargo run -p aoxcmd -- interop-readiness
-```
-
-Enforce explicit release gate:
-
-```bash
-cargo run -p aoxcmd -- interop-gate \
-  --audit-complete true \
-  --fuzz-complete true \
-  --replay-complete true \
-  --finality-matrix-complete true \
-  --slo-complete true \
-  --enforce
+make real-chain-run-once
+make real-chain-run
+make real-chain-tail
+make real-chain-health
 ```
 
 ---
 
-## 8) Audit Evidence Checklist (Mandatory)
+## 7. What should be improved next for ~75% readiness?
 
-For each execution window, archive the following artifacts:
+If the target is “closer to 75%”, I would add these next:
 
-1. Build evidence (`fmt/check/test` command outputs).
-2. Key bootstrap summary output (without exposing secrets).
-3. Genesis output JSON including `state_hash`.
-4. Node bootstrap output.
-5. Produce-once output (`height`, `hash`, `finalized`).
-6. Node-run and real-network outputs.
-7. Runtime-status and interop-gate outputs.
+### A. Test coverage
 
-Store these with:
+1. multi-node deterministic consensus simulation
+2. replay fixtures for settlement and receipts
+3. message-envelope serialization/compatibility tests
+4. policy tests for official-release-only peering
+5. genesis/state migration tests
 
-- UTC timestamp,
-- operator identity,
-- git commit hash,
-- environment fingerprint (OS/toolchain).
+### B. Release and security tooling
 
----
+1. cert issue / rotate / revoke commands
+2. signed release manifest
+3. SBOM generation
+4. provenance attestation verification
+5. peer handshake enforcement using attestation hash + cert fingerprint
 
-## 9) Failure Handling Protocol
+### C. Operator UX
 
-If any command fails:
+1. better `make help`
+2. rich terminal dashboard
+3. structured JSON logs + pretty logs together
+4. summary command for runtime health
+5. peer / cert / finality / settlement status panels
 
-1. Stop the sequence immediately.
-2. Record failing command + full stderr/stdout.
-3. Classify failure as config, dependency, runtime, or policy gate.
-4. Apply fix in a new tracked change.
-5. Re-run from the **nearest safe checkpoint** (typically Section 2 or 4).
-
-Never skip failed gates in production workflows.
+These additions would move AOXChain from “experimental but structured” toward “serious testnet candidate”.
 
 ---
 
-## 10) Minimal Daily Command Set
+## 8. Rule of thumb
 
-For routine operator confidence checks:
+When in doubt:
 
-```bash
-cargo run -p aoxcmd -- version
-cargo run -p aoxcmd -- vision
-cargo run -p aoxcmd -- port-map
-cargo run -p aoxcmd -- runtime-status --trace minimal --tps 5.0 --peers 3 --error-rate 0.0
-```
-
----
-
-## 11) Reference Links
-
-- Primary repository overview: `README.md`
-- Crate-level map: `crates/README.md`
-- Security and risk posture: `docs/SECURITY_AND_RISK_NOTICE_TR.md`
-- Interoperability and key controls: `docs/KEY_TYPES_AND_INTEROP_GUIDE_EN.md`
-- Audit readiness operations: `docs/AUDIT_READINESS_AND_OPERATIONS.md`
-
----
-
-## Final Note
-
-This readbook is intentionally strict, chronological, and audit-friendly.
-If you keep evidence at each stage and enforce gate discipline, AOXChain operations remain reproducible, reviewable, and safer for production progression.
+- keep the local chain small,
+- keep the authority local,
+- keep execution remote,
+- and keep every critical decision auditable.

@@ -16,11 +16,12 @@ pub const MASTER_SEED_LEN: usize = 64;
 /// Canonical derived entropy size in bytes.
 pub const DERIVED_ENTROPY_LEN: usize = 64;
 
-/// Canonical path purpose used by AOXC HD derivation.
+/// Canonical coin type used by AOXC HD derivation.
 ///
 /// Current canonical format:
-/// m / 2626 / chain / role / zone / index
+/// m / 44 / 2626 / chain / role / zone / index
 pub const AOXC_HD_PURPOSE: u32 = 2626;
+pub const AOXC_HD_BIP44_PURPOSE: u32 = 44;
 
 /// Error surface for key-engine operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,6 +130,7 @@ impl KeyEngine {
     ///
     /// Derivation input includes:
     /// - AOXC derivation domain,
+    /// - BIP44 purpose,
     /// - canonical HD purpose,
     /// - master seed,
     /// - path chain,
@@ -147,6 +149,9 @@ impl KeyEngine {
         let mut hasher = Sha3_512::new();
 
         hasher.update(AOXC_KEY_DOMAIN);
+        hasher.update([0x00]);
+
+        hasher.update(AOXC_HD_BIP44_PURPOSE.to_be_bytes());
         hasher.update([0x00]);
 
         hasher.update(AOXC_HD_PURPOSE.to_be_bytes());

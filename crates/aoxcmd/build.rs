@@ -17,6 +17,14 @@ fn main() {
         "AOXC_BUILD_SOURCE_DATE_EPOCH",
         &env::var("SOURCE_DATE_EPOCH").unwrap_or_else(|_| "not-set".into()),
     );
+    emit_env(
+        "AOXC_BUILD_PROFILE",
+        &env::var("PROFILE").unwrap_or_else(|_| "unknown".into()),
+    );
+    emit_env(
+        "AOXC_BUILD_RELEASE_CHANNEL",
+        &env::var("AOXC_RELEASE_CHANNEL").unwrap_or_else(|_| "dev".into()),
+    );
 
     let git_commit =
         git_output(&["rev-parse", "--short=12", "HEAD"]).unwrap_or_else(|| "unknown".into());
@@ -34,27 +42,46 @@ fn main() {
         .unwrap_or_else(|| "unknown".into());
     emit_env("AOXC_BUILD_GIT_DIRTY", &dirty);
 
-    match env::var("AOXC_EMBED_CERT_PATH") {
+    let cert_sha256 = match env::var("AOXC_EMBED_CERT_PATH") {
         Ok(path) => {
             println!("cargo:rerun-if-changed={path}");
             match fs::read(&path) {
                 Ok(bytes) => {
                     let digest = Sha256::digest(bytes);
-                    emit_env("AOXC_BUILD_CERT_SHA256", &hex::encode(digest));
+                    let cert_sha256 = hex::encode(digest);
+                    emit_env("AOXC_BUILD_CERT_SHA256", &cert_sha256);
                     emit_env("AOXC_BUILD_CERT_PATH", &path);
+                    cert_sha256
                 }
                 Err(error) => {
                     emit_env("AOXC_BUILD_CERT_SHA256", "unavailable");
                     emit_env("AOXC_BUILD_CERT_PATH", &path);
                     emit_env("AOXC_BUILD_CERT_ERROR", &error.to_string());
+                    "unavailable".to_string()
                 }
             }
         }
         Err(_) => {
             emit_env("AOXC_BUILD_CERT_SHA256", "not-configured");
             emit_env("AOXC_BUILD_CERT_PATH", "not-configured");
+            "not-configured".to_string()
         }
-    }
+    };
+
+    let build_profile = env::var("PROFILE").unwrap_or_else(|_| "unknown".into());
+    let release_channel = env::var("AOXC_RELEASE_CHANNEL").unwrap_or_else(|_| "dev".into());
+    let attestation_payload = format!(
+        "{}|{}|{}|{}|{}|{}|{}",
+        env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "0.0.0".into()),
+        git_commit,
+        dirty,
+        env::var("SOURCE_DATE_EPOCH").unwrap_or_else(|_| "not-set".into()),
+        build_profile,
+        release_channel,
+        cert_sha256
+    );
+    let attestation_hash = hex::encode(Sha256::digest(attestation_payload.as_bytes()));
+    emit_env("AOXC_BUILD_ATTESTATION_HASH", &attestation_hash);
 }
 
 fn emit_env(key: &str, value: &str) {

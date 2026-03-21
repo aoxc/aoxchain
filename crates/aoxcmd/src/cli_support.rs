@@ -69,6 +69,10 @@ pub(crate) fn usage_text(lang: CliLanguage) -> &'static str {
 
 Komutlar:
   vision
+  build-manifest
+  node-connection-policy [--enforce-official]
+  sovereign-core
+  module-architecture
   compat-matrix
   port-map
   version
@@ -103,6 +107,10 @@ Global:
 
 Comandos:
   vision
+  build-manifest
+  node-connection-policy [--enforce-official]
+  sovereign-core
+  module-architecture
   compat-matrix
   port-map
   version
@@ -137,6 +145,10 @@ Global:
 
 Befehle:
   vision
+  build-manifest
+  node-connection-policy [--enforce-official]
+  sovereign-core
+  module-architecture
   compat-matrix
   port-map
   version
@@ -171,6 +183,10 @@ Global:
 
 Commands:
   vision
+  build-manifest
+  node-connection-policy [--enforce-official]
+  sovereign-core
+  module-architecture
   compat-matrix
   port-map
   version
