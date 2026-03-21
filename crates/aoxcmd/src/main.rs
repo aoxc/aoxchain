@@ -13,19 +13,74 @@ use aoxcnet::transport::live_tcp::run_live_tcp_smoke_on;
 use aoxcore::genesis::config::{GenesisConfig, SettlementLink, TREASURY_ACCOUNT};
 use aoxcore::genesis::loader::GenesisLoader;
 use aoxcore::identity::ca::CertificateAuthority;
+use aoxcore::identity::hd_path::HdPath;
+use aoxcore::identity::key_engine::{KeyEngine, MASTER_SEED_LEN};
+use aoxcore::protocol::{
+    canonical_chain_families, canonical_message_envelope_fields, canonical_modules,
+    canonical_sovereign_roots,
+};
+use serde::{Deserialize, Serialize};
+use sha3::{Digest, Sha3_256};
 use std::collections::BTreeMap;
 
 mod cli_support;
 
+#[cfg(test)]
+use cli_support::{CliLanguage, usage_text};
 use cli_support::{
-    CliLanguage, arg_bool_value, arg_flag, arg_value, detect_language, localized_unknown_command,
-    print_usage, usage_text,
+    arg_bool_value, arg_flag, arg_value, detect_language, localized_unknown_command, print_usage,
 };
 
 use std::env;
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::process;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+const AOXC_RELEASE_NAME: &str = "AOXC Alpha: Genesis V1";
+const TESTNET_FIXTURE_MEMBERS: [(&str, &str, u16, u16, u16, &str); 5] = [
+    (
+        "atlas",
+        "Atlas Validator",
+        39001,
+        19101,
+        1,
+        "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+    ),
+    (
+        "boreal",
+        "Boreal Validator",
+        39002,
+        19102,
+        2,
+        "22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222",
+    ),
+    (
+        "cypher",
+        "Cypher Validator",
+        39003,
+        19103,
+        3,
+        "33333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333",
+    ),
+    (
+        "delta",
+        "Delta Validator",
+        39004,
+        19104,
+        4,
+        "44444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444",
+    ),
+    (
+        "ember",
+        "Ember Validator",
+        39005,
+        19105,
+        5,
+        "55555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555",
+    ),
+];
 
 fn main() {
     if let Err(error) = run_cli() {
@@ -51,8 +106,15 @@ fn run_cli() -> Result<(), String> {
             Ok(())
         }
         "vision" => cmd_vision(),
+        "build-manifest" => cmd_build_manifest(),
+        "node-connection-policy" => cmd_node_connection_policy(&args[2..]),
+        "sovereign-core" => cmd_sovereign_core(),
+        "module-architecture" => cmd_module_architecture(),
         "compat-matrix" => cmd_compat_matrix(),
         "port-map" => cmd_port_map(),
+        "testnet-fixture-init" => cmd_testnet_fixture_init(&args[2..]),
+        "load-benchmark" => cmd_load_benchmark(&args[2..]),
+        "mainnet-readiness" => cmd_mainnet_readiness(&args[2..]),
         "key-bootstrap" => cmd_key_bootstrap(&args[2..]),
         "genesis-init" => cmd_genesis_init(&args[2..]),
         "node-bootstrap" => cmd_node_bootstrap(&args[2..]),
@@ -86,17 +148,89 @@ fn apply_home_override(args: &[String]) {
 
 fn cmd_version() -> Result<(), String> {
     let build = BuildInfo::collect();
-    let output = serde_json::json!({
+    let output = version_payload(&build);
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn version_payload(build: &BuildInfo) -> serde_json::Value {
+    serde_json::json!({
         "name": "aoxcmd",
+        "release_name": AOXC_RELEASE_NAME,
         "version": build.semver,
         "git_commit": build.git_commit,
         "git_dirty": build.git_dirty,
         "source_date_epoch": build.source_date_epoch,
+        "build_profile": build.build_profile,
+        "release_channel": build.release_channel,
+        "attestation_hash": build.attestation_hash,
         "embedded_cert": {
             "path": build.cert_path,
             "sha256": build.cert_sha256,
             "error": build.cert_error,
         }
+    })
+}
+
+fn cmd_build_manifest() -> Result<(), String> {
+    let build = BuildInfo::collect();
+    let output = build_manifest_payload(&build);
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn cmd_node_connection_policy(args: &[String]) -> Result<(), String> {
+    let build = BuildInfo::collect();
+    let enforce = arg_flag(args, "--enforce-official");
+    let official_release = is_official_release(&build);
+    let output = node_connection_policy_payload(&build);
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    if enforce && !official_release {
+        return Err(
+            "official node policy failed: build is not an official release artifact".to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+fn cmd_vision() -> Result<(), String> {
+    let output = serde_json::json!({
+        "release_name": AOXC_RELEASE_NAME,
+        "chain_positioning": "interop relay-oriented coordination chain",
+        "primary_goal": "cross-chain compatibility and deterministic coordination over raw throughput",
+        "execution_strategy": "sovereign constitutional local core + remote execution domains",
+        "recommended_topology": "local sovereign root modules + remote chain contracts/execution adapters",
+        "constitutional_roots": [
+            "identity",
+            "supply",
+            "governance",
+            "relay",
+            "security",
+            "settlement",
+            "treasury"
+        ],
+        "identity_model": "post-quantum capable key/certificate/passport pipeline",
+        "consensus_model": "quorum-based proposer/vote/finalization with explicit rotation",
+        "status": "pre-mainnet; deterministic local smoke path available"
     });
 
     println!(
@@ -108,14 +242,236 @@ fn cmd_version() -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_vision() -> Result<(), String> {
+fn cmd_sovereign_core() -> Result<(), String> {
+    let sovereign_roots: Vec<&str> = canonical_sovereign_roots()
+        .iter()
+        .map(|root| root.as_str())
+        .collect();
+
     let output = serde_json::json!({
-        "chain_positioning": "interop relay-oriented coordination chain",
-        "primary_goal": "cross-chain compatibility and deterministic coordination over raw throughput",
-        "execution_strategy": "multi-lane model compatible with heterogeneous external networks",
-        "identity_model": "post-quantum capable key/certificate/passport pipeline",
-        "consensus_model": "quorum-based proposer/vote/finalization with explicit rotation",
-        "status": "pre-mainnet; deterministic local smoke path available"
+        "local_chain_role": "sovereign constitutional core",
+        "remote_chain_role": "execution domains connected through contracts and settlement rules",
+        "constitutional_roots": sovereign_roots,
+        "local_must_keep": {
+            "identity": [
+                "root_account_registry",
+                "chain_mappings",
+                "signer_bindings",
+                "recovery_authority",
+                "key_rotation_rules",
+                "delegate_registry"
+            ],
+            "supply": [
+                "total_canonical_supply",
+                "mint_authority_root",
+                "burn_settlement_root",
+                "global_supply_accounting",
+                "emission_policy"
+            ],
+            "governance": [
+                "protocol_upgrades",
+                "module_approvals",
+                "remote_domain_authorization",
+                "risk_parameters",
+                "bridge_mint_ceilings",
+                "validator_policy"
+            ],
+            "relay": [
+                "outbound_message_commitments",
+                "inbound_settlement_acceptance_rules",
+                "nonce_root",
+                "replay_protection_root",
+                "approved_remote_domains",
+                "message_policy_classes"
+            ],
+            "security": [
+                "validator_set",
+                "attester_set",
+                "quorum_thresholds",
+                "slashing_logic",
+                "signature_policy",
+                "emergency_security_overrides"
+            ],
+            "settlement": [
+                "final_settlement_records",
+                "remote_execution_receipts_hash",
+                "dispute_intake",
+                "final_confirmation_state",
+                "cross_domain_settlement_journal"
+            ],
+            "treasury": [
+                "protocol_treasury",
+                "reserve_balances",
+                "insurance_reserve",
+                "strategic_liquidity_authority",
+                "module_funding_authority"
+            ]
+        },
+        "local_must_not_keep": [
+            "heavy_application_logic",
+            "chain_specific_dapp_logic",
+            "remote_integration_implementation_details",
+            "large_data_payloads",
+            "ai_decision_engine",
+            "experimental_app_execution"
+        ]
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn is_official_release(build: &BuildInfo) -> bool {
+    let channel_ok = matches!(build.release_channel, "stable" | "official" | "mainnet");
+    let cert_ok = !matches!(build.cert_sha256, "not-configured" | "unavailable");
+    channel_ok && build.git_dirty == "false" && cert_ok && build.attestation_hash.len() == 64
+}
+
+fn build_manifest_payload(build: &BuildInfo) -> serde_json::Value {
+    let official_release = is_official_release(build);
+
+    serde_json::json!({
+        "artifact": {
+            "name": "aoxcmd",
+            "release_name": AOXC_RELEASE_NAME,
+            "version": build.semver,
+            "git_commit": build.git_commit,
+            "git_dirty": build.git_dirty,
+            "source_date_epoch": build.source_date_epoch,
+            "build_profile": build.build_profile,
+            "release_channel": build.release_channel,
+            "attestation_hash": build.attestation_hash,
+        },
+        "certificate": {
+            "path": build.cert_path,
+            "sha256": build.cert_sha256,
+            "error": build.cert_error,
+        },
+        "supply_chain_policy": {
+            "official_release": official_release,
+            "requires_embedded_certificate": true,
+            "requires_attestation_hash": true,
+            "accept_unofficial_node_builds": false,
+        }
+    })
+}
+
+fn node_connection_policy_payload(build: &BuildInfo) -> serde_json::Value {
+    let official_release = is_official_release(build);
+
+    serde_json::json!({
+        "local_build": {
+            "release_name": AOXC_RELEASE_NAME,
+            "version": build.semver,
+            "release_channel": build.release_channel,
+            "git_dirty": build.git_dirty,
+            "attestation_hash": build.attestation_hash,
+            "embedded_cert_sha256": build.cert_sha256,
+            "official_release": official_release,
+        },
+        "accepted_remote_policy": {
+            "require_mtls": true,
+            "require_certificate_fingerprint_match": true,
+            "require_attestation_hash_exchange": true,
+            "allow_unofficial_remote_builds": false,
+            "accepted_release_channels": ["stable", "official", "mainnet"],
+        },
+        "operator_guidance": [
+            "Embed a node certificate at build time with AOXC_EMBED_CERT_PATH",
+            "Distribute attestation_hash and certificate fingerprint via a signed release manifest",
+            "Reject ad-hoc local builds for production peering unless explicitly approved",
+        ]
+    })
+}
+
+fn cmd_module_architecture() -> Result<(), String> {
+    let relay_module_names: Vec<&str> = canonical_modules()
+        .iter()
+        .map(|module| module.as_str())
+        .collect();
+    let sovereign_roots: Vec<&str> = canonical_sovereign_roots()
+        .iter()
+        .map(|root| root.as_str())
+        .collect();
+    let supported_chain_families: Vec<&str> = canonical_chain_families()
+        .iter()
+        .map(|family| family.as_str())
+        .collect();
+    let envelope_fields = canonical_message_envelope_fields();
+
+    let output = serde_json::json!({
+        "relay_core": {
+            "principle": "keep the relay chain thin, neutral, and durable",
+            "canonical_modules": relay_module_names,
+            "sovereign_roots": sovereign_roots,
+            "responsibilities": [
+                "finality_ordering",
+                "shared_security",
+                "validator_set_management",
+                "cross_module_message_routing",
+                "universal_identity_root",
+                "state_commitment_and_proof_root_anchoring",
+                "governance_and_upgrades",
+                "fee_and_staking_settlement_root"
+            ]
+        },
+        "attached_modules": [
+            {
+                "name": "AOXC-MODULE-IDENTITY",
+                "purpose": "universal identity, address binding, recovery, delegates, chain account mapping",
+                "must_depend_on_relay": ["identity_root", "governance", "state_commitment"]
+            },
+            {
+                "name": "AOXC-MODULE-ASSET",
+                "purpose": "native asset, wrapped assets, treasury accounting, bridge escrow and settlement balances",
+                "must_depend_on_relay": ["settlement_root", "governance", "security_policy"]
+            },
+            {
+                "name": "AOXC-MODULE-EXECUTION",
+                "purpose": "contracts, programmable actions, intents, and app-specific logic outside the relay core",
+                "must_depend_on_relay": ["checkpoint_acceptance", "message_bus", "governance"]
+            },
+            {
+                "name": "AOXC-MODULE-INTEROP",
+                "purpose": "single bridge domain with adapter families for external chain connectivity",
+                "adapters": ["evm", "solana", "utxo", "ibc", "object"],
+                "must_depend_on_relay": ["message_bus", "identity_root", "proof_anchoring", "security_policy"]
+            },
+            {
+                "name": "AOXC-MODULE-PROOF",
+                "purpose": "data commitments, proof publication, light-client support data, batch/blob references",
+                "must_depend_on_relay": ["state_commitment", "finality", "governance"]
+            }
+        ],
+        "message_envelope": {
+            "fields": envelope_fields
+        },
+        "security_boundaries": {
+            "relay_core": [
+                "minimum_attack_surface",
+                "critical_state_only",
+                "no_heavy_app_logic",
+                "governance_controlled_upgrades"
+            ],
+            "modules": [
+                "separate_risk_domains",
+                "separate_rate_limits",
+                "separate_circuit_breakers",
+                "separate_fee_policies",
+                "separate_storage_proof_domains"
+            ]
+        },
+        "compatibility_strategy": {
+            "model": "functional modules + adapter families",
+            "supported_chain_families": supported_chain_families,
+            "do_not_do": "do not turn the relay chain into a heavy application chain",
+            "why": "chain families evolve, but identity, asset, execution, interop, and proof responsibilities remain stable"
+        }
     });
 
     println!(
@@ -160,13 +516,24 @@ fn cmd_compat_matrix() -> Result<(), String> {
         "execution_lanes": ["EVM", "WASM", "Sui Move", "Cardano UTXO"],
         "network_surface": ["Gossip", "Discovery", "Sync", "RPC"],
         "transport_profiles": ["TCP", "UDP", "QUIC"],
+        "support_model": {
+            "evm_family": "partial",
+            "wasm_family": "partial",
+            "move_family": "partial",
+            "utxo_family": "partial",
+            "all_chains_full_compatibility": false
+        },
         "compatibility": {
             "evm_chains": "bridge-compatible via aoxcvm::lanes::evm",
             "wasm_chains": "bridge-compatible via aoxcvm::lanes::wasm",
             "move_ecosystem": "bridge-compatible via aoxcvm::lanes::sui_move",
             "utxo_ecosystem": "bridge-compatible via aoxcvm::lanes::cardano"
         },
-        "note": "Deterministic coordination is implemented; production interoperability requires chain-specific bridge adapters and audits."
+        "hard_limits": [
+            "No relay chain can honestly guarantee 100% security",
+            "Full compatibility with every chain requires chain-specific adapters, test vectors, and finality proofs"
+        ],
+        "note": "Deterministic coordination is implemented; production interoperability requires chain-specific bridge adapters, replay/finality validation, and audits."
     });
 
     println!(
@@ -298,6 +665,635 @@ fn cmd_genesis_init(args: &[String]) -> Result<(), String> {
     );
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct TestnetFixtureAccount {
+    slug: String,
+    display_name: String,
+    chain_num: u32,
+    hd_path: String,
+    master_seed_hex: String,
+    node_seed_path: String,
+    account_address: String,
+    validator_id_hex: String,
+    account_funding: String,
+    p2p_listen_addr: String,
+    rpc_addr: String,
+    peers: Vec<String>,
+    key_engine_fingerprint: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct TestnetFixtureManifest {
+    profile: String,
+    chain_num: u32,
+    chain_id: String,
+    block_time_secs: u64,
+    security_mode: String,
+    fund_amount_per_account: String,
+    warning: String,
+    accounts: Vec<TestnetFixtureAccount>,
+}
+
+fn cmd_testnet_fixture_init(args: &[String]) -> Result<(), String> {
+    let output_dir = arg_value(args, "--output-dir")
+        .unwrap_or_else(|| "configs/deterministic-testnet".to_string());
+    let chain_num: u32 = arg_value(args, "--chain-num")
+        .unwrap_or_else(|| "77".to_string())
+        .parse()
+        .map_err(|_| "--chain-num must be a valid u32".to_string())?;
+    let fund_amount: u128 = arg_value(args, "--fund-amount")
+        .unwrap_or_else(|| "2500000000000000000000".to_string())
+        .parse()
+        .map_err(|_| "--fund-amount must be a valid u128".to_string())?;
+
+    let manifest = build_testnet_fixture_manifest(chain_num, fund_amount)?;
+    write_testnet_fixture(&output_dir, &manifest)?;
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "output_dir": output_dir,
+            "chain_id": manifest.chain_id,
+            "account_count": manifest.accounts.len(),
+            "accounts_file": format!("{}/accounts.json", output_dir),
+            "genesis_file": format!("{}/genesis.json", output_dir),
+            "launch_script": format!("{}/launch-testnet.sh", output_dir),
+            "warning": manifest.warning,
+        }))
+        .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReadinessEvidenceFile {
+    version: String,
+    previous_score: Option<f64>,
+    criteria: Vec<ReadinessCriterion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ReadinessCriterion {
+    name: String,
+    area: String,
+    status: String,
+    weight: u8,
+    done_definition: String,
+    evidence: Vec<String>,
+    blocker: bool,
+    stretch_goal: bool,
+}
+
+fn cmd_load_benchmark(args: &[String]) -> Result<(), String> {
+    let rounds: u64 = arg_value(args, "--rounds")
+        .unwrap_or_else(|| "25".to_string())
+        .parse()
+        .map_err(|_| "--rounds must be a valid u64".to_string())?;
+    let tx_per_block: usize = arg_value(args, "--tx-per-block")
+        .unwrap_or_else(|| "50".to_string())
+        .parse()
+        .map_err(|_| "--tx-per-block must be a valid usize".to_string())?;
+    let payload_bytes: usize = arg_value(args, "--payload-bytes")
+        .unwrap_or_else(|| "256".to_string())
+        .parse()
+        .map_err(|_| "--payload-bytes must be a valid usize".to_string())?;
+    let network_rounds: u64 = arg_value(args, "--network-rounds")
+        .unwrap_or_else(|| "10".to_string())
+        .parse()
+        .map_err(|_| "--network-rounds must be a valid u64".to_string())?;
+    let timeout_ms: u64 = arg_value(args, "--timeout-ms")
+        .unwrap_or_else(|| "2000".to_string())
+        .parse()
+        .map_err(|_| "--timeout-ms must be a valid u64".to_string())?;
+
+    if rounds == 0 {
+        return Err("--rounds must be greater than zero".to_string());
+    }
+    if tx_per_block == 0 {
+        return Err("--tx-per-block must be greater than zero".to_string());
+    }
+    if payload_bytes == 0 {
+        return Err("--payload-bytes must be greater than zero".to_string());
+    }
+
+    let home = data_home::resolve_data_home(args);
+    let mut node = state::setup_with_home(&home).map_err(|error| error.to_string())?;
+
+    let started = Instant::now();
+    let mut produced_blocks = 0u64;
+    let mut failed_rounds = Vec::new();
+    let mut last_height = 0u64;
+
+    for round in 0..rounds {
+        let payloads = (0..tx_per_block)
+            .map(|tx_index| synthetic_benchmark_payload(round, tx_index, payload_bytes))
+            .collect::<Vec<_>>();
+
+        match produce_single_block(&mut node, payloads) {
+            Ok(outcome) => {
+                produced_blocks += 1;
+                last_height = outcome.block.header.height;
+            }
+            Err(error) => failed_rounds.push(format!("round {}: {}", round + 1, error)),
+        }
+    }
+
+    let elapsed = started.elapsed();
+    let total_txs_attempted = rounds as usize * tx_per_block;
+    let total_txs_committed = produced_blocks as usize * tx_per_block;
+    let tx_per_sec = if elapsed.as_secs_f64() == 0.0 {
+        0.0
+    } else {
+        total_txs_committed as f64 / elapsed.as_secs_f64()
+    };
+    let blocks_per_sec = if elapsed.as_secs_f64() == 0.0 {
+        0.0
+    } else {
+        produced_blocks as f64 / elapsed.as_secs_f64()
+    };
+
+    let mut network_rtts = Vec::new();
+    let network_payload = synthetic_benchmark_payload(0, 0, payload_bytes.min(1024));
+    for _ in 0..network_rounds {
+        let report =
+            run_live_tcp_smoke_on("127.0.0.1:0", &network_payload, Duration::from_millis(timeout_ms))
+                .map_err(|error| format!("NETWORK_BENCHMARK_ERROR: {error}"))?;
+        network_rtts.push(report.round_trip_ms);
+    }
+
+    let avg_network_rtt_ms = if network_rtts.is_empty() {
+        None
+    } else {
+        Some((network_rtts.iter().sum::<u128>() / network_rtts.len() as u128) as u64)
+    };
+
+    let output = serde_json::json!({
+        "command": "load-benchmark",
+        "scope": "single-process local synthetic benchmark",
+        "home": home,
+        "configuration": {
+            "rounds": rounds,
+            "tx_per_block": tx_per_block,
+            "payload_bytes": payload_bytes,
+            "network_rounds": network_rounds,
+            "network_timeout_ms": timeout_ms,
+        },
+        "results": {
+            "elapsed_ms": elapsed.as_millis() as u64,
+            "blocks_requested": rounds,
+            "blocks_produced": produced_blocks,
+            "rounds_failed": failed_rounds.len(),
+            "error_free": failed_rounds.is_empty(),
+            "last_height": last_height,
+            "tx_attempted": total_txs_attempted,
+            "tx_committed": total_txs_committed,
+            "blocks_per_sec": blocks_per_sec,
+            "tx_per_sec": tx_per_sec,
+        },
+        "network": {
+            "loopback_round_trip_ms": {
+                "min": network_rtts.iter().min().copied(),
+                "max": network_rtts.iter().max().copied(),
+                "avg": avg_network_rtt_ms,
+            }
+        },
+        "failures": failed_rounds,
+        "note": "These numbers represent a local synthetic benchmark, not internet-scale mainnet throughput or adversarial-load certification.",
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn cmd_mainnet_readiness(args: &[String]) -> Result<(), String> {
+    let evidence_path = arg_value(args, "--evidence");
+    let evidence = match &evidence_path {
+        Some(path) => load_readiness_evidence(path)?,
+        None => default_readiness_evidence(),
+    };
+
+    let total_weight: u32 = evidence
+        .criteria
+        .iter()
+        .map(|criterion| u32::from(criterion.weight))
+        .sum();
+    let achieved_weight: f64 = evidence
+        .criteria
+        .iter()
+        .map(|criterion| readiness_credit(&criterion.status) * f64::from(criterion.weight))
+        .sum();
+    let readiness_percent = if total_weight == 0 {
+        0.0
+    } else {
+        (achieved_weight / total_weight as f64) * 100.0
+    };
+
+    let blockers = evidence
+        .criteria
+        .iter()
+        .filter(|criterion| criterion.blocker && criterion.status != "done")
+        .map(|criterion| format!("{} ({})", criterion.name, criterion.area))
+        .collect::<Vec<_>>();
+
+    let partials = evidence
+        .criteria
+        .iter()
+        .filter(|criterion| criterion.status == "partial")
+        .map(|criterion| format!("{} ({})", criterion.name, criterion.area))
+        .collect::<Vec<_>>();
+
+    let stretch_goals = evidence
+        .criteria
+        .iter()
+        .filter(|criterion| criterion.stretch_goal)
+        .map(|criterion| format!("{} ({})", criterion.name, criterion.area))
+        .collect::<Vec<_>>();
+
+    let delta_from_previous = evidence
+        .previous_score
+        .map(|previous| ((readiness_percent - previous) * 100.0).round() / 100.0);
+
+    let output = serde_json::json!({
+        "command": "mainnet-readiness",
+        "evidence_version": evidence.version,
+        "evidence_path": evidence_path,
+        "readiness_percent": readiness_percent,
+        "grade": readiness_grade(readiness_percent),
+        "summary": readiness_summary(readiness_percent),
+        "delta_from_previous": delta_from_previous,
+        "criteria": evidence.criteria,
+        "hard_blockers": blockers,
+        "partial_gaps": partials,
+        "stretch_goals": stretch_goals,
+        "scoring_policy": {
+            "done": 1.0,
+            "partial": 0.5,
+            "missing": 0.0,
+        },
+        "recommendations": [
+            "Complete multi-host p2p tests and sustained peer churn recovery.",
+            "Add adversarial partition/byzantine/fault-injection suites.",
+            "Implement state sync, replay recovery, and snapshot restore validation.",
+            "Add long-duration soak tests and public testnet telemetry/SLO dashboards.",
+            "Validate real-world latency and throughput on multiple machines before any mainnet claim."
+        ],
+        "note": "This is an engineering readiness estimate backed by explicit evidence entries, not a security audit or a guarantee of production safety."
+    });
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?
+    );
+
+    Ok(())
+}
+
+fn readiness_credit(status: &str) -> f64 {
+    match status {
+        "done" | "ready" => 1.0,
+        "partial" => 0.5,
+        _ => 0.0,
+    }
+}
+
+fn load_readiness_evidence(path: &str) -> Result<ReadinessEvidenceFile, String> {
+    let raw = fs::read_to_string(path).map_err(|error| format!("READINESS_EVIDENCE_READ_ERROR: {error}"))?;
+
+    if path.ends_with(".yaml") || path.ends_with(".yml") {
+        serde_yaml::from_str(&raw)
+            .map_err(|error| format!("READINESS_EVIDENCE_PARSE_ERROR: {error}"))
+    } else {
+        serde_json::from_str(&raw)
+            .map_err(|error| format!("READINESS_EVIDENCE_PARSE_ERROR: {error}"))
+    }
+}
+
+fn default_readiness_evidence() -> ReadinessEvidenceFile {
+    ReadinessEvidenceFile {
+        version: "aoxc-readiness-evidence-v1".to_string(),
+        previous_score: Some(36.0),
+        criteria: vec![
+            ReadinessCriterion {
+                name: "Deterministic genesis and local fixture".to_string(),
+                area: "bootstrap".to_string(),
+                status: "done".to_string(),
+                weight: 8,
+                done_definition: "5-node deterministic fixture, reproducible homes, and funded genesis are committed.".to_string(),
+                evidence: vec![
+                    "configs/deterministic-testnet/accounts.json".to_string(),
+                    "configs/deterministic-testnet/genesis.json".to_string(),
+                ],
+                blocker: false,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Single-host load benchmark".to_string(),
+                area: "performance".to_string(),
+                status: "done".to_string(),
+                weight: 6,
+                done_definition: "A repeatable local benchmark exists and emits structured throughput/latency data.".to_string(),
+                evidence: vec!["aoxcmd load-benchmark".to_string()],
+                blocker: false,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Multi-host real network validation".to_string(),
+                area: "network".to_string(),
+                status: "missing".to_string(),
+                weight: 15,
+                done_definition: "3-5 nodes run on separate hosts with propagation metrics and consolidated report.".to_string(),
+                evidence: vec![],
+                blocker: true,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Partition and fault scenarios".to_string(),
+                area: "resilience".to_string(),
+                status: "missing".to_string(),
+                weight: 15,
+                done_definition: "Partition, restart, delay, drop, timeout, and basic fault injection scenarios are executed and documented.".to_string(),
+                evidence: vec![],
+                blocker: true,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "State sync and snapshot recovery".to_string(),
+                area: "recovery".to_string(),
+                status: "missing".to_string(),
+                weight: 15,
+                done_definition: "Join/rejoin, snapshot export/import, and recovery consistency are tested.".to_string(),
+                evidence: vec![],
+                blocker: true,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Soak test".to_string(),
+                area: "operations".to_string(),
+                status: "missing".to_string(),
+                weight: 12,
+                done_definition: "Long-duration continuous run with resource, error, and stall reporting exists.".to_string(),
+                evidence: vec![],
+                blocker: true,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Telemetry and alerting".to_string(),
+                area: "observability".to_string(),
+                status: "partial".to_string(),
+                weight: 10,
+                done_definition: "Health, block time, throughput, peer count, sync state, and error counters are standardized and surfaced.".to_string(),
+                evidence: vec![
+                    "runtime-status".to_string(),
+                    "production-audit".to_string(),
+                ],
+                blocker: false,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Upgrade and migration planning".to_string(),
+                area: "upgrade".to_string(),
+                status: "missing".to_string(),
+                weight: 10,
+                done_definition: "Versioning, schema migration, rollback, and compatibility tests are written and validated.".to_string(),
+                evidence: vec![],
+                blocker: false,
+                stretch_goal: false,
+            },
+            ReadinessCriterion {
+                name: "Operator runbook".to_string(),
+                area: "operations".to_string(),
+                status: "partial".to_string(),
+                weight: 9,
+                done_definition: "Start/stop/resync/snapshot/peer troubleshooting and incident checklist are documented.".to_string(),
+                evidence: vec![
+                    "docs/REAL_NETWORK_VALIDATION_RUNBOOK_TR.md".to_string(),
+                ],
+                blocker: false,
+                stretch_goal: true,
+            },
+        ],
+    }
+}
+
+fn readiness_grade(percent: f64) -> &'static str {
+    if percent >= 85.0 {
+        "A"
+    } else if percent >= 70.0 {
+        "B"
+    } else if percent >= 55.0 {
+        "C"
+    } else if percent >= 40.0 {
+        "D"
+    } else {
+        "E"
+    }
+}
+
+fn readiness_summary(percent: f64) -> &'static str {
+    if percent >= 85.0 {
+        "Close to production candidate, but still requires external validation."
+    } else if percent >= 70.0 {
+        "Strong pre-mainnet engineering base with several critical gaps still open."
+    } else if percent >= 55.0 {
+        "Mid-stage readiness: useful local/system validation exists, but mainnet blockers remain."
+    } else {
+        "Early-stage readiness: architecture exists, but operational and adversarial evidence is insufficient."
+    }
+}
+
+fn synthetic_benchmark_payload(round: u64, tx_index: usize, payload_bytes: usize) -> Vec<u8> {
+    let prefix = format!("AOXC_BENCH_{round}_{tx_index}_");
+    let mut payload = prefix.into_bytes();
+
+    while payload.len() < payload_bytes {
+        payload.extend_from_slice(b"X");
+    }
+
+    payload.truncate(payload_bytes);
+    payload
+}
+
+fn build_testnet_fixture_manifest(
+    chain_num: u32,
+    fund_amount: u128,
+) -> Result<TestnetFixtureManifest, String> {
+    let mut accounts = Vec::with_capacity(TESTNET_FIXTURE_MEMBERS.len());
+
+    for (slug, display_name, p2p_port, rpc_port, zone, master_seed_hex) in TESTNET_FIXTURE_MEMBERS {
+        let seed = decode_master_seed_hex(master_seed_hex)?;
+        let key_engine = KeyEngine::from_seed(seed);
+        let hd_path = HdPath::new(chain_num, 1, u32::from(zone), 0)
+            .map_err(|error| format!("invalid deterministic hd path: {error}"))?;
+        let entropy = key_engine.derive_entropy(&hd_path);
+        let account_address = deterministic_address(slug, &entropy);
+        let validator_id_hex = hex::encode_upper(&entropy[..32]);
+
+        let peers = TESTNET_FIXTURE_MEMBERS
+            .iter()
+            .filter(|(peer_slug, ..)| peer_slug != &slug)
+            .map(|(_, _, peer_p2p_port, ..)| format!("127.0.0.1:{peer_p2p_port}"))
+            .collect();
+
+        accounts.push(TestnetFixtureAccount {
+            slug: slug.to_string(),
+            display_name: display_name.to_string(),
+            chain_num,
+            hd_path: hd_path.to_string(),
+            master_seed_hex: master_seed_hex.to_string(),
+            node_seed_path: "identity/test-node-seed.hex".to_string(),
+            account_address,
+            validator_id_hex,
+            account_funding: fund_amount.to_string(),
+            p2p_listen_addr: format!("127.0.0.1:{p2p_port}"),
+            rpc_addr: format!("127.0.0.1:{rpc_port}"),
+            peers,
+            key_engine_fingerprint: key_engine.fingerprint(),
+        });
+    }
+
+    Ok(TestnetFixtureManifest {
+        profile: "deterministic-testnet".to_string(),
+        chain_num,
+        chain_id: GenesisConfig::generate_chain_id(chain_num),
+        block_time_secs: 4,
+        security_mode: "mutual_auth_test_fixture".to_string(),
+        fund_amount_per_account: fund_amount.to_string(),
+        warning: "TEST ONLY: all seeds in this fixture are public and must never be used in production."
+            .to_string(),
+        accounts,
+    })
+}
+
+fn write_testnet_fixture(output_dir: &str, manifest: &TestnetFixtureManifest) -> Result<(), String> {
+    fs::create_dir_all(output_dir).map_err(|error| error.to_string())?;
+    fs::create_dir_all(format!("{output_dir}/nodes")).map_err(|error| error.to_string())?;
+    fs::create_dir_all(format!("{output_dir}/homes")).map_err(|error| error.to_string())?;
+
+    let accounts_json = serde_json::to_vec_pretty(manifest)
+        .map_err(|error| format!("JSON_SERIALIZE_ERROR: {error}"))?;
+    fs::write(format!("{output_dir}/accounts.json"), accounts_json).map_err(|error| error.to_string())?;
+
+    let mut genesis = GenesisConfig::new();
+    genesis.chain_num = manifest.chain_num;
+    genesis.chain_id = manifest.chain_id.clone();
+    genesis.block_time = manifest.block_time_secs;
+    genesis.treasury = 5_000_000_000_000;
+    genesis.add_account(TREASURY_ACCOUNT.to_string(), genesis.treasury);
+    for account in &manifest.accounts {
+        genesis.add_account(
+            account.account_address.clone(),
+            account
+                .account_funding
+                .parse()
+                .map_err(|_| "invalid account_funding in manifest".to_string())?,
+        );
+    }
+    GenesisLoader::save(&genesis, format!("{output_dir}/genesis.json"))
+        .map_err(|error| error.to_string())?;
+
+    for account in &manifest.accounts {
+        fs::write(
+            format!("{output_dir}/nodes/{}.toml", account.slug),
+            render_node_toml(account, manifest),
+        )
+        .map_err(|error| error.to_string())?;
+
+        let home_identity_dir = format!("{output_dir}/homes/{}/identity", account.slug);
+        fs::create_dir_all(&home_identity_dir).map_err(|error| error.to_string())?;
+        fs::write(
+            format!("{home_identity_dir}/test-node-seed.hex"),
+            format!("{}\n", account.master_seed_hex),
+        )
+        .map_err(|error| error.to_string())?;
+        fs::copy(
+            format!("{output_dir}/genesis.json"),
+            format!("{home_identity_dir}/genesis.json"),
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    let launch_script_path = format!("{output_dir}/launch-testnet.sh");
+    fs::write(&launch_script_path, render_launch_script(manifest)).map_err(|error| error.to_string())?;
+    let permissions = fs::Permissions::from_mode(0o755);
+    fs::set_permissions(&launch_script_path, permissions).map_err(|error| error.to_string())?;
+
+    Ok(())
+}
+
+fn render_node_toml(account: &TestnetFixtureAccount, manifest: &TestnetFixtureManifest) -> String {
+    let peers = account
+        .peers
+        .iter()
+        .map(|peer| format!("  \"{peer}\""))
+        .collect::<Vec<_>>()
+        .join(",\n");
+
+    format!(
+        "chain_id = \"{}\"\nnode_name = \"{}\"\nlisten_addr = \"{}\"\nrpc_addr = \"{}\"\npeers = [\n{}\n]\nsecurity_mode = \"{}\"\nhd_path = \"{}\"\nvalidator_id_hex = \"{}\"\naccount_address = \"{}\"\nwarning = \"TEST ONLY - public fixture seed\"\n",
+        manifest.chain_id,
+        account.slug,
+        account.p2p_listen_addr,
+        account.rpc_addr,
+        peers,
+        manifest.security_mode,
+        account.hd_path,
+        account.validator_id_hex,
+        account.account_address,
+    )
+}
+
+fn render_launch_script(manifest: &TestnetFixtureManifest) -> String {
+    let mut script = String::from(
+        "#!/usr/bin/env bash\nset -euo pipefail\n\nROOT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\nAOXC_BIN=\"${AOXC_BIN:-cargo run -q -p aoxcmd --}\"\nROUNDS=\"${ROUNDS:-2}\"\nSLEEP_MS=\"${SLEEP_MS:-250}\"\n\necho \"[fixture] chain_id=",
+    );
+    script.push_str(&manifest.chain_id);
+    script.push_str("\"\n");
+    script.push_str("echo \"[fixture] TEST ONLY seeds are public; do not reuse outside local/dev environments.\"\n\n");
+
+    for account in &manifest.accounts {
+        let tx_prefix = format!("{}-TX", account.slug.to_uppercase());
+        script.push_str(&format!(
+            "echo \"[fixture] bootstrapping {slug}\" \n$AOXC_BIN node-bootstrap --home \"$ROOT_DIR/homes/{slug}\" >/tmp/aoxc-{slug}-bootstrap.json\n$AOXC_BIN node-run --home \"$ROOT_DIR/homes/{slug}\" --rounds \"$ROUNDS\" --sleep-ms \"$SLEEP_MS\" --tx-prefix \"{tx_prefix}\" >/tmp/aoxc-{slug}-run.json\n",
+            slug = account.slug,
+            tx_prefix = tx_prefix,
+        ));
+    }
+
+    script
+}
+
+fn decode_master_seed_hex(value: &str) -> Result<[u8; MASTER_SEED_LEN], String> {
+    let raw = hex::decode(value).map_err(|_| "fixture seed must be valid hex".to_string())?;
+    if raw.len() != MASTER_SEED_LEN {
+        return Err(format!(
+            "fixture seed must be {MASTER_SEED_LEN} bytes, got {}",
+            raw.len()
+        ));
+    }
+
+    let mut seed = [0u8; MASTER_SEED_LEN];
+    seed.copy_from_slice(&raw);
+    Ok(seed)
+}
+
+fn deterministic_address(slug: &str, entropy: &[u8]) -> String {
+    let mut hasher = Sha3_256::new();
+    hasher.update(b"AOXC-TESTNET-FIXTURE-ADDRESS-V1");
+    hasher.update([0x00]);
+    hasher.update(slug.as_bytes());
+    hasher.update([0x00]);
+    hasher.update(entropy);
+    let digest = hasher.finalize();
+    format!("AOXC_TEST_{}", hex::encode_upper(&digest[..20]))
 }
 
 fn cmd_node_bootstrap(args: &[String]) -> Result<(), String> {
@@ -767,7 +1763,15 @@ fn cmd_runtime_status(args: &[String]) -> Result<(), String> {
 }
 
 fn cmd_interop_readiness() -> Result<(), String> {
+    let assessment = interop_assessment();
+
     let output = serde_json::json!({
+        "assessment": {
+            "estimated_readiness_percent": assessment.estimated_readiness_percent,
+            "status": assessment.status,
+            "ready_for_all_chains": assessment.ready_for_all_chains,
+            "can_claim_100_percent_security": assessment.can_claim_100_percent_security,
+        },
         "identity": {
             "key_algorithms": [
                 {
@@ -794,7 +1798,11 @@ fn cmd_interop_readiness() -> Result<(), String> {
             "deterministic serialization and replay tests",
             "observability SLOs and alerting thresholds",
             "external security audit for bridge and key lifecycle"
-        ]
+        ],
+        "implemented_controls": assessment.implemented_controls,
+        "missing_critical_controls": assessment.missing_critical_controls,
+        "hard_blockers": assessment.hard_blockers,
+        "next_priority_actions": assessment.next_priority_actions
     });
 
     println!(
@@ -803,6 +1811,53 @@ fn cmd_interop_readiness() -> Result<(), String> {
     );
 
     Ok(())
+}
+
+#[derive(Debug, Clone)]
+struct InteropAssessment {
+    estimated_readiness_percent: f64,
+    status: &'static str,
+    ready_for_all_chains: bool,
+    can_claim_100_percent_security: bool,
+    implemented_controls: Vec<&'static str>,
+    missing_critical_controls: Vec<&'static str>,
+    hard_blockers: Vec<&'static str>,
+    next_priority_actions: Vec<&'static str>,
+}
+
+fn interop_assessment() -> InteropAssessment {
+    InteropAssessment {
+        estimated_readiness_percent: 38.0,
+        status: "pre-mainnet-hardening",
+        ready_for_all_chains: false,
+        can_claim_100_percent_security: false,
+        implemented_controls: vec![
+            "relay-oriented multi-crate architecture",
+            "multi-lane execution model (EVM/WASM/Sui Move/Cardano UTXO)",
+            "runtime health/readiness and telemetry surfaces",
+            "mainnet key generation explicit opt-in guard",
+            "production audit CLI surface",
+        ],
+        missing_critical_controls: vec![
+            "independent external security audit with remediation closure",
+            "continuous fuzz/property testing for bridge and serialization paths",
+            "deterministic replay suite across historical state transitions",
+            "multi-node adversarial consensus and partition recovery tests",
+            "chain-specific bridge adapter conformance vectors",
+            "signed release artifacts, SBOM, and provenance attestation",
+        ],
+        hard_blockers: vec![
+            "No proof that relay logic is safe against all target-chain finality differences",
+            "No evidence of completed external audit closure for core/bridge/network paths",
+            "No evidence of exhaustive cross-chain compatibility vectors per target family",
+        ],
+        next_priority_actions: vec![
+            "Add 3+ node deterministic adversarial simulation suite",
+            "Add replay fixtures and bridge proof failure-injection tests",
+            "Add release signing, SBOM generation, and provenance verification",
+            "Publish chain-family-specific compatibility matrices and acceptance criteria",
+        ],
+    }
 }
 
 fn cmd_interop_gate(args: &[String]) -> Result<(), String> {
@@ -1025,8 +2080,12 @@ fn assert_mainnet_key_policy(args: &[String], profile: &str) -> Result<(), Strin
 #[cfg(test)]
 mod tests {
     use super::{
-        CliLanguage, ai_control_score, arg_bool_value, assert_mainnet_key_policy,
-        bootstrap_defaults, detect_language, localized_unknown_command, usage_text,
+        BuildInfo, CliLanguage, ai_control_score, arg_bool_value, assert_mainnet_key_policy,
+        bootstrap_defaults, build_manifest_payload, build_testnet_fixture_manifest,
+        default_readiness_evidence, detect_language, interop_assessment, is_official_release,
+        load_readiness_evidence, localized_unknown_command, node_connection_policy_payload,
+        readiness_credit, readiness_grade, render_launch_script, synthetic_benchmark_payload,
+        usage_text, version_payload,
     };
 
     #[test]
@@ -1088,6 +2147,12 @@ mod tests {
     fn usage_text_mentions_port_map_and_network_port_override() {
         let usage = usage_text(CliLanguage::En);
         assert!(usage.contains("port-map"));
+        assert!(usage.contains("build-manifest"));
+        assert!(usage.contains("node-connection-policy"));
+        assert!(usage.contains("sovereign-core"));
+        assert!(usage.contains("module-architecture"));
+        assert!(usage.contains("load-benchmark"));
+        assert!(usage.contains("mainnet-readiness"));
         assert!(
             usage.contains("network-smoke [--timeout-ms <u64>] [--bind-host <addr>] [--port <u16>] [--payload <text>]")
         );
@@ -1121,5 +2186,155 @@ mod tests {
 
         assert_eq!(ai_control_score(&controls), 50);
         assert_eq!(ai_control_score(&[]), 0);
+    }
+
+    #[test]
+    fn interop_assessment_is_explicitly_not_full_or_universal() {
+        let assessment = interop_assessment();
+
+        assert!(assessment.estimated_readiness_percent < 100.0);
+        assert!(!assessment.ready_for_all_chains);
+        assert!(!assessment.can_claim_100_percent_security);
+        assert!(!assessment.hard_blockers.is_empty());
+        assert!(!assessment.missing_critical_controls.is_empty());
+    }
+
+    #[test]
+    fn official_release_policy_requires_clean_certified_stable_build() {
+        let official = BuildInfo {
+            semver: "0.1.0",
+            git_commit: "abc123",
+            git_dirty: "false",
+            source_date_epoch: "123456",
+            build_profile: "release",
+            release_channel: "stable",
+            attestation_hash: "a".repeat(64).leak(),
+            cert_path: "/tmp/server.crt",
+            cert_sha256: "b".repeat(64).leak(),
+            cert_error: "none",
+        };
+        assert!(is_official_release(&official));
+
+        let unofficial = BuildInfo {
+            git_dirty: "true",
+            ..official
+        };
+        assert!(!is_official_release(&unofficial));
+    }
+
+    #[test]
+    fn version_payload_contains_release_name_and_attestation_hash() {
+        let build = BuildInfo::collect();
+        let payload = version_payload(&build);
+
+        assert_eq!(payload["release_name"], "AOXC Alpha: Genesis V1");
+        assert!(payload["attestation_hash"].as_str().is_some());
+    }
+
+    #[test]
+    fn build_manifest_payload_contains_supply_chain_policy() {
+        let build = BuildInfo::collect();
+        let payload = build_manifest_payload(&build);
+
+        assert_eq!(
+            payload["artifact"]["release_name"],
+            "AOXC Alpha: Genesis V1"
+        );
+        assert_eq!(
+            payload["supply_chain_policy"]["accept_unofficial_node_builds"],
+            false
+        );
+        assert_eq!(
+            payload["supply_chain_policy"]["requires_attestation_hash"],
+            true
+        );
+    }
+
+    #[test]
+    fn node_connection_policy_payload_requires_mtls() {
+        let build = BuildInfo::collect();
+        let payload = node_connection_policy_payload(&build);
+
+        assert_eq!(
+            payload["local_build"]["release_name"],
+            "AOXC Alpha: Genesis V1"
+        );
+        assert_eq!(payload["accepted_remote_policy"]["require_mtls"], true);
+        assert_eq!(
+            payload["accepted_remote_policy"]["allow_unofficial_remote_builds"],
+            false
+        );
+    }
+
+    #[test]
+    fn testnet_fixture_manifest_contains_five_named_accounts() {
+        let manifest =
+            build_testnet_fixture_manifest(77, 2_500_000_000_000_000_000_000).expect("fixture");
+
+        assert_eq!(manifest.accounts.len(), 5);
+        assert_eq!(manifest.chain_id, "AOXC-0077-MAIN");
+        assert_eq!(manifest.accounts[0].slug, "atlas");
+        assert!(manifest.accounts.iter().all(|account| {
+            account.master_seed_hex.len() == 128
+                && account.account_address.starts_with("AOXC_TEST_")
+                && account.validator_id_hex.len() == 64
+        }));
+    }
+
+    #[test]
+    fn testnet_launch_script_mentions_each_fixture_home() {
+        let manifest =
+            build_testnet_fixture_manifest(77, 2_500_000_000_000_000_000_000).expect("fixture");
+        let script = render_launch_script(&manifest);
+
+        assert!(script.contains("homes/atlas"));
+        assert!(script.contains("homes/boreal"));
+        assert!(script.contains("homes/cypher"));
+        assert!(script.contains("homes/delta"));
+        assert!(script.contains("homes/ember"));
+        assert!(script.contains("TEST ONLY seeds are public"));
+    }
+
+    #[test]
+    fn readiness_controls_include_hard_blockers() {
+        let evidence = default_readiness_evidence();
+        assert!(evidence
+            .criteria
+            .iter()
+            .any(|criterion| criterion.status == "missing"));
+        assert_eq!(readiness_grade(42.0), "D");
+        assert_eq!(readiness_grade(88.0), "A");
+        assert_eq!(readiness_credit("done"), 1.0);
+        assert_eq!(readiness_credit("partial"), 0.5);
+        assert_eq!(readiness_credit("missing"), 0.0);
+    }
+
+    #[test]
+    fn synthetic_benchmark_payload_has_requested_size() {
+        let payload = synthetic_benchmark_payload(3, 9, 128);
+        assert_eq!(payload.len(), 128);
+        assert!(String::from_utf8_lossy(&payload).starts_with("AOXC_BENCH_3_9_"));
+    }
+
+    #[test]
+    fn default_readiness_evidence_contains_blockers_and_done_definitions() {
+        let evidence = default_readiness_evidence();
+        assert!(!evidence.criteria.is_empty());
+        assert!(evidence.criteria.iter().any(|criterion| criterion.blocker));
+        assert!(evidence
+            .criteria
+            .iter()
+            .all(|criterion| !criterion.done_definition.is_empty()));
+    }
+
+    #[test]
+    fn readiness_evidence_yaml_can_be_loaded() {
+        let path = format!(
+            "{}/../../models/mainnet_readiness_evidence_v1.yaml",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let evidence = load_readiness_evidence(&path).expect("yaml");
+        assert_eq!(evidence.version, "aoxc-readiness-evidence-v1");
+        assert!(evidence.criteria.iter().any(|criterion| criterion.blocker));
     }
 }

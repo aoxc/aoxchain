@@ -17,6 +17,7 @@ use aoxcunity::validator::{Validator, ValidatorRole};
 
 use std::error::Error;
 use std::fmt;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -65,8 +66,7 @@ pub fn setup() -> Result<AOXCNode, NodeInitError> {
 }
 
 pub fn setup_with_home(home: &Path) -> Result<AOXCNode, NodeInitError> {
-    let _genesis_path = data_home::join(home, "identity/genesis.json");
-    let genesis_path = data_home::join(&data_home::default_data_home(), "identity/genesis.json");
+    let genesis_path = data_home::join(home, "identity/genesis.json");
     let genesis = GenesisLoader::load_or_create(&genesis_path)
         .map_err(|error| NodeInitError::GenesisBootstrapFailed(error.to_string()))?;
 
@@ -75,7 +75,8 @@ pub fn setup_with_home(home: &Path) -> Result<AOXCNode, NodeInitError> {
         .validate()
         .map_err(NodeInitError::GenesisValidationFailed)?;
 
-    let key_engine = KeyEngine::new(None);
+    let key_engine = load_key_engine_for_home(home)
+        .map_err(NodeInitError::ValidatorSetInitializationFailed)?;
     let validators = build_validators(&key_engine, &genesis);
 
     let rotation = ValidatorRotation::new(validators)
@@ -97,6 +98,36 @@ pub fn setup_with_home(home: &Path) -> Result<AOXCNode, NodeInitError> {
         rotation,
         data_home: home.to_path_buf(),
     })
+}
+
+fn load_key_engine_for_home(home: &Path) -> Result<KeyEngine, String> {
+    let seed_path = data_home::join(home, "identity/test-node-seed.hex");
+
+    match fs::read_to_string(&seed_path) {
+        Ok(contents) => {
+            let trimmed = contents.trim();
+            let raw_seed =
+                hex::decode(trimmed).map_err(|_| format!("invalid hex in {}", seed_path))?;
+
+            if raw_seed.len() != 64 {
+                return Err(format!(
+                    "deterministic node seed must be 64 bytes, got {} from {}",
+                    raw_seed.len(),
+                    seed_path
+                ));
+            }
+
+            let mut seed = [0u8; 64];
+            seed.copy_from_slice(&raw_seed);
+            Ok(KeyEngine::from_seed(seed))
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(KeyEngine::new(None)),
+        Err(error) => Err(format!(
+            "failed to read deterministic node seed {}: {}",
+            seed_path,
+            error
+        )),
+    }
 }
 
 fn default_mempool_config() -> MempoolConfig {
