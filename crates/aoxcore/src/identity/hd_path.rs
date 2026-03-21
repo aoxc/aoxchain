@@ -2,8 +2,12 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
-/// Canonical AOXC HD root purpose.
-/// m/2626/...
+/// Canonical BIP44 purpose for AOXC paths.
+/// m/44/2626/...
+pub const AOXC_HD_BIP44_PURPOSE: u32 = 44;
+
+/// Canonical AOXC coin type under the BIP44-style path.
+/// m/44/2626/...
 pub const AOXC_HD_PURPOSE: u32 = 2626;
 
 /// Maximum allowed index value.
@@ -14,16 +18,17 @@ pub const HARDENED_OFFSET: u32 = 0x8000_0000;
 
 /// Canonical AOXC HD path:
 ///
-/// m / 2626 / chain / role / zone / index
+/// m / 44 / 2626 / chain / role / zone / index
 ///
 /// Example:
 ///
-/// m/2626/1/1/2/0
+/// m/44/2626/1/1/2/0
 ///
 /// Components:
 ///
 /// m        → root
-/// 2626     → AOXC purpose
+/// 44       → BIP44 purpose
+/// 2626     → AOXC coin type
 /// chain    → chain identifier
 /// role     → actor role identifier
 /// zone     → geographic / logical zone
@@ -77,11 +82,11 @@ impl HdPath {
     ///
     /// Example:
     ///
-    /// m/2626/1/1/2/0
+    /// m/44/2626/1/1/2/0
     pub fn to_string_path(&self) -> String {
         format!(
-            "m/{}/{}/{}/{}/{}",
-            AOXC_HD_PURPOSE, self.chain, self.role, self.zone, self.index
+            "m/{}/{}/{}/{}/{}/{}",
+            AOXC_HD_BIP44_PURPOSE, AOXC_HD_PURPOSE, self.chain, self.role, self.zone, self.index
         )
     }
 
@@ -117,11 +122,11 @@ impl FromStr for HdPath {
     ///
     /// Example:
     ///
-    /// m/2626/1/1/2/0
+    /// m/44/2626/1/1/2/0
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = value.split('/').collect();
 
-        if parts.len() != 6 {
+        if parts.len() != 7 {
             return Err(HdPathError::InvalidFormat);
         }
 
@@ -129,7 +134,15 @@ impl FromStr for HdPath {
             return Err(HdPathError::InvalidFormat);
         }
 
-        let purpose: u32 = parts[1]
+        let bip44_purpose: u32 = parts[1]
+            .parse()
+            .map_err(|_| HdPathError::InvalidComponent)?;
+
+        if bip44_purpose != AOXC_HD_BIP44_PURPOSE {
+            return Err(HdPathError::InvalidPurpose);
+        }
+
+        let purpose: u32 = parts[2]
             .parse()
             .map_err(|_| HdPathError::InvalidComponent)?;
 
@@ -137,16 +150,16 @@ impl FromStr for HdPath {
             return Err(HdPathError::InvalidPurpose);
         }
 
-        let chain = parts[2]
+        let chain = parts[3]
             .parse()
             .map_err(|_| HdPathError::InvalidComponent)?;
-        let role = parts[3]
+        let role = parts[4]
             .parse()
             .map_err(|_| HdPathError::InvalidComponent)?;
-        let zone = parts[4]
+        let zone = parts[5]
             .parse()
             .map_err(|_| HdPathError::InvalidComponent)?;
-        let index = parts[5]
+        let index = parts[6]
             .parse()
             .map_err(|_| HdPathError::InvalidComponent)?;
 
@@ -173,12 +186,12 @@ mod tests {
     #[test]
     fn hd_path_string() {
         let path = HdPath::new(1, 2, 3, 4).unwrap();
-        assert_eq!(path.to_string(), "m/2626/1/2/3/4");
+        assert_eq!(path.to_string(), "m/44/2626/1/2/3/4");
     }
 
     #[test]
     fn hd_path_parse() {
-        let path: HdPath = "m/2626/1/2/3/4".parse().unwrap();
+        let path: HdPath = "m/44/2626/1/2/3/4".parse().unwrap();
         assert_eq!(path.index, 4);
     }
 
