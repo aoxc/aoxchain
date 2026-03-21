@@ -1,22 +1,32 @@
-#[derive(Debug, Clone, Default)]
-pub struct ServiceRegistry {
-    services: Vec<String>,
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ServiceDescriptor {
+    pub name: &'static str,
+    pub purpose: &'static str,
 }
 
-impl ServiceRegistry {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            services: Vec::new(),
-        }
-    }
-
-    pub fn register(&mut self, service_name: impl Into<String>) {
-        self.services.push(service_name.into());
-    }
-
-    #[must_use]
-    pub fn services(&self) -> &[String] {
-        &self.services
-    }
+pub fn default_registry() -> Vec<ServiceDescriptor> {
+    vec![
+        ServiceDescriptor {
+            name: "config",
+            purpose: "Operator configuration resolution and validation",
+        },
+        ServiceDescriptor {
+            name: "keys",
+            purpose: "Identity material bootstrap and verification",
+        },
+        ServiceDescriptor {
+            name: "node",
+            purpose: "Local runtime state and block production lifecycle",
+        },
+        ServiceDescriptor {
+            name: "economy",
+            purpose: "Treasury and delegation state management",
+        },
+        ServiceDescriptor {
+            name: "telemetry",
+            purpose: "Metrics and operator diagnostics capture",
+        },
+    ]
 }

@@ -1,8 +1,11 @@
-use crate::config::settings::Settings;
-use crate::keys::material::KeyMaterialSummary;
+use crate::{
+    config::settings::Settings,
+    node::state::NodeState,
+};
+use serde::Serialize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RuntimeContext {
     pub settings: Settings,
-    pub key_summary: KeyMaterialSummary,
+    pub node_state: Option<NodeState>,
 }

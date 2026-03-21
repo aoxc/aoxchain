@@ -1,10 +1,12 @@
-use super::registry::ServiceRegistry;
+use crate::{
+    config::loader::load_or_init,
+    data_home::{ensure_layout, resolve_home},
+    error::AppError,
+};
 
-#[must_use]
-pub fn wire_defaults() -> ServiceRegistry {
-    let mut registry = ServiceRegistry::new();
-    registry.register("node-runtime");
-    registry.register("key-manager");
-    registry.register("consensus-engine");
-    registry
+pub fn ensure_operator_environment() -> Result<(), AppError> {
+    let home = resolve_home()?;
+    ensure_layout(&home)?;
+    let _ = load_or_init()?;
+    Ok(())
 }
