@@ -17,7 +17,10 @@ pub fn public_key_fingerprint(verifying_key: &VerifyingKey) -> String {
 }
 
 /// Signs a canonical JSON payload and returns `(signature_hex, payload_hash_hex)`.
-pub fn sign_json_payload<T: Serialize>(signing_key: &SigningKey, payload: &T) -> Result<(String, String), MobError> {
+pub fn sign_json_payload<T: Serialize>(
+    signing_key: &SigningKey,
+    payload: &T,
+) -> Result<(String, String), MobError> {
     let bytes = serde_json::to_vec(payload)?;
     let signature: Signature = signing_key.sign(&bytes);
     let payload_hash_hex = sha3_hex_upper(&bytes);
@@ -25,7 +28,11 @@ pub fn sign_json_payload<T: Serialize>(signing_key: &SigningKey, payload: &T) ->
 }
 
 /// Verifies a canonical JSON payload signature.
-pub fn verify_json_payload<T: Serialize>(verifying_key: &VerifyingKey, payload: &T, signature_hex: &str) -> Result<(), MobError> {
+pub fn verify_json_payload<T: Serialize>(
+    verifying_key: &VerifyingKey,
+    payload: &T,
+    signature_hex: &str,
+) -> Result<(), MobError> {
     let bytes = serde_json::to_vec(payload)?;
     let raw = hex::decode(signature_hex)
         .map_err(|error| MobError::Crypto(format!("signature hex decode failed: {}", error)))?;

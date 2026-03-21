@@ -3,7 +3,10 @@ use std::{env, fs, path::Path};
 
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be present");
-    let genesis_path = Path::new(&manifest_dir).join("AOXC_DATA").join("identity").join("genesis.json");
+    let genesis_path = Path::new(&manifest_dir)
+        .join("AOXC_DATA")
+        .join("identity")
+        .join("genesis.json");
     println!("cargo:rerun-if-changed={}", genesis_path.display());
 
     let digest = match fs::read(&genesis_path) {

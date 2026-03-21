@@ -145,8 +145,10 @@ impl SerialIdentityPolicy {
     /// outward serial projection.
     #[must_use]
     pub fn is_strictly_native(&self) -> bool {
-        matches!(self.serial_identity_class, SerialIdentityClass::NativeSovereign)
-            && !self.allow_external_serial_projection
+        matches!(
+            self.serial_identity_class,
+            SerialIdentityClass::NativeSovereign
+        ) && !self.allow_external_serial_projection
     }
 
     /// Validates the serial identity policy against institutional invariants.
@@ -496,10 +498,7 @@ mod tests {
         assert_eq!(serial_identity.genesis_origin_serial, "000000000001");
         assert_eq!(serial_identity.protocol_serial, 2626);
         assert_eq!(serial_identity.bip44_coin_type, 2626);
-        assert_eq!(
-            serial_identity.derivation_path_prefix(),
-            "m/44'/2626'/0'/0"
-        );
+        assert_eq!(serial_identity.derivation_path_prefix(), "m/44'/2626'/0'/0");
     }
 
     #[test]
@@ -563,8 +562,8 @@ mod tests {
 
         let serialized =
             serde_json::to_string(&config).expect("network config serialization must succeed");
-        let deserialized: NetworkConfig = serde_json::from_str(&serialized)
-            .expect("network config deserialization must succeed");
+        let deserialized: NetworkConfig =
+            serde_json::from_str(&serialized).expect("network config deserialization must succeed");
 
         assert_eq!(
             config.interop.serial_identity.canonical_chain_name,

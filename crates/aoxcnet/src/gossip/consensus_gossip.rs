@@ -40,7 +40,11 @@ impl GossipEngine {
         message: ConsensusMessage,
     ) -> Result<ProtocolEnvelope, NetworkError> {
         let message_id = digest_message(&message)?;
-        if self.recent_message_ids.iter().any(|existing| existing == &message_id) {
+        if self
+            .recent_message_ids
+            .iter()
+            .any(|existing| existing == &message_id)
+        {
             return Err(NetworkError::ReplayDetected);
         }
         let envelope = self.network.broadcast_secure(peer_id, message)?;
@@ -57,7 +61,8 @@ impl GossipEngine {
 }
 
 fn digest_message(message: &ConsensusMessage) -> Result<String, NetworkError> {
-    let bytes = serde_json::to_vec(message).map_err(|e| NetworkError::Serialization(e.to_string()))?;
+    let bytes =
+        serde_json::to_vec(message).map_err(|e| NetworkError::Serialization(e.to_string()))?;
     let mut hasher = Hasher::new();
     hasher.update(b"AOXC-GOSSIP-MESSAGE-V1");
     hasher.update(&bytes);

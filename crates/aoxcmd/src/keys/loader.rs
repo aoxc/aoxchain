@@ -12,13 +12,23 @@ pub fn load_operator_key() -> Result<KeyMaterial, AppError> {
             format!("Operator key material is missing at {}", path.display()),
         )
     })?;
-    serde_json::from_str(&raw)
-        .map_err(|e| AppError::with_source(ErrorCode::KeyMaterialInvalid, "Failed to parse operator key material", e))
+    serde_json::from_str(&raw).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::KeyMaterialInvalid,
+            "Failed to parse operator key material",
+            e,
+        )
+    })
 }
 
 pub fn persist_operator_key(material: &KeyMaterial) -> Result<(), AppError> {
     let path = operator_key_path()?;
-    let content = serde_json::to_string_pretty(material)
-        .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode key material", e))?;
+    let content = serde_json::to_string_pretty(material).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode key material",
+            e,
+        )
+    })?;
     write_file(&path, &content)
 }

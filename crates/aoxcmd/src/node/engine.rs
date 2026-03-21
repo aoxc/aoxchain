@@ -1,6 +1,9 @@
 use crate::{
     error::AppError,
-    node::{lifecycle::{load_state, persist_state}, state::NodeState},
+    node::{
+        lifecycle::{load_state, persist_state},
+        state::NodeState,
+    },
 };
 
 pub fn produce_once(tx: &str) -> Result<NodeState, AppError> {

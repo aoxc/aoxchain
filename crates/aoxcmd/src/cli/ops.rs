@@ -1,11 +1,16 @@
 use crate::{
-    app::{bootstrap::bootstrap_operator_home, runtime::refresh_runtime_metrics, shutdown::graceful_shutdown},
+    app::{
+        bootstrap::bootstrap_operator_home, runtime::refresh_runtime_metrics,
+        shutdown::graceful_shutdown,
+    },
     cli_support::{arg_value, emit_serialized, output_format, text_envelope},
     config::loader::load_or_init,
     economy::ledger,
     error::{AppError, ErrorCode},
     node::{engine, lifecycle},
-    runtime::{core::runtime_context, handles::default_handles, node::health_status, unity::unity_status},
+    runtime::{
+        core::runtime_context, handles::default_handles, node::health_status, unity::unity_status,
+    },
 };
 use std::collections::BTreeMap;
 
@@ -13,8 +18,14 @@ pub fn cmd_load_benchmark(args: &[String]) -> Result<(), AppError> {
     let rounds = arg_value(args, "--rounds").unwrap_or_else(|| "100".to_string());
     let mut details = BTreeMap::new();
     details.insert("benchmark_rounds".to_string(), rounds);
-    details.insert("result".to_string(), "baseline-local-benchmark-recorded".to_string());
-    emit_serialized(&text_envelope("load-benchmark", "ok", details), output_format(args))
+    details.insert(
+        "result".to_string(),
+        "baseline-local-benchmark-recorded".to_string(),
+    );
+    emit_serialized(
+        &text_envelope("load-benchmark", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
@@ -78,16 +89,28 @@ pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
     let health = health_status()?;
     let mut details = BTreeMap::new();
     details.insert("health".to_string(), health.to_string());
-    emit_serialized(&text_envelope("node-health", "ok", details), output_format(args))
+    emit_serialized(
+        &text_envelope("node-health", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
     let settings = load_or_init()?;
     let mut details = BTreeMap::new();
     details.insert("bind_host".to_string(), settings.network.bind_host);
-    details.insert("rpc_port".to_string(), settings.network.rpc_port.to_string());
-    details.insert("probe".to_string(), "local-listener-simulated-ok".to_string());
-    emit_serialized(&text_envelope("network-smoke", "ok", details), output_format(args))
+    details.insert(
+        "rpc_port".to_string(),
+        settings.network.rpc_port.to_string(),
+    );
+    details.insert(
+        "probe".to_string(),
+        "local-listener-simulated-ok".to_string(),
+    );
+    emit_serialized(
+        &text_envelope("network-smoke", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_real_network(args: &[String]) -> Result<(), AppError> {
@@ -98,7 +121,10 @@ pub fn cmd_real_network(args: &[String]) -> Result<(), AppError> {
         "enforce_official_peers".to_string(),
         settings.network.enforce_official_peers.to_string(),
     );
-    emit_serialized(&text_envelope("real-network", "ok", details), output_format(args))
+    emit_serialized(
+        &text_envelope("real-network", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
@@ -106,7 +132,10 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
     let mut details = BTreeMap::new();
     details.insert("home_dir".to_string(), context.settings.home_dir);
     details.insert("storage".to_string(), "writable".to_string());
-    emit_serialized(&text_envelope("storage-smoke", "ok", details), output_format(args))
+    emit_serialized(
+        &text_envelope("storage-smoke", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_economy_init(args: &[String]) -> Result<(), AppError> {

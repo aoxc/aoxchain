@@ -8,7 +8,8 @@ use std::sync::Mutex;
 /// In production mobile applications this trait should be backed by platform
 /// security primitives such as Android Keystore or iOS Keychain / Secure Enclave.
 pub trait SecureStore: Send + Sync {
-    fn store_device(&self, profile: DeviceProfile, signing_key: SigningKey) -> Result<(), MobError>;
+    fn store_device(&self, profile: DeviceProfile, signing_key: SigningKey)
+    -> Result<(), MobError>;
     fn load_device_profile(&self) -> Result<DeviceProfile, MobError>;
     fn load_signing_key(&self) -> Result<SigningKey, MobError>;
     fn is_provisioned(&self) -> Result<bool, MobError>;
@@ -36,8 +37,15 @@ impl InMemorySecureStore {
 }
 
 impl SecureStore for InMemorySecureStore {
-    fn store_device(&self, profile: DeviceProfile, signing_key: SigningKey) -> Result<(), MobError> {
-        let mut guard = self.inner.lock().map_err(|_| MobError::SecureStorePoisoned)?;
+    fn store_device(
+        &self,
+        profile: DeviceProfile,
+        signing_key: SigningKey,
+    ) -> Result<(), MobError> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| MobError::SecureStorePoisoned)?;
         if guard.is_some() {
             return Err(MobError::DeviceAlreadyProvisioned);
         }
@@ -50,7 +58,10 @@ impl SecureStore for InMemorySecureStore {
     }
 
     fn load_device_profile(&self) -> Result<DeviceProfile, MobError> {
-        let guard = self.inner.lock().map_err(|_| MobError::SecureStorePoisoned)?;
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| MobError::SecureStorePoisoned)?;
         guard
             .as_ref()
             .map(|value| value.profile.clone())
@@ -58,7 +69,10 @@ impl SecureStore for InMemorySecureStore {
     }
 
     fn load_signing_key(&self) -> Result<SigningKey, MobError> {
-        let guard = self.inner.lock().map_err(|_| MobError::SecureStorePoisoned)?;
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| MobError::SecureStorePoisoned)?;
         let bytes = guard
             .as_ref()
             .map(|value| value.signing_key_bytes)
@@ -67,7 +81,10 @@ impl SecureStore for InMemorySecureStore {
     }
 
     fn is_provisioned(&self) -> Result<bool, MobError> {
-        let guard = self.inner.lock().map_err(|_| MobError::SecureStorePoisoned)?;
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| MobError::SecureStorePoisoned)?;
         Ok(guard.is_some())
     }
 }

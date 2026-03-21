@@ -136,12 +136,11 @@ mod tests {
             max_gas_per_block: 100_000,
         };
 
-        let payloads = vec![
-            create_mock_payload([1; 32]),
-            create_mock_payload([2; 32]),
-        ];
+        let payloads = vec![create_mock_payload([1; 32]), create_mock_payload([2; 32])];
 
-        let receipts = orchestrator.execute_batch(&context, &payloads).expect("Execution should succeed");
+        let receipts = orchestrator
+            .execute_batch(&context, &payloads)
+            .expect("Execution should succeed");
 
         assert_eq!(receipts.len(), 2);
         assert_eq!(receipts[0].gas_used, 21_000);
@@ -159,13 +158,10 @@ mod tests {
         };
 
         // 2 işlem yolluyoruz (21_000 * 2 = 42_000 Gaz gerekiyor)
-        let payloads = vec![
-            create_mock_payload([1; 32]),
-            create_mock_payload([2; 32]),
-        ];
+        let payloads = vec![create_mock_payload([1; 32]), create_mock_payload([2; 32])];
 
         let result = orchestrator.execute_batch(&context, &payloads);
-        
+
         assert_eq!(result.unwrap_err(), ExecutionError::GasDepleted);
     }
 
@@ -185,7 +181,7 @@ mod tests {
         let payloads = vec![invalid_payload];
 
         let result = orchestrator.execute_batch(&context, &payloads);
-        
+
         assert_eq!(result.unwrap_err(), ExecutionError::InvalidPayload);
     }
 }

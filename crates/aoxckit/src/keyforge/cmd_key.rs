@@ -39,6 +39,9 @@ mod tests {
         // stdout'u yakalamak birim testlerde zordur, ancak ana fonksiyonun
         // çökmeden (panic olmadan) çalıştığını ve Ok(()) döndüğünü test edebiliriz.
         let result = generate();
-        assert!(result.is_ok(), "Key generation should succeed without errors");
+        assert!(
+            result.is_ok(),
+            "Key generation should succeed without errors"
+        );
     }
 }

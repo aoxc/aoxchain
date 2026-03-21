@@ -24,8 +24,13 @@ pub fn load() -> Result<Settings, AppError> {
             format!("Configuration file is missing at {}", path.display()),
         )
     })?;
-    let settings: Settings = serde_json::from_str(&raw)
-        .map_err(|e| AppError::with_source(ErrorCode::ConfigInvalid, "Failed to parse configuration file", e))?;
+    let settings: Settings = serde_json::from_str(&raw).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            "Failed to parse configuration file",
+            e,
+        )
+    })?;
     settings
         .validate()
         .map_err(|e| AppError::new(ErrorCode::ConfigInvalid, e))?;
@@ -45,7 +50,12 @@ pub fn persist(settings: &Settings) -> Result<(), AppError> {
         .validate()
         .map_err(|e| AppError::new(ErrorCode::ConfigInvalid, e))?;
     let path = settings_path()?;
-    let content = serde_json::to_string_pretty(settings)
-        .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode configuration", e))?;
+    let content = serde_json::to_string_pretty(settings).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode configuration",
+            e,
+        )
+    })?;
     write_file(&path, &content)
 }

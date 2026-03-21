@@ -65,8 +65,20 @@ mod tests {
     #[test]
     fn higher_score_candidates_are_selected_first() {
         let mut table = DiscoveryTable::new();
-        table.add_seed(PeerCandidate { peer_id: "b".to_string(), advertise_addr: "10.0.0.2:2727".to_string(), score: 5, source: "static".to_string(), last_seen_unix: 10 });
-        table.add_seed(PeerCandidate { peer_id: "a".to_string(), advertise_addr: "10.0.0.1:2727".to_string(), score: 7, source: "static".to_string(), last_seen_unix: 20 });
+        table.add_seed(PeerCandidate {
+            peer_id: "b".to_string(),
+            advertise_addr: "10.0.0.2:2727".to_string(),
+            score: 5,
+            source: "static".to_string(),
+            last_seen_unix: 10,
+        });
+        table.add_seed(PeerCandidate {
+            peer_id: "a".to_string(),
+            advertise_addr: "10.0.0.1:2727".to_string(),
+            score: 7,
+            source: "static".to_string(),
+            last_seen_unix: 20,
+        });
 
         let selected = table.select_bootstrap_peers(1);
         assert_eq!(selected[0].peer_id, "a");

@@ -16,6 +16,6 @@ mod tests {
     fn test_timestamp_validity() {
         let ts = current_unix_timestamp().expect("Time failed");
         // 2026 yılındayız, timestamp 1.7 milyardan büyük olmalı
-        assert!(ts > 1700000000); 
+        assert!(ts > 1700000000);
     }
 }

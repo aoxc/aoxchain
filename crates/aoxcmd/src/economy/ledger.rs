@@ -37,14 +37,20 @@ pub fn load() -> Result<LedgerState, AppError> {
             format!("Ledger file is missing at {}", path.display()),
         )
     })?;
-    serde_json::from_str(&raw)
-        .map_err(|e| AppError::with_source(ErrorCode::LedgerInvalid, "Failed to parse ledger state", e))
+    serde_json::from_str(&raw).map_err(|e| {
+        AppError::with_source(ErrorCode::LedgerInvalid, "Failed to parse ledger state", e)
+    })
 }
 
 pub fn persist(ledger: &LedgerState) -> Result<(), AppError> {
     let path = ledger_path()?;
-    let content = serde_json::to_string_pretty(ledger)
-        .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode ledger state", e))?;
+    let content = serde_json::to_string_pretty(ledger).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode ledger state",
+            e,
+        )
+    })?;
     write_file(&path, &content)
 }
 

@@ -1,4 +1,4 @@
-use std::sync::atomic::{compiler_fence, Ordering};
+use std::sync::atomic::{Ordering, compiler_fence};
 use thiserror::Error;
 
 /// Upper allocation bound for a single managed region.
@@ -161,7 +161,7 @@ impl Drop for MemoryRegion {
         // Bu sayede ZKP kanıtları veya Private Key'ler RAM'de kalıp sızdırılamaz.
         self.data.fill(0);
 
-        // Derleyicinin (LLVM) "zaten değişken ölüyor, 0 yazmaya gerek yok" 
+        // Derleyicinin (LLVM) "zaten değişken ölüyor, 0 yazmaya gerek yok"
         // diyerek bu adımı pas geçmesini engellemek için bariyer koyulur.
         compiler_fence(Ordering::SeqCst);
     }

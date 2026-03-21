@@ -6,8 +6,8 @@ use crate::types::{ChainHealth, DeviceProfile, SignedTaskReceipt, TaskDescriptor
 use crate::util::{now_epoch_secs, prefixed_id, sha3_hex_upper};
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Deterministic in-memory relay transport used for tests and local development.
 #[derive(Debug)]
@@ -62,7 +62,10 @@ impl AoxcMobileTransport for MockRelayTransport {
             challenge_id: format!("CH-{}", sequence),
             relay_nonce: prefixed_id(
                 "NONCE",
-                &[profile.device_id.as_bytes(), sequence.to_string().as_bytes()],
+                &[
+                    profile.device_id.as_bytes(),
+                    sequence.to_string().as_bytes(),
+                ],
             ),
             issued_at_epoch_secs: now,
             expires_at_epoch_secs: now + config.challenge_max_skew_secs,
@@ -77,10 +80,14 @@ impl AoxcMobileTransport for MockRelayTransport {
         _config: &MobileConfig,
     ) -> Result<SessionPermit, MobError> {
         if envelope.device_id.trim().is_empty() {
-            return Err(MobError::Transport("device_id must not be empty".to_string()));
+            return Err(MobError::Transport(
+                "device_id must not be empty".to_string(),
+            ));
         }
         if envelope.signature_hex.trim().is_empty() {
-            return Err(MobError::Transport("signature_hex must not be empty".to_string()));
+            return Err(MobError::Transport(
+                "signature_hex must not be empty".to_string(),
+            ));
         }
 
         let now = now_epoch_secs()?;

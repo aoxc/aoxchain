@@ -19,8 +19,13 @@ pub fn metrics_path() -> Result<PathBuf, AppError> {
 }
 
 pub fn persist_metrics(snapshot: &MetricsSnapshot) -> Result<(), AppError> {
-    let content = serde_json::to_string_pretty(snapshot)
-        .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode metrics snapshot", e))?;
+    let content = serde_json::to_string_pretty(snapshot).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode metrics snapshot",
+            e,
+        )
+    })?;
     write_file(&metrics_path()?, &content)
 }
 
