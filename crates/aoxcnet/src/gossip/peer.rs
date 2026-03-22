@@ -270,12 +270,31 @@ impl Peer {
             ));
         }
 
+        if self.cert_fingerprint != self.certificate.fingerprint() {
+            return Err(NetworkError::CertificateValidationFailed(
+                "certificate fingerprint does not match certificate body".to_string(),
+            ));
+        }
+
         self.certificate.validate_structure()
     }
 
     /// Validates runtime policy constraints that are independent of raw
     /// certificate time-validity.
     fn validate_policy_only(&self, config: &NetworkConfig) -> Result<(), NetworkError> {
+        if config.requires_mutual_auth() && self.certificate.subject != self.id {
+            return Err(NetworkError::CertificateValidationFailed(
+                "certificate subject must match peer id under mutual authentication".to_string(),
+            ));
+        }
+
+        if config.requires_mutual_auth() && self.certificate.issuer == self.certificate.subject {
+            return Err(NetworkError::CertificateValidationFailed(
+                "self-issued peer certificates are not allowed under mutual authentication"
+                    .to_string(),
+            ));
+        }
+
         if !config.interop.allow_external_domains && self.domain != ExternalDomainKind::Native {
             return Err(NetworkError::PeerAdmissionDenied(
                 "external domain admission is disabled by interop policy".to_string(),
@@ -321,5 +340,72 @@ impl Peer {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn base_certificate() -> NodeCertificate {
+        NodeCertificate {
+            subject: "node-1".to_string(),
+            issuer: "AOXC-ROOT".to_string(),
+            valid_from_unix: 1,
+            valid_until_unix: u64::MAX,
+            serial: "serial-1".to_string(),
+            domain_attestation_hash: "attestation-hash-1".to_string(),
+        }
+    }
+
+    fn base_peer() -> Peer {
+        Peer::new(
+            "node-1",
+            "10.0.0.1:2727",
+            "AOXC-MAINNET",
+            ExternalDomainKind::Native,
+            PeerRole::Validator,
+            3,
+            true,
+            base_certificate(),
+        )
+    }
+
+    #[test]
+    fn mutual_auth_rejects_subject_peer_id_mismatch() {
+        let mut peer = base_peer();
+        peer.certificate.subject = "other-node".to_string();
+        peer.cert_fingerprint = peer.certificate.fingerprint();
+
+        let err = peer
+            .validate_certificate(&NetworkConfig::default())
+            .expect_err("subject mismatch must be rejected");
+
+        assert!(matches!(err, NetworkError::CertificateValidationFailed(_)));
+    }
+
+    #[test]
+    fn mutual_auth_rejects_self_issued_certificate() {
+        let mut peer = base_peer();
+        peer.certificate.issuer = peer.certificate.subject.clone();
+        peer.cert_fingerprint = peer.certificate.fingerprint();
+
+        let err = peer
+            .validate_certificate(&NetworkConfig::default())
+            .expect_err("self-issued cert must be rejected");
+
+        assert!(matches!(err, NetworkError::CertificateValidationFailed(_)));
+    }
+
+    #[test]
+    fn peer_validation_rejects_fingerprint_drift() {
+        let mut peer = base_peer();
+        peer.cert_fingerprint = "tampered".to_string();
+
+        let err = peer
+            .validate_certificate(&NetworkConfig::default())
+            .expect_err("fingerprint drift must be rejected");
+
+        assert!(matches!(err, NetworkError::CertificateValidationFailed(_)));
     }
 }

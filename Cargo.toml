@@ -50,3 +50,16 @@ hex = "0.4.3"
 pqcrypto-dilithium = "0.5"
 pqcrypto-traits = "0.3.5"
 
+
+[workspace.metadata.ci]
+required_checks = [
+    "cargo fmt --all --check",
+    "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    "cargo test",
+]
+policy = "Formatting, clippy, and full test-suite checks are mandatory for merge and release branches."
+
+[workspace.metadata.quality_focus]
+aoxcore = "Increase property-based test coverage for identity and genesis models."
+aoxckit = "Add golden tests for key rotation and revocation workflows."
+aoxcdata = "Preserve deterministic storage/integrity coverage when changing persistence code."

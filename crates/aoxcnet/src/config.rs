@@ -145,8 +145,10 @@ impl SerialIdentityPolicy {
     /// outward serial projection.
     #[must_use]
     pub fn is_strictly_native(&self) -> bool {
-        matches!(self.serial_identity_class, SerialIdentityClass::NativeSovereign)
-            && !self.allow_external_serial_projection
+        matches!(
+            self.serial_identity_class,
+            SerialIdentityClass::NativeSovereign
+        ) && !self.allow_external_serial_projection
     }
 
     /// Validates the serial identity policy against institutional invariants.
@@ -408,6 +410,13 @@ impl NetworkConfig {
         matches!(self.security_mode, SecurityMode::AuditStrict)
     }
 
+    /// Returns `true` when the runtime must enforce certificate-backed mutual
+    /// authentication on peer transport setup.
+    #[must_use]
+    pub fn requires_mutual_auth(&self) -> bool {
+        !matches!(self.security_mode, SecurityMode::Insecure)
+    }
+
     /// Validates the complete network configuration against minimum safety,
     /// identity-consistency, and operational-correctness requirements.
     ///
@@ -457,6 +466,16 @@ impl NetworkConfig {
 
         self.interop.validate()?;
 
+        if self.requires_mutual_auth()
+            && matches!(self.transport_preference, TransportPreference::Tcp)
+        {
+            return Err("NETWORK_CONFIG_MTLS_TRANSPORT_REQUIRED");
+        }
+
+        if self.requires_mutual_auth() && !self.interop.require_domain_attestation {
+            return Err("NETWORK_CONFIG_DOMAIN_ATTESTATION_REQUIRED");
+        }
+
         if self.is_audit_strict() {
             if self.allowed_clock_skew_secs > 60 {
                 return Err("NETWORK_CONFIG_CLOCK_SKEW_UNSAFE");
@@ -496,10 +515,7 @@ mod tests {
         assert_eq!(serial_identity.genesis_origin_serial, "000000000001");
         assert_eq!(serial_identity.protocol_serial, 2626);
         assert_eq!(serial_identity.bip44_coin_type, 2626);
-        assert_eq!(
-            serial_identity.derivation_path_prefix(),
-            "m/44'/2626'/0'/0"
-        );
+        assert_eq!(serial_identity.derivation_path_prefix(), "m/44'/2626'/0'/0");
     }
 
     #[test]
@@ -558,13 +574,35 @@ mod tests {
     }
 
     #[test]
+    fn secure_modes_reject_plain_tcp_transport_preference() {
+        let mut config = NetworkConfig::default();
+        config.transport_preference = TransportPreference::Tcp;
+
+        assert_eq!(
+            config.validate(),
+            Err("NETWORK_CONFIG_MTLS_TRANSPORT_REQUIRED")
+        );
+    }
+
+    #[test]
+    fn secure_modes_require_domain_attestation() {
+        let mut config = NetworkConfig::default();
+        config.interop.require_domain_attestation = false;
+
+        assert_eq!(
+            config.validate(),
+            Err("NETWORK_CONFIG_DOMAIN_ATTESTATION_REQUIRED")
+        );
+    }
+
+    #[test]
     fn serde_roundtrip_preserves_serial_identity_fields() {
         let config = NetworkConfig::default();
 
         let serialized =
             serde_json::to_string(&config).expect("network config serialization must succeed");
-        let deserialized: NetworkConfig = serde_json::from_str(&serialized)
-            .expect("network config deserialization must succeed");
+        let deserialized: NetworkConfig =
+            serde_json::from_str(&serialized).expect("network config deserialization must succeed");
 
         assert_eq!(
             config.interop.serial_identity.canonical_chain_name,
