@@ -22,4 +22,4 @@ pqcrypto-dilithium = { workspace = true }
 pqcrypto-traits = { workspace = true }
 
 aoxcunity = { path = "../aoxcunity" }
-
+aoxcontract = { path = "../aoxcontract" }

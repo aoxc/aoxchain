@@ -1,6 +1,7 @@
 // core/src/lib.rs
 
 pub mod block;
+pub mod contract;
 pub mod genesis; // Exported for node visibility
 pub mod identity; // Public export
 pub mod mempool; // Keep public export

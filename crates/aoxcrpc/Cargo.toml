@@ -9,4 +9,10 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 sha2 = { workspace = true }
-
+chrono = { workspace = true }
+aoxconfig = { path = "../aoxconfig" }
+aoxcontract = { path = "../aoxcontract" }
+aoxcore = { path = "../aoxcore" }
+aoxcdata = { path = "../aoxcdata" }
+aoxcvm = { path = "../aoxcvm" }
+aoxcsdk = { path = "../aoxcsdk" }

@@ -10,3 +10,5 @@ tokio = { workspace = true }
 thiserror = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
+aoxcontract = { path = "../aoxcontract" }
+aoxcore = { path = "../aoxcore" }

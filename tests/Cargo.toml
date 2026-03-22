@@ -6,5 +6,10 @@ edition.workspace = true
 [dependencies]
 serde = { workspace = true }
 tokio = { workspace = true }
-
-
+aoxconfig = { path = "../crates/aoxconfig" }
+aoxcontract = { path = "../crates/aoxcontract" }
+aoxcore = { path = "../crates/aoxcore" }
+aoxcdata = { path = "../crates/aoxcdata" }
+aoxcsdk = { path = "../crates/aoxcsdk" }
+aoxcvm = { path = "../crates/aoxcvm" }
+serde_json = { workspace = true }
