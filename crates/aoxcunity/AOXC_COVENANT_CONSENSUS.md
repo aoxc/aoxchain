@@ -1,8 +1,5 @@
 # AOXC Covenant Consensus (ACC)
 
-> Technical expansion: **AOXC Constitutional Consensus**.
-> Narrative/branding name: **AOXC Covenant Consensus**.
-
 ## Goal
 
 This document proposes an **AOXC-native consensus family** that is intentionally different from
