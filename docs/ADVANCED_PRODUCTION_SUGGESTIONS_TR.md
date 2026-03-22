@@ -3,6 +3,7 @@
 Bu belge, mevcut alpha seviyesini üretime daha hızlı yaklaştırmak için doğrudan uygulanabilir önerileri önceliklendirir.
 
 Detaylı consensus-kernel hardening planı için ayrıca bkz. [`AOXC_KERNEL_HARDENING_MASTER_PLAN_TR.md`](./AOXC_KERNEL_HARDENING_MASTER_PLAN_TR.md).
+Ayrıca `aoxcunity` için deterministik motor, replay güvenliği ve readiness seviyesi ayrımını netleştiren yol haritası için bkz. [`AOXCUNITY_ENGINE_ROADMAP_TR.md`](./AOXCUNITY_ENGINE_ROADMAP_TR.md).
 
 ## 1) Konsensus Güvenliği
 
