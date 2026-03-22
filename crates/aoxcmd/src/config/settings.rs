@@ -68,7 +68,10 @@ impl Settings {
         if self.home_dir.trim().is_empty() {
             return Err("home_dir must not be empty".to_string());
         }
-        if self.network.p2p_port == 0 || self.network.rpc_port == 0 || self.telemetry.prometheus_port == 0 {
+        if self.network.p2p_port == 0
+            || self.network.rpc_port == 0
+            || self.telemetry.prometheus_port == 0
+        {
             return Err("ports must be non-zero".to_string());
         }
         if self.network.bind_host.trim().is_empty() {

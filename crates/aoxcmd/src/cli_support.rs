@@ -74,25 +74,44 @@ Global flags:
 pub fn emit_serialized<T: Serialize>(value: &T, format: OutputFormat) -> Result<(), AppError> {
     match format {
         OutputFormat::Text => {
-            let text = serde_json::to_string_pretty(value)
-                .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode text output", e))?;
+            let text = serde_json::to_string_pretty(value).map_err(|e| {
+                AppError::with_source(
+                    ErrorCode::OutputEncodingFailed,
+                    "Failed to encode text output",
+                    e,
+                )
+            })?;
             println!("{text}");
         }
         OutputFormat::Json => {
-            let text = serde_json::to_string_pretty(value)
-                .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode JSON output", e))?;
+            let text = serde_json::to_string_pretty(value).map_err(|e| {
+                AppError::with_source(
+                    ErrorCode::OutputEncodingFailed,
+                    "Failed to encode JSON output",
+                    e,
+                )
+            })?;
             println!("{text}");
         }
         OutputFormat::Yaml => {
-            let text = serde_yaml::to_string(value)
-                .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode YAML output", e))?;
+            let text = serde_yaml::to_string(value).map_err(|e| {
+                AppError::with_source(
+                    ErrorCode::OutputEncodingFailed,
+                    "Failed to encode YAML output",
+                    e,
+                )
+            })?;
             print!("{text}");
         }
     }
     Ok(())
 }
 
-pub fn text_envelope(command: &str, status: &str, details: BTreeMap<String, String>) -> BTreeMap<String, String> {
+pub fn text_envelope(
+    command: &str,
+    status: &str,
+    details: BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
     let mut envelope = BTreeMap::new();
     envelope.insert("command".to_string(), command.to_string());
     envelope.insert("status".to_string(), status.to_string());

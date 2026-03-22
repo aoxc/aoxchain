@@ -72,7 +72,12 @@ where
         let mut secret = [0u8; 32];
         secret.copy_from_slice(&key_material[..32]);
         let signing_key = SigningKey::from_bytes(&secret);
-        self.bind_signing_key(signing_key, Some(hd_path.to_string()), platform, device_label)
+        self.bind_signing_key(
+            signing_key,
+            Some(hd_path.to_string()),
+            platform,
+            device_label,
+        )
     }
 
     /// Binds an already-prepared signing key to the secure store.
@@ -167,9 +172,14 @@ where
     }
 
     /// Fetches lightweight chain health using an existing permit.
-    pub async fn fetch_chain_health(&self, permit: &SessionPermit) -> Result<ChainHealth, MobError> {
+    pub async fn fetch_chain_health(
+        &self,
+        permit: &SessionPermit,
+    ) -> Result<ChainHealth, MobError> {
         self.ensure_permit_active(permit)?;
-        self.transport.fetch_chain_health(permit, &self.config).await
+        self.transport
+            .fetch_chain_health(permit, &self.config)
+            .await
     }
 
     /// Fetches lightweight mobile tasks for the active session.
@@ -178,7 +188,9 @@ where
         permit: &SessionPermit,
     ) -> Result<Vec<TaskDescriptor>, MobError> {
         self.ensure_permit_active(permit)?;
-        self.transport.fetch_available_tasks(permit, &self.config).await
+        self.transport
+            .fetch_available_tasks(permit, &self.config)
+            .await
     }
 
     /// Signs and submits a witness decision for a task.
@@ -205,16 +217,22 @@ where
             payload_hash_hex,
             public_key_hex: profile.public_key_hex,
         };
-        self.transport.submit_task_receipt(signed, &self.config).await
+        self.transport
+            .submit_task_receipt(signed, &self.config)
+            .await
     }
 
     fn validate_challenge(&self, challenge: &SessionChallenge) -> Result<(), MobError> {
         let now = now_epoch_secs()?;
         if challenge.challenge_id.trim().is_empty() {
-            return Err(MobError::InvalidSessionChallenge("challenge_id must not be empty"));
+            return Err(MobError::InvalidSessionChallenge(
+                "challenge_id must not be empty",
+            ));
         }
         if challenge.relay_nonce.trim().is_empty() {
-            return Err(MobError::InvalidSessionChallenge("relay_nonce must not be empty"));
+            return Err(MobError::InvalidSessionChallenge(
+                "relay_nonce must not be empty",
+            ));
         }
         if challenge.audience != self.config.app_id {
             return Err(MobError::InvalidSessionChallenge(
@@ -222,7 +240,9 @@ where
             ));
         }
         if challenge.expires_at_epoch_secs <= now {
-            return Err(MobError::InvalidSessionChallenge("challenge is already expired"));
+            return Err(MobError::InvalidSessionChallenge(
+                "challenge is already expired",
+            ));
         }
         if challenge.issued_at_epoch_secs > now + self.config.challenge_max_skew_secs {
             return Err(MobError::InvalidSessionChallenge(
@@ -237,9 +257,15 @@ where
         Ok(())
     }
 
-    fn validate_permit(&self, permit: &SessionPermit, profile: &DeviceProfile) -> Result<(), MobError> {
+    fn validate_permit(
+        &self,
+        permit: &SessionPermit,
+        profile: &DeviceProfile,
+    ) -> Result<(), MobError> {
         if permit.session_id.trim().is_empty() {
-            return Err(MobError::InvalidSessionChallenge("session_id must not be empty"));
+            return Err(MobError::InvalidSessionChallenge(
+                "session_id must not be empty",
+            ));
         }
         if permit.device_id != profile.device_id {
             return Err(MobError::InvalidSessionChallenge(
@@ -303,7 +329,10 @@ mod tests {
 
         assert_eq!(profile_a.device_id, profile_b.device_id);
         assert_eq!(profile_a.public_key_hex, profile_b.public_key_hex);
-        assert_eq!(profile_a.public_key_fingerprint, profile_b.public_key_fingerprint);
+        assert_eq!(
+            profile_a.public_key_fingerprint,
+            profile_b.public_key_fingerprint
+        );
     }
 
     #[tokio::test]
@@ -333,7 +362,10 @@ mod tests {
             )
             .expect("device provisioning must succeed");
 
-        let session = gateway.open_session().await.expect("session open must succeed");
+        let session = gateway
+            .open_session()
+            .await
+            .expect("session open must succeed");
         let health = gateway
             .fetch_chain_health(&session.permit)
             .await
@@ -362,7 +394,10 @@ mod tests {
                 "guardian-android",
             )
             .expect("device provisioning must succeed");
-        let session = gateway.open_session().await.expect("session open must succeed");
+        let session = gateway
+            .open_session()
+            .await
+            .expect("session open must succeed");
         let result = gateway
             .submit_witness_decision(&session.permit, "TASK-ALERT-1", WitnessDecision::Approve)
             .await

@@ -66,11 +66,15 @@ impl fmt::Display for MobError {
                 write!(f, "{}: invalid session challenge: {}", self.code(), message)
             }
             Self::SessionExpired => write!(f, "{}: session permit is expired", self.code()),
-            Self::Transport(message) => write!(f, "{}: transport failure: {}", self.code(), message),
+            Self::Transport(message) => {
+                write!(f, "{}: transport failure: {}", self.code(), message)
+            }
             Self::Serialization(message) => {
                 write!(f, "{}: serialization failure: {}", self.code(), message)
             }
-            Self::Crypto(message) => write!(f, "{}: cryptographic failure: {}", self.code(), message),
+            Self::Crypto(message) => {
+                write!(f, "{}: cryptographic failure: {}", self.code(), message)
+            }
             Self::Io(message) => write!(f, "{}: I/O failure: {}", self.code(), message),
             Self::Time(message) => write!(f, "{}: time failure: {}", self.code(), message),
         }

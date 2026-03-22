@@ -1,14 +1,16 @@
 use crate::error::{AppError, ErrorCode};
 use std::{
-    env,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
 pub fn default_home_dir() -> Result<PathBuf, AppError> {
-    let home = env::var("HOME")
-        .map(PathBuf::from)
-        .map_err(|_| AppError::new(ErrorCode::HomeResolutionFailed, "HOME environment variable is not set"))?;
+    let home = env::var("HOME").map(PathBuf::from).map_err(|_| {
+        AppError::new(
+            ErrorCode::HomeResolutionFailed,
+            "HOME environment variable is not set",
+        )
+    })?;
     Ok(home.join(".aoxc-data"))
 }
 
@@ -30,8 +32,16 @@ pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
         "reports",
         "support",
     ] {
-        fs::create_dir_all(home.join(relative))
-            .map_err(|e| AppError::with_source(ErrorCode::FilesystemIoFailed, format!("Failed to create directory {}", home.join(relative).display()), e))?;
+        fs::create_dir_all(home.join(relative)).map_err(|e| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to create directory {}",
+                    home.join(relative).display()
+                ),
+                e,
+            )
+        })?;
     }
     Ok(())
 }

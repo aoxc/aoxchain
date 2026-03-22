@@ -1,7 +1,4 @@
-use crate::{
-    config::settings::Settings,
-    node::state::NodeState,
-};
+use crate::{config::settings::Settings, node::state::NodeState};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
