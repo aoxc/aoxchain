@@ -192,6 +192,7 @@ dependencies = [
 name = "aoxcmd"
 version = "0.1.0"
 dependencies = [
+ "aoxcai",
  "aoxcunity",
  "chrono",
  "hex",

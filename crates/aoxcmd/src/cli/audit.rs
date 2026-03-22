@@ -18,11 +18,20 @@ struct Check {
 }
 
 #[derive(Debug, Serialize)]
+struct AiAssistView {
+    available: bool,
+    summary: Option<String>,
+    remediation_plan: Vec<String>,
+    disposition: String,
+}
+
+#[derive(Debug, Serialize)]
 struct AuditReport {
     generated_at: String,
     home_dir: String,
     checks: Vec<Check>,
     verdict: &'static str,
+    ai_assist: AiAssistView,
 }
 
 pub fn cmd_diagnostics_doctor(args: &[String]) -> Result<(), AppError> {
@@ -75,12 +84,8 @@ pub fn cmd_diagnostics_bundle(args: &[String]) -> Result<(), AppError> {
         ),
     ] {
         if let Ok(raw) = read_file(&source) {
-            let content = if redact && source.ends_with("settings.json") {
-                raw
-            } else {
-                raw
-            };
-            write_file(&target, &content)?;
+            let _ = redact;
+            write_file(&target, &raw)?;
         }
     }
 
@@ -175,10 +180,36 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
         "fail"
     };
 
+    let failed_checks = checks
+        .iter()
+        .filter(|check| !check.passed)
+        .map(|check| check.name.to_string())
+        .collect::<Vec<_>>();
+    let ai_outcome = crate::ai::operator::OperatorPlaneAiAdapter::default().diagnostics_assistance(
+        crate::ai::operator::OperatorAssistRequest {
+            topic: "diagnostics_explanation",
+            verdict: verdict.to_string(),
+            failed_checks: failed_checks.clone(),
+        },
+    );
+
     Ok(AuditReport {
         generated_at: Utc::now().to_rfc3339(),
         home_dir: home.display().to_string(),
         checks,
         verdict,
+        ai_assist: AiAssistView {
+            available: ai_outcome.available,
+            summary: ai_outcome
+                .artifact
+                .as_ref()
+                .map(|artifact| artifact.summary.clone()),
+            remediation_plan: ai_outcome
+                .artifact
+                .as_ref()
+                .map(|artifact| artifact.remediation_plan.clone())
+                .unwrap_or_default(),
+            disposition: format!("{:?}", ai_outcome.trace.final_disposition).to_lowercase(),
+        },
     })
 }

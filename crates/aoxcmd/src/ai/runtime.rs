@@ -6,6 +6,7 @@ pub struct AiRuntimeReport {
     pub context_role: &'static str,
     pub anomaly_score: f64,
     pub recommendation: &'static str,
+    pub ai_optional: bool,
 }
 
 pub fn report() -> AiRuntimeReport {
@@ -15,5 +16,6 @@ pub fn report() -> AiRuntimeReport {
         context_role: context.role,
         anomaly_score: signals.anomaly_score,
         recommendation: signals.recommendation,
+        ai_optional: true,
     }
 }

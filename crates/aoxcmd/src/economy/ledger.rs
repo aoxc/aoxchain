@@ -14,6 +14,12 @@ pub struct LedgerState {
     pub updated_at: String,
 }
 
+impl Default for LedgerState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LedgerState {
     pub fn new() -> Self {
         Self {
