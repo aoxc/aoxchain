@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::block::Block;
 use crate::error::ConsensusError;
 use crate::fork_choice::{BlockMeta, ForkChoice};
@@ -29,7 +31,7 @@ pub struct ConsensusState {
     pub round: RoundState,
     pub rotation: ValidatorRotation,
     pub quorum: QuorumThreshold,
-    pub blocks: Vec<Block>,
+    pub blocks: HashMap<[u8; 32], Block>,
 }
 
 impl ConsensusState {
@@ -41,7 +43,7 @@ impl ConsensusState {
             round: RoundState::new(),
             rotation,
             quorum,
-            blocks: Vec::new(),
+            blocks: HashMap::new(),
         }
     }
 
@@ -60,13 +62,16 @@ impl ConsensusState {
     /// - parent/child height discontinuity,
     /// - local head regressions that violate current fork-choice expectations.
     pub fn admit_block(&mut self, block: Block) -> Result<(), ConsensusError> {
-        if self.fork_choice.contains(block.hash)
-            || self
-                .blocks
-                .iter()
-                .any(|existing| existing.hash == block.hash)
-        {
+        if self.fork_choice.contains(block.hash) || self.blocks.contains_key(&block.hash) {
             return Err(ConsensusError::DuplicateBlock);
+        }
+
+        if let Some(finalized_hash) = self.fork_choice.finalized_head()
+            && let Some(finalized_meta) = self.fork_choice.get(finalized_hash)
+            && block.header.height <= finalized_meta.height
+            && block.hash != finalized_hash
+        {
+            return Err(ConsensusError::HeightRegression);
         }
 
         let is_genesis =
@@ -83,8 +88,7 @@ impl ConsensusState {
 
             let parent = self
                 .blocks
-                .iter()
-                .find(|candidate| candidate.hash == block.header.parent_hash)
+                .get(&block.header.parent_hash)
                 .ok_or(ConsensusError::UnknownParent)?;
 
             if block.header.height != parent.header.height + 1 {
@@ -107,7 +111,7 @@ impl ConsensusState {
             seal: None,
         });
 
-        self.blocks.push(block);
+        self.blocks.insert(block.hash, block);
         Ok(())
     }
 
@@ -116,14 +120,62 @@ impl ConsensusState {
     /// # Security Semantics
     /// Votes are rejected when:
     /// - the target block is unknown,
+    /// - the vote targets stale or conflicting finalized ancestry,
     /// - the voter is unknown,
     /// - the voter is inactive,
     /// - the voter is not eligible to vote.
     ///
     /// Duplicate and equivocating votes are further rejected by `VotePool`.
     pub fn add_vote(&mut self, vote: Vote) -> Result<(), ConsensusError> {
-        if !self.fork_choice.contains(vote.block_hash) {
+        if let Some(finalized_hash) = self.fork_choice.finalized_head() {
+            let finalized_height = self
+                .fork_choice
+                .get(finalized_hash)
+                .map(|meta| meta.height)
+                .unwrap_or_default();
+            let target_height = self
+                .fork_choice
+                .get(vote.block_hash)
+                .map(|meta| meta.height)
+                .or_else(|| {
+                    self.blocks
+                        .get(&vote.block_hash)
+                        .map(|block| block.header.height)
+                });
+            if target_height.is_some_and(|height| {
+                height < finalized_height
+                    || (vote.block_hash != finalized_hash
+                        && !self
+                            .fork_choice
+                            .is_ancestor(finalized_hash, vote.block_hash))
+            }) {
+                return Err(ConsensusError::StaleVote);
+            }
+        }
+
+        let target = self
+            .blocks
+            .get(&vote.block_hash)
+            .ok_or(ConsensusError::VoteForUnknownBlock)?;
+
+        if vote.height != target.header.height {
             return Err(ConsensusError::VoteForUnknownBlock);
+        }
+
+        if let Some(finalized_hash) = self.fork_choice.finalized_head() {
+            let finalized_height = self
+                .fork_choice
+                .get(finalized_hash)
+                .map(|meta| meta.height)
+                .unwrap_or_default();
+            if vote.height < finalized_height
+                || (vote.block_hash != finalized_hash
+                    && !self
+                        .fork_choice
+                        .is_ancestor(finalized_hash, vote.block_hash))
+            {
+                return Err(ConsensusError::StaleVote);
+            }
         }
 
         let validator = self
@@ -147,9 +199,8 @@ impl ConsensusState {
     #[must_use]
     pub fn observed_voting_power(&self, block_hash: [u8; 32], kind: VoteKind) -> u64 {
         self.vote_pool
-            .votes_for_block(block_hash)
-            .iter()
-            .filter(|vote| vote.kind == kind)
+            .votes_for_block_kind(block_hash, kind)
+            .into_iter()
             .filter_map(|vote| self.rotation.eligible_voting_power_of(vote.voter))
             .sum()
     }
@@ -182,6 +233,7 @@ impl ConsensusState {
         };
 
         if self.fork_choice.mark_finalized(block_hash, seal.clone()) {
+            self.prune_to_finalized_branch(block_hash);
             Some(seal)
         } else {
             None
@@ -201,15 +253,15 @@ impl ConsensusState {
         block_hash: [u8; 32],
         finalized_round: u64,
     ) -> Option<QuorumCertificate> {
-        let block = self.blocks.iter().find(|block| block.hash == block_hash)?;
+        let block = self.blocks.get(&block_hash)?;
 
         let mut signers = Vec::new();
         let mut observed_voting_power = 0u64;
 
-        for vote in self.vote_pool.votes_for_block(block_hash) {
-            if vote.kind != VoteKind::Commit {
-                continue;
-            }
+        for vote in self
+            .vote_pool
+            .votes_for_block_kind(block_hash, VoteKind::Commit)
+        {
             if vote.height != block.header.height || vote.round != finalized_round {
                 continue;
             }
@@ -240,6 +292,14 @@ impl ConsensusState {
             self.quorum.numerator,
             self.quorum.denominator,
         ))
+    }
+
+    fn prune_to_finalized_branch(&mut self, finalized_hash: [u8; 32]) {
+        self.blocks.retain(|hash, _| {
+            *hash == finalized_hash || self.fork_choice.is_ancestor(finalized_hash, *hash)
+        });
+        self.vote_pool
+            .prune_blocks(|hash| self.blocks.contains_key(&hash));
     }
 
     #[must_use]
@@ -291,6 +351,18 @@ mod tests {
         genesis
     }
 
+    fn inject_known_block(state: &mut ConsensusState, block: crate::block::Block) {
+        state.blocks.insert(block.hash, block.clone());
+        state
+            .fork_choice
+            .insert_block(crate::fork_choice::BlockMeta {
+                hash: block.hash,
+                parent: block.header.parent_hash,
+                height: block.header.height,
+                seal: None,
+            });
+    }
+
     #[test]
     fn rejects_vote_from_unknown_validator() {
         let mut state =
@@ -318,15 +390,7 @@ mod tests {
         let mut state =
             state_with_validators(vec![validator(1, 10, ValidatorRole::Validator, false)]);
         let block = make_block([0u8; 32], 0, [1u8; 32]);
-        state.blocks.push(block.clone());
-        state
-            .fork_choice
-            .insert_block(crate::fork_choice::BlockMeta {
-                hash: block.hash,
-                parent: block.header.parent_hash,
-                height: block.header.height,
-                seal: None,
-            });
+        inject_known_block(&mut state, block.clone());
 
         let err = state
             .add_vote(Vote {
@@ -349,15 +413,7 @@ mod tests {
         let mut state =
             state_with_validators(vec![validator(1, 10, ValidatorRole::Observer, true)]);
         let block = make_block([0u8; 32], 0, [1u8; 32]);
-        state.blocks.push(block.clone());
-        state
-            .fork_choice
-            .insert_block(crate::fork_choice::BlockMeta {
-                hash: block.hash,
-                parent: block.header.parent_hash,
-                height: block.header.height,
-                seal: None,
-            });
+        inject_known_block(&mut state, block.clone());
 
         let err = state
             .add_vote(Vote {
@@ -385,15 +441,7 @@ mod tests {
         let rotation = ValidatorRotation::new(validators).unwrap();
         let mut state = ConsensusState::new(rotation, QuorumThreshold::new(2, 3).unwrap());
         let block = make_block([0u8; 32], 0, [1u8; 32]);
-        state.blocks.push(block.clone());
-        state
-            .fork_choice
-            .insert_block(crate::fork_choice::BlockMeta {
-                hash: block.hash,
-                parent: block.header.parent_hash,
-                height: block.header.height,
-                seal: None,
-            });
+        inject_known_block(&mut state, block.clone());
 
         state
             .vote_pool
@@ -463,18 +511,13 @@ mod tests {
         state.admit_block(child_b.clone()).unwrap_err();
 
         let alt_hash = [9u8; 32];
-        state
-            .fork_choice
-            .insert_block(crate::fork_choice::BlockMeta {
+        inject_known_block(
+            &mut state,
+            crate::block::Block {
                 hash: alt_hash,
-                parent: genesis.hash,
-                height: 1,
-                seal: None,
-            });
-        state.blocks.push(crate::block::Block {
-            hash: alt_hash,
-            ..child_a.clone()
-        });
+                ..child_a.clone()
+            },
+        );
 
         state
             .add_vote(Vote {
@@ -626,5 +669,111 @@ mod tests {
             .unwrap();
 
         assert!(state.try_finalize(block.hash, 0).is_none());
+    }
+
+    #[test]
+    fn finalized_branch_prunes_conflicting_blocks_and_votes() {
+        let mut state = state_with_validators(vec![
+            validator(1, 1, ValidatorRole::Validator, true),
+            validator(2, 1, ValidatorRole::Validator, true),
+            validator(3, 1, ValidatorRole::Validator, true),
+        ]);
+        let genesis = admit_genesis(&mut state, [1u8; 32]);
+        let canonical = make_block(genesis.hash, 1, [1u8; 32]);
+        let conflicting = crate::block::Block {
+            hash: [42u8; 32],
+            ..make_block(genesis.hash, 1, [2u8; 32])
+        };
+
+        state.admit_block(canonical.clone()).unwrap();
+        inject_known_block(&mut state, conflicting.clone());
+
+        for voter in [[1u8; 32], [2u8; 32]] {
+            state
+                .add_vote(Vote {
+                    voter,
+                    block_hash: canonical.hash,
+                    height: 1,
+                    round: 1,
+                    kind: VoteKind::Commit,
+                })
+                .unwrap();
+        }
+        state
+            .vote_pool
+            .add_vote(Vote {
+                voter: [3u8; 32],
+                block_hash: conflicting.hash,
+                height: 1,
+                round: 1,
+                kind: VoteKind::Commit,
+            })
+            .unwrap();
+
+        state.try_finalize(canonical.hash, 1).unwrap();
+
+        assert!(state.blocks.contains_key(&canonical.hash));
+        assert!(!state.blocks.contains_key(&conflicting.hash));
+        assert_eq!(
+            state
+                .vote_pool
+                .count_for_block_kind(conflicting.hash, VoteKind::Commit),
+            0
+        );
+    }
+
+    #[test]
+    fn rejects_stale_votes_for_non_finalized_branch_after_finalization() {
+        let mut state = state_with_validators(vec![
+            validator(1, 1, ValidatorRole::Validator, true),
+            validator(2, 1, ValidatorRole::Validator, true),
+            validator(3, 1, ValidatorRole::Validator, true),
+        ]);
+        let genesis = admit_genesis(&mut state, [1u8; 32]);
+        let canonical = make_block(genesis.hash, 1, [1u8; 32]);
+        let child = make_block(canonical.hash, 2, [2u8; 32]);
+        let conflicting = crate::block::Block {
+            hash: [77u8; 32],
+            ..make_block(genesis.hash, 1, [3u8; 32])
+        };
+
+        state.admit_block(canonical.clone()).unwrap();
+        state.admit_block(child.clone()).unwrap();
+        inject_known_block(&mut state, conflicting.clone());
+
+        for voter in [[1u8; 32], [2u8; 32]] {
+            state
+                .add_vote(Vote {
+                    voter,
+                    block_hash: canonical.hash,
+                    height: 1,
+                    round: 1,
+                    kind: VoteKind::Commit,
+                })
+                .unwrap();
+        }
+
+        state.try_finalize(canonical.hash, 1).unwrap();
+
+        let err = state
+            .add_vote(Vote {
+                voter: [3u8; 32],
+                block_hash: conflicting.hash,
+                height: 1,
+                round: 1,
+                kind: VoteKind::Commit,
+            })
+            .unwrap_err();
+        assert_eq!(err.to_string(), ConsensusError::StaleVote.to_string());
+
+        state
+            .add_vote(Vote {
+                voter: [3u8; 32],
+                block_hash: child.hash,
+                height: 2,
+                round: 2,
+                kind: VoteKind::Prepare,
+            })
+            .unwrap();
     }
 }
