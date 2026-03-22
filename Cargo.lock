@@ -313,6 +313,7 @@ dependencies = [
 name = "aoxcunity"
 version = "0.1.0"
 dependencies = [
+ "ed25519-dalek",
  "rand 0.10.0",
  "serde",
  "sha2",

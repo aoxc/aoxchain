@@ -11,7 +11,7 @@ use crate::rotation::ValidatorRotation;
 use crate::round::RoundState;
 use crate::seal::{BlockSeal, QuorumCertificate};
 use crate::validator::ValidatorId;
-use crate::vote::{Vote, VoteKind};
+use crate::vote::{SignedVote, VerifiedVote, Vote, VoteAuthenticationError, VoteKind};
 use crate::vote_pool::VotePool;
 
 /// In-memory consensus state container.
@@ -116,6 +116,19 @@ impl ConsensusState {
 
         self.blocks.insert(block.hash, block);
         Ok(())
+    }
+
+    pub fn add_signed_vote(
+        &mut self,
+        signed_vote: SignedVote,
+    ) -> Result<(), VoteAuthenticationError> {
+        let verified = signed_vote.verify()?;
+        self.add_verified_vote(verified)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)
+    }
+
+    pub fn add_verified_vote(&mut self, verified_vote: VerifiedVote) -> Result<(), ConsensusError> {
+        self.add_vote(verified_vote.into_vote())
     }
 
     /// Admits a vote into local consensus state after eligibility validation.

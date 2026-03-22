@@ -43,5 +43,5 @@ pub use store::{
     RecoveryState, SnapshotStore, recover_state,
 };
 pub use validator::{Validator, ValidatorId, ValidatorRole};
-pub use vote::{Vote, VoteKind};
+pub use vote::{SignedVote, VerifiedVote, Vote, VoteAuthenticationError, VoteKind};
 pub use vote_pool::VotePool;
