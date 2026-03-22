@@ -146,6 +146,62 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn infer_saturates_risk_at_maximum() {
+        let manifest = heuristic_manifest();
+        let backend = HeuristicBackendRuntime::new();
+        let request = request_with(
+            vec![
+                InferenceSignal::new("status", "revoked_identity", 10_000, "unit_test"),
+                InferenceSignal::new("runtime", "anomaly", 10_000, "unit_test"),
+                InferenceSignal::new("runtime", "revoked_again", 10_000, "unit_test"),
+            ],
+            vec![
+                InferenceFinding::new("revoked_identity", "critical", FindingSeverity::Critical),
+                InferenceFinding::new(
+                    "invalid_quorum_proof",
+                    "critical",
+                    FindingSeverity::Critical,
+                ),
+                InferenceFinding::new("runtime_anomaly", "warning", FindingSeverity::Warning),
+            ],
+        );
+
+        let output = backend
+            .infer(&manifest, &request)
+            .await
+            .expect("heuristic inference must succeed");
+        assert_eq!(output.risk_bps, 10_000);
+        assert_eq!(output.label, OutputLabel::Malicious);
+    }
+
+    #[tokio::test]
+    async fn infer_emits_structural_attributes() {
+        let manifest = heuristic_manifest();
+        let backend = HeuristicBackendRuntime::new();
+        let request = request_with(
+            vec![InferenceSignal::new("status", "healthy", 250, "unit_test")],
+            vec![InferenceFinding::new("info", "info", FindingSeverity::Info)],
+        );
+
+        let output = backend
+            .infer(&manifest, &request)
+            .await
+            .expect("heuristic inference must succeed");
+        assert_eq!(
+            output.attributes.get("ruleset").map(String::as_str),
+            Some("default")
+        );
+        assert_eq!(
+            output.attributes.get("signal_count").map(String::as_str),
+            Some("1")
+        );
+        assert_eq!(
+            output.attributes.get("finding_count").map(String::as_str),
+            Some("1")
+        );
+    }
+
+    #[tokio::test]
     async fn infer_weights_findings_by_severity() {
         let manifest = heuristic_manifest();
         let backend = HeuristicBackendRuntime::new();

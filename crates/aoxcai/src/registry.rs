@@ -109,6 +109,7 @@ impl ModelRegistry {
 mod tests {
     use super::*;
     use crate::{model::AiTask, test_support::base_manifest};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn register_and_get_return_manifest_by_id() {
@@ -145,6 +146,72 @@ mod tests {
             }
             other => panic!("unexpected error: {other}"),
         }
+    }
+
+    #[test]
+    fn bind_checked_overrides_existing_binding_when_model_exists() {
+        let mut registry = ModelRegistry::new();
+        let manifest_a = base_manifest();
+        let mut manifest_b = base_manifest();
+        manifest_b.metadata.id = "test-model-b".to_owned();
+        manifest_b.spec.bindings.default_for_tasks.clear();
+
+        registry
+            .register(manifest_a)
+            .expect("first manifest must register");
+        registry
+            .register(manifest_b)
+            .expect("second manifest must register");
+
+        registry
+            .bind_checked(AiTask::ValidatorAdmission, "test-model-b")
+            .expect("binding override must succeed");
+
+        let resolved = registry
+            .resolve_for_task(AiTask::ValidatorAdmission)
+            .expect("binding must resolve");
+        assert_eq!(resolved.metadata.id, "test-model-b");
+    }
+
+    #[test]
+    fn load_dir_registers_enabled_yaml_manifests_only() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock must be after epoch")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("aoxcai-registry-test-{unique}"));
+        fs::create_dir_all(&dir).expect("temp dir must be created");
+
+        let enabled_manifest = base_manifest();
+        let enabled_yaml =
+            serde_yaml::to_string(&enabled_manifest).expect("manifest must serialize");
+        fs::write(dir.join("enabled.yaml"), enabled_yaml).expect("enabled manifest must write");
+
+        let mut disabled_manifest = base_manifest();
+        disabled_manifest.metadata.id = "disabled-model".to_owned();
+        disabled_manifest.spec.enabled = false;
+        disabled_manifest.spec.bindings.default_for_tasks.clear();
+        let disabled_yaml =
+            serde_yaml::to_string(&disabled_manifest).expect("manifest must serialize");
+        fs::write(dir.join("disabled.yaml"), disabled_yaml).expect("disabled manifest must write");
+
+        fs::write(dir.join("notes.txt"), "ignore me").expect("note file must write");
+
+        let registry = ModelRegistry::new()
+            .load_dir(&dir)
+            .expect("directory load must succeed");
+        let resolved = registry
+            .resolve_for_task(AiTask::ValidatorAdmission)
+            .expect("enabled manifest binding must resolve");
+        assert_eq!(resolved.metadata.id, enabled_manifest.metadata.id);
+        assert_eq!(
+            registry
+                .get("disabled-model")
+                .expect_err("disabled manifest must not register"),
+            AiError::ModelNotFound("disabled-model".to_owned())
+        );
+
+        fs::remove_dir_all(&dir).expect("temp dir must be removed");
     }
 
     #[test]

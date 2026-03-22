@@ -183,3 +183,69 @@ pub struct NoopAuditSink;
 impl AiAuditSink for NoopAuditSink {
     fn record(&self, _record: AiInvocationAuditRecord) {}
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_record() -> AiInvocationAuditRecord {
+        AiInvocationAuditRecord::new(
+            "inv-1",
+            "aoxcmd",
+            "diagnostics",
+            "diagnostics_explanation",
+            "heuristic",
+            AiCapability::DiagnosticsAssist,
+            AiActionClass::Advisory,
+            KernelZone::Operator,
+            "policy-1",
+        )
+    }
+
+    #[test]
+    fn new_record_uses_conservative_defaults() {
+        let record = sample_record();
+        assert_eq!(record.input_class, "structured");
+        assert_eq!(record.output_class, "advisory_artifact");
+        assert_eq!(record.confidence_bps, 0);
+        assert_eq!(record.duration_ms, 0);
+        assert!(!record.timeout_hit);
+        assert!(!record.side_effect_intent);
+        assert_eq!(record.approval_state, "not_required");
+        assert_eq!(record.final_disposition, InvocationDisposition::Allowed);
+    }
+
+    #[test]
+    fn memory_audit_sink_returns_snapshot_without_mutating_storage() {
+        let sink = MemoryAuditSink::default();
+        sink.record(sample_record());
+        let mut snapshot = sink.snapshot();
+        snapshot[0].approval_state = "modified-locally".to_string();
+
+        let second_snapshot = sink.snapshot();
+        assert_eq!(second_snapshot.len(), 1);
+        assert_eq!(second_snapshot[0].approval_state, "not_required");
+    }
+
+    #[test]
+    fn memory_audit_sink_preserves_record_order() {
+        let sink = MemoryAuditSink::default();
+        for index in 0..32 {
+            let mut record = sample_record();
+            record.invocation_id = format!("inv-{index}");
+            sink.record(record);
+        }
+
+        let snapshot = sink.snapshot();
+        assert_eq!(snapshot.len(), 32);
+        for (index, record) in snapshot.iter().enumerate() {
+            assert_eq!(record.invocation_id, format!("inv-{index}"));
+        }
+    }
+
+    #[test]
+    fn noop_audit_sink_accepts_records() {
+        let sink = NoopAuditSink;
+        sink.record(sample_record());
+    }
+}

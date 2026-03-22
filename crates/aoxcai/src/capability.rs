@@ -1,5 +1,4 @@
 //! Capability and policy descriptors for the AOXC intelligence extension plane.
-//! Capability and policy descriptors for the AOXC intelligence extension plane.
 //!
 //! # Purpose
 //! This module defines the authorization vocabulary used to constrain AI
@@ -98,14 +97,12 @@ impl InvocationPolicy {
                     capability: AiCapability::Explain,
                     action_class: AiActionClass::Advisory,
                 },
-
                 // Consensus
                 CapabilityGrant {
                     zone: KernelZone::Consensus,
                     capability: AiCapability::InvariantCheckAssist,
                     action_class: AiActionClass::Advisory,
                 },
-
                 // Contract
                 CapabilityGrant {
                     zone: KernelZone::Contract,
@@ -117,14 +114,12 @@ impl InvocationPolicy {
                     capability: AiCapability::CompatibilityLint,
                     action_class: AiActionClass::Advisory,
                 },
-
                 // Network
                 CapabilityGrant {
                     zone: KernelZone::Network,
                     capability: AiCapability::RiskSummary,
                     action_class: AiActionClass::Advisory,
                 },
-
                 // Operator - advisory
                 CapabilityGrant {
                     zone: KernelZone::Operator,
@@ -141,7 +136,6 @@ impl InvocationPolicy {
                     capability: AiCapability::ConfigReview,
                     action_class: AiActionClass::Advisory,
                 },
-
                 // Operator - guarded
                 CapabilityGrant {
                     zone: KernelZone::Operator,
@@ -165,10 +159,101 @@ impl InvocationPolicy {
         capability: AiCapability,
         action_class: AiActionClass,
     ) -> bool {
-        self.grants.iter().any(|g| {
-            g.zone == zone
-                && g.capability == capability
-                && g.action_class == action_class
-        })
+        self.grants
+            .iter()
+            .any(|g| g.zone == zone && g.capability == capability && g.action_class == action_class)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ALL_CAPABILITIES: [AiCapability; 11] = [
+        AiCapability::Explain,
+        AiCapability::ValidateAssist,
+        AiCapability::InvariantCheckAssist,
+        AiCapability::ManifestReview,
+        AiCapability::CompatibilityLint,
+        AiCapability::RiskSummary,
+        AiCapability::DiagnosticsAssist,
+        AiCapability::IncidentSummary,
+        AiCapability::ConfigReview,
+        AiCapability::RemediationPlan,
+        AiCapability::RunbookGenerate,
+    ];
+
+    const ALL_ZONES: [KernelZone; 5] = [
+        KernelZone::Core,
+        KernelZone::Consensus,
+        KernelZone::Network,
+        KernelZone::Contract,
+        KernelZone::Operator,
+    ];
+
+    const ALL_ACTION_CLASSES: [AiActionClass; 3] = [
+        AiActionClass::Advisory,
+        AiActionClass::GuardedPreparation,
+        AiActionClass::RestrictedConstitutional,
+    ];
+
+    #[test]
+    fn kernel_default_policy_requires_audit_and_has_stable_grants() {
+        let policy = InvocationPolicy::kernel_default();
+        assert!(policy.audit_required);
+        assert_eq!(policy.policy_id, "aoxcai-kernel-default");
+        assert_eq!(policy.grants.len(), 10);
+    }
+
+    #[test]
+    fn kernel_default_policy_allows_every_declared_grant() {
+        let policy = InvocationPolicy::kernel_default();
+        for grant in &policy.grants {
+            assert!(policy.allows(grant.zone, grant.capability, grant.action_class));
+        }
+    }
+
+    #[test]
+    fn kernel_default_policy_denies_every_non_granted_combination() {
+        let policy = InvocationPolicy::kernel_default();
+
+        for zone in ALL_ZONES {
+            for capability in ALL_CAPABILITIES {
+                for action_class in ALL_ACTION_CLASSES {
+                    let expected = policy.grants.iter().any(|grant| {
+                        grant.zone == zone
+                            && grant.capability == capability
+                            && grant.action_class == action_class
+                    });
+                    assert_eq!(policy.allows(zone, capability, action_class), expected);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn exact_match_semantics_reject_capability_zone_and_action_mutations() {
+        let policy = InvocationPolicy::kernel_default();
+
+        assert!(policy.allows(
+            KernelZone::Operator,
+            AiCapability::RunbookGenerate,
+            AiActionClass::GuardedPreparation,
+        ));
+        assert!(!policy.allows(
+            KernelZone::Operator,
+            AiCapability::RunbookGenerate,
+            AiActionClass::Advisory,
+        ));
+        assert!(!policy.allows(
+            KernelZone::Consensus,
+            AiCapability::RunbookGenerate,
+            AiActionClass::GuardedPreparation,
+        ));
+        assert!(!policy.allows(
+            KernelZone::Operator,
+            AiCapability::DiagnosticsAssist,
+            AiActionClass::GuardedPreparation,
+        ));
     }
 }

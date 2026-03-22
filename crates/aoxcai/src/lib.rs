@@ -63,4 +63,4 @@ pub use registry::ModelRegistry;
 pub use traits::{ContextProvider, DecisionPolicy, InferenceBackend, SignalProvider};
 
 pub use capability::{AiActionClass, AiCapability, CapabilityGrant, InvocationPolicy, KernelZone};
-pub use constitution::{authorize_invocation, CONSTITUTIONAL_RULES};
+pub use constitution::{CONSTITUTIONAL_RULES, authorize_invocation};
