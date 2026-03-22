@@ -367,4 +367,56 @@ mod tests {
 
         assert_eq!(a, b);
     }
+
+    #[test]
+    fn execution_certificate_hash_changes_when_epoch_or_validator_set_changes() {
+        let qc = QuorumCertificate::new([5u8; 32], 11, 3, vec![[1u8; 32]], 20, 30, 2, 3);
+        let a = ExecutionCertificate::new(4, [6u8; 32], qc.clone());
+        let b = ExecutionCertificate::new(5, [6u8; 32], qc.clone());
+        let c = ExecutionCertificate::new(4, [7u8; 32], qc);
+
+        assert_ne!(a.certificate_hash, b.certificate_hash);
+        assert_ne!(a.certificate_hash, c.certificate_hash);
+    }
+
+    #[test]
+    fn continuity_certificate_hash_changes_when_timeout_round_or_power_changes() {
+        let a = ContinuityCertificate::new([5u8; 32], 11, 3, 4, 4, 20, vec![[1u8; 32]]);
+        let b = ContinuityCertificate::new([5u8; 32], 11, 3, 4, 5, 20, vec![[1u8; 32]]);
+        let c = ContinuityCertificate::new([5u8; 32], 11, 3, 4, 4, 21, vec![[1u8; 32]]);
+
+        assert_ne!(a.certificate_hash, b.certificate_hash);
+        assert_ne!(a.certificate_hash, c.certificate_hash);
+    }
+
+    #[test]
+    fn constitutional_seal_hash_changes_when_input_certificate_changes() {
+        let qc = QuorumCertificate::new([5u8; 32], 11, 3, vec![[1u8; 32]], 20, 30, 2, 3);
+        let execution_a = ExecutionCertificate::new(4, [6u8; 32], qc.clone());
+        let execution_b = ExecutionCertificate::new(5, [6u8; 32], qc);
+        let legitimacy = LegitimacyCertificate::new(
+            [5u8; 32],
+            4,
+            [7u8; 32],
+            [8u8; 32],
+            [9u8; 32],
+            vec![[1u8; 32]],
+        );
+        let continuity = ContinuityCertificate::new([5u8; 32], 11, 3, 4, 4, 20, vec![[1u8; 32]]);
+
+        let seal_a = ConstitutionalSeal::compose(&execution_a, &legitimacy, &continuity).unwrap();
+        let legitimacy_b = LegitimacyCertificate::new(
+            [5u8; 32],
+            5,
+            [7u8; 32],
+            [8u8; 32],
+            [9u8; 32],
+            vec![[1u8; 32]],
+        );
+        let continuity_b = ContinuityCertificate::new([5u8; 32], 11, 3, 5, 4, 20, vec![[1u8; 32]]);
+        let seal_b =
+            ConstitutionalSeal::compose(&execution_b, &legitimacy_b, &continuity_b).unwrap();
+
+        assert_ne!(seal_a.seal_hash, seal_b.seal_hash);
+    }
 }
