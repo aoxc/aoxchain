@@ -6,6 +6,7 @@
 
 pub mod compatibility;
 pub mod context;
+pub mod contracts;
 pub mod error;
 pub mod gas;
 pub mod host;

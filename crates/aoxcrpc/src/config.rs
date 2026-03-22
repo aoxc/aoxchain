@@ -215,3 +215,50 @@ mod tests {
         assert_eq!(validation.readiness_score(), 100);
     }
 }
+
+/// Contract RPC API configuration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContractApiExposure {
+    pub enable_contracts_api: bool,
+    pub enable_register_endpoint: bool,
+    pub enable_lifecycle_mutations: bool,
+    pub enable_runtime_resolve_endpoint: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContractApiLimits {
+    pub max_manifest_body_size: usize,
+    pub max_list_page_size: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContractApiSecurity {
+    pub strict_validation_mode: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContractApiConfig {
+    pub exposure: ContractApiExposure,
+    pub limits: ContractApiLimits,
+    pub security: ContractApiSecurity,
+}
+
+impl Default for ContractApiConfig {
+    fn default() -> Self {
+        Self {
+            exposure: ContractApiExposure {
+                enable_contracts_api: true,
+                enable_register_endpoint: true,
+                enable_lifecycle_mutations: true,
+                enable_runtime_resolve_endpoint: true,
+            },
+            limits: ContractApiLimits {
+                max_manifest_body_size: 1024 * 1024,
+                max_list_page_size: 100,
+            },
+            security: ContractApiSecurity {
+                strict_validation_mode: true,
+            },
+        }
+    }
+}

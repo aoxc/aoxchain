@@ -56,21 +56,11 @@ impl Default for NativeTokenPolicy {
 }
 
 /// Minimal in-memory native token ledger.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct NativeTokenLedger {
     pub policy: NativeTokenPolicy,
     pub total_supply: u128,
     pub balances: HashMap<[u8; 32], u128>,
-}
-
-impl Default for NativeTokenLedger {
-    fn default() -> Self {
-        Self {
-            policy: NativeTokenPolicy::default(),
-            total_supply: 0,
-            balances: HashMap::new(),
-        }
-    }
 }
 
 impl NativeTokenLedger {

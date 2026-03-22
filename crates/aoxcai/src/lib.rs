@@ -4,9 +4,13 @@
 //! The design goal is operational determinism, explicit policy enforcement, and
 //! conservative failure handling suitable for security-sensitive node workflows.
 
+pub mod audit;
 pub mod backend;
+pub mod capability;
+pub mod constitution;
 pub mod engine;
 pub mod error;
+pub mod extension;
 pub mod manifest;
 pub mod model;
 pub mod policy;
@@ -27,3 +31,8 @@ pub use model::{
 pub use policy::fusion::FusionPolicy;
 pub use registry::ModelRegistry;
 pub use traits::{ContextProvider, DecisionPolicy, InferenceBackend, SignalProvider};
+
+pub use audit::{AiInvocationAuditRecord, InvocationDisposition};
+pub use capability::{AiActionClass, AiCapability, CapabilityGrant, InvocationPolicy, KernelZone};
+pub use constitution::{CONSTITUTIONAL_RULES, authorize_invocation};
+pub use extension::{AuthorizedInvocation, ExecutionBudget, ExtensionDescriptor};

@@ -1,3 +1,5 @@
+pub mod contracts;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChainConfig {
     pub chain_name: String,
