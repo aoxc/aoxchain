@@ -43,8 +43,8 @@
 //! - mutate chain state,
 //! - persist records by itself,
 //! - expose RPC handlers,
-//! - perform network operations, or
-//! - participate in consensus processing.
+//! - perform network operations,
+//! - or participate in consensus processing.
 //!
 //! Those responsibilities belong to higher-layer AOXChain subsystems such as state,
 //! runtime, transport, operator, and API surfaces.
