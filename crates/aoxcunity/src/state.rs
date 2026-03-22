@@ -339,6 +339,8 @@ impl ConsensusState {
 
 #[cfg(test)]
 mod tests {
+    use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
+
     use crate::block::{BlockBody, BlockBuilder};
     //use crate::constitutional::{ContinuityCertificate, LegitimacyCertificate};
     use crate::error::ConsensusError;
@@ -805,5 +807,164 @@ mod tests {
                 kind: VoteKind::Prepare,
             })
             .unwrap();
+    }
+
+    #[test]
+    fn weighted_quorum_uses_power_not_validator_count() {
+        let rotation = ValidatorRotation::new(vec![
+            validator(1, 8, ValidatorRole::Validator, true),
+            validator(2, 1, ValidatorRole::Validator, true),
+            validator(3, 1, ValidatorRole::Validator, true),
+        ])
+        .unwrap();
+        let mut state = ConsensusState::new(rotation, QuorumThreshold::new(2, 3).unwrap());
+        let block = admit_genesis(&mut state, [1u8; 32]);
+
+        state
+            .add_vote(Vote {
+                voter: [1u8; 32],
+                block_hash: block.hash,
+                height: 0,
+                round: 0,
+                kind: VoteKind::Commit,
+            })
+            .unwrap();
+
+        assert!(state.has_quorum(block.hash, VoteKind::Commit));
+        assert!(state.try_finalize(block.hash, 0).is_some());
+    }
+
+    #[test]
+    fn insufficient_weight_rejects_count_majority_finalization() {
+        let rotation = ValidatorRotation::new(vec![
+            validator(1, 6, ValidatorRole::Validator, true),
+            validator(2, 2, ValidatorRole::Validator, true),
+            validator(3, 2, ValidatorRole::Validator, true),
+        ])
+        .unwrap();
+        let mut state = ConsensusState::new(rotation, QuorumThreshold::new(2, 3).unwrap());
+        let block = admit_genesis(&mut state, [1u8; 32]);
+
+        for voter in [[2u8; 32], [3u8; 32]] {
+            state
+                .add_vote(Vote {
+                    voter,
+                    block_hash: block.hash,
+                    height: 0,
+                    round: 0,
+                    kind: VoteKind::Commit,
+                })
+                .unwrap();
+        }
+
+        assert!(!state.has_quorum(block.hash, VoteKind::Commit));
+        assert!(state.try_finalize(block.hash, 0).is_none());
+    }
+
+    #[test]
+    fn add_signed_vote_accepts_valid_signature_end_to_end() {
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let voter = signing_key.verifying_key().to_bytes();
+        let mut validator = Validator::new(voter, 10, ValidatorRole::Validator);
+        validator.active = true;
+        let mut state = state_with_validators(vec![validator]);
+        let block = admit_genesis(&mut state, voter);
+        let vote = Vote {
+            voter,
+            block_hash: block.hash,
+            height: 0,
+            round: 0,
+            kind: VoteKind::Commit,
+        };
+        let signature = signing_key.sign(&vote.signing_bytes()).to_bytes().to_vec();
+
+        state
+            .add_signed_vote(crate::vote::SignedVote { vote, signature })
+            .unwrap();
+
+        assert_eq!(
+            state
+                .vote_pool
+                .count_for_block_kind(block.hash, VoteKind::Commit),
+            1
+        );
+    }
+
+    #[test]
+    fn add_signed_vote_rejects_invalid_signature_end_to_end() {
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let voter = signing_key.verifying_key().to_bytes();
+        let mut validator = Validator::new(voter, 10, ValidatorRole::Validator);
+        validator.active = true;
+        let mut state = state_with_validators(vec![validator]);
+        let block = admit_genesis(&mut state, voter);
+        let mut vote = Vote {
+            voter,
+            block_hash: block.hash,
+            height: 0,
+            round: 0,
+            kind: VoteKind::Commit,
+        };
+        let signature = signing_key.sign(&vote.signing_bytes()).to_bytes().to_vec();
+        vote.round = 1;
+
+        let err = state
+            .add_signed_vote(crate::vote::SignedVote { vote, signature })
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            crate::vote::VoteAuthenticationError::InvalidSignature.to_string()
+        );
+    }
+
+    #[test]
+    fn add_signed_vote_rejects_malformed_key_end_to_end() {
+        let mut state =
+            state_with_validators(vec![validator(1, 10, ValidatorRole::Validator, true)]);
+        let block = admit_genesis(&mut state, [1u8; 32]);
+        let malformed_voter = (0u8..=u8::MAX)
+            .map(|byte| [byte; 32])
+            .find(|candidate| VerifyingKey::from_bytes(candidate).is_err())
+            .expect("at least one malformed 32-byte encoding should be rejected");
+
+        let err = state
+            .add_signed_vote(crate::vote::SignedVote {
+                vote: Vote {
+                    voter: malformed_voter,
+                    block_hash: block.hash,
+                    height: 0,
+                    round: 0,
+                    kind: VoteKind::Commit,
+                },
+                signature: vec![0u8; 64],
+            })
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            crate::vote::VoteAuthenticationError::MalformedPublicKey.to_string()
+        );
+    }
+
+    #[test]
+    fn try_finalize_is_idempotent_after_first_success() {
+        let mut state =
+            state_with_validators(vec![validator(1, 10, ValidatorRole::Validator, true)]);
+        let block = admit_genesis(&mut state, [1u8; 32]);
+        state
+            .add_vote(Vote {
+                voter: [1u8; 32],
+                block_hash: block.hash,
+                height: 0,
+                round: 0,
+                kind: VoteKind::Commit,
+            })
+            .unwrap();
+
+        let first = state.try_finalize(block.hash, 0);
+        let second = state.try_finalize(block.hash, 0);
+
+        assert!(first.is_some());
+        assert!(second.is_some());
+        assert_eq!(first, second);
     }
 }
