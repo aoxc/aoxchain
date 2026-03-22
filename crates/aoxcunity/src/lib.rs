@@ -24,7 +24,7 @@ pub use proposer::Proposer;
 pub use quorum::QuorumThreshold;
 pub use rotation::ValidatorRotation;
 pub use round::RoundState;
-pub use seal::BlockSeal;
+pub use seal::{BlockSeal, QuorumCertificate};
 pub use state::ConsensusState;
 pub use validator::{Validator, ValidatorId, ValidatorRole};
 pub use vote::{Vote, VoteKind};

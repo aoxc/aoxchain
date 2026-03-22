@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::error::ConsensusError;
 use crate::validator::{Validator, ValidatorId};
 
@@ -15,6 +17,13 @@ impl ValidatorRotation {
     pub fn new(validators: Vec<Validator>) -> Result<Self, ConsensusError> {
         if validators.is_empty() {
             return Err(ConsensusError::EmptyValidatorSet);
+        }
+
+        let mut seen = HashSet::new();
+        for validator in &validators {
+            if !seen.insert(validator.id) {
+                return Err(ConsensusError::DuplicateValidator);
+            }
         }
 
         Ok(Self { validators })
@@ -52,5 +61,22 @@ impl ValidatorRotation {
             .iter()
             .find(|validator| validator.id == validator_id)
             .map(|validator| validator.voting_power)
+    }
+
+    pub fn eligible_voting_power_of(&self, validator_id: ValidatorId) -> Option<u64> {
+        self.validators
+            .iter()
+            .find(|validator| validator.id == validator_id && validator.is_eligible_for_vote())
+            .map(|validator| validator.voting_power)
+    }
+
+    pub fn contains_active_vote_eligible_validator(&self, validator_id: ValidatorId) -> bool {
+        self.eligible_voting_power_of(validator_id).is_some()
+    }
+
+    pub fn validator(&self, validator_id: ValidatorId) -> Option<&Validator> {
+        self.validators
+            .iter()
+            .find(|validator| validator.id == validator_id)
     }
 }

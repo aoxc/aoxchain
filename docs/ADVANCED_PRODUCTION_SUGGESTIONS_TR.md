@@ -2,6 +2,8 @@
 
 Bu belge, mevcut alpha seviyesini üretime daha hızlı yaklaştırmak için doğrudan uygulanabilir önerileri önceliklendirir.
 
+Detaylı consensus-kernel hardening planı için ayrıca bkz. [`AOXC_KERNEL_HARDENING_MASTER_PLAN_TR.md`](./AOXC_KERNEL_HARDENING_MASTER_PLAN_TR.md).
+
 ## 1) Konsensus Güvenliği
 
 - Çatallanma (fork) simülasyonları: ağ bölünmesi, gecikme, tekrar birleşme senaryoları.

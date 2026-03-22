@@ -92,7 +92,7 @@ fn concurrent_nodes_finalize_one_branch_and_reject_a_late_conflicting_fork() {
         .try_finalize(fork_a.hash, fork_a.header.round)
         .expect("fork_a should finalize with 3/4 voting power");
     assert_eq!(seal.block_hash, fork_a.hash);
-    assert_eq!(observer.fork_choice.get_head(), Some(fork_a.hash));
+    assert_eq!(observer.fork_choice.finalized_head(), Some(fork_a.hash));
 
     let late_conflict = observer.admit_block(fork_b.clone());
     assert!(matches!(
@@ -102,7 +102,11 @@ fn concurrent_nodes_finalize_one_branch_and_reject_a_late_conflicting_fork() {
 
     let child_of_finalized = build_block(fork_a.hash, 3, 2, [4; 32], 40);
     observer.admit_block(child_of_finalized.clone()).unwrap();
-    assert_eq!(observer.fork_choice.get_head(), Some(fork_a.hash));
+    assert_eq!(observer.fork_choice.finalized_head(), Some(fork_a.hash));
+    assert_eq!(
+        observer.fork_choice.get_head(),
+        Some(child_of_finalized.hash)
+    );
     assert_eq!(
         observer
             .fork_choice

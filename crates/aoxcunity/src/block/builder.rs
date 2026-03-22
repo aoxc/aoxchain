@@ -1,5 +1,9 @@
+use std::collections::HashSet;
+
 use crate::block::hash::{canonical_section_sort_key, compute_block_hash, compute_body_roots};
-use crate::block::types::{BLOCK_VERSION_V1, Block, BlockBody, BlockBuildError, BlockHeader};
+use crate::block::types::{
+    BLOCK_VERSION_V1, Block, BlockBody, BlockBuildError, BlockHeader, BlockSection,
+};
 
 /// Deterministic block construction utility.
 ///
@@ -41,7 +45,7 @@ impl BlockBuilder {
         let _ = u64::try_from(body.sections.len())
             .map_err(|_| BlockBuildError::SectionCountOverflow)?;
 
-        body.sections.sort_by_key(canonical_section_sort_key);
+        canonicalize_body(&mut body)?;
 
         let roots = compute_body_roots(&body);
 
@@ -66,11 +70,29 @@ impl BlockBuilder {
     }
 }
 
+fn canonicalize_body(body: &mut BlockBody) -> Result<(), BlockBuildError> {
+    let mut seen_section_types = HashSet::new();
+
+    for section in &mut body.sections {
+        if !seen_section_types.insert(section.discriminant()) {
+            return Err(BlockBuildError::DuplicateSectionType);
+        }
+
+        match section {
+            BlockSection::LaneCommitment(lane_section) => lane_section.lanes.sort(),
+            BlockSection::ExternalProof(proof_section) => proof_section.proofs.sort(),
+        }
+    }
+
+    body.sections.sort_by_key(canonical_section_sort_key);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::block::types::{
-        BlockBody, BlockSection, ExternalNetwork, ExternalProofRecord, ExternalProofSection,
-        ExternalProofType, LaneCommitment, LaneCommitmentSection, LaneType,
+        BlockBody, BlockBuildError, BlockSection, ExternalNetwork, ExternalProofRecord,
+        ExternalProofSection, ExternalProofType, LaneCommitment, LaneCommitmentSection, LaneType,
     };
 
     use super::BlockBuilder;
@@ -165,5 +187,121 @@ mod tests {
 
         assert_eq!(block_a.hash, block_b.hash);
         assert_eq!(block_a.header.body_root, block_b.header.body_root);
+    }
+
+    #[test]
+    fn canonicalizes_nested_lane_and_proof_ordering() {
+        let body_a = BlockBody {
+            sections: vec![
+                BlockSection::LaneCommitment(LaneCommitmentSection {
+                    lanes: vec![
+                        LaneCommitment {
+                            lane_id: 9,
+                            lane_type: LaneType::Wasm,
+                            tx_count: 4,
+                            input_root: [1u8; 32],
+                            output_root: [2u8; 32],
+                            receipt_root: [3u8; 32],
+                            state_commitment: [4u8; 32],
+                            proof_commitment: [5u8; 32],
+                        },
+                        LaneCommitment {
+                            lane_id: 1,
+                            lane_type: LaneType::Native,
+                            tx_count: 1,
+                            input_root: [6u8; 32],
+                            output_root: [7u8; 32],
+                            receipt_root: [8u8; 32],
+                            state_commitment: [9u8; 32],
+                            proof_commitment: [10u8; 32],
+                        },
+                    ],
+                }),
+                BlockSection::ExternalProof(ExternalProofSection {
+                    proofs: vec![
+                        ExternalProofRecord {
+                            source_network: ExternalNetwork::Sui,
+                            proof_type: ExternalProofType::Checkpoint,
+                            subject_hash: [11u8; 32],
+                            proof_commitment: [12u8; 32],
+                            finalized_at: 10,
+                        },
+                        ExternalProofRecord {
+                            source_network: ExternalNetwork::Bitcoin,
+                            proof_type: ExternalProofType::Finality,
+                            subject_hash: [13u8; 32],
+                            proof_commitment: [14u8; 32],
+                            finalized_at: 11,
+                        },
+                    ],
+                }),
+            ],
+        };
+
+        let body_b = BlockBody {
+            sections: vec![
+                BlockSection::ExternalProof(ExternalProofSection {
+                    proofs: vec![
+                        ExternalProofRecord {
+                            source_network: ExternalNetwork::Bitcoin,
+                            proof_type: ExternalProofType::Finality,
+                            subject_hash: [13u8; 32],
+                            proof_commitment: [14u8; 32],
+                            finalized_at: 11,
+                        },
+                        ExternalProofRecord {
+                            source_network: ExternalNetwork::Sui,
+                            proof_type: ExternalProofType::Checkpoint,
+                            subject_hash: [11u8; 32],
+                            proof_commitment: [12u8; 32],
+                            finalized_at: 10,
+                        },
+                    ],
+                }),
+                BlockSection::LaneCommitment(LaneCommitmentSection {
+                    lanes: vec![
+                        LaneCommitment {
+                            lane_id: 1,
+                            lane_type: LaneType::Native,
+                            tx_count: 1,
+                            input_root: [6u8; 32],
+                            output_root: [7u8; 32],
+                            receipt_root: [8u8; 32],
+                            state_commitment: [9u8; 32],
+                            proof_commitment: [10u8; 32],
+                        },
+                        LaneCommitment {
+                            lane_id: 9,
+                            lane_type: LaneType::Wasm,
+                            tx_count: 4,
+                            input_root: [1u8; 32],
+                            output_root: [2u8; 32],
+                            receipt_root: [3u8; 32],
+                            state_commitment: [4u8; 32],
+                            proof_commitment: [5u8; 32],
+                        },
+                    ],
+                }),
+            ],
+        };
+
+        let block_a = BlockBuilder::build(1, [1u8; 32], 2, 0, 2, 100, [3u8; 32], body_a).unwrap();
+        let block_b = BlockBuilder::build(1, [1u8; 32], 2, 0, 2, 100, [3u8; 32], body_b).unwrap();
+
+        assert_eq!(block_a.hash, block_b.hash);
+        assert_eq!(block_a.header.body_root, block_b.header.body_root);
+    }
+
+    #[test]
+    fn rejects_duplicate_section_types() {
+        let body = BlockBody {
+            sections: vec![
+                BlockSection::LaneCommitment(LaneCommitmentSection::default()),
+                BlockSection::LaneCommitment(LaneCommitmentSection::default()),
+            ],
+        };
+
+        let err = BlockBuilder::build(1, [0u8; 32], 0, 0, 0, 1, [7u8; 32], body).unwrap_err();
+        assert_eq!(err, BlockBuildError::DuplicateSectionType);
     }
 }
