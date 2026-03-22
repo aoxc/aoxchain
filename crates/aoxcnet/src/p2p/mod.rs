@@ -552,6 +552,7 @@ fn digest_payload(payload: &ConsensusMessage) -> Result<String, NetworkError> {
 /// Derives a deterministic frame integrity hash from envelope metadata and
 /// payload integrity hash.
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 fn derive_frame_hash(
     chain_id: &str,
     protocol_serial: u64,
@@ -638,8 +639,10 @@ mod tests {
 
     #[test]
     fn checked_constructor_rejects_invalid_config() {
-        let mut config = NetworkConfig::default();
-        config.max_outbound_peers = 0;
+        let config = NetworkConfig {
+            max_outbound_peers: 0,
+            ..NetworkConfig::default()
+        };
 
         let result = P2PNetwork::new_checked(config);
         assert!(matches!(result, Err(NetworkError::InvalidConfig(_))));
@@ -773,8 +776,10 @@ mod tests {
 
     #[test]
     fn insecure_mode_allows_expired_session_broadcast() {
-        let mut config = NetworkConfig::default();
-        config.security_mode = SecurityMode::Insecure;
+        let config = NetworkConfig {
+            security_mode: SecurityMode::Insecure,
+            ..NetworkConfig::default()
+        };
 
         let mut net = P2PNetwork::new(config);
 
@@ -794,9 +799,11 @@ mod tests {
 
     #[test]
     fn register_peer_rejects_capacity_overflow() {
-        let mut config = NetworkConfig::default();
-        config.max_inbound_peers = 1;
-        config.max_outbound_peers = 1;
+        let config = NetworkConfig {
+            max_inbound_peers: 1,
+            max_outbound_peers: 1,
+            ..NetworkConfig::default()
+        };
 
         let mut net = P2PNetwork::new(config);
 
@@ -851,8 +858,10 @@ mod tests {
 
     #[test]
     fn oversize_frame_is_rejected() {
-        let mut config = NetworkConfig::default();
-        config.max_frame_bytes = 64;
+        let config = NetworkConfig {
+            max_frame_bytes: 64,
+            ..NetworkConfig::default()
+        };
 
         let mut net = P2PNetwork::new(config);
 

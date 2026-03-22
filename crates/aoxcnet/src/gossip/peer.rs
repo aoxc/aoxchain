@@ -152,6 +152,7 @@ impl Peer {
     /// Creates a new peer record and deterministically derives its certificate
     /// fingerprint.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: impl Into<String>,
         address: impl Into<String>,

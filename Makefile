@@ -1,10 +1,3 @@
-.PHONY: help alpha build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local audit-install produce-loop real-chain-prep real-chain-run real-chain-run-once real-chain-health real-chain-tail version manifest policy dev-bootstrap
-help:
-	@printf "\nAOXC Alpha: Genesis V1\n"
-	@printf "Experimental sovereign coordination chain developer surface\n\n"
-	@printf "Branding\n"
-	@printf "  make alpha            - print the current AOXC alpha banner\n\n"
-	@printf "Code quality\n"
 .PHONY: help build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local audit-install produce-loop real-chain-prep real-chain-run real-chain-run-once real-chain-health real-chain-tail version manifest policy dev-bootstrap
 help:
 	@printf "\nAOXChain developer targets\n\n"

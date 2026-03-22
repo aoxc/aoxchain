@@ -529,8 +529,10 @@ mod tests {
 
     #[test]
     fn serial_identity_validation_rejects_non_numeric_genesis_serial() {
-        let mut serial_identity = SerialIdentityPolicy::default();
-        serial_identity.genesis_origin_serial = "00000A000001".to_string();
+        let serial_identity = SerialIdentityPolicy {
+            genesis_origin_serial: "00000A000001".to_string(),
+            ..SerialIdentityPolicy::default()
+        };
 
         assert_eq!(
             serial_identity.validate(),
@@ -540,8 +542,10 @@ mod tests {
 
     #[test]
     fn interop_validation_requires_native_domain() {
-        let mut interop = InteropPolicy::default();
-        interop.allowed_domains = vec![ExternalDomainKind::Evm];
+        let interop = InteropPolicy {
+            allowed_domains: vec![ExternalDomainKind::Evm],
+            ..InteropPolicy::default()
+        };
 
         assert_eq!(
             interop.validate(),
@@ -551,8 +555,10 @@ mod tests {
 
     #[test]
     fn audit_strict_validation_rejects_weak_ban_duration() {
-        let mut config = NetworkConfig::default();
-        config.security_mode = SecurityMode::AuditStrict;
+        let mut config = NetworkConfig {
+            security_mode: SecurityMode::AuditStrict,
+            ..NetworkConfig::default()
+        };
 
         assert!(config.validate().is_ok());
 
@@ -562,10 +568,12 @@ mod tests {
 
     #[test]
     fn audit_strict_validation_rejects_excessive_handshake_timeout() {
-        let mut config = NetworkConfig::default();
-        config.security_mode = SecurityMode::AuditStrict;
-        config.handshake_timeout_ms = 31_000;
-        config.idle_timeout_ms = 30_000;
+        let config = NetworkConfig {
+            security_mode: SecurityMode::AuditStrict,
+            handshake_timeout_ms: 31_000,
+            idle_timeout_ms: 30_000,
+            ..NetworkConfig::default()
+        };
 
         assert_eq!(
             config.validate(),
@@ -575,8 +583,10 @@ mod tests {
 
     #[test]
     fn secure_modes_reject_plain_tcp_transport_preference() {
-        let mut config = NetworkConfig::default();
-        config.transport_preference = TransportPreference::Tcp;
+        let config = NetworkConfig {
+            transport_preference: TransportPreference::Tcp,
+            ..NetworkConfig::default()
+        };
 
         assert_eq!(
             config.validate(),

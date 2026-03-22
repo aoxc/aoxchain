@@ -24,6 +24,7 @@ pub struct QuorumCertificate {
 }
 
 impl QuorumCertificate {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         block_hash: [u8; 32],
         height: u64,
@@ -72,6 +73,7 @@ pub struct BlockSeal {
     pub certificate: QuorumCertificate,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn compute_certificate_hash(
     block_hash: [u8; 32],
     height: u64,
