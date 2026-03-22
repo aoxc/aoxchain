@@ -1,4 +1,6 @@
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::validator::ValidatorId;
 
@@ -32,6 +34,26 @@ pub struct Vote {
     pub kind: VoteKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignedVote {
+    pub vote: Vote,
+    pub signature: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerifiedVote {
+    pub vote: Vote,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum VoteAuthenticationError {
+    #[error("vote public key is malformed")]
+    MalformedPublicKey,
+
+    #[error("vote signature is invalid")]
+    InvalidSignature,
+}
+
 impl Vote {
     pub fn unique_key(&self) -> ([u8; 32], ValidatorId, u64, u64, VoteKind) {
         (
@@ -61,9 +83,32 @@ impl Vote {
     }
 }
 
+impl SignedVote {
+    pub fn verify(&self) -> Result<VerifiedVote, VoteAuthenticationError> {
+        let key = VerifyingKey::from_bytes(&self.vote.voter)
+            .map_err(|_| VoteAuthenticationError::MalformedPublicKey)?;
+        let signature = Signature::from_slice(&self.signature)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
+        key.verify(&self.vote.signing_bytes(), &signature)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
+        Ok(VerifiedVote {
+            vote: self.vote.clone(),
+        })
+    }
+}
+
+impl VerifiedVote {
+    #[must_use]
+    pub fn into_vote(self) -> Vote {
+        self.vote
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Vote, VoteKind};
+    use ed25519_dalek::{Signer, SigningKey};
+
+    use super::{SignedVote, Vote, VoteAuthenticationError, VoteKind};
 
     fn make_vote(block_hash: [u8; 32], round: u64, kind: VoteKind) -> Vote {
         Vote {
@@ -105,5 +150,38 @@ mod tests {
         let b = make_vote([1u8; 32], 2, VoteKind::Commit);
 
         assert_ne!(a.signing_bytes(), b.signing_bytes());
+    }
+
+    #[test]
+    fn signed_vote_verifies_with_matching_public_key() {
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let vote = Vote {
+            voter: signing_key.verifying_key().to_bytes(),
+            block_hash: [1u8; 32],
+            height: 9,
+            round: 2,
+            kind: VoteKind::Commit,
+        };
+        let signature = signing_key.sign(&vote.signing_bytes()).to_bytes().to_vec();
+
+        let verified = SignedVote { vote, signature }.verify();
+        assert!(verified.is_ok());
+    }
+
+    #[test]
+    fn modified_vote_payload_breaks_signature() {
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let mut vote = Vote {
+            voter: signing_key.verifying_key().to_bytes(),
+            block_hash: [1u8; 32],
+            height: 9,
+            round: 2,
+            kind: VoteKind::Commit,
+        };
+        let signature = signing_key.sign(&vote.signing_bytes()).to_bytes().to_vec();
+        vote.round = 3;
+
+        let verified = SignedVote { vote, signature }.verify();
+        assert_eq!(verified, Err(VoteAuthenticationError::InvalidSignature));
     }
 }
