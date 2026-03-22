@@ -410,6 +410,13 @@ impl NetworkConfig {
         matches!(self.security_mode, SecurityMode::AuditStrict)
     }
 
+    /// Returns `true` when the runtime must enforce certificate-backed mutual
+    /// authentication on peer transport setup.
+    #[must_use]
+    pub fn requires_mutual_auth(&self) -> bool {
+        !matches!(self.security_mode, SecurityMode::Insecure)
+    }
+
     /// Validates the complete network configuration against minimum safety,
     /// identity-consistency, and operational-correctness requirements.
     ///
@@ -458,6 +465,16 @@ impl NetworkConfig {
         }
 
         self.interop.validate()?;
+
+        if self.requires_mutual_auth()
+            && matches!(self.transport_preference, TransportPreference::Tcp)
+        {
+            return Err("NETWORK_CONFIG_MTLS_TRANSPORT_REQUIRED");
+        }
+
+        if self.requires_mutual_auth() && !self.interop.require_domain_attestation {
+            return Err("NETWORK_CONFIG_DOMAIN_ATTESTATION_REQUIRED");
+        }
 
         if self.is_audit_strict() {
             if self.allowed_clock_skew_secs > 60 {
@@ -553,6 +570,28 @@ mod tests {
         assert_eq!(
             config.validate(),
             Err("NETWORK_CONFIG_HANDSHAKE_TIMEOUT_EXCEEDS_IDLE_TIMEOUT")
+        );
+    }
+
+    #[test]
+    fn secure_modes_reject_plain_tcp_transport_preference() {
+        let mut config = NetworkConfig::default();
+        config.transport_preference = TransportPreference::Tcp;
+
+        assert_eq!(
+            config.validate(),
+            Err("NETWORK_CONFIG_MTLS_TRANSPORT_REQUIRED")
+        );
+    }
+
+    #[test]
+    fn secure_modes_require_domain_attestation() {
+        let mut config = NetworkConfig::default();
+        config.interop.require_domain_attestation = false;
+
+        assert_eq!(
+            config.validate(),
+            Err("NETWORK_CONFIG_DOMAIN_ATTESTATION_REQUIRED")
         );
     }
 

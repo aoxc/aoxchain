@@ -332,6 +332,18 @@ impl P2PNetwork {
         peer.validate_certificate(&self.config)?;
 
         let now = unix_now();
+        if self.config.requires_mutual_auth()
+            && self
+                .sessions
+                .get(peer_id)
+                .is_some_and(|ticket| ticket.expires_at_unix >= now)
+        {
+            self.metrics.failed_handshakes = self.metrics.failed_handshakes.saturating_add(1);
+            return Err(NetworkError::PeerAdmissionDenied(
+                "active mutually authenticated session already exists".to_string(),
+            ));
+        }
+
         let ticket = SessionTicket {
             peer_id: peer.id.clone(),
             cert_fingerprint: peer.cert_fingerprint.clone(),
@@ -664,6 +676,21 @@ mod tests {
         assert!(!envelope.payload_hash_hex.is_empty());
         assert!(!envelope.frame_hash_hex.is_empty());
         assert!(net.receive().is_some());
+    }
+
+    #[test]
+    fn secure_mode_rejects_duplicate_active_handshake_for_same_peer() {
+        let mut net = P2PNetwork::new(NetworkConfig::default());
+        net.register_peer(test_peer())
+            .expect("peer should register");
+        net.establish_session("node-1")
+            .expect("first session should be established");
+
+        let err = net
+            .establish_session("node-1")
+            .expect_err("duplicate secure handshake must be rejected");
+
+        assert!(matches!(err, NetworkError::PeerAdmissionDenied(_)));
     }
 
     #[test]
