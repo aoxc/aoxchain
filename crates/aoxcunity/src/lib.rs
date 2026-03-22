@@ -1,6 +1,8 @@
 pub mod block;
+pub mod constitutional;
 pub mod error;
 pub mod fork_choice;
+pub mod kernel;
 pub mod messages;
 pub mod proposer;
 pub mod quorum;
@@ -17,8 +19,15 @@ pub use block::{
     ExternalProofRecord, ExternalProofSection, ExternalProofType, LaneCommitment,
     LaneCommitmentSection, LaneType,
 };
+pub use constitutional::{
+    ConstitutionalSeal, ContinuityCertificate, ExecutionCertificate, LegitimacyCertificate,
+};
 pub use error::ConsensusError;
 pub use fork_choice::{BlockMeta, ForkChoice};
+pub use kernel::{
+    ConsensusEvent, InvariantStatus, KernelCertificate, KernelEffect, KernelRejection,
+    PruningAction, TimeoutVote, TransitionResult, VerifiedTimeoutVote, VerifiedVote,
+};
 pub use messages::ConsensusMessage;
 pub use proposer::Proposer;
 pub use quorum::QuorumThreshold;
