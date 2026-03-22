@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use sha2::{Digest, Sha256};
+
 use crate::error::ConsensusError;
 use crate::validator::{Validator, ValidatorId};
 
@@ -78,5 +80,28 @@ impl ValidatorRotation {
         self.validators
             .iter()
             .find(|validator| validator.id == validator_id)
+    }
+
+    #[must_use]
+    pub fn validator_set_hash(&self) -> [u8; 32] {
+        let mut validators = self.validators.clone();
+        validators.sort_by(|a, b| a.id.cmp(&b.id));
+
+        let mut hasher = Sha256::new();
+        hasher.update(b"AOXC_VALIDATOR_SET_V1");
+        hasher.update((validators.len() as u64).to_le_bytes());
+
+        for validator in validators {
+            hasher.update(validator.id);
+            hasher.update(validator.voting_power.to_le_bytes());
+            hasher.update([match validator.role {
+                crate::validator::ValidatorRole::Validator => 0,
+                crate::validator::ValidatorRole::Observer => 1,
+                crate::validator::ValidatorRole::Proposer => 2,
+            }]);
+            hasher.update([u8::from(validator.active)]);
+        }
+
+        hasher.finalize().into()
     }
 }

@@ -319,6 +319,22 @@ impl ConsensusState {
     pub fn proposer_for_height(&self, height: u64) -> Option<ValidatorId> {
         self.rotation.proposer(height)
     }
+
+    #[must_use]
+    pub fn finalizable_round(&self, block_hash: [u8; 32]) -> Option<u64> {
+        let mut rounds: Vec<u64> = self
+            .vote_pool
+            .votes_for_block_kind(block_hash, VoteKind::Commit)
+            .into_iter()
+            .map(|vote| vote.round)
+            .collect();
+        rounds.sort_unstable();
+        rounds.dedup();
+        rounds
+            .into_iter()
+            .rev()
+            .find(|round| self.build_quorum_certificate(block_hash, *round).is_some())
+    }
 }
 
 #[cfg(test)]

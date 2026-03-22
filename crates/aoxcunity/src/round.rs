@@ -8,12 +8,17 @@ pub struct RoundState {
 }
 
 impl RoundState {
+    #[must_use]
     pub fn new() -> Self {
         Self { round: 0 }
     }
 
     pub fn advance(&mut self) {
         self.round = self.round.saturating_add(1);
+    }
+
+    pub fn advance_to(&mut self, round: u64) {
+        self.round = self.round.max(round);
     }
 }
 

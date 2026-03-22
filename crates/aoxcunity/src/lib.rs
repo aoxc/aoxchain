@@ -27,8 +27,9 @@ pub use constitutional::{
 pub use error::ConsensusError;
 pub use fork_choice::{BlockMeta, ForkChoice};
 pub use kernel::{
-    ConsensusEvent, InvariantStatus, KernelCertificate, KernelEffect, KernelRejection,
-    PruningAction, TimeoutVote, TransitionResult, VerifiedTimeoutVote, VerifiedVote,
+    ConsensusEngine, ConsensusEvent, InvariantStatus, KernelCertificate, KernelEffect,
+    KernelRejection, PruningAction, TimeoutVote, TransitionResult, VerifiedTimeoutVote,
+    VerifiedVote,
 };
 pub use messages::ConsensusMessage;
 pub use proposer::Proposer;
