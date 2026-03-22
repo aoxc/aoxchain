@@ -243,8 +243,12 @@ dependencies = [
 name = "aoxcontract"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "hex",
  "serde",
- "tokio",
+ "serde_json",
+ "sha2",
+ "thiserror",
 ]
 
 [[package]]
