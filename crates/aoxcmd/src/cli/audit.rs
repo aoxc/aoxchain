@@ -10,6 +10,11 @@ use chrono::Utc;
 use serde::Serialize;
 use std::{collections::BTreeMap, path::PathBuf};
 
+/// Single diagnostics or audit check result.
+///
+/// # Purpose
+/// Captures the outcome of a native operator-facing validation check together
+/// with a human-readable detail string suitable for reports and support bundles.
 #[derive(Debug, Serialize)]
 struct Check {
     name: &'static str,
@@ -17,6 +22,16 @@ struct Check {
     detail: String,
 }
 
+/// Operator-visible AI assistance view.
+///
+/// # Security note
+/// The fields in this structure are intentionally read-oriented and explanatory.
+/// They must not be interpreted as canonical protocol truth or as an execution
+/// authorization surface.
+///
+/// # Audit note
+/// Invocation metadata is surfaced so operators can correlate AI assistance with
+/// the specific authorization and policy context under which it was produced.
 #[derive(Debug, Serialize)]
 struct AiAssistView {
     available: bool,
@@ -30,6 +45,12 @@ struct AiAssistView {
     action_class: String,
 }
 
+/// Consolidated diagnostics/audit report emitted by operator-plane commands.
+///
+/// # Design intent
+/// This report combines native validation results with optional AI assistance.
+/// Native checks remain authoritative for the reported verdict. AI assistance is
+/// included only as an auxiliary operator aid.
 #[derive(Debug, Serialize)]
 struct AuditReport {
     generated_at: String,
@@ -39,11 +60,19 @@ struct AuditReport {
     ai_assist: AiAssistView,
 }
 
+/// Runs the diagnostics doctor command and emits the resulting report.
 pub fn cmd_diagnostics_doctor(args: &[String]) -> Result<(), AppError> {
     let report = build_report(false)?;
     emit_serialized(&report, output_format(args))
 }
 
+/// Builds a support bundle containing the diagnostics report and selected
+/// operator-relevant local artifacts.
+///
+/// # Security note
+/// This command currently copies selected files if present. The `redact` flag is
+/// accepted but not yet used to transform file contents; that behavior should be
+/// treated as future hardening work rather than assumed protection.
 pub fn cmd_diagnostics_bundle(args: &[String]) -> Result<(), AppError> {
     let redact = has_flag(args, "--redact");
     let report = build_report(redact)?;
@@ -51,6 +80,7 @@ pub fn cmd_diagnostics_bundle(args: &[String]) -> Result<(), AppError> {
     let bundle_dir = home
         .join("support")
         .join(format!("bundle-{}", Utc::now().format("%Y%m%dT%H%M%SZ")));
+
     std::fs::create_dir_all(&bundle_dir).map_err(|e| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
@@ -61,6 +91,7 @@ pub fn cmd_diagnostics_bundle(args: &[String]) -> Result<(), AppError> {
             e,
         )
     })?;
+
     let report_content = serde_json::to_string_pretty(&report).map_err(|e| {
         AppError::with_source(
             ErrorCode::OutputEncodingFailed,
@@ -100,27 +131,33 @@ pub fn cmd_diagnostics_bundle(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&envelope, output_format(args))
 }
 
+/// Emits the same underlying report used by diagnostics-oriented readiness flows.
 pub fn cmd_interop_readiness(args: &[String]) -> Result<(), AppError> {
     let report = build_report(false)?;
     emit_serialized(&report, output_format(args))
 }
 
+/// Evaluates the interop gate and optionally enforces mandatory pass criteria.
 pub fn cmd_interop_gate(args: &[String]) -> Result<(), AppError> {
     let report = build_report(false)?;
     let enforce_official = has_flag(args, "--enforce-official");
     let passed = report.verdict == "pass";
+
     if enforce_official && !passed {
         return Err(AppError::new(
             ErrorCode::PolicyGateFailed,
             "Interop gate enforcement failed because one or more mandatory checks did not pass",
         ));
     }
+
     emit_serialized(&report, output_format(args))
 }
 
+/// Generates a production audit report and optionally writes it to disk.
 pub fn cmd_production_audit(args: &[String]) -> Result<(), AppError> {
     let report = build_report(false)?;
     let out = crate::cli_support::arg_value(args, "--out");
+
     if let Some(path) = out {
         let content = serde_json::to_string_pretty(&report).map_err(|e| {
             AppError::with_source(
@@ -131,9 +168,19 @@ pub fn cmd_production_audit(args: &[String]) -> Result<(), AppError> {
         })?;
         write_file(&PathBuf::from(path), &content)?;
     }
+
     emit_serialized(&report, output_format(args))
 }
 
+/// Builds the operator diagnostics report.
+///
+/// # Authority model
+/// Native checks determine the final `verdict`. AI output is attached only as
+/// optional assistance and does not alter native correctness or readiness truth.
+///
+/// # Security note
+/// The `_redact` argument is currently accepted for interface stability, but the
+/// report body itself is not transformed based on it in this function.
 fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
     let home = resolve_home()?;
     let settings = load_or_init()?;
@@ -190,6 +237,7 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
         .filter(|check| !check.passed)
         .map(|check| check.name.to_string())
         .collect::<Vec<_>>();
+
     let ai_outcome = crate::ai::operator::OperatorPlaneAiAdapter::default().diagnostics_assistance(
         crate::ai::operator::OperatorAssistRequest {
             topic: "diagnostics_explanation",

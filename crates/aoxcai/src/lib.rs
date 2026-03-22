@@ -45,8 +45,13 @@ pub mod traits;
 #[cfg(test)]
 mod test_support;
 
+pub use adapter::AdapterInvocation;
+pub use audit::{
+    AiAuditSink, AiInvocationAuditRecord, InvocationDisposition, MemoryAuditSink, NoopAuditSink,
+};
 pub use engine::AiEngine;
 pub use error::AiError;
+pub use extension::{AuthorizedInvocation, ExecutionBudget, ExtensionDescriptor};
 pub use manifest::ModelManifest;
 pub use model::{
     ActionName, AiMode, AiTask, Assessment, DecisionAction, DecisionReport, FindingSeverity,
@@ -57,10 +62,5 @@ pub use policy::fusion::FusionPolicy;
 pub use registry::ModelRegistry;
 pub use traits::{ContextProvider, DecisionPolicy, InferenceBackend, SignalProvider};
 
-pub use adapter::AdapterInvocation;
-pub use audit::{
-    AiAuditSink, AiInvocationAuditRecord, InvocationDisposition, MemoryAuditSink, NoopAuditSink,
-};
 pub use capability::{AiActionClass, AiCapability, CapabilityGrant, InvocationPolicy, KernelZone};
-pub use constitution::{CONSTITUTIONAL_RULES, authorize_invocation};
-pub use extension::{AuthorizedInvocation, ExecutionBudget, ExtensionDescriptor};
+pub use constitution::{authorize_invocation, CONSTITUTIONAL_RULES};

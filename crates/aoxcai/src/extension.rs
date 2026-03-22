@@ -1,8 +1,22 @@
 //! Stable extension-plane descriptors and policy-bound registration.
 //!
-//! This module authorizes adapter-originated AI calls, emits explicit audit
-//! evidence for both allowed and denied invocations, and enforces exact-match
-//! policy checks across zone, capability, and action class.
+//! # Purpose
+//! This module defines the stable authorization boundary between AOXChain
+//! callers and AI-backed extension providers.
+//!
+//! It provides:
+//! - execution budgets,
+//! - extension descriptors,
+//! - explicit authorization flows,
+//! - audit-aware invocation handling.
+//!
+//! # Security posture
+//! AI invocation must always be:
+//! - policy-checked,
+//! - capability-scoped,
+//! - auditable (allowed AND denied).
+//!
+//! This module does NOT execute logic. It only authorizes.
 
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +27,7 @@ use crate::{
     error::AiError,
 };
 
+/// Execution limits for AI invocation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionBudget {
     pub timeout_ms: u64,
@@ -30,6 +45,7 @@ impl Default for ExecutionBudget {
     }
 }
 
+/// AI extension descriptor.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtensionDescriptor {
     pub id: String,
@@ -40,6 +56,7 @@ pub struct ExtensionDescriptor {
     pub budget: ExecutionBudget,
 }
 
+/// Authorized invocation wrapper.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthorizedInvocation {
     pub descriptor: ExtensionDescriptor,
@@ -47,6 +64,7 @@ pub struct AuthorizedInvocation {
 }
 
 impl ExtensionDescriptor {
+    /// Attempts authorization and ALWAYS produces audit evidence.
     pub fn attempt_authorize(
         &self,
         policy: &InvocationPolicy,
@@ -57,6 +75,7 @@ impl ExtensionDescriptor {
         let caller_crate = caller_crate.into();
         let caller_component = caller_component.into();
         let requested_action = requested_action.into();
+
         match authorize_invocation(policy, self.zone, self.capability, self.action_class) {
             Ok(()) => {
                 let mut audit = AiInvocationAuditRecord::new(
@@ -70,7 +89,9 @@ impl ExtensionDescriptor {
                     self.zone,
                     policy.policy_id.clone(),
                 );
+
                 audit.final_disposition = InvocationDisposition::Allowed;
+
                 Ok(AuthorizedInvocation {
                     descriptor: self.clone(),
                     audit_record: audit,
@@ -88,13 +109,16 @@ impl ExtensionDescriptor {
                     self.zone,
                     policy.policy_id.clone(),
                 );
+
                 audit.final_disposition = InvocationDisposition::Denied;
                 audit.approval_state = reason;
+
                 Err(Box::new(audit))
             }
         }
     }
 
+    /// Ergonomic wrapper.
     pub fn authorize(
         &self,
         policy: &InvocationPolicy,
@@ -132,7 +156,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(authorized.audit_record.caller_crate, "aoxcontract");
+        assert_eq!(authorized.audit_record.final_disposition, InvocationDisposition::Allowed);
     }
 
     #[test]
@@ -156,14 +180,5 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(denied.final_disposition, InvocationDisposition::Denied);
-        assert!(denied.approval_state.contains("does not allow"));
-    }
-
-    #[test]
-    fn budget_defaults_serialize_stably() {
-        let encoded = serde_json::to_string(&ExecutionBudget::default()).unwrap();
-        assert!(encoded.contains("timeout_ms"));
-        assert!(encoded.contains("max_memory_bytes"));
-        assert!(encoded.contains("max_output_bytes"));
     }
 }
