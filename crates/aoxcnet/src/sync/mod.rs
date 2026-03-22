@@ -34,7 +34,11 @@ impl SyncController {
     #[must_use]
     pub fn new(local_height: u64, target_height: u64) -> Self {
         Self {
-            state: SyncState { local_height, target_height, in_flight: false },
+            state: SyncState {
+                local_height,
+                target_height,
+                in_flight: false,
+            },
         }
     }
 
@@ -50,9 +54,15 @@ impl SyncController {
             ));
         }
         let from_height = self.state.local_height.saturating_add(1);
-        let to_height = from_height.saturating_add(max_batch.saturating_sub(1)).min(self.state.target_height);
+        let to_height = from_height
+            .saturating_add(max_batch.saturating_sub(1))
+            .min(self.state.target_height);
         self.state.in_flight = true;
-        Ok(SyncRequest { from_height, to_height, include_state_summary: to_height == self.state.target_height })
+        Ok(SyncRequest {
+            from_height,
+            to_height,
+            include_state_summary: to_height == self.state.target_height,
+        })
     }
 
     pub fn apply_response(&mut self, response: &SyncResponse, metrics: &mut NetworkMetrics) {
@@ -70,7 +80,9 @@ mod tests {
     #[test]
     fn sync_controller_builds_progressing_request() {
         let mut controller = SyncController::new(10, 20);
-        let request = controller.build_request(5).expect("request should be created");
+        let request = controller
+            .build_request(5)
+            .expect("request should be created");
         assert_eq!(request.from_height, 11);
         assert_eq!(request.to_height, 15);
 

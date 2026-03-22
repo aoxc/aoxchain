@@ -629,7 +629,7 @@ mod tests {
             .per_unit_floor
             .apply_bps(2_000)
             .expect("bps application must succeed");
-            
+
         let realized = report
             .per_unit_floor
             .checked_add(margin)

@@ -22,7 +22,10 @@ pub fn cmd_vision() -> Result<(), AppError> {
         "AOXCMD is the deterministic operator command plane for bootstrap, diagnostics, and audit evidence generation.".to_string(),
     );
     details.insert("correlation_id".to_string(), trace.correlation_id);
-    emit_serialized(&text_envelope("vision", "ok", details), crate::cli_support::OutputFormat::Json)
+    emit_serialized(
+        &text_envelope("vision", "ok", details),
+        crate::cli_support::OutputFormat::Json,
+    )
 }
 
 pub fn cmd_build_manifest() -> Result<(), AppError> {
@@ -45,7 +48,8 @@ pub fn cmd_node_connection_policy(args: &[String]) -> Result<(), AppError> {
     let mut details = BTreeMap::new();
     details.insert(
         "official_only".to_string(),
-        if settings.network.enforce_official_peers || args.iter().any(|a| a == "--enforce-official") {
+        if settings.network.enforce_official_peers || args.iter().any(|a| a == "--enforce-official")
+        {
             "true".to_string()
         } else {
             "false".to_string()
@@ -55,7 +59,10 @@ pub fn cmd_node_connection_policy(args: &[String]) -> Result<(), AppError> {
         "allow_remote_peers".to_string(),
         settings.policy.allow_remote_peers.to_string(),
     );
-    emit_serialized(&text_envelope("node-connection-policy", "ok", details), output_format(args))
+    emit_serialized(
+        &text_envelope("node-connection-policy", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_sovereign_core() -> Result<(), AppError> {
@@ -94,10 +101,22 @@ pub fn cmd_compat_matrix() -> Result<(), AppError> {
         status: &'a str,
     }
     let matrix = vec![
-        Entry { domain: "local-bootstrap", status: "supported" },
-        Entry { domain: "deterministic-fixture", status: "supported" },
-        Entry { domain: "multi-node-adversarial", status: "planned" },
-        Entry { domain: "external-attestation", status: "planned" },
+        Entry {
+            domain: "local-bootstrap",
+            status: "supported",
+        },
+        Entry {
+            domain: "deterministic-fixture",
+            status: "supported",
+        },
+        Entry {
+            domain: "multi-node-adversarial",
+            status: "planned",
+        },
+        Entry {
+            domain: "external-attestation",
+            status: "planned",
+        },
     ];
     emit_serialized(&matrix, crate::cli_support::OutputFormat::Json)
 }

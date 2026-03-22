@@ -39,7 +39,10 @@ pub fn cmd_testnet_fixture_init(args: &[String]) -> Result<(), AppError> {
     std::fs::create_dir_all(&fixture_dir).map_err(|e| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
-            format!("Failed to create fixture directory {}", fixture_dir.display()),
+            format!(
+                "Failed to create fixture directory {}",
+                fixture_dir.display()
+            ),
             e,
         )
     })?;
@@ -53,8 +56,14 @@ pub fn cmd_testnet_fixture_init(args: &[String]) -> Result<(), AppError> {
     }
     let mut details = BTreeMap::new();
     details.insert("fixture_dir".to_string(), fixture_dir.display().to_string());
-    details.insert("members".to_string(), TESTNET_FIXTURE_MEMBERS.len().to_string());
-    emit_serialized(&text_envelope("testnet-fixture-init", "ok", details), output_format(args))
+    details.insert(
+        "members".to_string(),
+        TESTNET_FIXTURE_MEMBERS.len().to_string(),
+    );
+    emit_serialized(
+        &text_envelope("testnet-fixture-init", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_key_bootstrap(args: &[String]) -> Result<(), AppError> {
@@ -76,25 +85,41 @@ pub fn cmd_keys_show_fingerprint(args: &[String]) -> Result<(), AppError> {
     let fp = operator_fingerprint()?;
     let mut details = BTreeMap::new();
     details.insert("fingerprint".to_string(), fp);
-    emit_serialized(&text_envelope("keys-show-fingerprint", "ok", details), output_format(args))
+    emit_serialized(
+        &text_envelope("keys-show-fingerprint", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_keys_verify(args: &[String]) -> Result<(), AppError> {
     verify_operator_key()?;
     let mut details = BTreeMap::new();
     details.insert("result".to_string(), "verified".to_string());
-    emit_serialized(&text_envelope("keys-verify", "ok", details), output_format(args))
+    emit_serialized(
+        &text_envelope("keys-verify", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
     let chain_num = arg_value(args, "--chain-num")
         .unwrap_or_else(|| "1001".to_string())
         .parse::<u64>()
-        .map_err(|_| AppError::new(ErrorCode::UsageInvalidArguments, "Invalid --chain-num value"))?;
+        .map_err(|_| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Invalid --chain-num value",
+            )
+        })?;
     let block_time_secs = arg_value(args, "--block-time")
         .unwrap_or_else(|| "6".to_string())
         .parse::<u64>()
-        .map_err(|_| AppError::new(ErrorCode::UsageInvalidArguments, "Invalid --block-time value"))?;
+        .map_err(|_| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Invalid --block-time value",
+            )
+        })?;
     let treasury = arg_value(args, "--treasury")
         .unwrap_or_else(|| "1000000000000".to_string())
         .parse::<u64>()
@@ -113,8 +138,13 @@ pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
             public_key: validator_key,
         }],
     };
-    let content = serde_json::to_string_pretty(&genesis)
-        .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode genesis document", e))?;
+    let content = serde_json::to_string_pretty(&genesis).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode genesis document",
+            e,
+        )
+    })?;
     write_file(&genesis_path()?, &content)?;
     emit_serialized(&genesis, output_format(args))
 }
@@ -124,8 +154,14 @@ pub fn cmd_genesis_validate(args: &[String]) -> Result<(), AppError> {
     validate_genesis(&genesis)?;
     let mut details = BTreeMap::new();
     details.insert("chain_num".to_string(), genesis.chain_num.to_string());
-    details.insert("validators".to_string(), genesis.validators.len().to_string());
-    emit_serialized(&text_envelope("genesis-validate", "ok", details), output_format(args))
+    details.insert(
+        "validators".to_string(),
+        genesis.validators.len().to_string(),
+    );
+    emit_serialized(
+        &text_envelope("genesis-validate", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_genesis_inspect(args: &[String]) -> Result<(), AppError> {
@@ -140,7 +176,10 @@ pub fn cmd_genesis_hash(args: &[String]) -> Result<(), AppError> {
     let digest = hex::encode(hasher.finalize());
     let mut details = BTreeMap::new();
     details.insert("sha256".to_string(), digest);
-    emit_serialized(&text_envelope("genesis-hash", "ok", details), output_format(args))
+    emit_serialized(
+        &text_envelope("genesis-hash", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_config_init(args: &[String]) -> Result<(), AppError> {
@@ -156,7 +195,10 @@ pub fn cmd_config_validate(args: &[String]) -> Result<(), AppError> {
     let mut details = BTreeMap::new();
     details.insert("profile".to_string(), settings.profile);
     details.insert("result".to_string(), "valid".to_string());
-    emit_serialized(&text_envelope("config-validate", "ok", details), output_format(args))
+    emit_serialized(
+        &text_envelope("config-validate", "ok", details),
+        output_format(args),
+    )
 }
 
 pub fn cmd_config_print(args: &[String]) -> Result<(), AppError> {
@@ -169,7 +211,6 @@ pub fn cmd_config_print(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&printable, output_format(args))
 }
 
-
 pub(crate) fn genesis_ready() -> bool {
     load_genesis().is_ok()
 }
@@ -181,8 +222,13 @@ fn load_genesis() -> Result<GenesisDocument, AppError> {
             "Genesis document is missing. Execute genesis-init before validation.",
         )
     })?;
-    let genesis: GenesisDocument = serde_json::from_str(&raw)
-        .map_err(|e| AppError::with_source(ErrorCode::GenesisInvalid, "Failed to parse genesis document", e))?;
+    let genesis: GenesisDocument = serde_json::from_str(&raw).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::GenesisInvalid,
+            "Failed to parse genesis document",
+            e,
+        )
+    })?;
     validate_genesis(&genesis)?;
     Ok(genesis)
 }

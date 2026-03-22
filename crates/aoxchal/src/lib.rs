@@ -17,7 +17,9 @@ impl fmt::Display for HalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MemoryAllocationFailed(msg) => write!(f, "memory allocation failed: {msg}"),
-            Self::UnsupportedInstructionSet => write!(f, "required CPU instruction set is not supported"),
+            Self::UnsupportedInstructionSet => {
+                write!(f, "required CPU instruction set is not supported")
+            }
             Self::SecureWipeFailed => write!(f, "failed to securely wipe memory"),
         }
     }

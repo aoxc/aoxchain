@@ -68,7 +68,11 @@ impl AppError {
         }
     }
 
-    pub fn with_source(code: ErrorCode, message: impl Into<String>, source: impl std::error::Error) -> Self {
+    pub fn with_source(
+        code: ErrorCode,
+        message: impl Into<String>,
+        source: impl std::error::Error,
+    ) -> Self {
         Self {
             code,
             message: format!("{}: {}", message.into(), source),

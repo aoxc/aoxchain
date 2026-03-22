@@ -21,22 +21,90 @@ pub struct PortBinding {
 }
 
 pub const PORT_BINDINGS: [PortBinding; 11] = [
-    PortBinding { name: "rpc_http", protocol: "tcp", bind: "0.0.0.0", port: RPC_HTTP_PORT, purpose: "General JSON-RPC HTTP API" },
-    PortBinding { name: "p2p_primary", protocol: "tcp/quic", bind: "0.0.0.0", port: P2P_PRIMARY_PORT, purpose: "Primary peer-to-peer transport" },
-    PortBinding { name: "p2p_gossip", protocol: "udp", bind: "0.0.0.0", port: P2P_GOSSIP_PORT, purpose: "Gossip fanout traffic" },
-    PortBinding { name: "p2p_discovery", protocol: "udp", bind: "0.0.0.0", port: P2P_DISCOVERY_PORT, purpose: "Peer discovery and liveness probes" },
-    PortBinding { name: "rpc_ws", protocol: "tcp", bind: "0.0.0.0", port: RPC_WS_PORT, purpose: "Realtime websocket subscriptions" },
-    PortBinding { name: "rpc_grpc", protocol: "tcp", bind: "0.0.0.0", port: RPC_GRPC_PORT, purpose: "High-throughput gRPC API" },
-    PortBinding { name: "metrics", protocol: "tcp", bind: "127.0.0.1", port: METRICS_PORT, purpose: "Prometheus metrics exporter" },
-    PortBinding { name: "admin_api", protocol: "tcp", bind: "127.0.0.1", port: ADMIN_API_PORT, purpose: "Node admin and operational endpoints" },
-    PortBinding { name: "profiler", protocol: "tcp", bind: "127.0.0.1", port: PROFILER_PORT, purpose: "pprof/diagnostics endpoints" },
-    PortBinding { name: "storage_api", protocol: "tcp", bind: "127.0.0.1", port: STORAGE_API_PORT, purpose: "Storage/index service API" },
-    PortBinding { name: "live_smoke_test", protocol: "tcp", bind: "127.0.0.1", port: LIVE_SMOKE_TEST_PORT, purpose: "Deterministic network smoke tests" },
+    PortBinding {
+        name: "rpc_http",
+        protocol: "tcp",
+        bind: "0.0.0.0",
+        port: RPC_HTTP_PORT,
+        purpose: "General JSON-RPC HTTP API",
+    },
+    PortBinding {
+        name: "p2p_primary",
+        protocol: "tcp/quic",
+        bind: "0.0.0.0",
+        port: P2P_PRIMARY_PORT,
+        purpose: "Primary peer-to-peer transport",
+    },
+    PortBinding {
+        name: "p2p_gossip",
+        protocol: "udp",
+        bind: "0.0.0.0",
+        port: P2P_GOSSIP_PORT,
+        purpose: "Gossip fanout traffic",
+    },
+    PortBinding {
+        name: "p2p_discovery",
+        protocol: "udp",
+        bind: "0.0.0.0",
+        port: P2P_DISCOVERY_PORT,
+        purpose: "Peer discovery and liveness probes",
+    },
+    PortBinding {
+        name: "rpc_ws",
+        protocol: "tcp",
+        bind: "0.0.0.0",
+        port: RPC_WS_PORT,
+        purpose: "Realtime websocket subscriptions",
+    },
+    PortBinding {
+        name: "rpc_grpc",
+        protocol: "tcp",
+        bind: "0.0.0.0",
+        port: RPC_GRPC_PORT,
+        purpose: "High-throughput gRPC API",
+    },
+    PortBinding {
+        name: "metrics",
+        protocol: "tcp",
+        bind: "127.0.0.1",
+        port: METRICS_PORT,
+        purpose: "Prometheus metrics exporter",
+    },
+    PortBinding {
+        name: "admin_api",
+        protocol: "tcp",
+        bind: "127.0.0.1",
+        port: ADMIN_API_PORT,
+        purpose: "Node admin and operational endpoints",
+    },
+    PortBinding {
+        name: "profiler",
+        protocol: "tcp",
+        bind: "127.0.0.1",
+        port: PROFILER_PORT,
+        purpose: "pprof/diagnostics endpoints",
+    },
+    PortBinding {
+        name: "storage_api",
+        protocol: "tcp",
+        bind: "127.0.0.1",
+        port: STORAGE_API_PORT,
+        purpose: "Storage/index service API",
+    },
+    PortBinding {
+        name: "live_smoke_test",
+        protocol: "tcp",
+        bind: "127.0.0.1",
+        port: LIVE_SMOKE_TEST_PORT,
+        purpose: "Deterministic network smoke tests",
+    },
 ];
 
 #[cfg(test)]
 mod tests {
-    use super::{LIVE_SMOKE_TEST_PORT, P2P_GOSSIP_PORT, P2P_PRIMARY_PORT, PORT_BINDINGS, RPC_HTTP_PORT};
+    use super::{
+        LIVE_SMOKE_TEST_PORT, P2P_GOSSIP_PORT, P2P_PRIMARY_PORT, PORT_BINDINGS, RPC_HTTP_PORT,
+    };
 
     #[test]
     fn canonical_ports_match_expected_values() {

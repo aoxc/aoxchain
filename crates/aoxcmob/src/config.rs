@@ -17,7 +17,9 @@ impl MobileConfig {
     /// Validates critical runtime policy before use.
     pub fn validate(&self) -> Result<(), MobError> {
         if self.relay_origin.trim().is_empty() {
-            return Err(MobError::InvalidConfiguration("relay_origin must not be empty"));
+            return Err(MobError::InvalidConfiguration(
+                "relay_origin must not be empty",
+            ));
         }
         if self.app_id.trim().is_empty() {
             return Err(MobError::InvalidConfiguration("app_id must not be empty"));
@@ -26,10 +28,14 @@ impl MobileConfig {
             return Err(MobError::InvalidConfiguration("chain_id must not be empty"));
         }
         if self.request_timeout_ms == 0 {
-            return Err(MobError::InvalidConfiguration("request_timeout_ms must be greater than zero"));
+            return Err(MobError::InvalidConfiguration(
+                "request_timeout_ms must be greater than zero",
+            ));
         }
         if self.session_ttl_secs == 0 {
-            return Err(MobError::InvalidConfiguration("session_ttl_secs must be greater than zero"));
+            return Err(MobError::InvalidConfiguration(
+                "session_ttl_secs must be greater than zero",
+            ));
         }
         if self.challenge_max_skew_secs == 0 {
             return Err(MobError::InvalidConfiguration(

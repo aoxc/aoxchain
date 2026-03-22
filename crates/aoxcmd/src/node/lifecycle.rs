@@ -17,14 +17,20 @@ pub fn load_state() -> Result<NodeState, AppError> {
             format!("Node state file is missing at {}", path.display()),
         )
     })?;
-    serde_json::from_str(&raw)
-        .map_err(|e| AppError::with_source(ErrorCode::NodeStateInvalid, "Failed to parse node state", e))
+    serde_json::from_str(&raw).map_err(|e| {
+        AppError::with_source(ErrorCode::NodeStateInvalid, "Failed to parse node state", e)
+    })
 }
 
 pub fn persist_state(state: &NodeState) -> Result<(), AppError> {
     let path = state_path()?;
-    let content = serde_json::to_string_pretty(state)
-        .map_err(|e| AppError::with_source(ErrorCode::OutputEncodingFailed, "Failed to encode node state", e))?;
+    let content = serde_json::to_string_pretty(state).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode node state",
+            e,
+        )
+    })?;
     write_file(&path, &content)
 }
 
