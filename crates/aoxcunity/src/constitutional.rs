@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::seal::QuorumCertificate;
 use crate::validator::ValidatorId;
@@ -8,48 +7,6 @@ const EXECUTION_CERTIFICATE_DOMAIN_V1: &[u8] = b"AOXC_EXECUTION_CERTIFICATE_V1";
 const LEGITIMACY_CERTIFICATE_DOMAIN_V1: &[u8] = b"AOXC_LEGITIMACY_CERTIFICATE_V1";
 const CONTINUITY_CERTIFICATE_DOMAIN_V1: &[u8] = b"AOXC_CONTINUITY_CERTIFICATE_V1";
 const CONSTITUTIONAL_SEAL_DOMAIN_V1: &[u8] = b"AOXC_CONSTITUTIONAL_SEAL_V1";
-
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-pub enum ConstitutionalValidationError {
-    #[error("execution certificate hash mismatch")]
-    ExecutionHashMismatch,
-
-    #[error("legitimacy certificate signer set is not canonical")]
-    NonCanonicalLegitimacySignerSet,
-
-    #[error("legitimacy certificate hash mismatch")]
-    LegitimacyHashMismatch,
-
-    #[error("continuity certificate signer set is not canonical")]
-    NonCanonicalContinuitySignerSet,
-
-    #[error("continuity certificate hash mismatch")]
-    ContinuityHashMismatch,
-
-    #[error("constitutional seal block hash mismatch")]
-    BlockMismatch,
-
-    #[error("constitutional seal height mismatch")]
-    HeightMismatch,
-
-    #[error("constitutional seal round mismatch")]
-    RoundMismatch,
-
-    #[error("constitutional seal epoch mismatch")]
-    EpochMismatch,
-
-    #[error("constitutional seal execution certificate hash mismatch")]
-    ExecutionCertificateMismatch,
-
-    #[error("constitutional seal legitimacy certificate hash mismatch")]
-    LegitimacyCertificateMismatch,
-
-    #[error("constitutional seal continuity certificate hash mismatch")]
-    ContinuityCertificateMismatch,
-
-    #[error("constitutional seal root mismatch")]
-    SealHashMismatch,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionCertificate {
@@ -87,42 +44,6 @@ impl ExecutionCertificate {
             quorum_certificate,
             certificate_hash,
         }
-    }
-
-    #[must_use]
-    pub fn canonical_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(32 * 3 + 8 * 4 + 32);
-        bytes.extend_from_slice(&self.block_hash);
-        bytes.extend_from_slice(&self.height.to_le_bytes());
-        bytes.extend_from_slice(&self.round.to_le_bytes());
-        bytes.extend_from_slice(&self.epoch.to_le_bytes());
-        bytes.extend_from_slice(&self.validator_set_hash);
-        bytes.extend_from_slice(&self.quorum_certificate.certificate_hash);
-        bytes.extend_from_slice(&self.certificate_hash);
-        bytes
-    }
-
-    pub fn validate(&self) -> Result<(), ConstitutionalValidationError> {
-        if self.block_hash != self.quorum_certificate.block_hash
-            || self.height != self.quorum_certificate.height
-            || self.round != self.quorum_certificate.round
-        {
-            return Err(ConstitutionalValidationError::ExecutionCertificateMismatch);
-        }
-
-        let expected = compute_execution_certificate_hash(
-            self.block_hash,
-            self.height,
-            self.round,
-            self.epoch,
-            self.validator_set_hash,
-            self.quorum_certificate.certificate_hash,
-        );
-        if self.certificate_hash != expected {
-            return Err(ConstitutionalValidationError::ExecutionHashMismatch);
-        }
-
-        Ok(())
     }
 }
 
@@ -167,45 +88,6 @@ impl LegitimacyCertificate {
             signers,
             certificate_hash,
         }
-    }
-
-    #[must_use]
-    pub fn canonical_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(32 * 5 + 8 * 2 + self.signers.len() * 32);
-        bytes.extend_from_slice(&self.block_hash);
-        bytes.extend_from_slice(&self.authority_epoch.to_le_bytes());
-        bytes.extend_from_slice(&self.constitution_root);
-        bytes.extend_from_slice(&self.validator_authority_commitment);
-        bytes.extend_from_slice(&self.transition_proof_root);
-        bytes.extend_from_slice(&(self.signers.len() as u64).to_le_bytes());
-        for signer in &self.signers {
-            bytes.extend_from_slice(signer);
-        }
-        bytes.extend_from_slice(&self.certificate_hash);
-        bytes
-    }
-
-    pub fn validate(&self) -> Result<(), ConstitutionalValidationError> {
-        let mut canonical_signers = self.signers.clone();
-        canonical_signers.sort();
-        canonical_signers.dedup();
-        if canonical_signers != self.signers {
-            return Err(ConstitutionalValidationError::NonCanonicalLegitimacySignerSet);
-        }
-
-        let expected = compute_legitimacy_certificate_hash(
-            self.block_hash,
-            self.authority_epoch,
-            self.constitution_root,
-            self.validator_authority_commitment,
-            self.transition_proof_root,
-            &self.signers,
-        );
-        if self.certificate_hash != expected {
-            return Err(ConstitutionalValidationError::LegitimacyHashMismatch);
-        }
-
-        Ok(())
     }
 }
 
@@ -255,47 +137,6 @@ impl ContinuityCertificate {
             certificate_hash,
         }
     }
-
-    #[must_use]
-    pub fn canonical_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(32 * 2 + 8 * 6 + self.signers.len() * 32);
-        bytes.extend_from_slice(&self.block_hash);
-        bytes.extend_from_slice(&self.height.to_le_bytes());
-        bytes.extend_from_slice(&self.round.to_le_bytes());
-        bytes.extend_from_slice(&self.epoch.to_le_bytes());
-        bytes.extend_from_slice(&self.timeout_round.to_le_bytes());
-        bytes.extend_from_slice(&self.observed_power.to_le_bytes());
-        bytes.extend_from_slice(&(self.signers.len() as u64).to_le_bytes());
-        for signer in &self.signers {
-            bytes.extend_from_slice(signer);
-        }
-        bytes.extend_from_slice(&self.certificate_hash);
-        bytes
-    }
-
-    pub fn validate(&self) -> Result<(), ConstitutionalValidationError> {
-        let mut canonical_signers = self.signers.clone();
-        canonical_signers.sort();
-        canonical_signers.dedup();
-        if canonical_signers != self.signers {
-            return Err(ConstitutionalValidationError::NonCanonicalContinuitySignerSet);
-        }
-
-        let expected = compute_continuity_certificate_hash(
-            self.block_hash,
-            self.height,
-            self.round,
-            self.epoch,
-            self.timeout_round,
-            self.observed_power,
-            &self.signers,
-        );
-        if self.certificate_hash != expected {
-            return Err(ConstitutionalValidationError::ContinuityHashMismatch);
-        }
-
-        Ok(())
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -315,24 +156,15 @@ impl ConstitutionalSeal {
         execution: &ExecutionCertificate,
         legitimacy: &LegitimacyCertificate,
         continuity: &ContinuityCertificate,
-    ) -> Result<Self, ConstitutionalValidationError> {
-        execution.validate()?;
-        legitimacy.validate()?;
-        continuity.validate()?;
-
+    ) -> Option<Self> {
         if execution.block_hash != legitimacy.block_hash
             || execution.block_hash != continuity.block_hash
+            || execution.height != continuity.height
+            || execution.round != continuity.round
+            || execution.epoch != legitimacy.authority_epoch
+            || execution.epoch != continuity.epoch
         {
-            return Err(ConstitutionalValidationError::BlockMismatch);
-        }
-        if execution.height != continuity.height {
-            return Err(ConstitutionalValidationError::HeightMismatch);
-        }
-        if execution.round != continuity.round {
-            return Err(ConstitutionalValidationError::RoundMismatch);
-        }
-        if execution.epoch != legitimacy.authority_epoch || execution.epoch != continuity.epoch {
-            return Err(ConstitutionalValidationError::EpochMismatch);
+            return None;
         }
 
         let seal_hash = compute_constitutional_seal_hash(
@@ -345,7 +177,7 @@ impl ConstitutionalSeal {
             continuity.certificate_hash,
         );
 
-        Ok(Self {
+        Some(Self {
             block_hash: execution.block_hash,
             height: execution.height,
             round: execution.round,
@@ -355,68 +187,6 @@ impl ConstitutionalSeal {
             continuity_certificate_hash: continuity.certificate_hash,
             seal_hash,
         })
-    }
-
-    #[must_use]
-    pub fn canonical_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(32 * 5 + 8 * 3);
-        bytes.extend_from_slice(&self.block_hash);
-        bytes.extend_from_slice(&self.height.to_le_bytes());
-        bytes.extend_from_slice(&self.round.to_le_bytes());
-        bytes.extend_from_slice(&self.epoch.to_le_bytes());
-        bytes.extend_from_slice(&self.execution_certificate_hash);
-        bytes.extend_from_slice(&self.legitimacy_certificate_hash);
-        bytes.extend_from_slice(&self.continuity_certificate_hash);
-        bytes.extend_from_slice(&self.seal_hash);
-        bytes
-    }
-
-    pub fn validate_against(
-        &self,
-        execution: &ExecutionCertificate,
-        legitimacy: &LegitimacyCertificate,
-        continuity: &ContinuityCertificate,
-    ) -> Result<(), ConstitutionalValidationError> {
-        execution.validate()?;
-        legitimacy.validate()?;
-        continuity.validate()?;
-
-        if self.block_hash != execution.block_hash {
-            return Err(ConstitutionalValidationError::BlockMismatch);
-        }
-        if self.height != execution.height {
-            return Err(ConstitutionalValidationError::HeightMismatch);
-        }
-        if self.round != execution.round {
-            return Err(ConstitutionalValidationError::RoundMismatch);
-        }
-        if self.epoch != execution.epoch {
-            return Err(ConstitutionalValidationError::EpochMismatch);
-        }
-        if self.execution_certificate_hash != execution.certificate_hash {
-            return Err(ConstitutionalValidationError::ExecutionCertificateMismatch);
-        }
-        if self.legitimacy_certificate_hash != legitimacy.certificate_hash {
-            return Err(ConstitutionalValidationError::LegitimacyCertificateMismatch);
-        }
-        if self.continuity_certificate_hash != continuity.certificate_hash {
-            return Err(ConstitutionalValidationError::ContinuityCertificateMismatch);
-        }
-
-        let expected = compute_constitutional_seal_hash(
-            self.block_hash,
-            self.height,
-            self.round,
-            self.epoch,
-            self.execution_certificate_hash,
-            self.legitimacy_certificate_hash,
-            self.continuity_certificate_hash,
-        );
-        if self.seal_hash != expected {
-            return Err(ConstitutionalValidationError::SealHashMismatch);
-        }
-
-        Ok(())
     }
 }
 
@@ -574,7 +344,7 @@ mod tests {
         );
         let continuity = ContinuityCertificate::new([5u8; 32], 11, 3, 5, 4, 10, vec![[1u8; 32]]);
 
-        assert!(ConstitutionalSeal::compose(&execution, &legitimacy, &continuity).is_err());
+        assert!(ConstitutionalSeal::compose(&execution, &legitimacy, &continuity).is_none());
     }
 
     #[test]

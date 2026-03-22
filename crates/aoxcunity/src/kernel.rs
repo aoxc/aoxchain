@@ -1,14 +1,15 @@
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::block::Block;
 use crate::constitutional::{ConstitutionalSeal, ContinuityCertificate, LegitimacyCertificate};
 use crate::seal::QuorumCertificate;
-use crate::validator::ValidatorId;
-use crate::vote::VerifiedVote;
+use crate::vote::Vote;
 
-const TIMEOUT_VOTE_DOMAIN_V1: &[u8] = b"AOXC_TIMEOUT_VOTE_V1";
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerifiedVote {
+    pub vote: Vote,
+    pub verification_tag: [u8; 32],
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TimeoutVote {
@@ -17,56 +18,13 @@ pub struct TimeoutVote {
     pub round: u64,
     pub epoch: u64,
     pub timeout_round: u64,
-    pub voter: ValidatorId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SignedTimeoutVote {
-    pub timeout_vote: TimeoutVote,
-    pub signature: Vec<u8>,
+    pub voter: [u8; 32],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerifiedTimeoutVote {
     pub timeout_vote: TimeoutVote,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-pub enum TimeoutAuthenticationError {
-    #[error("timeout vote public key is malformed")]
-    MalformedPublicKey,
-
-    #[error("timeout vote signature is invalid")]
-    InvalidSignature,
-}
-
-impl TimeoutVote {
-    #[must_use]
-    pub fn signing_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(TIMEOUT_VOTE_DOMAIN_V1.len() + 32 + 8 * 4 + 32);
-        bytes.extend_from_slice(TIMEOUT_VOTE_DOMAIN_V1);
-        bytes.extend_from_slice(&self.block_hash);
-        bytes.extend_from_slice(&self.height.to_le_bytes());
-        bytes.extend_from_slice(&self.round.to_le_bytes());
-        bytes.extend_from_slice(&self.epoch.to_le_bytes());
-        bytes.extend_from_slice(&self.timeout_round.to_le_bytes());
-        bytes.extend_from_slice(&self.voter);
-        bytes
-    }
-}
-
-impl SignedTimeoutVote {
-    pub fn verify(&self) -> Result<VerifiedTimeoutVote, TimeoutAuthenticationError> {
-        let key = VerifyingKey::from_bytes(&self.timeout_vote.voter)
-            .map_err(|_| TimeoutAuthenticationError::MalformedPublicKey)?;
-        let signature = Signature::from_slice(&self.signature)
-            .map_err(|_| TimeoutAuthenticationError::InvalidSignature)?;
-        key.verify(&self.timeout_vote.signing_bytes(), &signature)
-            .map_err(|_| TimeoutAuthenticationError::InvalidSignature)?;
-        Ok(VerifiedTimeoutVote {
-            timeout_vote: self.timeout_vote.clone(),
-        })
-    }
+    pub verification_tag: [u8; 32],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -168,17 +126,13 @@ impl TransitionResult {
 
 #[cfg(test)]
 mod tests {
-    use ed25519_dalek::{Signer, SigningKey};
-
     use crate::constitutional::{
         ConstitutionalSeal, ContinuityCertificate, ExecutionCertificate, LegitimacyCertificate,
     };
     use crate::seal::QuorumCertificate;
-    use crate::vote::{SignedVote, Vote, VoteKind};
 
     use super::{
-        InvariantStatus, KernelCertificate, KernelEffect, KernelRejection, SignedTimeoutVote,
-        TimeoutAuthenticationError, TimeoutVote, TransitionResult,
+        InvariantStatus, KernelCertificate, KernelEffect, KernelRejection, TransitionResult,
     };
 
     #[test]
@@ -196,55 +150,6 @@ mod tests {
 
         assert!(result.accepted_effects.is_empty());
         assert_eq!(result.rejected_reason, Some(KernelRejection::StaleArtifact));
-    }
-
-    #[test]
-    fn signed_timeout_vote_verifies() {
-        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
-        let timeout_vote = TimeoutVote {
-            block_hash: [2u8; 32],
-            height: 3,
-            round: 4,
-            epoch: 5,
-            timeout_round: 6,
-            voter: signing_key.verifying_key().to_bytes(),
-        };
-        let signature = signing_key
-            .sign(&timeout_vote.signing_bytes())
-            .to_bytes()
-            .to_vec();
-
-        let verified = SignedTimeoutVote {
-            timeout_vote,
-            signature,
-        }
-        .verify();
-        assert!(verified.is_ok());
-    }
-
-    #[test]
-    fn modified_timeout_vote_breaks_signature() {
-        let signing_key = SigningKey::from_bytes(&[1u8; 32]);
-        let mut timeout_vote = TimeoutVote {
-            block_hash: [2u8; 32],
-            height: 3,
-            round: 4,
-            epoch: 5,
-            timeout_round: 6,
-            voter: signing_key.verifying_key().to_bytes(),
-        };
-        let signature = signing_key
-            .sign(&timeout_vote.signing_bytes())
-            .to_bytes()
-            .to_vec();
-        timeout_vote.timeout_round = 7;
-
-        let verified = SignedTimeoutVote {
-            timeout_vote,
-            signature,
-        }
-        .verify();
-        assert_eq!(verified, Err(TimeoutAuthenticationError::InvalidSignature));
     }
 
     #[test]
@@ -271,24 +176,5 @@ mod tests {
         };
 
         assert_eq!(result.emitted_certificates.len(), 1);
-    }
-
-    #[test]
-    fn verified_vote_is_produced_from_real_signature() {
-        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
-        let vote = Vote {
-            voter: signing_key.verifying_key().to_bytes(),
-            block_hash: [4u8; 32],
-            height: 9,
-            round: 2,
-            kind: VoteKind::Commit,
-        };
-        let signature = signing_key.sign(&vote.signing_bytes()).to_bytes();
-        let verified = SignedVote {
-            vote,
-            signature: signature.to_vec(),
-        }
-        .verify();
-        assert!(verified.is_ok());
     }
 }

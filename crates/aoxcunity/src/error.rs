@@ -51,9 +51,6 @@ pub enum ConsensusError {
     #[error("vote is stale relative to finalized ancestry")]
     StaleVote,
 
-    #[error("constitutional artifact validation failed")]
-    InvalidConstitutionalArtifact,
-
     #[error("invalid quorum threshold")]
     InvalidQuorumThreshold,
 }

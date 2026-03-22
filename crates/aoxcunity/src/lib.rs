@@ -22,15 +22,13 @@ pub use block::{
     LaneCommitmentSection, LaneType,
 };
 pub use constitutional::{
-    ConstitutionalSeal, ConstitutionalValidationError, ContinuityCertificate, ExecutionCertificate,
-    LegitimacyCertificate,
+    ConstitutionalSeal, ContinuityCertificate, ExecutionCertificate, LegitimacyCertificate,
 };
 pub use error::ConsensusError;
 pub use fork_choice::{BlockMeta, ForkChoice};
 pub use kernel::{
     ConsensusEvent, InvariantStatus, KernelCertificate, KernelEffect, KernelRejection,
-    PruningAction, SignedTimeoutVote, TimeoutAuthenticationError, TimeoutVote, TransitionResult,
-    VerifiedTimeoutVote,
+    PruningAction, TimeoutVote, TransitionResult, VerifiedTimeoutVote, VerifiedVote,
 };
 pub use messages::ConsensusMessage;
 pub use proposer::Proposer;
