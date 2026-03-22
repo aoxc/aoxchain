@@ -1,8 +1,5 @@
 # AOXC Covenant Consensus (ACC)
 
-> Technical expansion: **AOXC Constitutional Consensus**.
-> Narrative/branding name: **AOXC Covenant Consensus**.
-
 ## Goal
 
 This document proposes an **AOXC-native consensus family** that is intentionally different from
@@ -383,19 +380,3 @@ If you want something **really different** yet still defensible:
 - never claim absolute security percentages.
 
 That combination can make AOXC recognizably its own system without becoming un-auditable.
-
-
-## Integration Contract
-
-- `ConsensusState` owns execution-plane block/vote admission and execution-finality quorum evaluation.
-- A verified-admission layer is expected to produce `VerifiedVote`, `VerifiedTimeoutVote`, legitimacy artifacts, and continuity artifacts before kernel consumption; network-facing raw artifacts should not enter the kernel directly.
-- `ExecutionCertificate` is built from execution quorum evidence.
-- `ConstitutionalSeal` is composed only after execution, legitimacy, and continuity artifacts independently validate and bind to the same block/epoch boundary.
-- This phase intentionally does not implement full persistence, pacemaker, or validator-transition engines.
-
-
-## Near-Mainnet Kernel Contracts
-
-- `LockState` and `JustificationRef` define conservative lock advancement boundaries.
-- `ConsensusJournal`, `SnapshotStore`, `EvidenceStore`, and `FinalityStore` define replay-safe persistence contracts without forcing a storage backend.
-- Recovery remains typed and deterministic: snapshot load -> journal replay -> evidence restore -> finalized seal restore.

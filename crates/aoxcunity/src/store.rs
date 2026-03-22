@@ -79,9 +79,8 @@ mod tests {
     use crate::constitutional::{
         ConstitutionalSeal, ContinuityCertificate, ExecutionCertificate, LegitimacyCertificate,
     };
-    use crate::kernel::ConsensusEvent;
+    use crate::kernel::{ConsensusEvent, VerifiedVote};
     use crate::seal::QuorumCertificate;
-    use crate::vote::VerifiedVote;
     use crate::vote::{Vote, VoteKind};
 
     use super::{
@@ -156,6 +155,7 @@ mod tests {
                         round: 3,
                         kind: VoteKind::Commit,
                     },
+                    verification_tag: [9u8; 32],
                 }),
             })
             .unwrap();

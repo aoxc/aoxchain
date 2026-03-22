@@ -15,8 +15,6 @@
 - `state.rs`
 - `constitutional.rs`
 - `kernel.rs`
-- `safety.rs`
-- `store.rs`
 
 ## Operational Notes
 
@@ -42,19 +40,6 @@ That document proposes **AOXC Covenant Consensus (ACC)** built around:
 - legitimacy certificates,
 - continuity/timeout certificates,
 - finality via a composite **Covenant Seal** rather than a single generic QC.
-
-## Integration Contract
-
-- Verified artifacts are expected to be produced outside the kernel-facing state machine via real signature verification (`SignedVote -> VerifiedVote`, timeout equivalent).
-- `ConsensusState` remains the execution-plane admission/finalization holder.
-- Constitutional artifacts are composed on top of execution finality instead of being implicitly folded into `ConsensusState`.
-
-## Near-mainnet hardening
-
-- warning-free builds are required before merge,
-- kernel-facing paths are expected to remain verified-input-only,
-- persistence/recovery contracts should stabilize before full backend implementation.
-- monotonic constitutional finality and replay determinism should be test-proven at the kernel layer.
 
 ## Related Components
 
