@@ -48,6 +48,9 @@ pub enum ConsensusError {
     #[error("vote target block does not exist")]
     VoteForUnknownBlock,
 
+    #[error("vote is stale relative to finalized ancestry")]
+    StaleVote,
+
     #[error("invalid quorum threshold")]
     InvalidQuorumThreshold,
 }
