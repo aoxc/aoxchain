@@ -36,7 +36,9 @@ impl ContractRegistry {
             registered_at_height: RegisteredAtHeight(height),
             updated_at: Utc::now(),
         };
+
         self.records.insert(contract_id.clone(), record);
+
         Ok(ContractReceipt::Registered(ContractRegistered {
             contract_id,
         }))
@@ -50,8 +52,10 @@ impl ContractRegistry {
             .records
             .get_mut(contract_id)
             .ok_or_else(|| ContractRegistryError::NotFound(contract_id.0.clone()))?;
+
         record.status = ContractStatus::Active;
         record.updated_at = Utc::now();
+
         Ok(ContractReceipt::Activated(ContractActivated {
             contract_id: contract_id.clone(),
         }))
@@ -65,8 +69,10 @@ impl ContractRegistry {
             .records
             .get_mut(contract_id)
             .ok_or_else(|| ContractRegistryError::NotFound(contract_id.0.clone()))?;
+
         record.status = ContractStatus::Deprecated;
         record.updated_at = Utc::now();
+
         Ok(ContractReceipt::Deprecated(ContractDeprecated {
             contract_id: contract_id.clone(),
         }))
@@ -80,8 +86,10 @@ impl ContractRegistry {
             .records
             .get_mut(contract_id)
             .ok_or_else(|| ContractRegistryError::NotFound(contract_id.0.clone()))?;
+
         record.status = ContractStatus::Revoked;
         record.updated_at = Utc::now();
+
         Ok(ContractReceipt::Revoked(ContractRevoked {
             contract_id: contract_id.clone(),
         }))
@@ -89,6 +97,10 @@ impl ContractRegistry {
 
     pub fn get_contract(&self, contract_id: &ContractId) -> Option<&OnChainContractRecord> {
         self.records.get(contract_id)
+    }
+
+    pub fn all_contracts(&self) -> Vec<&OnChainContractRecord> {
+        self.records.values().collect()
     }
 }
 

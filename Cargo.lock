@@ -283,6 +283,13 @@ dependencies = [
 name = "aoxcrpc"
 version = "0.1.0"
 dependencies = [
+ "aoxcdata",
+ "aoxconfig",
+ "aoxcontract",
+ "aoxcore",
+ "aoxcsdk",
+ "aoxcvm",
+ "chrono",
  "serde",
  "serde_json",
  "sha2",

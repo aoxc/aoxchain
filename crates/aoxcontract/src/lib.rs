@@ -9,19 +9,19 @@
 //! - artifact references and integrity metadata,
 //! - compatibility constraints,
 //! - policy declarations,
-//! - review-oriented status records,
+//! - review-facing status records,
 //! - registry-facing contract records,
 //! - runtime-binding descriptors, and
 //! - deterministic contract identity derivation.
 //!
 //! # Design Objectives
-//! The crate is intentionally designed to operate as a stable domain boundary with the
-//! following properties:
+//! This crate is designed to serve as a stable domain boundary with the following
+//! properties:
 //! - deterministic serialization for identity-sensitive objects,
 //! - audit-grade validation for externally supplied and internally persisted records,
 //! - explicit separation between descriptive contract data and execution concerns,
 //! - long-term schema stability for registry, review, and runtime integration, and
-//! - safe composition by higher-order AOXChain subsystems.
+//! - safe composition by higher-layer AOXChain subsystems.
 //!
 //! # Architectural Scope
 //! This crate is the canonical source of truth for contract definition semantics.
@@ -51,14 +51,13 @@
 //!
 //! # Security Posture
 //! All identity-affecting and registry-relevant structures defined by this crate
-//! should be treated as security-sensitive domain objects.
+//! must be treated as security-sensitive domain objects.
 //!
 //! Implementations consuming this crate are expected to:
 //! - validate untrusted input before acceptance,
 //! - preserve canonical encoding rules,
 //! - avoid alternate identity derivation logic outside this crate, and
-//! - treat policy and compatibility declarations as authoritative contract metadata,
-//!   not advisory text.
+//! - treat policy and compatibility declarations as authoritative contract metadata.
 
 pub mod artifact;
 pub mod canonical;
