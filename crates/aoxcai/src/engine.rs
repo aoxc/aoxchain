@@ -274,3 +274,241 @@ fn fallback_model_output(manifest: &ModelManifest, err: &AiError) -> crate::mode
         attributes: Default::default(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        ModelRegistry,
+        model::{InferenceContext, InferenceSignal, OutputLabel},
+        test_support::base_manifest,
+        traits::{ContextProvider, DecisionPolicy, SignalProvider},
+    };
+
+    struct StaticContextProvider;
+
+    #[async_trait::async_trait]
+    impl ContextProvider for StaticContextProvider {
+        fn name(&self) -> &'static str {
+            "static-context"
+        }
+
+        async fn build(
+            &self,
+            _task: AiTask,
+            subject_id: &str,
+        ) -> Result<InferenceContext, AiError> {
+            Ok(InferenceContext::new(subject_id, "validator"))
+        }
+    }
+
+    struct StaticSignalProvider {
+        signals: Vec<crate::model::InferenceSignal>,
+    }
+
+    #[async_trait::async_trait]
+    impl SignalProvider for StaticSignalProvider {
+        fn name(&self) -> &'static str {
+            "static-signals"
+        }
+
+        async fn collect(
+            &self,
+            _task: AiTask,
+            _subject_id: &str,
+        ) -> Result<Vec<InferenceSignal>, AiError> {
+            Ok(self.signals.clone())
+        }
+    }
+
+    struct PassthroughPolicy;
+
+    #[async_trait::async_trait]
+    impl DecisionPolicy for PassthroughPolicy {
+        fn name(&self) -> &'static str {
+            "passthrough"
+        }
+
+        async fn decide(
+            &self,
+            _manifest: &ModelManifest,
+            _request: &InferenceRequest,
+            output: &crate::model::ModelOutput,
+            findings: &[InferenceFinding],
+        ) -> Result<Assessment, AiError> {
+            Ok(Assessment {
+                action: if findings
+                    .iter()
+                    .any(|finding| finding.severity == FindingSeverity::Critical)
+                {
+                    DecisionAction::Deny
+                } else {
+                    DecisionAction::Review
+                },
+                effective_risk_bps: output.risk_bps,
+                confidence_bps: output.confidence_bps,
+                rationale: format!("passthrough findings={}", findings.len()),
+            })
+        }
+    }
+
+    fn registry_with(mut manifest: ModelManifest) -> ModelRegistry {
+        let mut registry = ModelRegistry::new();
+        if manifest.spec.bindings.default_for_tasks.is_empty() {
+            manifest
+                .spec
+                .bindings
+                .default_for_tasks
+                .push(AiTask::ValidatorAdmission);
+        }
+        registry.register(manifest).expect("manifest must register");
+        registry
+    }
+
+    #[test]
+    fn ensure_task_supported_rejects_unsupported_mode() {
+        let mut manifest = base_manifest();
+        manifest.spec.compatibility.supported_modes = vec![AiMode::Advisory];
+
+        let err = ensure_task_supported(&manifest, AiTask::ValidatorAdmission, AiMode::Enforced)
+            .expect_err("unsupported mode must fail");
+        assert!(matches!(err, AiError::ManifestValidation(message) if message.contains("mode")));
+    }
+
+    #[test]
+    fn truncate_signals_keeps_highest_weight_entries() {
+        let mut manifest = base_manifest();
+        manifest.spec.input.max_signal_count = 2;
+        let mut signals = vec![
+            InferenceSignal::new("a", "1", 100, "test"),
+            InferenceSignal::new("b", "1", 5_000, "test"),
+            InferenceSignal::new("c", "1", 2_500, "test"),
+        ];
+
+        truncate_signals(&manifest, &mut signals);
+        assert_eq!(signals.len(), 2);
+        assert_eq!(signals[0].name, "b");
+        assert_eq!(signals[1].name, "c");
+    }
+
+    #[test]
+    fn deterministic_findings_recognize_expected_signal_patterns() {
+        let signals = vec![
+            InferenceSignal::new("identity", "revoked_key", 100, "test"),
+            InferenceSignal::new("quorum", "invalid_quorum_signature", 100, "test"),
+            InferenceSignal::new("runtime", "timeout_anomaly", 100, "test"),
+        ];
+
+        let findings = deterministic_findings(&signals);
+        assert_eq!(findings.len(), 3);
+        assert_eq!(findings[0].code, "revoked_identity");
+        assert_eq!(findings[1].code, "invalid_quorum_proof");
+        assert_eq!(findings[2].code, "runtime_anomaly");
+    }
+
+    #[test]
+    fn build_narrative_respects_manifest_toggle() {
+        let mut manifest = base_manifest();
+        manifest.spec.input.include_narrative = false;
+        let narrative = build_narrative(
+            &manifest,
+            AiTask::ValidatorAdmission,
+            AiMode::Enforced,
+            "validator",
+            "validator-1",
+            &[],
+            &[],
+        );
+        assert!(narrative.is_none());
+    }
+
+    #[test]
+    fn fallback_assessment_maps_timeout_and_unreachable_errors() {
+        let manifest = base_manifest();
+        let findings = vec![InferenceFinding::new(
+            "runtime_anomaly",
+            "warn",
+            FindingSeverity::Warning,
+        )];
+
+        let timeout = fallback_assessment(
+            &manifest,
+            &AiError::BackendTimeout("slow".into()),
+            &findings,
+        );
+        assert_eq!(timeout.action, DecisionAction::Review);
+        assert_eq!(timeout.effective_risk_bps, 5_000);
+
+        let unreachable = fallback_assessment(
+            &manifest,
+            &AiError::BackendUnreachable("down".into()),
+            &findings,
+        );
+        assert_eq!(unreachable.action, DecisionAction::Review);
+    }
+
+    #[tokio::test]
+    async fn evaluate_rejects_empty_subject_identifier() {
+        let engine = AiEngine::new(
+            registry_with(base_manifest()),
+            Box::new(StaticContextProvider),
+            vec![],
+            Box::new(PassthroughPolicy),
+        );
+
+        let err = engine
+            .evaluate(AiTask::ValidatorAdmission, AiMode::Enforced, "   ")
+            .await
+            .expect_err("empty subject id must fail");
+        assert_eq!(
+            err,
+            AiError::InvalidInput("subject identifier must not be empty".to_owned())
+        );
+    }
+
+    #[tokio::test]
+    async fn evaluate_truncates_signals_and_produces_findings() {
+        let mut manifest = base_manifest();
+        manifest.spec.input.max_signal_count = 2;
+        let engine = AiEngine::new(
+            registry_with(manifest),
+            Box::new(StaticContextProvider),
+            vec![Box::new(StaticSignalProvider {
+                signals: vec![
+                    InferenceSignal::new("runtime", "healthy", 100, "test"),
+                    InferenceSignal::new("identity", "revoked_identity", 7_000, "test"),
+                    InferenceSignal::new("runtime", "timeout_anomaly", 5_000, "test"),
+                ],
+            })],
+            Box::new(PassthroughPolicy),
+        );
+
+        let report = engine
+            .evaluate(
+                AiTask::ValidatorAdmission,
+                AiMode::Enforced,
+                "validator-007",
+            )
+            .await
+            .expect("evaluation must succeed");
+
+        assert_eq!(report.request.signals.len(), 2);
+        assert_eq!(report.request.signals[0].name, "identity");
+        assert_eq!(report.request.signals[1].name, "runtime");
+        assert_eq!(report.request.findings.len(), 2);
+        assert_eq!(report.assessment.action, DecisionAction::Deny);
+    }
+
+    #[test]
+    fn fallback_model_output_uses_backend_error_recommendation_mapping() {
+        let mut manifest = base_manifest();
+        manifest.spec.fallback.action_on_backend_error = BackendFailureAction::Deny;
+        let output = fallback_model_output(&manifest, &AiError::BackendFailure("oops".into()));
+        assert_eq!(output.backend, "fallback");
+        assert_eq!(output.label, OutputLabel::Unknown);
+        assert_eq!(
+            output.recommended_action,
+            Some(crate::model::ActionName::Deny)
+        );
+    }
+}

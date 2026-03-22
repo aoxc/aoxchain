@@ -210,6 +210,61 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn decide_reviews_when_confidence_is_below_minimum() {
+        let manifest = base_manifest();
+        let policy = FusionPolicy::new();
+        let output = model_output(OutputLabel::Trusted, 1_000, 1_000);
+
+        let assessment = policy
+            .decide(&manifest, &empty_request(), &output, &[])
+            .await
+            .expect("decision must succeed");
+
+        assert_eq!(assessment.action, DecisionAction::Review);
+    }
+
+    #[tokio::test]
+    async fn decide_forces_review_on_missing_context_finding() {
+        let manifest = base_manifest();
+        let policy = FusionPolicy::new();
+        let output = model_output(OutputLabel::Trusted, 0, 8_000);
+        let findings = vec![InferenceFinding::new(
+            "missing_context",
+            "Context is incomplete.",
+            FindingSeverity::Info,
+        )];
+
+        let assessment = policy
+            .decide(&manifest, &empty_request(), &output, &findings)
+            .await
+            .expect("decision must succeed");
+
+        assert_eq!(assessment.action, DecisionAction::Review);
+    }
+
+    #[tokio::test]
+    async fn decide_forces_deny_on_invalid_quorum_override() {
+        let manifest = base_manifest();
+        let policy = FusionPolicy::new();
+        let output = model_output(OutputLabel::Trusted, 0, 8_000);
+        let findings = vec![InferenceFinding::new(
+            "invalid_quorum_proof",
+            "Quorum proof is invalid.",
+            FindingSeverity::Info,
+        )];
+
+        let assessment = policy
+            .decide(&manifest, &empty_request(), &output, &findings)
+            .await
+            .expect("decision must succeed");
+
+        assert_eq!(assessment.action, DecisionAction::Deny);
+        assert!(
+            assessment.effective_risk_bps >= manifest.spec.decision.thresholds.deny_min_risk_bps
+        );
+    }
+
+    #[tokio::test]
     async fn decide_forces_deny_on_critical_finding() {
         let manifest = base_manifest();
         let policy = FusionPolicy::new();

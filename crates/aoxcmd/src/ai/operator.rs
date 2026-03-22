@@ -5,59 +5,75 @@ use aoxcai::{
     ExtensionDescriptor, InvocationDisposition, InvocationPolicy, KernelZone, MemoryAuditSink,
 };
 
-/// Operator-plane request for optional AI assistance.
+/// Operator-plane request envelope for optional AI assistance.
 ///
-/// # Trust model
-/// The native `verdict` and `failed_checks` originate from deterministic AOXCMD
-/// validation logic. They are provided to the AI plane only as explanatory input
-/// and must remain the sole source of readiness truth.
+/// # Trust Boundary
+/// `verdict` and `failed_checks` are produced exclusively by deterministic
+/// AOXCMD validation and diagnostic logic. They are forwarded to the AI layer
+/// as explanatory context only and must remain the sole source of operational
+/// truth and readiness status.
 #[derive(Debug, Clone, Serialize)]
 pub struct OperatorAssistRequest {
+    /// Stable topic identifier describing the operator assistance request.
     pub topic: &'static str,
+    /// Native AOXCMD diagnostic verdict. This value remains authoritative.
     pub verdict: String,
+    /// Native failed checks emitted by deterministic AOXCMD validation paths.
     pub failed_checks: Vec<String>,
 }
 
-/// Advisory or guarded-preparation artifact returned to the operator plane.
+/// Non-canonical artifact returned by the operator-plane AI adapter.
 ///
-/// # Security posture
-/// This structure is explicitly non-canonical and non-executing. It is designed
-/// to surface optional operator assistance while preserving native authority.
+/// # Security Posture
+/// This structure is advisory or preparatory only. It never becomes canonical
+/// AOXChain truth, never mutates state, and is never auto-executed by AOXCMD.
 #[derive(Debug, Clone, Serialize)]
 pub struct OperatorAssistArtifact {
-    /// Output classification used by the caller when rendering the artifact.
+    /// Output classification used by the caller during rendering.
     pub mode: &'static str,
-    /// Always `false`; AI artifacts are never canonical AOXChain truth.
+    /// Always `false`; AI output is never canonical AOXChain truth.
     pub canonical: bool,
-    /// Always `false`; AOXCMD does not auto-execute AI output.
+    /// Always `false`; AOXCMD never auto-executes AI-produced output.
     pub executed: bool,
-    /// Whether a human operator must explicitly approve any downstream use.
+    /// Indicates whether explicit human approval is required before any
+    /// downstream operational use.
     pub requires_operator_approval: bool,
-    /// Human-readable summary for the current operator incident or diagnostic run.
+    /// Human-readable explanation or preparation summary.
     pub summary: String,
-    /// Advisory or preparatory steps. These are proposed steps only.
+    /// Proposed advisory or preparatory steps for operator review.
     pub remediation_plan: Vec<String>,
-    /// Audit metadata for the specific invocation that produced this artifact.
+    /// Audit evidence describing the invocation that produced this artifact.
     pub audit: AiInvocationAuditRecord,
 }
 
-/// Result envelope returned by the operator-plane AI adapter.
+/// Result envelope returned by the operator-plane adapter.
 ///
-/// `trace` is always present so callers can surface audit evidence even when AI
-/// assistance is denied, disabled, or otherwise unavailable.
+/// `trace` is always returned so the caller can surface audit evidence even
+/// when assistance is disabled, denied, or otherwise unavailable.
 #[derive(Debug, Clone, Serialize)]
 pub struct OperatorAssistOutcome {
+    /// Indicates whether an AI artifact was produced and made available.
     pub available: bool,
+    /// Optional AI-produced artifact. Absent on denial, disablement, or failure
+    /// to produce an authorized advisory/preparatory output.
     pub artifact: Option<OperatorAssistArtifact>,
+    /// Mandatory audit trail for the attempted invocation.
     pub trace: AiInvocationAuditRecord,
 }
 
 /// Stable operator-plane adapter for AOXCMD.
 ///
-/// This adapter is the only supported integration pattern for `aoxcmd`:
-/// native diagnostics -> bounded adapter -> `aoxcai` authorization -> auditable
-/// optional artifact. The adapter never mutates chain state and never upgrades
-/// AI output into authority.
+/// # Integration Contract
+/// This adapter is the only supported integration shape for `aoxcmd`:
+///
+/// native diagnostics -> bounded adapter -> `aoxcai` authorization ->
+/// auditable optional artifact
+///
+/// # Security Invariants
+/// - The adapter never mutates chain state.
+/// - The adapter never upgrades AI output into authority.
+/// - All AI access remains policy-gated and auditable.
+/// - Native AOXCMD diagnostics remain the sole source of truth.
 pub struct OperatorPlaneAiAdapter<S: AiAuditSink = MemoryAuditSink> {
     policy: InvocationPolicy,
     advisory_descriptor: ExtensionDescriptor,
@@ -72,6 +88,13 @@ impl Default for OperatorPlaneAiAdapter<MemoryAuditSink> {
 }
 
 impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
+    /// Constructs the adapter with the provided audit sink.
+    ///
+    /// # Security Notes
+    /// The adapter is initialized with the default kernel invocation policy and
+    /// two strictly bounded descriptors:
+    /// - advisory diagnostics assistance
+    /// - guarded-preparation runbook generation
     #[must_use]
     pub fn with_sink(sink: S) -> Self {
         Self {
@@ -98,10 +121,10 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
 
     /// Produces an optional advisory explanation for native diagnostics output.
     ///
-    /// # Authority model
-    /// The returned artifact is explanatory only. It does not change the native
-    /// verdict and is omitted entirely when AI is disabled or policy denies the
-    /// invocation.
+    /// # Authority Model
+    /// The returned artifact is explanatory only. It does not alter the native
+    /// AOXCMD verdict, does not grant execution authority, and is omitted
+    /// entirely when AI is disabled or authorization is denied by policy.
     #[must_use]
     pub fn diagnostics_assistance(&self, request: OperatorAssistRequest) -> OperatorAssistOutcome {
         if ai_disabled() {
@@ -132,6 +155,7 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
                 let failed_issue_count = request.failed_checks.len();
                 let verdict = request.verdict;
                 let remediation_plan = request.failed_checks;
+
                 let summary = if failed_issue_count == 0 {
                     format!(
                         "Native diagnostics verdict is '{verdict}'. No failed checks were reported. AI output remains advisory."
@@ -169,10 +193,10 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
 
     /// Produces a guarded-preparation runbook draft for operator review.
     ///
-    /// # Security posture
+    /// # Security Posture
     /// The returned artifact is deliberately non-executing and requires explicit
-    /// human approval before any downstream use. AOXCMD does not apply or run the
-    /// generated steps automatically.
+    /// human approval before any downstream use. AOXCMD does not apply, enact,
+    /// or execute the generated steps automatically.
     #[must_use]
     pub fn runbook_preparation(&self, request: OperatorAssistRequest) -> OperatorAssistOutcome {
         if ai_disabled() {
@@ -202,6 +226,7 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
 
                 let failed_issue_count = request.failed_checks.len();
                 let verdict = request.verdict;
+
                 let remediation_plan = if request.failed_checks.is_empty() {
                     vec![
                         "Review native diagnostics output before preparing any operational change."
@@ -251,10 +276,21 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
     }
 }
 
+/// Returns `true` when the operator plane has explicitly disabled AI support.
+///
+/// # Operational Semantics
+/// AI is considered disabled only when `AOXC_AI_DISABLE=1`.
+#[must_use]
 fn ai_disabled() -> bool {
     std::env::var("AOXC_AI_DISABLE").ok().as_deref() == Some("1")
 }
 
+/// Builds a denied invocation trace for explicitly disabled operator-plane AI.
+///
+/// # Audit Intent
+/// This helper ensures that disablement remains observable, attributable, and
+/// forensically reviewable even when no artifact is produced.
+#[must_use]
 fn denied_trace(
     invocation_id: &str,
     requested_action: &str,
@@ -341,6 +377,20 @@ mod tests {
     }
 
     #[test]
+    fn diagnostics_summary_preserves_native_verdict_text() {
+        std::env::remove_var("AOXC_AI_DISABLE");
+        let adapter = OperatorPlaneAiAdapter::default();
+
+        let outcome = adapter.diagnostics_assistance(request());
+        let artifact = outcome.artifact.expect("artifact should be present");
+
+        assert!(artifact
+            .summary
+            .contains("Native diagnostics verdict is 'fail'"));
+        assert!(artifact.summary.contains("AI output remains advisory"));
+    }
+
+    #[test]
     fn runbook_preparation_requires_operator_approval_and_is_non_executing() {
         std::env::remove_var("AOXC_AI_DISABLE");
         let sink = MemoryAuditSink::default();
@@ -366,5 +416,32 @@ mod tests {
         let records = sink.snapshot();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].final_disposition, InvocationDisposition::Allowed);
+    }
+
+    #[test]
+    fn disabled_runbook_preparation_produces_denied_trace() {
+        std::env::set_var("AOXC_AI_DISABLE", "1");
+        let sink = MemoryAuditSink::default();
+        let adapter = OperatorPlaneAiAdapter::with_sink(sink.clone());
+
+        let outcome = adapter.runbook_preparation(request());
+
+        assert!(!outcome.available);
+        assert!(outcome.artifact.is_none());
+        assert_eq!(
+            outcome.trace.final_disposition,
+            InvocationDisposition::Denied
+        );
+        assert_eq!(
+            outcome.trace.action_class,
+            AiActionClass::GuardedPreparation
+        );
+        assert_eq!(outcome.trace.capability, AiCapability::RunbookGenerate);
+
+        let records = sink.snapshot();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].final_disposition, InvocationDisposition::Denied);
+
+        std::env::remove_var("AOXC_AI_DISABLE");
     }
 }

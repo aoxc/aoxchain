@@ -24,14 +24,14 @@ struct Check {
 
 /// Operator-visible AI assistance view.
 ///
-/// # Security note
-/// The fields in this structure are intentionally read-oriented and explanatory.
-/// They must not be interpreted as canonical protocol truth or as an execution
-/// authorization surface.
+/// # Security Note
+/// The fields in this structure are intentionally explanatory and read-oriented.
+/// They must not be interpreted as canonical protocol truth, enforcement state,
+/// or an execution authorization surface.
 ///
-/// # Audit note
-/// Invocation metadata is surfaced so operators can correlate AI assistance with
-/// the specific authorization and policy context under which it was produced.
+/// # Audit Note
+/// Invocation metadata is surfaced so operators can correlate AI assistance
+/// with the exact authorization and policy context under which it was produced.
 #[derive(Debug, Serialize)]
 struct AiAssistView {
     available: bool,
@@ -45,12 +45,12 @@ struct AiAssistView {
     action_class: String,
 }
 
-/// Consolidated diagnostics/audit report emitted by operator-plane commands.
+/// Consolidated diagnostics or audit report emitted by operator-plane commands.
 ///
-/// # Design intent
-/// This report combines native validation results with optional AI assistance.
-/// Native checks remain authoritative for the reported verdict. AI assistance is
-/// included only as an auxiliary operator aid.
+/// # Design Intent
+/// This report combines deterministic native validation results with optional
+/// AI assistance. Native checks remain authoritative for the reported verdict.
+/// AI assistance is included strictly as an auxiliary operator aid.
 #[derive(Debug, Serialize)]
 struct AuditReport {
     generated_at: String,
@@ -69,9 +69,9 @@ pub fn cmd_diagnostics_doctor(args: &[String]) -> Result<(), AppError> {
 /// Builds a support bundle containing the diagnostics report and selected
 /// operator-relevant local artifacts.
 ///
-/// # Security note
+/// # Security Note
 /// This command currently copies selected files if present. The `redact` flag is
-/// accepted but not yet used to transform file contents; that behavior should be
+/// accepted but not yet used to transform file contents. That behavior must be
 /// treated as future hardening work rather than assumed protection.
 pub fn cmd_diagnostics_bundle(args: &[String]) -> Result<(), AppError> {
     let redact = has_flag(args, "--redact");
@@ -174,11 +174,12 @@ pub fn cmd_production_audit(args: &[String]) -> Result<(), AppError> {
 
 /// Builds the operator diagnostics report.
 ///
-/// # Authority model
+/// # Authority Model
 /// Native checks determine the final `verdict`. AI output is attached only as
-/// optional assistance and does not alter native correctness or readiness truth.
+/// optional assistance and does not alter native correctness, readiness truth,
+/// or enforcement semantics.
 ///
-/// # Security note
+/// # Security Note
 /// The `_redact` argument is currently accepted for interface stability, but the
 /// report body itself is not transformed based on it in this function.
 fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
@@ -268,6 +269,12 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
     })
 }
 
+/// Computes the authoritative native verdict for a set of checks.
+///
+/// # Security Invariant
+/// This function is intentionally deterministic and depends exclusively on
+/// native validation results. It must remain fully isolated from AI subsystem
+/// state, availability, output, or authorization status.
 fn native_verdict(checks: &[Check]) -> &'static str {
     if checks.iter().all(|check| check.passed) {
         "pass"
@@ -280,9 +287,44 @@ fn native_verdict(checks: &[Check]) -> &'static str {
 mod tests {
     use super::*;
 
+    /// Verifies that the native verdict returns `pass` when every check passes.
+    ///
+    /// # Audit Rationale
+    /// This test protects the positive path and ensures that a fully valid
+    /// native state cannot regress into an erroneous failure classification.
+    #[test]
+    fn native_verdict_returns_pass_when_all_checks_pass() {
+        let checks = vec![
+            Check {
+                name: "config-valid",
+                passed: true,
+                detail: "ok".to_string(),
+            },
+            Check {
+                name: "node-state",
+                passed: true,
+                detail: "ok".to_string(),
+            },
+        ];
+
+        assert_eq!(native_verdict(&checks), "pass");
+    }
+
+    /// Verifies that the native verdict is determined exclusively by native
+    /// checks and remains unaffected by AI subsystem state.
+    ///
+    /// # Security Invariant
+    /// AI is advisory only and must never influence the authoritative verdict.
+    ///
+    /// # Threat Model Coverage
+    /// This test helps prevent:
+    /// - implicit trust leakage from the AI subsystem,
+    /// - accidental coupling between advisory output and native truth, and
+    /// - authority confusion between deterministic checks and optional assistance.
     #[test]
     fn native_verdict_is_determined_only_by_native_checks() {
         std::env::set_var("AOXC_AI_DISABLE", "1");
+
         let checks = vec![
             Check {
                 name: "config-valid",
@@ -299,6 +341,7 @@ mod tests {
         assert_eq!(native_verdict(&checks), "fail");
 
         std::env::remove_var("AOXC_AI_DISABLE");
+
         assert_eq!(native_verdict(&checks), "fail");
     }
 }
