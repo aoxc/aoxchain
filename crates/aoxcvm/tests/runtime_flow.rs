@@ -45,6 +45,58 @@ fn dispatcher<'a>() -> Dispatcher<'a> {
     }
 }
 
+fn canonical_lane_txs() -> Vec<TxContext> {
+    vec![
+        tx(
+            [21u8; 32],
+            b"alice",
+            VmKind::Evm,
+            [vec![0x00], b"deterministic-bytecode".to_vec()].concat(),
+            100_000,
+        ),
+        tx(
+            [22u8; 32],
+            b"bob",
+            VmKind::SuiMove,
+            [vec![0x00], b"deterministic-package".to_vec()].concat(),
+            100_000,
+        ),
+        tx(
+            [23u8; 32],
+            b"carol",
+            VmKind::Wasm,
+            [vec![0x00], b"\0asm-deterministic".to_vec()].concat(),
+            100_000,
+        ),
+        tx(
+            [24u8; 32],
+            b"dave",
+            VmKind::Cardano,
+            [vec![0x00], b"500lovelace".to_vec()].concat(),
+            100_000,
+        ),
+    ]
+}
+
+fn execute_all(
+    router: &Dispatcher<'_>,
+    block: &BlockContext,
+    txs: &[TxContext],
+    gas_limit: u64,
+) -> (
+    InMemoryHostState,
+    Vec<aoxcvm::host::receipt::ExecutionReceipt>,
+) {
+    let mut state = InMemoryHostState::new(gas_limit);
+    let mut receipts = Vec::with_capacity(txs.len());
+
+    for tx in txs {
+        receipts.push(router.execute(&mut state, block, tx).unwrap());
+    }
+
+    (state, receipts)
+}
+
 #[test]
 fn evm_deploy_and_call_flow_works() {
     let block = block_context();
@@ -296,4 +348,121 @@ fn gas_exhaustion_is_enforced() {
     let err = router.execute(&mut state, &block, &deploy_tx).unwrap_err();
     let rendered = err.to_string();
     assert!(rendered.contains("gas exhausted"));
+}
+
+#[test]
+fn multilane_gas_accounting_is_deterministic_across_identical_runs() {
+    let block = block_context();
+    let router = dispatcher();
+    let txs = canonical_lane_txs();
+
+    let (state_a, receipts_a) = execute_all(&router, &block, &txs, 1_000_000);
+    let (state_b, receipts_b) = execute_all(&router, &block, &txs, 1_000_000);
+
+    let gas_profile_a: Vec<(VmKind, u64)> = receipts_a
+        .iter()
+        .map(|receipt| (receipt.vm_kind, receipt.gas_used))
+        .collect();
+    let gas_profile_b: Vec<(VmKind, u64)> = receipts_b
+        .iter()
+        .map(|receipt| (receipt.vm_kind, receipt.gas_used))
+        .collect();
+
+    assert_eq!(gas_profile_a, gas_profile_b);
+    assert_eq!(state_a.gas_remaining(), state_b.gas_remaining());
+    assert_eq!(state_a.raw_storage(), state_b.raw_storage());
+}
+
+#[test]
+fn each_lane_enforces_the_same_host_resource_limit_boundary() {
+    let block = block_context();
+    let router = dispatcher();
+
+    for tx in canonical_lane_txs() {
+        let mut calibration_state = InMemoryHostState::new(1_000_000);
+        let receipt = router.execute(&mut calibration_state, &block, &tx).unwrap();
+        let required_gas = receipt.gas_used;
+
+        let mut insufficient_state = InMemoryHostState::new(required_gas.saturating_sub(1));
+        let err = router
+            .execute(&mut insufficient_state, &block, &tx)
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "gas exhausted",
+            "lane {:?} crossed an inconsistent exhaustion boundary",
+            tx.vm_kind
+        );
+
+        let mut exact_state = InMemoryHostState::new(required_gas);
+        let exact_receipt = router.execute(&mut exact_state, &block, &tx).unwrap();
+        assert_eq!(exact_receipt.gas_used, required_gas);
+        assert_eq!(exact_state.gas_remaining(), 0);
+    }
+}
+
+#[test]
+fn same_logical_identifier_can_exist_in_multiple_lanes_without_state_collision() {
+    let block = block_context();
+    let mut state = InMemoryHostState::new(1_000_000);
+    let router = dispatcher();
+    let shared_id = [31u8; 32];
+
+    let evm_deploy = tx(
+        shared_id,
+        b"alice",
+        VmKind::Evm,
+        [vec![0x00], b"shared-id-bytecode".to_vec()].concat(),
+        100_000,
+    );
+    let sui_publish = tx(
+        shared_id,
+        b"bob",
+        VmKind::SuiMove,
+        [vec![0x00], b"shared-id-package".to_vec()].concat(),
+        100_000,
+    );
+    let wasm_upload = tx(
+        shared_id,
+        b"carol",
+        VmKind::Wasm,
+        [vec![0x00], b"\0asm-shared-id".to_vec()].concat(),
+        100_000,
+    );
+    let cardano_create = tx(
+        shared_id,
+        b"dave",
+        VmKind::Cardano,
+        [vec![0x00], b"shared-id-utxo".to_vec()].concat(),
+        100_000,
+    );
+
+    let evm_receipt = router.execute(&mut state, &block, &evm_deploy).unwrap();
+    let sui_receipt = router.execute(&mut state, &block, &sui_publish).unwrap();
+    let wasm_receipt = router.execute(&mut state, &block, &wasm_upload).unwrap();
+    let cardano_receipt = router.execute(&mut state, &block, &cardano_create).unwrap();
+
+    assert_eq!(sui_receipt.output, shared_id.to_vec());
+    assert_eq!(wasm_receipt.output, shared_id.to_vec());
+    assert_eq!(cardano_receipt.output, shared_id.to_vec());
+    assert_ne!(
+        evm_receipt.output,
+        shared_id.to_vec(),
+        "EVM address derivation should stay lane-specific"
+    );
+
+    assert!(
+        EvmExecutor
+            .query(&state, &block, &evm_receipt.output)
+            .is_ok()
+    );
+    assert!(SuiMoveExecutor.query(&state, &block, &shared_id).is_ok());
+    assert!(WasmExecutor.query(&state, &block, &shared_id).is_ok());
+    assert!(CardanoExecutor.query(&state, &block, &shared_id).is_ok());
+
+    let storage_keys: Vec<Vec<u8>> = state.raw_storage().keys().cloned().collect();
+    assert!(storage_keys.iter().any(|key| key.starts_with(b"evm/")));
+    assert!(storage_keys.iter().any(|key| key.starts_with(b"sui/")));
+    assert!(storage_keys.iter().any(|key| key.starts_with(b"wasm/")));
+    assert!(storage_keys.iter().any(|key| key.starts_with(b"cardano/")));
 }
