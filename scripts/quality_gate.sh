@@ -59,6 +59,7 @@ case "${MODE}" in
         run "Compile Check (Release)" cargo check --workspace --release
         run "Clippy (Strict)" cargo clippy --workspace --all-targets --all-features -- -D warnings
         run "Build Production Binary" cargo build --release -p aoxcmd --bin aoxc
+        run "Release Artifact Certification" ./scripts/release_artifact_certify.sh target/release/aoxc
         run "Production Test Suite" cargo test --workspace --release --all-targets --no-fail-fast
         ;;
 
