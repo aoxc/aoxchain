@@ -156,7 +156,13 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(authorized.audit_record.final_disposition, InvocationDisposition::Allowed);
+        assert_eq!(
+            authorized.audit_record.final_disposition,
+            InvocationDisposition::Allowed
+        );
+        assert_eq!(authorized.audit_record.policy_id, "aoxcai-kernel-default");
+        assert_eq!(authorized.audit_record.output_class, "advisory_artifact");
+        assert_eq!(authorized.audit_record.kernel_zone, KernelZone::Contract);
     }
 
     #[test]
@@ -180,5 +186,7 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(denied.final_disposition, InvocationDisposition::Denied);
+        assert!(!denied.approval_state.is_empty());
+        assert_eq!(denied.policy_id, "aoxcai-kernel-default");
     }
 }

@@ -1,5 +1,4 @@
 //! Capability and policy descriptors for the AOXC intelligence extension plane.
-//! Capability and policy descriptors for the AOXC intelligence extension plane.
 //!
 //! # Purpose
 //! This module defines the authorization vocabulary used to constrain AI
@@ -98,14 +97,12 @@ impl InvocationPolicy {
                     capability: AiCapability::Explain,
                     action_class: AiActionClass::Advisory,
                 },
-
                 // Consensus
                 CapabilityGrant {
                     zone: KernelZone::Consensus,
                     capability: AiCapability::InvariantCheckAssist,
                     action_class: AiActionClass::Advisory,
                 },
-
                 // Contract
                 CapabilityGrant {
                     zone: KernelZone::Contract,
@@ -117,14 +114,12 @@ impl InvocationPolicy {
                     capability: AiCapability::CompatibilityLint,
                     action_class: AiActionClass::Advisory,
                 },
-
                 // Network
                 CapabilityGrant {
                     zone: KernelZone::Network,
                     capability: AiCapability::RiskSummary,
                     action_class: AiActionClass::Advisory,
                 },
-
                 // Operator - advisory
                 CapabilityGrant {
                     zone: KernelZone::Operator,
@@ -141,7 +136,6 @@ impl InvocationPolicy {
                     capability: AiCapability::ConfigReview,
                     action_class: AiActionClass::Advisory,
                 },
-
                 // Operator - guarded
                 CapabilityGrant {
                     zone: KernelZone::Operator,
@@ -165,10 +159,8 @@ impl InvocationPolicy {
         capability: AiCapability,
         action_class: AiActionClass,
     ) -> bool {
-        self.grants.iter().any(|g| {
-            g.zone == zone
-                && g.capability == capability
-                && g.action_class == action_class
-        })
+        self.grants
+            .iter()
+            .any(|g| g.zone == zone && g.capability == capability && g.action_class == action_class)
     }
 }

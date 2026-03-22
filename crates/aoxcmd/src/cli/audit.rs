@@ -226,11 +226,7 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
         detail: "Official peer enforcement is enabled".to_string(),
     });
 
-    let verdict = if checks.iter().all(|check| check.passed) {
-        "pass"
-    } else {
-        "fail"
-    };
+    let verdict = native_verdict(&checks);
 
     let failed_checks = checks
         .iter()
@@ -270,4 +266,39 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
             action_class: format!("{:?}", ai_outcome.trace.action_class).to_lowercase(),
         },
     })
+}
+
+fn native_verdict(checks: &[Check]) -> &'static str {
+    if checks.iter().all(|check| check.passed) {
+        "pass"
+    } else {
+        "fail"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_verdict_is_determined_only_by_native_checks() {
+        std::env::set_var("AOXC_AI_DISABLE", "1");
+        let checks = vec![
+            Check {
+                name: "config-valid",
+                passed: true,
+                detail: "ok".to_string(),
+            },
+            Check {
+                name: "node-state",
+                passed: false,
+                detail: "missing".to_string(),
+            },
+        ];
+
+        assert_eq!(native_verdict(&checks), "fail");
+
+        std::env::remove_var("AOXC_AI_DISABLE");
+        assert_eq!(native_verdict(&checks), "fail");
+    }
 }
