@@ -41,12 +41,6 @@ That document proposes **AOXC Covenant Consensus (ACC)** built around:
 - continuity/timeout certificates,
 - finality via a composite **Covenant Seal** rather than a single generic QC.
 
-## Integration Contract
-
-- Verified artifacts are expected to be produced outside the kernel-facing state machine.
-- `ConsensusState` remains the execution-plane admission/finalization holder.
-- Constitutional artifacts are composed on top of execution finality instead of being implicitly folded into `ConsensusState`.
-
 ## Related Components
 
 - Top-level architecture: [`../../README.md`](../../README.md)

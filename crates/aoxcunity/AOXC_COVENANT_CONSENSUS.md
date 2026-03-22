@@ -1,8 +1,5 @@
 # AOXC Covenant Consensus (ACC)
 
-> Technical expansion: **AOXC Constitutional Consensus**.
-> Narrative/branding name: **AOXC Covenant Consensus**.
-
 ## Goal
 
 This document proposes an **AOXC-native consensus family** that is intentionally different from
@@ -383,12 +380,3 @@ If you want something **really different** yet still defensible:
 - never claim absolute security percentages.
 
 That combination can make AOXC recognizably its own system without becoming un-auditable.
-
-
-## Integration Contract
-
-- `ConsensusState` owns execution-plane block/vote admission and execution-finality quorum evaluation.
-- A verified-admission layer is expected to produce `VerifiedVote`, `VerifiedTimeoutVote`, legitimacy artifacts, and continuity artifacts before kernel consumption.
-- `ExecutionCertificate` is built from execution quorum evidence.
-- `ConstitutionalSeal` is composed only after execution, legitimacy, and continuity artifacts independently validate and bind to the same block/epoch boundary.
-- This phase intentionally does not implement full persistence, pacemaker, or validator-transition engines.

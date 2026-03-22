@@ -20,8 +20,7 @@ pub use block::{
     LaneCommitmentSection, LaneType,
 };
 pub use constitutional::{
-    ConstitutionalSeal, ConstitutionalValidationError, ContinuityCertificate, ExecutionCertificate,
-    LegitimacyCertificate,
+    ConstitutionalSeal, ContinuityCertificate, ExecutionCertificate, LegitimacyCertificate,
 };
 pub use error::ConsensusError;
 pub use fork_choice::{BlockMeta, ForkChoice};
