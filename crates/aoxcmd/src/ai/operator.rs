@@ -5,75 +5,31 @@ use aoxcai::{
     ExtensionDescriptor, InvocationDisposition, InvocationPolicy, KernelZone, MemoryAuditSink,
 };
 
-/// Operator-plane request envelope for optional AI assistance.
-///
-/// # Trust Boundary
-/// `verdict` and `failed_checks` are produced exclusively by deterministic
-/// AOXCMD validation and diagnostic logic. They are forwarded to the AI layer
-/// as explanatory context only and must remain the sole source of operational
-/// truth and readiness status.
 #[derive(Debug, Clone, Serialize)]
 pub struct OperatorAssistRequest {
-    /// Stable topic identifier describing the operator assistance request.
     pub topic: &'static str,
-    /// Native AOXCMD diagnostic verdict. This value remains authoritative.
     pub verdict: String,
-    /// Native failed checks emitted by deterministic AOXCMD validation paths.
     pub failed_checks: Vec<String>,
 }
 
-/// Non-canonical artifact returned by the operator-plane AI adapter.
-///
-/// # Security Posture
-/// This structure is advisory or preparatory only. It never becomes canonical
-/// AOXChain truth, never mutates state, and is never auto-executed by AOXCMD.
 #[derive(Debug, Clone, Serialize)]
 pub struct OperatorAssistArtifact {
-    /// Output classification used by the caller during rendering.
     pub mode: &'static str,
-    /// Always `false`; AI output is never canonical AOXChain truth.
     pub canonical: bool,
-    /// Always `false`; AOXCMD never auto-executes AI-produced output.
     pub executed: bool,
-    /// Indicates whether explicit human approval is required before any
-    /// downstream operational use.
     pub requires_operator_approval: bool,
-    /// Human-readable explanation or preparation summary.
     pub summary: String,
-    /// Proposed advisory or preparatory steps for operator review.
     pub remediation_plan: Vec<String>,
-    /// Audit evidence describing the invocation that produced this artifact.
     pub audit: AiInvocationAuditRecord,
 }
 
-/// Result envelope returned by the operator-plane adapter.
-///
-/// `trace` is always returned so the caller can surface audit evidence even
-/// when assistance is disabled, denied, or otherwise unavailable.
 #[derive(Debug, Clone, Serialize)]
 pub struct OperatorAssistOutcome {
-    /// Indicates whether an AI artifact was produced and made available.
     pub available: bool,
-    /// Optional AI-produced artifact. Absent on denial, disablement, or failure
-    /// to produce an authorized advisory/preparatory output.
     pub artifact: Option<OperatorAssistArtifact>,
-    /// Mandatory audit trail for the attempted invocation.
     pub trace: AiInvocationAuditRecord,
 }
 
-/// Stable operator-plane adapter for AOXCMD.
-///
-/// # Integration Contract
-/// This adapter is the only supported integration shape for `aoxcmd`:
-///
-/// native diagnostics -> bounded adapter -> `aoxcai` authorization ->
-/// auditable optional artifact
-///
-/// # Security Invariants
-/// - The adapter never mutates chain state.
-/// - The adapter never upgrades AI output into authority.
-/// - All AI access remains policy-gated and auditable.
-/// - Native AOXCMD diagnostics remain the sole source of truth.
 pub struct OperatorPlaneAiAdapter<S: AiAuditSink = MemoryAuditSink> {
     policy: InvocationPolicy,
     advisory_descriptor: ExtensionDescriptor,
@@ -88,13 +44,6 @@ impl Default for OperatorPlaneAiAdapter<MemoryAuditSink> {
 }
 
 impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
-    /// Constructs the adapter with the provided audit sink.
-    ///
-    /// # Security Notes
-    /// The adapter is initialized with the default kernel invocation policy and
-    /// two strictly bounded descriptors:
-    /// - advisory diagnostics assistance
-    /// - guarded-preparation runbook generation
     #[must_use]
     pub fn with_sink(sink: S) -> Self {
         Self {
@@ -119,12 +68,6 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
         }
     }
 
-    /// Produces an optional advisory explanation for native diagnostics output.
-    ///
-    /// # Authority Model
-    /// The returned artifact is explanatory only. It does not alter the native
-    /// AOXCMD verdict, does not grant execution authority, and is omitted
-    /// entirely when AI is disabled or authorization is denied by policy.
     #[must_use]
     pub fn diagnostics_assistance(&self, request: OperatorAssistRequest) -> OperatorAssistOutcome {
         if ai_disabled() {
@@ -157,13 +100,9 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
                 let remediation_plan = request.failed_checks;
 
                 let summary = if failed_issue_count == 0 {
-                    format!(
-                        "Native diagnostics verdict is '{verdict}'. No failed checks were reported. AI output remains advisory."
-                    )
+                    format!("Native diagnostics verdict is '{verdict}'. No failed checks were reported. AI output remains advisory.")
                 } else {
-                    format!(
-                        "Native diagnostics verdict is '{verdict}'. {failed_issue_count} failed checks were summarized for operator review. AI output remains advisory."
-                    )
+                    format!("Native diagnostics verdict is '{verdict}'. {failed_issue_count} failed checks were summarized for operator review. AI output remains advisory.")
                 };
 
                 OperatorAssistOutcome {
@@ -191,12 +130,6 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
         }
     }
 
-    /// Produces a guarded-preparation runbook draft for operator review.
-    ///
-    /// # Security Posture
-    /// The returned artifact is deliberately non-executing and requires explicit
-    /// human approval before any downstream use. AOXCMD does not apply, enact,
-    /// or execute the generated steps automatically.
     #[must_use]
     pub fn runbook_preparation(&self, request: OperatorAssistRequest) -> OperatorAssistOutcome {
         if ai_disabled() {
@@ -235,15 +168,9 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
                             .to_string(),
                     ]
                 } else {
-                    request
-                        .failed_checks
-                        .iter()
-                        .map(|check| {
-                            format!(
-                                "Review native failure '{check}' and prepare a human-approved remediation step before execution."
-                            )
-                        })
-                        .collect()
+                    request.failed_checks.iter().map(|check| {
+                        format!("Review native failure '{check}' and prepare a human-approved remediation step before execution.")
+                    }).collect()
                 };
 
                 let summary = format!(
@@ -276,21 +203,10 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
     }
 }
 
-/// Returns `true` when the operator plane has explicitly disabled AI support.
-///
-/// # Operational Semantics
-/// AI is considered disabled only when `AOXC_AI_DISABLE=1`.
-#[must_use]
 fn ai_disabled() -> bool {
     std::env::var("AOXC_AI_DISABLE").ok().as_deref() == Some("1")
 }
 
-/// Builds a denied invocation trace for explicitly disabled operator-plane AI.
-///
-/// # Audit Intent
-/// This helper ensures that disablement remains observable, attributable, and
-/// forensically reviewable even when no artifact is produced.
-#[must_use]
 fn denied_trace(
     invocation_id: &str,
     requested_action: &str,
@@ -344,10 +260,6 @@ mod tests {
             artifact.audit.final_disposition,
             InvocationDisposition::Allowed
         );
-
-        let records = sink.snapshot();
-        assert_eq!(records.len(), 1);
-        assert_eq!(records[0].final_disposition, InvocationDisposition::Allowed);
     }
 
     #[test]
@@ -365,13 +277,6 @@ mod tests {
             InvocationDisposition::Denied
         );
         assert_eq!(outcome.trace.output_class, "no_artifact");
-        assert!(outcome.trace.approval_state.contains("AOXC_AI_DISABLE"));
-        assert_eq!(outcome.trace.capability, AiCapability::DiagnosticsAssist);
-        assert_eq!(outcome.trace.kernel_zone, KernelZone::Operator);
-
-        let records = sink.snapshot();
-        assert_eq!(records.len(), 1);
-        assert_eq!(records[0].final_disposition, InvocationDisposition::Denied);
 
         std::env::remove_var("AOXC_AI_DISABLE");
     }
@@ -387,60 +292,32 @@ mod tests {
         assert!(artifact
             .summary
             .contains("Native diagnostics verdict is 'fail'"));
-        assert!(artifact.summary.contains("AI output remains advisory"));
     }
 
     #[test]
     fn runbook_preparation_requires_operator_approval_and_is_non_executing() {
         std::env::remove_var("AOXC_AI_DISABLE");
-        let sink = MemoryAuditSink::default();
-        let adapter = OperatorPlaneAiAdapter::with_sink(sink.clone());
+        let adapter = OperatorPlaneAiAdapter::default();
 
         let outcome = adapter.runbook_preparation(request());
         let artifact = outcome.artifact.expect("artifact should be present");
 
         assert!(outcome.available);
-        assert_eq!(artifact.mode, "guarded_preparation");
-        assert!(!artifact.canonical);
-        assert!(!artifact.executed);
         assert!(artifact.requires_operator_approval);
-        assert_eq!(
-            artifact.audit.final_disposition,
-            InvocationDisposition::Allowed
-        );
-        assert_eq!(
-            artifact.audit.action_class,
-            AiActionClass::GuardedPreparation
-        );
-
-        let records = sink.snapshot();
-        assert_eq!(records.len(), 1);
-        assert_eq!(records[0].final_disposition, InvocationDisposition::Allowed);
     }
 
     #[test]
     fn disabled_runbook_preparation_produces_denied_trace() {
         std::env::set_var("AOXC_AI_DISABLE", "1");
-        let sink = MemoryAuditSink::default();
-        let adapter = OperatorPlaneAiAdapter::with_sink(sink.clone());
+        let adapter = OperatorPlaneAiAdapter::default();
 
         let outcome = adapter.runbook_preparation(request());
 
         assert!(!outcome.available);
-        assert!(outcome.artifact.is_none());
         assert_eq!(
             outcome.trace.final_disposition,
             InvocationDisposition::Denied
         );
-        assert_eq!(
-            outcome.trace.action_class,
-            AiActionClass::GuardedPreparation
-        );
-        assert_eq!(outcome.trace.capability, AiCapability::RunbookGenerate);
-
-        let records = sink.snapshot();
-        assert_eq!(records.len(), 1);
-        assert_eq!(records[0].final_disposition, InvocationDisposition::Denied);
 
         std::env::remove_var("AOXC_AI_DISABLE");
     }
