@@ -1,7 +1,8 @@
 use sha2::{Digest, Sha256};
 
 use crate::block::types::{
-    BlockBody, BlockHeader, BlockSection, ExternalNetwork, ExternalProofType, LaneType,
+    BlockBody, BlockHeader, BlockSection, ExternalNetwork, ExternalProofType, LaneCommitment,
+    LaneType,
 };
 
 const BLOCK_HEADER_DOMAIN_V1: &[u8] = b"AOXC_BLOCK_HEADER_V1";
@@ -25,8 +26,8 @@ pub struct BodyRoots {
 
 /// Computes canonical body roots.
 ///
-/// The body is hashed after canonical section ordering has already been
-/// established by the builder.
+/// The body is hashed after canonical section ordering and nested collection
+/// ordering have been established by the builder.
 pub fn compute_body_roots(body: &BlockBody) -> BodyRoots {
     let mut body_hasher = Sha256::new();
     body_hasher.update(BODY_ROOT_DOMAIN_V1);
@@ -84,12 +85,8 @@ pub fn compute_block_hash(header: &BlockHeader) -> [u8; 32] {
 pub fn canonical_section_sort_key(section: &BlockSection) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(SECTION_ORDER_DOMAIN_V1);
-
-    match section {
-        BlockSection::LaneCommitment(_) => hasher.update(b"LANE_COMMITMENT"),
-        BlockSection::ExternalProof(_) => hasher.update(b"EXTERNAL_PROOF"),
-    }
-
+    hasher.update([section.discriminant()]);
+    hasher.update(hash_section(section));
     hasher.finalize().into()
 }
 
@@ -100,25 +97,24 @@ pub fn hash_section(section: &BlockSection) -> [u8; 32] {
 
     match section {
         BlockSection::LaneCommitment(section) => {
-            hasher.update(b"LANE_COMMITMENT");
+            hasher.update([0]);
             hasher.update((section.lanes.len() as u64).to_le_bytes());
 
-            for lane in &section.lanes {
-                hasher.update(lane.lane_id.to_le_bytes());
-                hasher.update(hash_lane_type(&lane.lane_type));
-                hasher.update(lane.tx_count.to_le_bytes());
-                hasher.update(lane.input_root);
-                hasher.update(lane.output_root);
-                hasher.update(lane.receipt_root);
-                hasher.update(lane.state_commitment);
-                hasher.update(lane.proof_commitment);
+            let mut lanes = section.lanes.clone();
+            lanes.sort();
+
+            for lane in &lanes {
+                hasher.update(hash_lane_commitment(lane));
             }
         }
         BlockSection::ExternalProof(section) => {
-            hasher.update(b"EXTERNAL_PROOF");
+            hasher.update([1]);
             hasher.update((section.proofs.len() as u64).to_le_bytes());
 
-            for proof in &section.proofs {
+            let mut proofs = section.proofs.clone();
+            proofs.sort();
+
+            for proof in &proofs {
                 hasher.update(hash_external_network(&proof.source_network));
                 hasher.update(hash_external_proof_type(&proof.proof_type));
                 hasher.update(proof.subject_hash);
@@ -128,6 +124,20 @@ pub fn hash_section(section: &BlockSection) -> [u8; 32] {
         }
     }
 
+    hasher.finalize().into()
+}
+
+fn hash_lane_commitment(lane: &LaneCommitment) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"AOXC_LANE_COMMITMENT_V1");
+    hasher.update(lane.lane_id.to_le_bytes());
+    hasher.update(hash_lane_type(&lane.lane_type));
+    hasher.update(lane.tx_count.to_le_bytes());
+    hasher.update(lane.input_root);
+    hasher.update(lane.output_root);
+    hasher.update(lane.receipt_root);
+    hasher.update(lane.state_commitment);
+    hasher.update(lane.proof_commitment);
     hasher.finalize().into()
 }
 

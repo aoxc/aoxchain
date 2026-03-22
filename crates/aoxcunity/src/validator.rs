@@ -44,8 +44,14 @@ impl Validator {
             )
     }
 
+    /// Returns whether the validator may contribute vote authority.
+    ///
+    /// This function is the authoritative policy gate for consensus vote
+    /// eligibility. Callers must not infer vote authority through role or
+    /// activity checks outside this function.
     pub fn is_eligible_for_vote(&self) -> bool {
         self.active
+            && self.voting_power > 0
             && matches!(
                 self.role,
                 ValidatorRole::Validator | ValidatorRole::Proposer

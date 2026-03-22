@@ -52,12 +52,23 @@ pub struct BlockBody {
 
 /// Typed block section.
 ///
-/// The protocol permits multiple sections in a single block. Section order
-/// must be canonicalized by the builder before hashing.
+/// The current protocol permits at most one section of each type per block.
+/// The builder enforces that boundary before root calculation so that
+/// canonical block construction does not depend on caller-provided section
+/// duplication or ordering.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockSection {
     LaneCommitment(LaneCommitmentSection),
     ExternalProof(ExternalProofSection),
+}
+
+impl BlockSection {
+    pub fn discriminant(&self) -> u8 {
+        match self {
+            Self::LaneCommitment(_) => 0,
+            Self::ExternalProof(_) => 1,
+        }
+    }
 }
 
 /// Lane commitment section.
@@ -84,7 +95,7 @@ pub struct ExternalProofSection {
 /// This structure is intentionally generic. It permits AOXC to model native
 /// and external execution lanes while keeping the consensus core agnostic
 /// to lane-specific state internals.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct LaneCommitment {
     pub lane_id: u32,
     pub lane_type: LaneType,
@@ -100,7 +111,7 @@ pub struct LaneCommitment {
 ///
 /// This enum should remain compact and stable. Chain-specific details belong
 /// in higher-level adapters, not in the consensus core.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum LaneType {
     Native,
     Evm,
@@ -115,7 +126,7 @@ pub enum LaneType {
 ///
 /// The record stores a proof commitment rather than the full proof blob.
 /// Large proof material should live in a separate content-addressed store.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct ExternalProofRecord {
     pub source_network: ExternalNetwork,
     pub proof_type: ExternalProofType,
@@ -127,7 +138,7 @@ pub struct ExternalProofRecord {
 /// Supported external network families.
 ///
 /// This list can grow without changing the core block model.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum ExternalNetwork {
     Ethereum,
     XLayer,
@@ -141,7 +152,7 @@ pub enum ExternalNetwork {
 ///
 /// AOXC does not require every network to expose the same proof model.
 /// The adapter layer remains responsible for network-specific verification.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum ExternalProofType {
     Finality,
     Inclusion,
@@ -160,6 +171,9 @@ pub enum BlockBuildError {
 
     #[error("block proposer must not be zero")]
     ZeroProposer,
+
+    #[error("block contains duplicate section type")]
+    DuplicateSectionType,
 
     #[error("section count exceeds supported u64 range")]
     SectionCountOverflow,
