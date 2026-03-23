@@ -14,6 +14,7 @@
 - [Sovereign Core Model](./SOVEREIGN_CORE_MODEL_TR.md)
 - [Five-Module Relay Architecture](./FIVE_MODULE_RELAY_ARCHITECTURE_TR.md)
 - [Kernel Hardening Master Plan](./AOXC_KERNEL_HARDENING_MASTER_PLAN_TR.md)
+- [Real Versioning & Release Roadmap](./AOXC_REAL_VERSIONING_AND_RELEASE_ROADMAP_TR.md)
 - [Deep Technical Analysis](./TEKNIK_DERIN_ANALIZ_TR.md)
 - [Unity Engine Roadmap](./AOXCUNITY_ENGINE_ROADMAP_TR.md)
 
