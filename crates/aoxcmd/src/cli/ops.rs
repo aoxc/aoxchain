@@ -39,7 +39,31 @@ struct Readiness {
     verdict: &'static str,
     blockers: Vec<String>,
     remediation_plan: Vec<String>,
+    next_focus: Vec<String>,
+    area_progress: Vec<ReadinessAreaProgress>,
+    track_progress: Vec<ReadinessTrackProgress>,
     checks: Vec<ReadinessCheck>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct ReadinessAreaProgress {
+    area: &'static str,
+    completed_weight: u8,
+    max_weight: u8,
+    ratio: u8,
+    passed_checks: u8,
+    total_checks: u8,
+    status: &'static str,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct ReadinessTrackProgress {
+    name: &'static str,
+    completed_weight: u8,
+    max_weight: u8,
+    ratio: u8,
+    status: &'static str,
+    objective: &'static str,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -136,6 +160,7 @@ fn evaluate_mainnet_readiness(
     let release_dir = locate_repo_artifact_dir("release-evidence");
     let closure_dir = locate_repo_artifact_dir("network-production-closure");
     let baseline_parity = compare_embedded_network_profiles().ok();
+    let aoxhub_parity = compare_aoxhub_network_profiles().ok();
     let key_state = key_operational_state.unwrap_or("missing");
 
     let checks = vec![
@@ -215,6 +240,26 @@ fn evaluate_mainnet_readiness(
                 })
                 .unwrap_or_else(|| {
                     "Unable to compare embedded mainnet/testnet baseline files".to_string()
+                }),
+        ),
+        readiness_check(
+            "aoxhub-baseline-parity",
+            "release",
+            aoxhub_parity.as_ref().is_some_and(|report| report.passed),
+            5,
+            aoxhub_parity
+                .map(|report| {
+                    if report.passed {
+                        "AOXHub mainnet/testnet baselines are aligned with the same security and port model".to_string()
+                    } else {
+                        format!(
+                            "AOXHub mainnet/testnet drift detected: {}",
+                            report.drift.join("; ")
+                        )
+                    }
+                })
+                .unwrap_or_else(|| {
+                    "Unable to compare embedded AOXHub baseline files".to_string()
                 }),
         ),
         readiness_check(
@@ -301,6 +346,9 @@ fn readiness_from_checks(profile: String, checks: Vec<ReadinessCheck>) -> Readin
         .map(|check| format!("{}: {}", check.name, check.detail))
         .collect::<Vec<_>>();
     let remediation_plan = remediation_plan(&checks);
+    let area_progress = area_progress(&checks);
+    let track_progress = track_progress(&checks);
+    let next_focus = next_focus(&area_progress);
 
     Readiness {
         profile,
@@ -324,7 +372,132 @@ fn readiness_from_checks(profile: String, checks: Vec<ReadinessCheck>) -> Readin
         },
         blockers,
         remediation_plan,
+        next_focus,
+        area_progress,
+        track_progress,
         checks,
+    }
+}
+
+fn area_progress(checks: &[ReadinessCheck]) -> Vec<ReadinessAreaProgress> {
+    let area_order = [
+        "configuration",
+        "network",
+        "observability",
+        "identity",
+        "runtime",
+        "release",
+        "operations",
+    ];
+    let mut progress = Vec::new();
+
+    for area in area_order {
+        let area_checks = checks
+            .iter()
+            .filter(|check| check.area == area)
+            .collect::<Vec<_>>();
+        if area_checks.is_empty() {
+            continue;
+        }
+
+        let max_weight = area_checks.iter().map(|check| check.weight).sum::<u8>();
+        let completed_weight = area_checks
+            .iter()
+            .filter(|check| check.passed)
+            .map(|check| check.weight)
+            .sum::<u8>();
+        let passed_checks = area_checks.iter().filter(|check| check.passed).count() as u8;
+        let total_checks = area_checks.len() as u8;
+        let ratio = ratio(completed_weight, max_weight);
+
+        progress.push(ReadinessAreaProgress {
+            area,
+            completed_weight,
+            max_weight,
+            ratio,
+            passed_checks,
+            total_checks,
+            status: progress_status(ratio),
+        });
+    }
+
+    progress
+}
+
+fn track_progress(checks: &[ReadinessCheck]) -> Vec<ReadinessTrackProgress> {
+    let testnet_max = checks
+        .iter()
+        .filter(|check| check.name != "mainnet-profile")
+        .map(|check| check.weight)
+        .sum::<u8>();
+    let testnet_completed = checks
+        .iter()
+        .filter(|check| check.name != "mainnet-profile" && check.passed)
+        .map(|check| check.weight)
+        .sum::<u8>();
+    let mainnet_max = checks.iter().map(|check| check.weight).sum::<u8>();
+    let mainnet_completed = checks
+        .iter()
+        .filter(|check| check.passed)
+        .map(|check| check.weight)
+        .sum::<u8>();
+
+    vec![
+        ReadinessTrackProgress {
+            name: "testnet",
+            completed_weight: testnet_completed,
+            max_weight: testnet_max,
+            ratio: ratio(testnet_completed, testnet_max),
+            status: progress_status(ratio(testnet_completed, testnet_max)),
+            objective: "Public testnet should close all non-mainnet-specific blockers and sustain AOXHub/core parity.",
+        },
+        ReadinessTrackProgress {
+            name: "mainnet",
+            completed_weight: mainnet_completed,
+            max_weight: mainnet_max,
+            ratio: ratio(mainnet_completed, mainnet_max),
+            status: progress_status(ratio(mainnet_completed, mainnet_max)),
+            objective: "Mainnet requires every weighted control to pass, including production profile, keys, runtime, and release evidence.",
+        },
+    ]
+}
+
+fn next_focus(area_progress: &[ReadinessAreaProgress]) -> Vec<String> {
+    let mut weakest = area_progress
+        .iter()
+        .filter(|area| area.ratio < 100)
+        .collect::<Vec<_>>();
+    weakest.sort_by_key(|area| (area.ratio, area.area));
+
+    weakest
+        .into_iter()
+        .take(3)
+        .map(|area| {
+            format!(
+                "{}: raise from {}% to 100% ({} of {} checks passing)",
+                area.area, area.ratio, area.passed_checks, area.total_checks
+            )
+        })
+        .collect()
+}
+
+fn ratio(completed_weight: u8, max_weight: u8) -> u8 {
+    if max_weight == 0 {
+        0
+    } else {
+        (completed_weight as u16 * 100 / max_weight as u16) as u8
+    }
+}
+
+fn progress_status(ratio: u8) -> &'static str {
+    if ratio == 100 {
+        "ready"
+    } else if ratio >= 75 {
+        "hardening"
+    } else if ratio >= 50 {
+        "in-progress"
+    } else {
+        "bootstrap"
     }
 }
 
@@ -359,6 +532,9 @@ fn remediation_plan(checks: &[ReadinessCheck]) -> Vec<String> {
             }
             "profile-baseline-parity" => {
                 "Run `aoxc profile-baseline --enforce` and align embedded mainnet/testnet configs before promotion."
+            }
+            "aoxhub-baseline-parity" => {
+                "Align `configs/aoxhub-mainnet.toml` and `configs/aoxhub-testnet.toml` so AOXHub rollout controls match promotion policy."
             }
             "release-evidence" => {
                 "Regenerate release evidence under `artifacts/release-evidence/` before promotion."
@@ -403,6 +579,7 @@ fn has_production_closure_artifacts(dir: &Path) -> bool {
         "runtime-status.json",
         "soak-plan.json",
         "telemetry-snapshot.json",
+        "aoxhub-rollout.json",
         "alert-rules.md",
     ]
     .iter()
@@ -421,8 +598,24 @@ fn has_matching_artifact(dir: &Path, prefix: &str, suffix: &str) -> bool {
 
 fn compare_embedded_network_profiles() -> Result<ProfileBaselineReport, AppError> {
     let repo_root = locate_repo_root();
-    let mainnet_path = repo_root.join("configs").join("mainnet.toml");
-    let testnet_path = repo_root.join("configs").join("testnet.toml");
+    compare_network_profile_pair(
+        repo_root.join("configs").join("mainnet.toml"),
+        repo_root.join("configs").join("testnet.toml"),
+    )
+}
+
+fn compare_aoxhub_network_profiles() -> Result<ProfileBaselineReport, AppError> {
+    let repo_root = locate_repo_root();
+    compare_network_profile_pair(
+        repo_root.join("configs").join("aoxhub-mainnet.toml"),
+        repo_root.join("configs").join("aoxhub-testnet.toml"),
+    )
+}
+
+fn compare_network_profile_pair(
+    mainnet_path: PathBuf,
+    testnet_path: PathBuf,
+) -> Result<ProfileBaselineReport, AppError> {
     let mainnet = parse_network_profile(&mainnet_path)?;
     let testnet = parse_network_profile(&testnet_path)?;
 
@@ -673,9 +866,10 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        compare_embedded_network_profiles, evaluate_mainnet_readiness, has_matching_artifact,
-        has_production_closure_artifacts, has_release_evidence, locate_repo_artifact_dir,
-        parse_network_profile, ports_are_shifted_consistently,
+        compare_aoxhub_network_profiles, compare_embedded_network_profiles,
+        evaluate_mainnet_readiness, has_matching_artifact, has_production_closure_artifacts,
+        has_release_evidence, locate_repo_artifact_dir, parse_network_profile,
+        ports_are_shifted_consistently,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -720,6 +914,7 @@ mod tests {
             "runtime-status.json",
             "soak-plan.json",
             "telemetry-snapshot.json",
+            "aoxhub-rollout.json",
             "alert-rules.md",
         ] {
             touch(&dir.join(file));
@@ -755,6 +950,41 @@ mod tests {
         assert!(readiness.blockers.is_empty());
         assert_eq!(readiness.remediation_plan.len(), 1);
         assert!(readiness.remediation_plan[0].contains("100%"));
+        assert_eq!(readiness.track_progress.len(), 2);
+        assert_eq!(readiness.track_progress[0].ratio, 100);
+        assert_eq!(readiness.track_progress[1].ratio, 100);
+        assert!(readiness.next_focus.is_empty());
+        assert!(readiness
+            .area_progress
+            .iter()
+            .all(|progress| progress.ratio == 100));
+    }
+
+    #[test]
+    fn readiness_reports_testnet_progress_separately_from_mainnet() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "validator".to_string();
+        settings.logging.json = true;
+        settings.network.bind_host = "0.0.0.0".to_string();
+
+        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+
+        let testnet = readiness
+            .track_progress
+            .iter()
+            .find(|track| track.name == "testnet")
+            .expect("testnet track should exist");
+        let mainnet = readiness
+            .track_progress
+            .iter()
+            .find(|track| track.name == "mainnet")
+            .expect("mainnet track should exist");
+
+        assert!(testnet.ratio > mainnet.ratio);
+        assert!(readiness
+            .next_focus
+            .iter()
+            .any(|entry| entry.starts_with("configuration:")));
     }
 
     #[test]
@@ -770,6 +1000,14 @@ mod tests {
     fn embedded_profiles_share_expected_baseline_controls() {
         let report = compare_embedded_network_profiles()
             .expect("embedded network baseline comparison should load");
+
+        assert!(report.passed, "baseline drift: {:?}", report.drift);
+    }
+
+    #[test]
+    fn aoxhub_profiles_share_expected_baseline_controls() {
+        let report = compare_aoxhub_network_profiles()
+            .expect("embedded AOXHub baseline comparison should load");
 
         assert!(report.passed, "baseline drift: {:?}", report.drift);
     }
