@@ -13,6 +13,7 @@ pub mod seal;
 pub mod state;
 pub mod store;
 pub mod validator;
+pub mod version;
 pub mod vote;
 pub mod vote_pool;
 
@@ -37,6 +38,7 @@ pub use quorum::QuorumThreshold;
 pub use rotation::ValidatorRotation;
 pub use round::RoundState;
 pub use safety::{JustificationRef, LockState, SafeToVote, SafetyViolation, evaluate_safe_to_vote};
+pub use seal::AuthenticatedQuorumCertificate;
 pub use seal::{BlockSeal, QuorumCertificate};
 pub use state::ConsensusState;
 pub use store::{
@@ -44,6 +46,11 @@ pub use store::{
     RecoveryState, SnapshotStore, recover_state,
 };
 pub use validator::{Validator, ValidatorId, ValidatorRole};
+pub use version::{
+    AOXC_CERTIFICATE_FORMAT_LINE, AOXC_COVENANT_KERNEL_LINE, AOXC_COVENANT_KERNEL_NAME,
+    AOXC_VOTE_FORMAT_LINE, KernelIdentity, kernel_identity,
+};
 
+pub use vote::{AuthenticatedVote, VerifiedAuthenticatedVote, VoteAuthenticationContext};
 pub use vote::{SignedVote, Vote, VoteAuthenticationError, VoteKind};
 pub use vote_pool::VotePool;

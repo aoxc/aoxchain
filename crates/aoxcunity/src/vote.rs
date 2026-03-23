@@ -5,6 +5,7 @@ use thiserror::Error;
 use crate::validator::ValidatorId;
 
 const VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_VOTE_SIGNING_V1";
+const AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_AUTHENTICATED_VOTE_V1";
 
 /// Vote kind classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -40,9 +41,30 @@ pub struct SignedVote {
     pub signature: Vec<u8>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoteAuthenticationContext {
+    pub network_id: u32,
+    pub epoch: u64,
+    pub validator_set_root: [u8; 32],
+    pub signature_scheme: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthenticatedVote {
+    pub vote: Vote,
+    pub context: VoteAuthenticationContext,
+    pub signature: Vec<u8>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerifiedVote {
     pub vote: Vote,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerifiedAuthenticatedVote {
+    pub vote: Vote,
+    pub context: VoteAuthenticationContext,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -83,6 +105,35 @@ impl Vote {
     }
 }
 
+impl AuthenticatedVote {
+    pub fn signing_bytes(&self) -> Vec<u8> {
+        let vote_bytes = self.vote.signing_bytes();
+        let mut bytes = Vec::with_capacity(
+            AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1.len() + vote_bytes.len() + 4 + 8 + 32 + 2,
+        );
+        bytes.extend_from_slice(AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1);
+        bytes.extend_from_slice(&self.context.network_id.to_le_bytes());
+        bytes.extend_from_slice(&self.context.epoch.to_le_bytes());
+        bytes.extend_from_slice(&self.context.validator_set_root);
+        bytes.extend_from_slice(&self.context.signature_scheme.to_le_bytes());
+        bytes.extend_from_slice(&vote_bytes);
+        bytes
+    }
+
+    pub fn verify(&self) -> Result<VerifiedAuthenticatedVote, VoteAuthenticationError> {
+        let key = VerifyingKey::from_bytes(&self.vote.voter)
+            .map_err(|_| VoteAuthenticationError::MalformedPublicKey)?;
+        let signature = Signature::from_slice(&self.signature)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
+        key.verify(&self.signing_bytes(), &signature)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
+        Ok(VerifiedAuthenticatedVote {
+            vote: self.vote.clone(),
+            context: self.context,
+        })
+    }
+}
+
 impl SignedVote {
     pub fn verify(&self) -> Result<VerifiedVote, VoteAuthenticationError> {
         let key = VerifyingKey::from_bytes(&self.vote.voter)
@@ -108,7 +159,10 @@ impl VerifiedVote {
 mod tests {
     use ed25519_dalek::{Signer, SigningKey};
 
-    use super::{SignedVote, Vote, VoteAuthenticationError, VoteKind};
+    use super::{
+        AuthenticatedVote, SignedVote, Vote, VoteAuthenticationContext, VoteAuthenticationError,
+        VoteKind,
+    };
 
     fn make_vote(block_hash: [u8; 32], round: u64, kind: VoteKind) -> Vote {
         Vote {
@@ -183,5 +237,40 @@ mod tests {
 
         let verified = SignedVote { vote, signature }.verify();
         assert_eq!(verified, Err(VoteAuthenticationError::InvalidSignature));
+    }
+
+    #[test]
+    fn authenticated_vote_binds_context_into_signature() {
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let vote = Vote {
+            voter: signing_key.verifying_key().to_bytes(),
+            block_hash: [1u8; 32],
+            height: 9,
+            round: 2,
+            kind: VoteKind::Commit,
+        };
+        let context = VoteAuthenticationContext {
+            network_id: 2626,
+            epoch: 4,
+            validator_set_root: [5u8; 32],
+            signature_scheme: 1,
+        };
+        let mut authenticated = AuthenticatedVote {
+            vote,
+            context,
+            signature: Vec::new(),
+        };
+        authenticated.signature = signing_key
+            .sign(&authenticated.signing_bytes())
+            .to_bytes()
+            .to_vec();
+
+        assert!(authenticated.verify().is_ok());
+
+        authenticated.context.epoch = 5;
+        assert_eq!(
+            authenticated.verify(),
+            Err(VoteAuthenticationError::InvalidSignature)
+        );
     }
 }

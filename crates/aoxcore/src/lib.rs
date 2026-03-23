@@ -11,3 +11,4 @@ pub mod state;
 pub mod transaction; // Keep public export
 
 pub mod native_token;
+pub mod version;

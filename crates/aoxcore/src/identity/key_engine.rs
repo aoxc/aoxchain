@@ -117,13 +117,11 @@ impl KeyEngine {
     }
 
     /// Derives canonical entropy for the supplied HD path.
-    ///
-    /// This method preserves a compatibility-friendly direct-return API and
-    /// delegates to the strict error-aware derivation path internally.
-    #[must_use]
-    pub fn derive_entropy(&self, path: &HdPath) -> [u8; DERIVED_ENTROPY_LEN] {
+    pub fn derive_entropy(
+        &self,
+        path: &HdPath,
+    ) -> Result<[u8; DERIVED_ENTROPY_LEN], KeyEngineError> {
         self.try_derive_entropy(path)
-            .expect("KEY_ENGINE: HD path validation failed during entropy derivation")
     }
 
     /// Derives canonical entropy for the supplied HD path with explicit error handling.
@@ -257,8 +255,12 @@ mod tests {
         let engine = KeyEngine::from_seed(sample_seed());
         let path = sample_path();
 
-        let a = engine.derive_entropy(&path);
-        let b = engine.derive_entropy(&path);
+        let a = engine
+            .derive_entropy(&path)
+            .expect("entropy derivation must succeed");
+        let b = engine
+            .derive_entropy(&path)
+            .expect("entropy derivation must succeed");
 
         assert_eq!(a, b);
     }
@@ -267,19 +269,23 @@ mod tests {
     fn derivation_changes_when_path_changes() {
         let engine = KeyEngine::from_seed(sample_seed());
 
-        let a = engine.derive_entropy(&HdPath {
-            chain: 1,
-            role: 1,
-            zone: 2,
-            index: 0,
-        });
+        let a = engine
+            .derive_entropy(&HdPath {
+                chain: 1,
+                role: 1,
+                zone: 2,
+                index: 0,
+            })
+            .expect("entropy derivation must succeed");
 
-        let b = engine.derive_entropy(&HdPath {
-            chain: 1,
-            role: 1,
-            zone: 2,
-            index: 1,
-        });
+        let b = engine
+            .derive_entropy(&HdPath {
+                chain: 1,
+                role: 1,
+                zone: 2,
+                index: 1,
+            })
+            .expect("entropy derivation must succeed");
 
         assert_ne!(a, b);
     }
@@ -288,8 +294,12 @@ mod tests {
     fn derivation_changes_when_seed_changes() {
         let path = sample_path();
 
-        let a = KeyEngine::from_seed([0x11; MASTER_SEED_LEN]).derive_entropy(&path);
-        let b = KeyEngine::from_seed([0x22; MASTER_SEED_LEN]).derive_entropy(&path);
+        let a = KeyEngine::from_seed([0x11; MASTER_SEED_LEN])
+            .derive_entropy(&path)
+            .expect("entropy derivation must succeed");
+        let b = KeyEngine::from_seed([0x22; MASTER_SEED_LEN])
+            .derive_entropy(&path)
+            .expect("entropy derivation must succeed");
 
         assert_ne!(a, b);
     }
