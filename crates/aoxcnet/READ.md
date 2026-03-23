@@ -26,6 +26,7 @@ This document defines the mandatory roadmap for advancing the covered workspace 
 
 ## Change Ledger
 - `aoxc.v.0.0.0-alpha.1`: initialized audit roadmap, introduced strict alpha version baseline, and reserved this folder for continuous release tracking.
+- `aoxc.v.0.0.0-alpha.1+resilience`: added deterministic chaos-simulation transport coverage, bounded backpressure handling, and repeatable duplicate/drop/reorder verification evidence for AOXCNET.
 - Future entries must describe the exact implementation delta, affected artifacts, and verification evidence added in that version.
 
 ## Mandatory Update Rule
