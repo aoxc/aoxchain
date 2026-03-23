@@ -320,10 +320,6 @@ If AOXChain adopts this design direction, the project gains a cleaner foundation
 - certificate issuance and revocation,
 - and post-quantum migration planning.
 
-## 13.1 Core-first implementation note
-
-The preferred implementation model is **core-first**: identity validation, certificate verification, signer authorization, revocation, and key-rotation continuity should ultimately be enforced inside `aoxcore` and the consensus/security kernel rather than delegated to CLI or application-layer policy. Operator tools should consume these rules, not redefine them.
-
 ## 14. Summary recommendation
 
 AOXChain should prioritize node identity architecture before block-structure expansion.
