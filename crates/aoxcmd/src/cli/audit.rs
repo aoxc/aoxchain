@@ -234,6 +234,24 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
         detail: "Official peer enforcement is enabled".to_string(),
     });
 
+    checks.push(Check {
+        name: "mainnet-profile",
+        passed: settings.profile.eq_ignore_ascii_case("mainnet"),
+        detail: format!("Active operator profile is {}", settings.profile),
+    });
+
+    checks.push(Check {
+        name: "structured-logging",
+        passed: settings.logging.json,
+        detail: "Structured JSON logging is enabled for audit trails".to_string(),
+    });
+
+    checks.push(Check {
+        name: "telemetry-metrics",
+        passed: settings.telemetry.enable_metrics,
+        detail: "Telemetry metrics export is enabled".to_string(),
+    });
+
     let verdict = native_verdict(&checks);
 
     let failed_checks = checks
