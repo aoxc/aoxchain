@@ -59,11 +59,8 @@ struct SurfaceReadiness {
     owner: &'static str,
     status: &'static str,
     score: u8,
-    passed_checks: u8,
-    total_checks: u8,
     blockers: Vec<String>,
     evidence: Vec<String>,
-    remediation: Vec<String>,
     checks: Vec<SurfaceCheck>,
 }
 
@@ -195,10 +192,6 @@ pub fn cmd_full_surface_readiness(args: &[String]) -> Result<(), AppError> {
         node_ok,
     );
     let full = evaluate_full_surface_readiness(&settings, &mainnet_readiness);
-
-    if let Some(path) = arg_value(args, "--write-report") {
-        write_full_surface_markdown_report(Path::new(&path), &full)?;
-    }
 
     if has_flag(args, "--enforce") && full.overall_status != "candidate" {
         return Err(AppError::new(
@@ -697,7 +690,6 @@ fn build_surface(
     checks: Vec<SurfaceCheck>,
     evidence: Vec<String>,
 ) -> SurfaceReadiness {
-    let total_checks = checks.len() as u8;
     let blockers = checks
         .iter()
         .filter(|check| !check.passed)
@@ -709,7 +701,6 @@ fn build_surface(
     } else {
         (passed * 100 / checks.len() as u16) as u8
     };
-    let remediation = surface_remediation(surface, &checks);
 
     SurfaceReadiness {
         surface,
@@ -722,64 +713,10 @@ fn build_surface(
             "blocked"
         },
         score,
-        passed_checks: passed as u8,
-        total_checks,
         blockers,
         evidence,
-        remediation,
         checks,
     }
-}
-
-fn surface_remediation(surface: &'static str, checks: &[SurfaceCheck]) -> Vec<String> {
-    let mut plan = Vec::new();
-    for check in checks.iter().filter(|check| !check.passed) {
-        let step = match (surface, check.name) {
-            ("mainnet", "candidate-threshold") => {
-                "Run `aoxc mainnet-readiness --enforce --format json` and close every remaining mainnet blocker."
-            }
-            ("mainnet", "release-evidence-bundle") => {
-                "Regenerate the release evidence bundle before promoting the mainnet candidate."
-            }
-            ("testnet", "multi-host-validation-entrypoint") => {
-                "Restore and execute the multi-host validation workflow for the deterministic testnet."
-            }
-            ("aoxhub", "baseline-parity") => {
-                "Align AOXHub mainnet/testnet profiles so rollout and security controls stay symmetric."
-            }
-            ("aoxhub", "rollout-evidence") => {
-                "Refresh `aoxhub-rollout.json` from the production closure workflow."
-            }
-            ("wallet", "desktop-wallet-compat") => {
-                "Publish fresh wallet compatibility evidence spanning AOXHub, mainnet, and testnet."
-            }
-            ("wallet", "production-audit") => {
-                "Refresh the production audit artifact used to sign off wallet release parity."
-            }
-            ("telemetry", "metrics-enabled") => {
-                "Re-enable metrics export so readiness, alerts, and SLO evidence remain observable."
-            }
-            ("telemetry", "telemetry-snapshot") | ("telemetry", "alert-rules") => {
-                "Regenerate telemetry snapshot and alert-rule artifacts from the production closure workflow."
-            }
-            ("telemetry", "runtime-telemetry-handle") => {
-                "Ensure runtime status artifacts retain telemetry evidence references for audit review."
-            }
-            _ => continue,
-        };
-        if !plan.iter().any(|existing| existing == step) {
-            plan.push(step.to_string());
-        }
-    }
-
-    if plan.is_empty() {
-        plan.push(format!(
-            "{} surface is ready; keep evidence fresh and re-run the command before release sign-off.",
-            surface
-        ));
-    }
-
-    plan
 }
 
 fn readiness_check(
@@ -1650,12 +1587,11 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 mod tests {
     use super::{
         build_surface, compare_aoxhub_network_profiles, compare_embedded_network_profiles,
-        evaluate_full_surface_readiness, evaluate_mainnet_readiness, full_surface_markdown_report,
+        evaluate_full_surface_readiness, evaluate_mainnet_readiness,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
         locate_repo_artifact_dir, parse_network_profile, ports_are_shifted_consistently,
-        readiness_markdown_report, surface_check, write_full_surface_markdown_report,
-        write_readiness_markdown_report,
+        readiness_markdown_report, surface_check, write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -1866,46 +1802,6 @@ mod tests {
             .surfaces
             .iter()
             .any(|surface| surface.surface == "telemetry"));
-    }
-
-    #[test]
-    fn full_surface_report_includes_remediation_and_surface_summary() {
-        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
-        settings.profile = "mainnet".to_string();
-        settings.logging.json = true;
-        settings.network.bind_host = "0.0.0.0".to_string();
-        settings.telemetry.enable_metrics = true;
-
-        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
-        let full = evaluate_full_surface_readiness(&settings, &readiness);
-        let report = full_surface_markdown_report(&full);
-
-        assert!(report.contains("# AOXC Full-Surface Readiness Report"));
-        assert!(report.contains("## Surface summary"));
-        assert!(report.contains("## Surface details"));
-        assert!(report.contains("- Remediation:"));
-        assert!(report.contains("### mainnet"));
-    }
-
-    #[test]
-    fn write_full_surface_report_persists_file() {
-        let dir = unique_dir("full-surface-report");
-        let path = dir.join("FULL_SURFACE_REPORT.md");
-        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
-        settings.profile = "mainnet".to_string();
-        settings.logging.json = true;
-        settings.network.bind_host = "0.0.0.0".to_string();
-        settings.telemetry.enable_metrics = true;
-
-        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
-        let full = evaluate_full_surface_readiness(&settings, &readiness);
-        write_full_surface_markdown_report(&path, &full).expect("full-surface report should write");
-
-        let saved = fs::read_to_string(&path).expect("full-surface report should be readable");
-        assert!(saved.contains("AOXC Full-Surface Readiness Report"));
-        assert!(saved.contains("Candidate surfaces"));
-
-        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
