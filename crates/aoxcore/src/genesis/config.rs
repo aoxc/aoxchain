@@ -452,8 +452,7 @@ impl GenesisBlock {
     /// - the canonical treasury account is inserted into `accounts`.
     ///
     /// `total_supply()` is hardened to avoid double-counting this treasury entry.
-    #[must_use]
-    pub fn new_default() -> Self {
+    pub fn new_default() -> Result<Self, String> {
         let mut config = GenesisConfig::new();
 
         config.treasury = 1_000_000_000;
@@ -558,7 +557,19 @@ mod tests {
             ..first.settlement_link.clone()
         };
 
-        assert_ne!(first.state_hash(), second.state_hash());
+        assert_ne!(
+            first.state_hash().expect("hash must compute"),
+            second.state_hash().expect("hash must compute")
+        );
+    }
+
+    #[test]
+    fn try_new_rejects_invalid_genesis_config_without_panicking() {
+        let mut cfg = GenesisConfig::new();
+        cfg.chain_id.clear();
+
+        let err = super::GenesisBlock::new(cfg).expect_err("invalid config must be rejected");
+        assert!(err.starts_with("GENESIS:"));
     }
 
     #[test]
