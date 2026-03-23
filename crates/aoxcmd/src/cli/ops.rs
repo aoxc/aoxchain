@@ -3,7 +3,7 @@ use crate::{
         bootstrap::bootstrap_operator_home, runtime::refresh_runtime_metrics,
         shutdown::graceful_shutdown,
     },
-    cli_support::{arg_value, emit_serialized, output_format, text_envelope},
+    cli_support::{arg_value, emit_serialized, has_flag, output_format, text_envelope},
     config::loader::load_or_init,
     economy::ledger,
     error::{AppError, ErrorCode},

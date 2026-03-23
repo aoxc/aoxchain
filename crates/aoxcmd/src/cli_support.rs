@@ -73,7 +73,8 @@ Node and economy:
 Validation and audit:
   load-benchmark | storage-smoke | network-smoke | real-network
   diagnostics-doctor | diagnostics-bundle
-  interop-readiness | interop-gate | production-audit | mainnet-readiness
+  interop-readiness | interop-gate | production-audit
+  mainnet-readiness [--enforce]
 
 Global flags:
   --home <path>        Override AOXC home directory.
