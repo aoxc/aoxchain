@@ -16,9 +16,11 @@ pub mod hash;
 pub mod pool;
 
 pub use hash::{
-    HASH_FORMAT_VERSION, HASH_SIZE, ZERO_HASH, calculate_transaction_root, compute_hash,
-    empty_transaction_root, hash_internal_node, hash_signing_payload, hash_transaction,
-    hash_transaction_intent, hash_transaction_leaf,
+    HASH_FORMAT_VERSION, HASH_SIZE, TransactionHashError, ZERO_HASH, calculate_transaction_root,
+    compute_hash, empty_transaction_root, hash_internal_node, hash_signing_payload,
+    hash_transaction, hash_transaction_intent, hash_transaction_leaf,
+    try_calculate_transaction_root, try_compute_hash, try_hash_signing_payload,
+    try_hash_transaction, try_hash_transaction_intent, try_hash_transaction_leaf,
 };
 pub use pool::{
     SenderId, TransactionId, TransactionPool, TransactionPoolConfig, TransactionPoolError,
