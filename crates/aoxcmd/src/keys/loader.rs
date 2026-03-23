@@ -32,3 +32,24 @@ pub fn persist_operator_key(material: &KeyMaterial) -> Result<(), AppError> {
     })?;
     write_file(&path, &content)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{load_operator_key, persist_operator_key};
+    use crate::{keys::material::KeyMaterial, test_support::TestHome};
+
+    #[test]
+    fn persist_and_reload_operator_key_round_trips_bundle() {
+        let _home = TestHome::new("operator-key");
+
+        let material = KeyMaterial::generate("validator-01", "testnet", "Test#2026!")
+            .expect("key material generation should succeed");
+        let fingerprint = material.fingerprint().to_string();
+
+        persist_operator_key(&material).expect("operator key should persist");
+        let reloaded = load_operator_key().expect("persisted operator key should reload");
+
+        assert_eq!(reloaded.fingerprint(), fingerprint);
+        assert_eq!(reloaded.bundle.keys.len(), material.bundle.keys.len());
+    }
+}

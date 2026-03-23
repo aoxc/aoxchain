@@ -39,3 +39,47 @@ pub fn bootstrap_state() -> Result<NodeState, AppError> {
     persist_state(&state)?;
     Ok(state)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{bootstrap_state, load_state, persist_state, state_path};
+    use crate::{node::state::NodeState, test_support::TestHome};
+
+    #[test]
+    fn bootstrap_state_persists_default_node_state() {
+        let home = TestHome::new("bootstrap-state");
+
+        let bootstrapped = bootstrap_state().expect("bootstrap should persist node state");
+        let reloaded = load_state().expect("bootstrapped state should load");
+        let expected_path = home.path().join("runtime").join("node_state.json");
+
+        assert_eq!(
+            state_path().expect("state path should resolve"),
+            expected_path
+        );
+        assert!(bootstrapped.initialized);
+        assert_eq!(reloaded.consensus.last_message_kind, "bootstrap");
+        assert_eq!(reloaded.current_height, 0);
+    }
+
+    #[test]
+    fn persist_state_round_trips_custom_consensus_snapshot() {
+        let _home = TestHome::new("persist-state");
+
+        let mut state = NodeState::bootstrap();
+        state.current_height = 9;
+        state.produced_blocks = 9;
+        state.last_tx = "smoke".to_string();
+        state.consensus.last_round = 4;
+        state.consensus.last_message_kind = "block_proposal".to_string();
+
+        persist_state(&state).expect("custom state should persist");
+        let reloaded = load_state().expect("custom state should reload");
+
+        assert_eq!(reloaded.current_height, 9);
+        assert_eq!(reloaded.produced_blocks, 9);
+        assert_eq!(reloaded.last_tx, "smoke");
+        assert_eq!(reloaded.consensus.last_round, 4);
+        assert_eq!(reloaded.consensus.last_message_kind, "block_proposal");
+    }
+}

@@ -53,6 +53,25 @@ pub fn run_rounds(rounds: u64, tx_prefix: &str) -> Result<NodeState, AppError> {
     Ok(state)
 }
 
+fn apply_block_proposal_with_message(
+    state: &mut NodeState,
+    tx: &str,
+    block: &Block,
+    key_material: &KeyMaterial,
+    message_kind: &str,
+) {
+    let message = ConsensusMessage::BlockProposal {
+        block: block.clone(),
+    };
+
+    state.current_height = block.header.height;
+    state.produced_blocks = state.produced_blocks.saturating_add(1);
+    state.last_tx = tx.to_string();
+    state.key_material = snapshot_from_key_material(key_material);
+    state.consensus = snapshot_from_message_kind(&message, message_kind);
+    state.touch();
+}
+
 /// Constructs a deterministic block proposal.
 ///
 /// Audit considerations:
@@ -113,16 +132,7 @@ fn apply_block_proposal(
     block: &Block,
     key_material: &KeyMaterial,
 ) {
-    let message = ConsensusMessage::BlockProposal {
-        block: block.clone(),
-    };
-
-    state.current_height = block.header.height;
-    state.produced_blocks = state.produced_blocks.saturating_add(1);
-    state.last_tx = tx.to_string();
-    state.key_material = snapshot_from_key_material(key_material);
-    state.consensus = snapshot_from_message(&message);
-    state.touch();
+    apply_block_proposal_with_message(state, tx, block, key_material, "block_proposal");
 }
 
 fn snapshot_from_key_material(key_material: &KeyMaterial) -> KeyMaterialSnapshot {
@@ -139,7 +149,15 @@ fn snapshot_from_key_material(key_material: &KeyMaterial) -> KeyMaterialSnapshot
 }
 
 /// Snapshot builder.
+#[cfg(test)]
 fn snapshot_from_message(message: &ConsensusMessage) -> ConsensusSnapshot {
+    snapshot_from_message_kind(message, "block_proposal")
+}
+
+fn snapshot_from_message_kind(
+    message: &ConsensusMessage,
+    block_proposal_kind: &str,
+) -> ConsensusSnapshot {
     match message {
         ConsensusMessage::BlockProposal { block } => ConsensusSnapshot {
             network_id: block.header.network_id,
@@ -148,7 +166,7 @@ fn snapshot_from_message(message: &ConsensusMessage) -> ConsensusSnapshot {
             last_proposer_hex: hex::encode(block.header.proposer),
             last_round: block.header.round,
             last_timestamp_unix: block.header.timestamp,
-            last_message_kind: "block_proposal".to_string(),
+            last_message_kind: block_proposal_kind.to_string(),
             last_section_count: block.body.sections.len(),
         },
         ConsensusMessage::Vote(vote) => ConsensusSnapshot {
@@ -285,9 +303,19 @@ fn unix_now() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::proposer_key_from_material;
-    use crate::keys::material::KeyMaterial;
+    use super::{
+        apply_block_proposal_with_message, build_block_for_tx, produce_once,
+        proposer_key_from_material, run_rounds, snapshot_from_message,
+    };
+    use crate::{
+        keys::{manager::bootstrap_operator_key, material::KeyMaterial},
+        node::{lifecycle::bootstrap_state, state::NodeState},
+        test_support::TestHome,
+    };
     use aoxcore::identity::key_bundle::NodeKeyRole;
+    use aoxcunity::{
+        AuthenticatedVote, ConsensusMessage, Vote, VoteAuthenticationContext, VoteKind,
+    };
 
     #[test]
     fn proposer_key_uses_consensus_public_key_from_bundle() {
@@ -309,5 +337,119 @@ mod tests {
             .expect("consensus key must decode");
 
         assert_eq!(proposer, expected);
+    }
+
+    #[test]
+    fn build_block_for_tx_advances_height_and_round_from_state_snapshot() {
+        let key_material = KeyMaterial::generate("validator-01", "validator", "Test#2026!")
+            .expect("key material generation should succeed");
+        let mut state = NodeState::bootstrap();
+        state.current_height = 4;
+        state.consensus.last_round = 8;
+
+        let block =
+            build_block_for_tx(&state, "tx-42", &key_material).expect("block build should work");
+
+        assert_eq!(block.header.height, 5);
+        assert_eq!(block.header.round, 9);
+        assert_eq!(block.body.sections.len(), 1);
+    }
+
+    #[test]
+    fn apply_block_proposal_updates_runtime_and_consensus_snapshots() {
+        let key_material = KeyMaterial::generate("validator-01", "validator", "Test#2026!")
+            .expect("key material generation should succeed");
+        let mut state = NodeState::bootstrap();
+        let block =
+            build_block_for_tx(&state, "tx-apply", &key_material).expect("block build should work");
+
+        apply_block_proposal_with_message(
+            &mut state,
+            "tx-apply",
+            &block,
+            &key_material,
+            "block_proposal",
+        );
+
+        assert_eq!(state.current_height, 1);
+        assert_eq!(state.produced_blocks, 1);
+        assert_eq!(state.last_tx, "tx-apply");
+        assert_eq!(state.consensus.last_message_kind, "block_proposal");
+        assert_eq!(state.consensus.last_block_hash_hex, hex::encode(block.hash));
+        assert_eq!(state.consensus.last_section_count, 1);
+        assert_eq!(
+            state.key_material.consensus_public_key_hex.len(),
+            64,
+            "consensus public key should remain a canonical 32-byte hex string"
+        );
+    }
+
+    #[test]
+    fn snapshot_from_message_tracks_vote_payload() {
+        let key_material = KeyMaterial::generate("validator-01", "validator", "Test#2026!")
+            .expect("key material generation should succeed");
+        let state = NodeState::bootstrap();
+        let block = build_block_for_tx(&state, "vote-source", &key_material)
+            .expect("block build should work");
+        let proposer = proposer_key_from_material(&key_material)
+            .expect("proposer key should derive from key material");
+        let vote = AuthenticatedVote {
+            vote: Vote {
+                voter: proposer,
+                block_hash: block.hash,
+                height: block.header.height,
+                round: block.header.round,
+                kind: VoteKind::Commit,
+            },
+            context: VoteAuthenticationContext {
+                network_id: block.header.network_id,
+                epoch: block.header.era,
+                validator_set_root: [0u8; 32],
+                signature_scheme: 1,
+            },
+            signature: vec![0u8; 64],
+        };
+
+        let snapshot = snapshot_from_message(&ConsensusMessage::Vote(vote));
+
+        assert_eq!(snapshot.last_message_kind, "vote");
+        assert_eq!(snapshot.last_block_hash_hex, hex::encode(block.hash));
+        assert_eq!(snapshot.last_proposer_hex, hex::encode(proposer));
+        assert_eq!(snapshot.last_round, block.header.round);
+    }
+
+    #[test]
+    fn produce_once_updates_persisted_runtime_state_end_to_end() {
+        let _home = TestHome::new("produce-once");
+        bootstrap_operator_key("validator-01", "testnet", "Test#2026!")
+            .expect("operator key bootstrap should succeed");
+        bootstrap_state().expect("node state bootstrap should succeed");
+
+        let state = produce_once("integration-tx").expect("single block production should succeed");
+
+        assert!(state.running);
+        assert_eq!(state.current_height, 1);
+        assert_eq!(state.produced_blocks, 1);
+        assert_eq!(state.last_tx, "integration-tx");
+        assert_eq!(state.consensus.last_message_kind, "block_proposal");
+        assert_eq!(state.consensus.last_round, 1);
+    }
+
+    #[test]
+    fn run_rounds_advances_height_parent_hash_and_last_tx() {
+        let _home = TestHome::new("run-rounds");
+        bootstrap_operator_key("validator-01", "testnet", "Test#2026!")
+            .expect("operator key bootstrap should succeed");
+        bootstrap_state().expect("node state bootstrap should succeed");
+
+        let state = run_rounds(3, "batch").expect("round execution should succeed");
+
+        assert_eq!(state.current_height, 3);
+        assert_eq!(state.produced_blocks, 3);
+        assert_eq!(state.last_tx, "batch-2");
+        assert_eq!(state.consensus.last_round, 3);
+        assert_eq!(state.consensus.last_message_kind, "block_proposal");
+        assert_ne!(state.consensus.last_parent_hash_hex, hex::encode([0u8; 32]));
+        assert_ne!(state.consensus.last_block_hash_hex, hex::encode([0u8; 32]));
     }
 }
