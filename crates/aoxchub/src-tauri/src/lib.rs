@@ -93,6 +93,26 @@ struct CommandPreset {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct WorkspaceSurface {
+    name: String,
+    path: String,
+    category: String,
+    status: String,
+    summary: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AiSurface {
+    name: String,
+    area: String,
+    status: String,
+    summary: String,
+    command: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ControlCenterSnapshot {
     stage: String,
     verdict: String,
@@ -108,6 +128,8 @@ struct ControlCenterSnapshot {
     telemetry: Vec<TelemetrySurface>,
     reports: Vec<ReportAsset>,
     commands: Vec<CommandPreset>,
+    workspaces: Vec<WorkspaceSurface>,
+    ai_surfaces: Vec<AiSurface>,
 }
 
 #[tauri::command]
@@ -134,12 +156,15 @@ fn load_control_center_snapshot() -> AppResult<ControlCenterSnapshot> {
     let telemetry = discover_telemetry_surfaces(&repo_root);
     let wallets = wallet_surfaces();
     let commands = command_presets();
+    let workspaces = discover_workspace_surfaces(&repo_root)?;
+    let ai_surfaces = discover_ai_surfaces(&repo_root)?;
 
     let summary = format!(
-        "{} blocker(s), {} node control surface(s), {} wallet lane(s), and {} report asset(s) are currently exposed through AOXHub desktop.",
+        "{} blocker(s), {} workspace surface(s), {} AI surface(s), {} node control surface(s), and {} report asset(s) are currently exposed through AOXHub desktop.",
         blockers.len(),
+        workspaces.len(),
+        ai_surfaces.len(),
         nodes.len(),
-        wallets.len(),
         reports.len()
     );
 
@@ -181,6 +206,8 @@ fn load_control_center_snapshot() -> AppResult<ControlCenterSnapshot> {
         telemetry,
         reports,
         commands,
+        workspaces,
+        ai_surfaces,
     })
 }
 
@@ -397,7 +424,8 @@ fn discover_telemetry_surfaces(repo_root: &Path) -> Vec<TelemetrySurface> {
                 "blocked".into()
             },
             target: "artifacts/network-production-closure/telemetry-snapshot.json".into(),
-            detail: "Prometheus, alerts, and closure telemetry evidence should be exported here.".into(),
+            detail: "Prometheus, alerts, and closure telemetry evidence should be exported here."
+                .into(),
         },
     ]
 }
@@ -488,8 +516,77 @@ fn command_presets() -> Vec<CommandPreset> {
     ]
 }
 
+fn discover_workspace_surfaces(repo_root: &Path) -> AppResult<Vec<WorkspaceSurface>> {
+    let cargo_toml = fs::read_to_string(repo_root.join("Cargo.toml"))
+        .map_err(|err| format!("failed to read workspace manifest: {err}"))?;
+
+    workspace_members(&cargo_toml)
+        .into_iter()
+        .map(|member| {
+            let manifest_path = repo_root.join(&member).join("Cargo.toml");
+            let manifest = fs::read_to_string(&manifest_path).map_err(|err| {
+                format!(
+                    "failed to read workspace manifest {}: {err}",
+                    manifest_path.display()
+                )
+            })?;
+            let package_name = capture_manifest_package_name(&manifest)
+                .unwrap_or_else(|| member.rsplit('/').next().unwrap_or("workspace").to_string());
+            let readme_path = repo_root.join(&member).join("README.md");
+            let summary = readme_headline(&readme_path).unwrap_or_else(|| {
+                format!("{package_name} workspace surface exposed through AOXHub desktop.")
+            });
+
+            Ok(WorkspaceSurface {
+                name: package_name.clone(),
+                path: member.clone(),
+                category: workspace_category(&package_name).to_string(),
+                status: workspace_status(&package_name).to_string(),
+                summary,
+            })
+        })
+        .collect()
+}
+
+fn discover_ai_surfaces(repo_root: &Path) -> AppResult<Vec<AiSurface>> {
+    let ai_root = repo_root.join("crates/aoxcai/src");
+    let lib_rs = fs::read_to_string(ai_root.join("lib.rs"))
+        .map_err(|err| format!("failed to read AI library manifest: {err}"))?;
+
+    let mut modules = lib_rs
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("pub mod "))
+        .map(|module| module.trim_end_matches(';').trim().to_string())
+        .collect::<Vec<_>>();
+    modules.sort();
+
+    Ok(modules
+        .into_iter()
+        .map(|module| AiSurface {
+            name: humanize_module_name(&module),
+            area: ai_area(&module).to_string(),
+            status: ai_status(&module).to_string(),
+            summary: ai_summary(&module),
+            command: format!("cargo test -p aoxcai {}", ai_command_hint(&module)),
+        })
+        .collect())
+}
+
 fn humanize_key(key: &str) -> String {
     key.split('-')
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn humanize_module_name(key: &str) -> String {
+    key.split('_')
         .map(|part| {
             let mut chars = part.chars();
             match chars.next() {
@@ -524,10 +621,18 @@ fn desktop_percent(overall_percent: u8, nodes: &[NodeControl], reports: &[Report
     let node_bonus = u8::try_from(nodes.iter().filter(|node| node.status == "online").count())
         .unwrap_or(0)
         .saturating_mul(5);
-    let report_bonus = u8::try_from(reports.iter().filter(|report| report.status == "ready").count())
-        .unwrap_or(0)
-        .saturating_mul(3);
-    overall_percent.saturating_add(node_bonus).saturating_add(report_bonus).min(100)
+    let report_bonus = u8::try_from(
+        reports
+            .iter()
+            .filter(|report| report.status == "ready")
+            .count(),
+    )
+    .unwrap_or(0)
+    .saturating_mul(3);
+    overall_percent
+        .saturating_add(node_bonus)
+        .saturating_add(report_bonus)
+        .min(100)
 }
 
 fn file_status(repo_root: &Path, label: &str, relative_path: &str) -> FileStatus {
@@ -554,8 +659,138 @@ fn config_value(content: &str, key: &str) -> Option<String> {
         .map(|value| value.trim().trim_matches('"').to_string())
 }
 
+fn workspace_members(content: &str) -> Vec<String> {
+    let mut in_members = false;
+    let mut members = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("members = [") {
+            in_members = true;
+            continue;
+        }
+        if in_members && trimmed == "]" {
+            break;
+        }
+        if in_members {
+            let value = trimmed.trim_end_matches(',').trim().trim_matches('"');
+            if !value.is_empty() {
+                members.push(value.to_string());
+            }
+        }
+    }
+
+    members
+}
+
+fn capture_manifest_package_name(content: &str) -> Option<String> {
+    content
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("name = "))
+        .map(|value| value.trim().trim_matches('"').to_string())
+}
+
+fn readme_headline(path: &Path) -> Option<String> {
+    fs::read_to_string(path).ok().and_then(|content| {
+        content
+            .lines()
+            .find(|line| line.trim_start().starts_with('#'))
+            .map(|line| line.trim_start_matches('#').trim().to_string())
+    })
+}
+
+fn workspace_category(package_name: &str) -> &'static str {
+    match package_name {
+        "aoxcai" => "AI",
+        "aoxcmd" => "Operator CLI",
+        "aoxcore" | "aoxcunity" | "aoxcvm" => "Core protocol",
+        "aoxcrpc" | "aoxcnet" | "aoxconfig" => "Network & RPC",
+        "aoxcsdk" | "aoxckit" | "aoxclibs" => "Developer surface",
+        "aoxcmob" | "aoxchal" => "Client & access",
+        _ => "Workspace",
+    }
+}
+
+fn workspace_status(package_name: &str) -> &'static str {
+    match package_name {
+        "aoxcai" | "aoxcmd" | "aoxcore" | "aoxcnet" | "aoxcrpc" => "ready",
+        "tests" => "in-progress",
+        _ => "in-progress",
+    }
+}
+
+fn ai_area(module: &str) -> &'static str {
+    match module {
+        "backend" | "adapter" => "Execution plane",
+        "policy" | "constitution" | "capability" => "Guardrails",
+        "audit" | "registry" | "manifest" => "Audit & registry",
+        "engine" | "model" | "traits" => "Inference runtime",
+        _ => "AI extension",
+    }
+}
+
+fn ai_status(module: &str) -> &'static str {
+    match module {
+        "constitution" | "capability" | "audit" | "policy" => "ready",
+        _ => "in-progress",
+    }
+}
+
+fn ai_summary(module: &str) -> String {
+    match module {
+        "adapter" => {
+            "Provider adapters bridge approved AI requests into external or heuristic backends."
+                .to_string()
+        }
+        "audit" => "Every AI invocation should emit auditable records and explicit dispositions."
+            .to_string(),
+        "backend" => {
+            "Backend factory and execution surfaces select local or remote inference providers."
+                .to_string()
+        }
+        "capability" => {
+            "Capability grants restrict what AI may do, where it may run, and how it is invoked."
+                .to_string()
+        }
+        "constitution" => {
+            "Constitutional rules prevent AI from becoming a kernel authority.".to_string()
+        }
+        "engine" => {
+            "Inference engine coordinates policy, backends, context, and audit flow.".to_string()
+        }
+        "extension" => {
+            "Extension descriptors describe the approved AI feature surface for operators."
+                .to_string()
+        }
+        "manifest" => {
+            "Model manifests define model identity, limits, and deployment metadata.".to_string()
+        }
+        "model" => {
+            "Typed request/response and assessment models standardize AI integration.".to_string()
+        }
+        "policy" => "Policy fusion decides whether an AI request is allowed or denied.".to_string(),
+        "registry" => "Registry tracks available AI models and extensions exposed to the platform."
+            .to_string(),
+        "traits" => "Shared traits define stable AI interfaces for context, policy, and backends."
+            .to_string(),
+        _ => format!("{module} AI surface is exposed through the desktop control plane."),
+    }
+}
+
+fn ai_command_hint(module: &str) -> &'static str {
+    match module {
+        "audit" => "audit",
+        "policy" => "policy",
+        "backend" => "backend",
+        _ => "--lib",
+    }
+}
+
 fn list_entry_count(content: &str, key: &str) -> usize {
-    let Some(start) = content.lines().position(|line| line.trim_start().starts_with(&format!("{key} = ["))) else {
+    let Some(start) = content
+        .lines()
+        .position(|line| line.trim_start().starts_with(&format!("{key} = [")))
+    else {
         return 0;
     };
 
@@ -578,7 +813,10 @@ fn node_role(node_name: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{capture_area_progress, config_value, desktop_percent, list_entry_count, parse_area_progress, ReportAsset, NodeControl};
+    use super::{
+        capture_area_progress, capture_manifest_package_name, config_value, desktop_percent,
+        list_entry_count, parse_area_progress, workspace_members, NodeControl, ReportAsset,
+    };
 
     #[test]
     fn parses_area_progress_lines() {
@@ -633,8 +871,18 @@ peers = [
             },
         ];
         let reports = vec![
-            ReportAsset { title: "a".into(), status: "ready".into(), path: "p".into(), detail: "d".into() },
-            ReportAsset { title: "b".into(), status: "queued".into(), path: "p".into(), detail: "d".into() },
+            ReportAsset {
+                title: "a".into(),
+                status: "ready".into(),
+                path: "p".into(),
+                detail: "d".into(),
+            },
+            ReportAsset {
+                title: "b".into(),
+                status: "queued".into(),
+                path: "p".into(),
+                detail: "d".into(),
+            },
         ];
         assert_eq!(desktop_percent(60, &nodes, &reports), 68);
     }
@@ -642,6 +890,35 @@ peers = [
     #[test]
     fn parse_area_progress_returns_none_for_invalid_line() {
         assert!(parse_area_progress("- not-an-area").is_none());
+    }
+
+    #[test]
+    fn workspace_members_are_parsed_from_root_manifest() {
+        let manifest = r#"
+[workspace]
+members = [
+  "crates/aoxcai",
+  "crates/aoxcore",
+  "tests",
+]
+"#;
+        assert_eq!(
+            workspace_members(manifest),
+            vec!["crates/aoxcai", "crates/aoxcore", "tests"]
+        );
+    }
+
+    #[test]
+    fn package_name_is_extracted_from_manifest() {
+        let manifest = r#"
+[package]
+name = "aoxcai"
+version = "0.1.0"
+"#;
+        assert_eq!(
+            capture_manifest_package_name(manifest).as_deref(),
+            Some("aoxcai")
+        );
     }
 }
 
