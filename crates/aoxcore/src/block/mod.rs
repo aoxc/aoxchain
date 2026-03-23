@@ -176,8 +176,7 @@ impl Task {
     }
 
     /// Returns the canonical task hash.
-    #[must_use]
-    pub fn hash(&self) -> [u8; 32] {
+    pub fn hash(&self) -> Result<[u8; 32], BlockError> {
         hash::hash_task(self)
     }
 }

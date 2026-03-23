@@ -460,7 +460,13 @@ mod tests {
             signature: [0u8; 64],
         };
 
-        let signature = signing_key.sign(&unsigned.signing_message()).to_bytes();
+        let signature = signing_key
+            .sign(
+                &unsigned
+                    .signing_message()
+                    .expect("signing message must encode"),
+            )
+            .to_bytes();
 
         Transaction {
             signature,
