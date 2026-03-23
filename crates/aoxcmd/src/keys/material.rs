@@ -12,17 +12,6 @@ pub struct KeyMaterial {
     pub bundle: NodeKeyBundleV1,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyMaterialSummary {
-    pub bundle_fingerprint: String,
-    pub crypto_profile: String,
-    pub engine_fingerprint: String,
-    pub consensus_public_key: String,
-    pub transport_public_key: String,
-    pub operator_public_key: String,
-    pub role_count: usize,
-}
-
 impl KeyMaterial {
     pub fn generate(name: &str, profile: &str, password: &str) -> Result<Self, AppError> {
         let created_at = Utc::now().to_rfc3339();
@@ -31,7 +20,7 @@ impl KeyMaterial {
             encrypt_key_to_envelope(engine.master_seed(), password).map_err(|error| {
                 AppError::with_source(
                     ErrorCode::KeyMaterialInvalid,
-                    "Failed to protect operator key material",
+                    "Failed to read canonical consensus public key from key bundle",
                     error,
                 )
             })?;
@@ -60,43 +49,6 @@ impl KeyMaterial {
 
     pub fn encrypted_root_seed(&self) -> &KeyfileEnvelope {
         &self.bundle.encrypted_root_seed
-    }
-
-    pub fn consensus_public_key_hex(&self) -> Result<&str, AppError> {
-        self.bundle
-            .public_key_hex_for_role(aoxcore::identity::key_bundle::NodeKeyRole::Consensus)
-            .map_err(|error| {
-                AppError::with_source(
-                    ErrorCode::KeyMaterialInvalid,
-                    "Failed to read canonical consensus public key from key bundle",
-                    error,
-                )
-            })
-    }
-
-    pub fn summary(&self) -> Result<KeyMaterialSummary, AppError> {
-        let role_key = |role| {
-            self.bundle
-                .public_key_hex_for_role(role)
-                .map(|value| value.to_string())
-                .map_err(|error| {
-                    AppError::with_source(
-                        ErrorCode::KeyMaterialInvalid,
-                        "Failed to build key material summary from bundle",
-                        error,
-                    )
-                })
-        };
-
-        Ok(KeyMaterialSummary {
-            bundle_fingerprint: self.bundle.bundle_fingerprint.clone(),
-            crypto_profile: self.bundle.crypto_profile.to_string(),
-            engine_fingerprint: self.bundle.engine_fingerprint.clone(),
-            consensus_public_key: role_key(aoxcore::identity::key_bundle::NodeKeyRole::Consensus)?,
-            transport_public_key: role_key(aoxcore::identity::key_bundle::NodeKeyRole::Transport)?,
-            operator_public_key: role_key(aoxcore::identity::key_bundle::NodeKeyRole::Operator)?,
-            role_count: self.bundle.keys.len(),
-        })
     }
 }
 
@@ -138,9 +90,5 @@ mod tests {
         let serialized = serde_json::to_string_pretty(material.encrypted_root_seed())
             .expect("envelope serialization should succeed");
         assert!(validate_key_envelope(&serialized).is_ok());
-        assert_eq!(
-            material.summary().expect("summary should build").role_count,
-            6
-        );
     }
 }

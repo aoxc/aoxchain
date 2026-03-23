@@ -20,14 +20,6 @@ pub fn operator_fingerprint() -> Result<String, AppError> {
     Ok(load_operator_key()?.fingerprint().to_string())
 }
 
-pub fn consensus_public_key_hex() -> Result<String, AppError> {
-    Ok(load_operator_key()?.consensus_public_key_hex()?.to_string())
-}
-
-pub fn inspect_operator_key() -> Result<KeyMaterialSummary, AppError> {
-    load_operator_key()?.summary()
-}
-
 pub fn verify_operator_key(password: Option<&str>) -> Result<(), AppError> {
     let key = load_operator_key()?;
     key.bundle.validate().map_err(|error| {

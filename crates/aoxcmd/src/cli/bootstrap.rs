@@ -5,8 +5,7 @@ use crate::{
     data_home::{ensure_layout, read_file, resolve_home, write_file},
     error::{AppError, ErrorCode},
     keys::manager::{
-        bootstrap_operator_key, consensus_public_key_hex, inspect_operator_key,
-        operator_fingerprint, verify_operator_key,
+        bootstrap_operator_key, consensus_public_key_hex, operator_fingerprint, verify_operator_key,
     },
 };
 use chrono::Utc;
