@@ -232,6 +232,7 @@ dependencies = [
  "aoxcunity",
  "blake3",
  "hex",
+ "rand 0.10.0",
  "serde",
  "serde_json",
  "sha2",

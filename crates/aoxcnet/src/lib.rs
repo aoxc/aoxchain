@@ -5,5 +5,6 @@ pub mod gossip;
 pub mod metrics;
 pub mod p2p;
 pub mod ports;
+pub mod resilience;
 pub mod sync;
 pub mod transport;
