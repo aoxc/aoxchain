@@ -30,6 +30,10 @@ pub struct KeyCommand {
 #[derive(Debug, Subcommand)]
 pub enum KeySubcommand {
     Generate,
+    InspectBundle {
+        #[arg(long)]
+        file: String,
+    },
 }
 
 #[derive(Debug, Args)]
