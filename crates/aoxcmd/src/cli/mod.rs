@@ -55,6 +55,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "config-init" => bootstrap::cmd_config_init(&args[2..]),
         "config-validate" => bootstrap::cmd_config_validate(&args[2..]),
         "config-print" => bootstrap::cmd_config_print(&args[2..]),
+        "production-bootstrap" => bootstrap::cmd_production_bootstrap(&args[2..]),
         "node-bootstrap" => ops::cmd_node_bootstrap(&args[2..]),
         "produce-once" => ops::cmd_produce_once(&args[2..]),
         "node-run" => ops::cmd_node_run(&args[2..]),
