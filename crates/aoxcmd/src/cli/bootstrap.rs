@@ -16,7 +16,12 @@ use crate::{
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    env, fs,
+    path::{Path, PathBuf},
+    sync::{Mutex, OnceLock},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct GenesisDocument {
@@ -33,6 +38,27 @@ struct GenesisDocument {
 struct GenesisValidator {
     name: String,
     public_key: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ProfileBootstrapSummary {
+    profile: String,
+    home_dir: String,
+    bind_host: String,
+    p2p_port: u16,
+    rpc_port: u16,
+    prometheus_port: u16,
+    chain_num: u64,
+    operator_fingerprint: String,
+    consensus_public_key: String,
+    node_height: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DualProfileBootstrapResult {
+    output_dir: String,
+    profiles: Vec<ProfileBootstrapSummary>,
+    launch_hint: &'static str,
 }
 
 fn genesis_path() -> Result<PathBuf, AppError> {
@@ -235,6 +261,46 @@ pub fn cmd_config_print(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&printable, output_format(args))
 }
 
+pub fn cmd_dual_profile_bootstrap(args: &[String]) -> Result<(), AppError> {
+    let output_dir = absolute_output_dir(
+        arg_value(args, "--output-dir")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| resolve_home().unwrap_or_else(|_| PathBuf::from(".aoxc-dual"))),
+    )?;
+    let password = arg_value(args, "--password").ok_or_else(|| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Missing required flag --password for dual profile bootstrap",
+        )
+    })?;
+    let name_prefix = arg_value(args, "--name-prefix").unwrap_or_else(|| "validator".to_string());
+
+    fs::create_dir_all(&output_dir).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to create output directory {}", output_dir.display()),
+            e,
+        )
+    })?;
+
+    let profiles = ["mainnet", "testnet"]
+        .into_iter()
+        .map(|profile| {
+            let home = output_dir.join(profile);
+            let operator_name = format!("{}-{}", name_prefix, profile);
+            bootstrap_profile_home(&home, profile, &operator_name, &password)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let result = DualProfileBootstrapResult {
+        output_dir: output_dir.display().to_string(),
+        profiles,
+        launch_hint: "Use the emitted home_dir values to start isolated testnet/mainnet nodes on the same workstation without port collisions.",
+    };
+
+    emit_serialized(&result, output_format(args))
+}
+
 pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
     let home = resolve_home()?;
     ensure_layout(&home)?;
@@ -310,6 +376,101 @@ fn load_genesis() -> Result<GenesisDocument, AppError> {
     Ok(genesis)
 }
 
+fn absolute_output_dir(path: PathBuf) -> Result<PathBuf, AppError> {
+    if path.is_absolute() {
+        return Ok(path);
+    }
+
+    let cwd = env::current_dir().map_err(|e| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to resolve current working directory for dual profile bootstrap",
+            e,
+        )
+    })?;
+    Ok(cwd.join(path))
+}
+
+fn bootstrap_profile_home(
+    home: &Path,
+    profile: &str,
+    operator_name: &str,
+    password: &str,
+) -> Result<ProfileBootstrapSummary, AppError> {
+    ensure_layout(home)?;
+
+    with_home_override(home, || {
+        let bind_host = default_bind_host_for_profile(profile).to_string();
+        let settings =
+            build_profile_settings(home.display().to_string(), profile, Some(bind_host.clone()))?;
+        persist(&settings)?;
+
+        let material = bootstrap_operator_key(operator_name, profile, password)?;
+        let genesis = write_genesis_document(profile, None)?;
+        let state = bootstrap_state()?;
+
+        Ok(ProfileBootstrapSummary {
+            profile: profile.to_string(),
+            home_dir: home.display().to_string(),
+            bind_host,
+            p2p_port: settings.network.p2p_port,
+            rpc_port: settings.network.rpc_port,
+            prometheus_port: settings.telemetry.prometheus_port,
+            chain_num: genesis.chain_num,
+            operator_fingerprint: material.fingerprint().to_string(),
+            consensus_public_key: genesis
+                .validators
+                .first()
+                .map(|validator| validator.public_key.clone())
+                .unwrap_or_default(),
+            node_height: state.current_height,
+        })
+    })
+}
+
+fn with_home_override<T, F>(home: &Path, action: F) -> Result<T, AppError>
+where
+    F: FnOnce() -> Result<T, AppError>,
+{
+    let _guard = env_lock().lock().expect("env mutex must not be poisoned");
+    let previous = env::var_os("AOXC_HOME");
+    unsafe {
+        env::set_var("AOXC_HOME", home);
+    }
+    let result = action();
+    if let Some(previous) = previous {
+        unsafe {
+            env::set_var("AOXC_HOME", previous);
+        }
+    } else {
+        unsafe {
+            env::remove_var("AOXC_HOME");
+        }
+    }
+    result
+}
+
+fn env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+fn apply_profile_ports(settings: &mut Settings, profile: &str) {
+    match profile.trim().to_ascii_lowercase().as_str() {
+        "mainnet" => {
+            settings.network.p2p_port = 39001;
+            settings.network.rpc_port = 2626;
+            settings.telemetry.prometheus_port = 9100;
+        }
+        "testnet" => {
+            settings.network.p2p_port = 40001;
+            settings.network.rpc_port = 3626;
+            settings.telemetry.prometheus_port = 10100;
+        }
+        _ => {}
+    }
+}
+
 fn build_profile_settings(
     home_dir: String,
     profile: &str,
@@ -318,6 +479,7 @@ fn build_profile_settings(
     let normalized_profile = profile.trim().to_ascii_lowercase();
     let mut settings = Settings::default_for(home_dir);
     settings.profile = normalized_profile.clone();
+    apply_profile_ports(&mut settings, &normalized_profile);
 
     match normalized_profile.as_str() {
         "mainnet" => {
@@ -425,10 +587,11 @@ fn validate_genesis(genesis: &GenesisDocument) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_profile_settings, cmd_production_bootstrap, default_bind_host_for_profile,
-        load_genesis,
+        absolute_output_dir, build_profile_settings, cmd_dual_profile_bootstrap,
+        cmd_production_bootstrap, default_bind_host_for_profile, load_genesis,
     };
     use crate::{cli_support::OutputFormat, test_support::TestHome};
+    use std::path::PathBuf;
 
     #[test]
     fn build_profile_settings_hardens_mainnet_defaults() {
@@ -449,6 +612,61 @@ mod tests {
             error.code(),
             crate::error::ErrorCode::ConfigInvalid.as_str()
         );
+    }
+
+    #[test]
+    fn build_profile_settings_assigns_non_overlapping_testnet_ports() {
+        let settings = build_profile_settings("/tmp/aoxc-testnet".to_string(), "testnet", None)
+            .expect("testnet settings should build");
+
+        assert_eq!(settings.network.p2p_port, 40001);
+        assert_eq!(settings.network.rpc_port, 3626);
+        assert_eq!(settings.telemetry.prometheus_port, 10100);
+        assert!(settings.logging.json);
+    }
+
+    #[test]
+    fn absolute_output_dir_resolves_relative_paths() {
+        let resolved = absolute_output_dir(PathBuf::from("stack-output"))
+            .expect("relative path should resolve against cwd");
+
+        assert!(resolved.is_absolute());
+        assert!(resolved.ends_with("stack-output"));
+    }
+
+    #[test]
+    fn dual_profile_bootstrap_materializes_isolated_testnet_and_mainnet_homes() {
+        let home = TestHome::new("dual-profile-bootstrap");
+        let output_dir = home.path().join("stack");
+        let args = vec![
+            "--password".to_string(),
+            "Prod#2026!".to_string(),
+            "--output-dir".to_string(),
+            output_dir.display().to_string(),
+        ];
+
+        cmd_dual_profile_bootstrap(&args).expect("dual bootstrap should succeed");
+
+        assert!(output_dir
+            .join("mainnet")
+            .join("config")
+            .join("settings.json")
+            .exists());
+        assert!(output_dir
+            .join("mainnet")
+            .join("identity")
+            .join("genesis.json")
+            .exists());
+        assert!(output_dir
+            .join("testnet")
+            .join("config")
+            .join("settings.json")
+            .exists());
+        assert!(output_dir
+            .join("testnet")
+            .join("identity")
+            .join("genesis.json")
+            .exists());
     }
 
     #[test]
