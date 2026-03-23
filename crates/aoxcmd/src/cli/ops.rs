@@ -12,7 +12,7 @@ use crate::{
         core::runtime_context, handles::default_handles, node::health_status, unity::unity_status,
     },
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     collections::BTreeMap,
@@ -67,6 +67,11 @@ struct SurfaceReadiness {
 #[derive(Debug, Serialize, PartialEq, Eq)]
 struct FullSurfaceReadiness {
     release_line: &'static str,
+    matrix_path: String,
+    matrix_loaded: bool,
+    matrix_release_line: Option<String>,
+    matrix_surface_count: u8,
+    matrix_warnings: Vec<String>,
     overall_status: &'static str,
     overall_score: u8,
     candidate_surfaces: u8,
@@ -95,6 +100,21 @@ struct ReadinessTrackProgress {
     ratio: u8,
     status: &'static str,
     objective: &'static str,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+struct FullSurfaceMatrixModel {
+    release_line: String,
+    surfaces: Vec<FullSurfaceMatrixSurface>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+struct FullSurfaceMatrixSurface {
+    id: String,
+    owner: String,
+    required_evidence: Vec<String>,
+    verification_command: String,
+    blocker: String,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -389,11 +409,118 @@ fn evaluate_mainnet_readiness(
     readiness_from_checks(settings.profile.clone(), checks)
 }
 
+fn load_full_surface_matrix(
+    repo_root: &Path,
+) -> (String, Option<FullSurfaceMatrixModel>, Vec<String>) {
+    let matrix_path = repo_root
+        .join("models")
+        .join("full_surface_readiness_matrix_v1.yaml");
+    let matrix_path_string = matrix_path.display().to_string();
+    let raw = match fs::read_to_string(&matrix_path) {
+        Ok(raw) => raw,
+        Err(error) => {
+            return (
+                matrix_path_string,
+                None,
+                vec![format!("Unable to read canonical matrix: {error}")],
+            )
+        }
+    };
+
+    match serde_yaml::from_str::<FullSurfaceMatrixModel>(&raw) {
+        Ok(model) => (matrix_path_string, Some(model), Vec::new()),
+        Err(error) => (
+            matrix_path_string,
+            None,
+            vec![format!("Unable to parse canonical matrix YAML: {error}")],
+        ),
+    }
+}
+
+fn validate_full_surface_matrix(
+    matrix: Option<&FullSurfaceMatrixModel>,
+    surfaces: &[SurfaceReadiness],
+    release_line: &str,
+) -> (bool, Option<String>, u8, Vec<String>) {
+    let Some(matrix) = matrix else {
+        return (false, None, 0, Vec::new());
+    };
+
+    let mut warnings = Vec::new();
+    if matrix.release_line != release_line {
+        warnings.push(format!(
+            "Matrix release line {} does not match runtime release line {}",
+            matrix.release_line, release_line
+        ));
+    }
+
+    for expected in &matrix.surfaces {
+        if expected.required_evidence.is_empty() {
+            warnings.push(format!(
+                "Matrix surface {} is missing required_evidence entries",
+                expected.id
+            ));
+        }
+        if expected.verification_command.trim().is_empty() {
+            warnings.push(format!(
+                "Matrix surface {} is missing verification_command",
+                expected.id
+            ));
+        }
+        if expected.blocker.trim().is_empty() {
+            warnings.push(format!(
+                "Matrix surface {} is missing blocker text",
+                expected.id
+            ));
+        }
+
+        match surfaces
+            .iter()
+            .find(|surface| surface.surface == expected.id)
+        {
+            Some(surface) => {
+                if surface.owner != expected.owner {
+                    warnings.push(format!(
+                        "Matrix owner mismatch for {}: matrix={} runtime={}",
+                        expected.id, expected.owner, surface.owner
+                    ));
+                }
+            }
+            None => warnings.push(format!(
+                "Matrix surface {} is not represented in runtime readiness output",
+                expected.id
+            )),
+        }
+    }
+
+    for surface in surfaces {
+        if !matrix
+            .surfaces
+            .iter()
+            .any(|expected| expected.id == surface.surface)
+        {
+            warnings.push(format!(
+                "Runtime surface {} is missing from canonical matrix",
+                surface.surface
+            ));
+        }
+    }
+
+    (
+        true,
+        Some(matrix.release_line.clone()),
+        matrix.surfaces.len() as u8,
+        warnings,
+    )
+}
+
 fn evaluate_full_surface_readiness(
     settings: &crate::config::settings::Settings,
     mainnet_readiness: &Readiness,
 ) -> FullSurfaceReadiness {
     let repo_root = locate_repo_root();
+    let release_line = "aoxc.v.0.1.1-akdeniz";
+    let (matrix_path, matrix_model, mut matrix_warnings) = load_full_surface_matrix(&repo_root);
     let release_dir = repo_root.join("artifacts").join("release-evidence");
     let closure_dir = repo_root
         .join("artifacts")
@@ -650,9 +777,17 @@ fn evaluate_full_surface_readiness(
             )
         })
         .collect::<Vec<_>>();
+    let (matrix_loaded, matrix_release_line, matrix_surface_count, validation_warnings) =
+        validate_full_surface_matrix(matrix_model.as_ref(), &surfaces, release_line);
+    matrix_warnings.extend(validation_warnings);
 
     FullSurfaceReadiness {
-        release_line: "aoxc.v.0.1.1-akdeniz",
+        release_line,
+        matrix_path,
+        matrix_loaded,
+        matrix_release_line,
+        matrix_surface_count,
+        matrix_warnings,
         overall_status: if blockers.is_empty() {
             "candidate"
         } else if overall_score >= 75 {
@@ -1063,11 +1198,27 @@ fn full_surface_markdown_report(readiness: &FullSurfaceReadiness) -> String {
     out.push_str(&format!(
         "- Release line: `{}`\n- Canonical matrix: `models/full_surface_readiness_matrix_v1.yaml`\n- Overall status: `{}`\n- Overall score: **{}%**\n- Candidate surfaces: **{}/{}**\n\n",
         readiness.release_line,
+        readiness.matrix_path,
+        readiness.matrix_loaded,
+        readiness
+            .matrix_release_line
+            .as_deref()
+            .unwrap_or("unavailable"),
+        readiness.matrix_surface_count,
         readiness.overall_status,
         readiness.overall_score,
         readiness.candidate_surfaces,
         readiness.total_surfaces,
     ));
+
+    out.push_str("## Matrix validation\n\n");
+    if readiness.matrix_warnings.is_empty() {
+        out.push_str("- Canonical matrix matches the runtime readiness surface map.\n");
+    } else {
+        for warning in &readiness.matrix_warnings {
+            out.push_str(&format!("- {}\n", warning));
+        }
+    }
 
     out.push_str("## Surface summary\n\n");
     for surface in &readiness.surfaces {
@@ -1800,6 +1951,17 @@ mod tests {
         let full = evaluate_full_surface_readiness(&settings, &readiness);
 
         assert_eq!(full.release_line, "aoxc.v.0.1.1-akdeniz");
+        assert!(full.matrix_loaded);
+        assert_eq!(
+            full.matrix_release_line.as_deref(),
+            Some("aoxc.v.0.1.1-akdeniz")
+        );
+        assert_eq!(full.matrix_surface_count, 5);
+        assert!(
+            full.matrix_warnings.is_empty(),
+            "{:?}",
+            full.matrix_warnings
+        );
         assert_eq!(full.total_surfaces, 5);
         assert_eq!(full.surfaces.len(), 5);
         assert!(full
