@@ -1,27 +1,29 @@
-# aoxconfig
+# AOXCONFIG
 
-## Purpose
+**Documentation Version:** `aoxc.v.0.0.0-alpha.3`
+**Cargo-Compatible Version:** `0.0.0-alpha.3`
 
-`aoxconfig` is responsible for the **configuration modeling components** domain within the AOXChain workspace.
+## Executive Summary
+AOXCONFIG provides typed configuration models for blockchain and contract settings used across environments.
 
-## Code Scope
+## Architectural Overview
+This component is part of the AOX Chain production roadmap and is documented as a reviewable subsystem rather than a placeholder package. The goal of this README is to give enough context that an engineer, auditor, or operator can understand why the crate exists, what code families it owns, and where the main security boundaries live.
 
-- `blockchain.rs`
-- `lib.rs`
+## Main Code Areas
+- `blockchain.rs`: network and chain-facing configuration models.
+- `contracts.rs`: contract-related configuration structures.
 
-## Operational Notes
+## Security and Audit Focus
+Configuration validation is a first-class security control because incorrect runtime settings can invalidate otherwise safe code.
 
-- API and behavior changes should be evaluated for backward impact.
-- Prefer explicit parameters over implicit defaults in critical paths.
-- Security-impacting changes in this crate should be accompanied by test/example updates.
+Reviewers should additionally confirm the following before promotion.
+- Interfaces remain deterministic and version-aligned with the workspace baseline.
+- Inputs are validated before affecting durable state or privileged behavior.
+- Tests cover both expected behavior and hostile or malformed scenarios.
+- Operational assumptions are mirrored in the corresponding `READ.md` and `VERSION.md` files.
 
-## Local Validation
+## Integration Notes
+This README is intentionally paired with a folder-specific `READ.md` and `VERSION.md`. The README explains the subsystem at a high level, the READ document explains the production audit expectations in more depth, and the VERSION document defines the mandatory release-discipline rules for future changes.
 
-```bash
-cargo check -p aoxconfig
-```
-
-## Related Components
-
-- Top-level architecture: [`../../README.md`](../../README.md)
-- Crate catalog: [`../README.md`](../README.md)
+## Release Status
+Current subsystem baseline: `aoxc.v.0.0.0-alpha.3` / `0.0.0-alpha.3`.

@@ -1,39 +1,28 @@
-# aoxcexec
+# AOXCEXEC
 
-## Purpose
+**Documentation Version:** `aoxc.v.0.0.0-alpha.3`
+**Cargo-Compatible Version:** `0.0.0-alpha.3`
 
-`aoxcexec` is the **Execution Orchestrator** domain within the AOXChain workspace. It serves as the deterministic bridge between the sovereign consensus layer (`aoxcunity`) and the multi-lane virtual machine environment (`aoxcvm`).
+## Executive Summary
+AOXCEXEC defines execution coordination interfaces that bridge runtime services and execution engines.
 
-This crate now models a production-oriented execution pipeline that:
+## Architectural Overview
+This component is part of the AOX Chain production roadmap and is documented as a reviewable subsystem rather than a placeholder package. The goal of this README is to give enough context that an engineer, auditor, or operator can understand why the crate exists, what code families it owns, and where the main security boundaries live.
 
-- validates authenticated `ExecutionPayload` envelopes with replay protection,
-- resolves versioned lane policies via a governance-friendly `LaneRegistry`,
-- executes deterministic lane transitions against a concrete state store,
-- emits `ExecutionResult`, `WriteSet`, `StateDiff`, and `PostStateCommitment`,
-- derives canonical batch roots (`state_root`, `receipt_root`, `transactions_root`, `execution_trace_root`, `block_execution_root`), and
-- publishes operator-facing execution summaries with deterministic telemetry counters.
+## Main Code Areas
+- `lib.rs`: shared execution-facing types and interfaces.
 
-## Core Components
+## Security and Audit Focus
+Even a narrow interface crate must keep assumptions explicit to prevent hidden coupling.
 
-- **`ExecutionPayload`**: Versioned transaction envelope with `chain_id`, `sender`, `nonce`, `signature`, fees, replay domain, and access scope.
-- **`LaneRegistry`**: Versioned lane policy registry with checksum verification and activation heights.
-- **`ExecutionLane`**: Runtime isolation contract for lane validation, gas estimation, execution, result verification, and state commits.
-- **`InMemoryStateStore`**: Deterministic authenticated state backend used for canonical roots and replay tests.
-- **`BatchExecutionOutcome`**: Final batch artifact containing receipts, execution results, telemetry summary, and all batch-level commitments.
+Reviewers should additionally confirm the following before promotion.
+- Interfaces remain deterministic and version-aligned with the workspace baseline.
+- Inputs are validated before affecting durable state or privileged behavior.
+- Tests cover both expected behavior and hostile or malformed scenarios.
+- Operational assumptions are mirrored in the corresponding `READ.md` and `VERSION.md` files.
 
-## Security & Operational Notes
+## Integration Notes
+This README is intentionally paired with a folder-specific `READ.md` and `VERSION.md`. The README explains the subsystem at a high level, the READ document explains the production audit expectations in more depth, and the VERSION document defines the mandatory release-discipline rules for future changes.
 
-- **Deterministic commitments**: All roots are domain-separated BLAKE3 commitments.
-- **Replay protection**: Payloads are rejected on `chain_id`, `replay_domain`, nonce, or signature mismatch.
-- **Canonical ordering**: Payloads are normalized by `(nonce, tx_hash)` before execution to guarantee deterministic replay.
-- **Policy integrity**: Registry entries are checksum-verified before a lane policy becomes active.
-- **State safety**: Invalid transactions never receive state mutation rights; only accepted payloads produce write-sets and state diffs.
-- **Operator telemetry**: Batch summaries expose rejected payload counts, nonce violations, lane gas utilization, and active policy versions.
-
-## Local Validation
-
-```bash
-cargo check -p aoxcexec
-cargo clippy -p aoxcexec --all-targets --all-features -- -D warnings
-cargo test -p aoxcexec
-```
+## Release Status
+Current subsystem baseline: `aoxc.v.0.0.0-alpha.3` / `0.0.0-alpha.3`.

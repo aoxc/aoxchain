@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::block::Block;
 use crate::constitutional::{
@@ -389,7 +388,7 @@ impl ConsensusEngine {
         self.timeout_conflicts
             .retain(|key, _| key.height >= finalized_height);
         let pruned_timeouts = before_timeouts.saturating_sub(self.timeout_votes.len());
-        let result = TransitionResult {
+        TransitionResult {
             accepted_effects: Vec::new(),
             rejected_reason: None,
             emitted_certificates: Vec::new(),
@@ -401,8 +400,7 @@ impl ConsensusEngine {
                 pruned_timeouts,
             }],
             invariant_status: InvariantStatus::healthy(),
-        };
-        result
+        }
     }
 
     fn apply_recover_persisted_event(&mut self, event_hash: [u8; 32]) -> TransitionResult {

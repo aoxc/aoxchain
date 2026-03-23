@@ -1,57 +1,29 @@
-# aoxcmob
+# AOXCMOB
 
-## Purpose
+**Documentation Version:** `aoxc.v.0.0.0-alpha.3`
+**Cargo-Compatible Version:** `0.0.0-alpha.3`
 
-`aoxcmob` is the **native mobile secure-connection core** for AOXChain.
+## Executive Summary
+AOXCMOB contains mobile and edge security abstractions for keystores, signers, secure sessions, and gateway participation.
 
-This crate is intentionally scoped to the responsibilities that belong on a
-mobile or portable client:
+## Architectural Overview
+This component is part of the AOX Chain production roadmap and is documented as a reviewable subsystem rather than a placeholder package. The goal of this README is to give enough context that an engineer, auditor, or operator can understand why the crate exists, what code families it owns, and where the main security boundaries live.
 
-- device-bound key provisioning
-- signed session handshake
-- replay-resistant request envelopes
-- light chain health reads
-- task / witness receipt signing
-- transport abstraction for relay or RPC integration
+## Main Code Areas
+- `security`: signer and keystore controls.
+- `session`, `gateway`, and `transport`: session protocol, native gateway integration, and relay transports.
 
-This crate is **not** a validator, consensus engine, or full node runtime.
-Those responsibilities remain outside the mobile trust boundary.
+## Security and Audit Focus
+Device-side key safety and secure session establishment are the principal concerns.
 
-## Design Goals
+Reviewers should additionally confirm the following before promotion.
+- Interfaces remain deterministic and version-aligned with the workspace baseline.
+- Inputs are validated before affecting durable state or privileged behavior.
+- Tests cover both expected behavior and hostile or malformed scenarios.
+- Operational assumptions are mirrored in the corresponding `READ.md` and `VERSION.md` files.
 
-1. **Device-bound trust**  
-   Private signing material stays within the device security boundary.
-2. **Transport independence**  
-   Mobile security logic must not depend on a single relay implementation.
-3. **Deterministic auditability**  
-   Session and task signatures must be reproducible from canonical payloads.
-4. **Operational safety**  
-   The crate must fail closed for missing device state, invalid challenge data,
-   or expired session conditions.
+## Integration Notes
+This README is intentionally paired with a folder-specific `READ.md` and `VERSION.md`. The README explains the subsystem at a high level, the READ document explains the production audit expectations in more depth, and the VERSION document defines the mandatory release-discipline rules for future changes.
 
-## Main Components
-
-- `config`: runtime policy and timeout model
-- `types`: public mobile-facing domain types
-- `security`: device provisioning and signing helpers
-- `session`: challenge / permit protocol objects
-- `transport`: relay or RPC abstraction and local mock transport
-- `gateway`: high-level secure native gateway for mobile flows
-
-## Integration Rule
-
-The recommended integration order is:
-
-1. provision device key
-2. bind public identity to the device off-chain or on-chain
-3. open signed session
-4. fetch lightweight tasks or chain state
-5. sign task receipts or governance witness actions
-6. add contract adapters only after the native session boundary is stable
-
-## Local Validation
-
-```bash
-cargo check -p aoxcmob
-cargo test -p aoxcmob
-```
+## Release Status
+Current subsystem baseline: `aoxc.v.0.0.0-alpha.3` / `0.0.0-alpha.3`.
