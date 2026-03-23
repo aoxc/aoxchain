@@ -47,6 +47,36 @@ struct Readiness {
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
+struct SurfaceCheck {
+    name: &'static str,
+    passed: bool,
+    detail: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct SurfaceReadiness {
+    surface: &'static str,
+    owner: &'static str,
+    status: &'static str,
+    score: u8,
+    blockers: Vec<String>,
+    evidence: Vec<String>,
+    checks: Vec<SurfaceCheck>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct FullSurfaceReadiness {
+    release_line: &'static str,
+    overall_status: &'static str,
+    overall_score: u8,
+    candidate_surfaces: u8,
+    total_surfaces: u8,
+    surfaces: Vec<SurfaceReadiness>,
+    blockers: Vec<String>,
+    next_focus: Vec<String>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
 struct ReadinessAreaProgress {
     area: &'static str,
     completed_weight: u8,
@@ -145,6 +175,36 @@ pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
     }
 
     emit_serialized(&readiness, output_format(args))
+}
+
+pub fn cmd_full_surface_readiness(args: &[String]) -> Result<(), AppError> {
+    let settings = load_or_init()?;
+    let key_summary = crate::keys::manager::inspect_operator_key().ok();
+    let genesis_ok = crate::cli::bootstrap::genesis_ready();
+    let node_ok = lifecycle::load_state().is_ok();
+    let mainnet_readiness = evaluate_mainnet_readiness(
+        &settings,
+        settings.validate().err(),
+        key_summary
+            .as_ref()
+            .map(|summary| summary.operational_state.as_str()),
+        genesis_ok,
+        node_ok,
+    );
+    let full = evaluate_full_surface_readiness(&settings, &mainnet_readiness);
+
+    if has_flag(args, "--enforce") && full.overall_status != "candidate" {
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            format!(
+                "Full-surface readiness enforcement failed at score {} with blockers: {}",
+                full.overall_score,
+                full.blockers.join(" | ")
+            ),
+        ));
+    }
+
+    emit_serialized(&full, output_format(args))
 }
 
 pub fn cmd_profile_baseline(args: &[String]) -> Result<(), AppError> {
@@ -325,6 +385,286 @@ fn evaluate_mainnet_readiness(
     readiness_from_checks(settings.profile.clone(), checks)
 }
 
+fn evaluate_full_surface_readiness(
+    settings: &crate::config::settings::Settings,
+    mainnet_readiness: &Readiness,
+) -> FullSurfaceReadiness {
+    let repo_root = locate_repo_root();
+    let release_dir = repo_root.join("artifacts").join("release-evidence");
+    let closure_dir = repo_root
+        .join("artifacts")
+        .join("network-production-closure");
+    let mainnet_config = repo_root.join("configs").join("mainnet.toml");
+    let testnet_config = repo_root.join("configs").join("testnet.toml");
+    let aoxhub_mainnet = repo_root.join("configs").join("aoxhub-mainnet.toml");
+    let aoxhub_testnet = repo_root.join("configs").join("aoxhub-testnet.toml");
+    let testnet_fixture = repo_root
+        .join("configs")
+        .join("deterministic-testnet")
+        .join("genesis.json");
+    let testnet_launch = repo_root
+        .join("configs")
+        .join("deterministic-testnet")
+        .join("launch-testnet.sh");
+    let multi_host = repo_root
+        .join("scripts")
+        .join("validation")
+        .join("multi_host_validation.sh");
+    let frontend_rpc_doc = repo_root
+        .join("docs")
+        .join("src")
+        .join("FRONTEND_RPC_API_INTEGRATION_TR.md");
+    let mainnet_checklist = repo_root
+        .join("docs")
+        .join("src")
+        .join("MAINNET_READINESS_CHECKLIST.md");
+
+    let surfaces = vec![
+        build_surface(
+            "mainnet",
+            "protocol-release",
+            vec![
+                surface_check(
+                    "candidate-threshold",
+                    mainnet_readiness.verdict == "candidate",
+                    format!(
+                        "mainnet-readiness verdict is {} at {}%",
+                        mainnet_readiness.verdict, mainnet_readiness.readiness_score
+                    ),
+                ),
+                surface_check(
+                    "mainnet-config-present",
+                    mainnet_config.exists(),
+                    format!("expected config at {}", mainnet_config.display()),
+                ),
+                surface_check(
+                    "release-evidence-bundle",
+                    has_release_evidence(&release_dir),
+                    format!("release evidence bundle under {}", release_dir.display()),
+                ),
+            ],
+            vec![
+                mainnet_checklist.display().to_string(),
+                release_dir.display().to_string(),
+            ],
+        ),
+        build_surface(
+            "testnet",
+            "network-operations",
+            vec![
+                surface_check(
+                    "testnet-config-present",
+                    testnet_config.exists(),
+                    format!("expected config at {}", testnet_config.display()),
+                ),
+                surface_check(
+                    "deterministic-fixture",
+                    testnet_fixture.exists(),
+                    format!(
+                        "expected deterministic fixture at {}",
+                        testnet_fixture.display()
+                    ),
+                ),
+                surface_check(
+                    "launch-script",
+                    testnet_launch.exists(),
+                    format!("expected launch script at {}", testnet_launch.display()),
+                ),
+                surface_check(
+                    "multi-host-validation-entrypoint",
+                    multi_host.exists(),
+                    format!("expected validation script at {}", multi_host.display()),
+                ),
+            ],
+            vec![
+                testnet_fixture.display().to_string(),
+                multi_host.display().to_string(),
+            ],
+        ),
+        build_surface(
+            "aoxhub",
+            "hub-platform",
+            vec![
+                surface_check(
+                    "mainnet-profile",
+                    aoxhub_mainnet.exists(),
+                    format!(
+                        "expected AOXHub mainnet config at {}",
+                        aoxhub_mainnet.display()
+                    ),
+                ),
+                surface_check(
+                    "testnet-profile",
+                    aoxhub_testnet.exists(),
+                    format!(
+                        "expected AOXHub testnet config at {}",
+                        aoxhub_testnet.display()
+                    ),
+                ),
+                surface_check(
+                    "rollout-evidence",
+                    closure_dir.join("aoxhub-rollout.json").exists(),
+                    format!(
+                        "expected AOXHub rollout artifact at {}",
+                        closure_dir.join("aoxhub-rollout.json").display()
+                    ),
+                ),
+                surface_check(
+                    "baseline-parity",
+                    compare_aoxhub_network_profiles()
+                        .map(|report| report.passed)
+                        .unwrap_or(false),
+                    "AOXHub mainnet/testnet baseline parity must hold".to_string(),
+                ),
+            ],
+            vec![
+                aoxhub_mainnet.display().to_string(),
+                aoxhub_testnet.display().to_string(),
+                closure_dir
+                    .join("aoxhub-rollout.json")
+                    .display()
+                    .to_string(),
+            ],
+        ),
+        build_surface(
+            "wallet",
+            "client-platform",
+            vec![
+                surface_check(
+                    "desktop-wallet-compat",
+                    has_desktop_wallet_compat_artifact(&closure_dir),
+                    format!(
+                        "desktop wallet compatibility artifact at {}",
+                        closure_dir.join("desktop-wallet-compat.json").display()
+                    ),
+                ),
+                surface_check(
+                    "production-audit",
+                    closure_dir.join("production-audit.json").exists(),
+                    format!(
+                        "wallet release decisions rely on {}",
+                        closure_dir.join("production-audit.json").display()
+                    ),
+                ),
+                surface_check(
+                    "rpc-integration-doc",
+                    frontend_rpc_doc.exists(),
+                    format!(
+                        "expected integration guide at {}",
+                        frontend_rpc_doc.display()
+                    ),
+                ),
+            ],
+            vec![
+                closure_dir
+                    .join("desktop-wallet-compat.json")
+                    .display()
+                    .to_string(),
+                frontend_rpc_doc.display().to_string(),
+            ],
+        ),
+        build_surface(
+            "telemetry",
+            "sre-observability",
+            vec![
+                surface_check(
+                    "metrics-enabled",
+                    settings.telemetry.enable_metrics,
+                    "Prometheus/metrics export must stay enabled".to_string(),
+                ),
+                surface_check(
+                    "telemetry-snapshot",
+                    closure_dir.join("telemetry-snapshot.json").exists(),
+                    format!(
+                        "expected telemetry snapshot at {}",
+                        closure_dir.join("telemetry-snapshot.json").display()
+                    ),
+                ),
+                surface_check(
+                    "alert-rules",
+                    closure_dir.join("alert-rules.md").exists(),
+                    format!(
+                        "expected alert rules at {}",
+                        closure_dir.join("alert-rules.md").display()
+                    ),
+                ),
+                surface_check(
+                    "runtime-telemetry-handle",
+                    json_artifact_has_required_strings(
+                        &closure_dir.join("runtime-status.json"),
+                        "required_artifacts",
+                        &["telemetry-snapshot.json"],
+                    ) || closure_dir.join("runtime-status.json").exists(),
+                    format!(
+                        "runtime status should expose telemetry evidence at {}",
+                        closure_dir.join("runtime-status.json").display()
+                    ),
+                ),
+            ],
+            vec![
+                closure_dir
+                    .join("telemetry-snapshot.json")
+                    .display()
+                    .to_string(),
+                closure_dir.join("alert-rules.md").display().to_string(),
+                closure_dir
+                    .join("runtime-status.json")
+                    .display()
+                    .to_string(),
+            ],
+        ),
+    ];
+
+    let blockers = surfaces
+        .iter()
+        .flat_map(|surface| {
+            surface
+                .blockers
+                .iter()
+                .map(move |blocker| format!("{}: {}", surface.surface, blocker))
+        })
+        .collect::<Vec<_>>();
+    let total_score = surfaces
+        .iter()
+        .map(|surface| surface.score as u16)
+        .sum::<u16>();
+    let overall_score = (total_score / surfaces.len() as u16) as u8;
+    let candidate_surfaces = surfaces
+        .iter()
+        .filter(|surface| surface.status == "ready")
+        .count() as u8;
+    let next_focus = surfaces
+        .iter()
+        .filter(|surface| surface.status != "ready")
+        .take(3)
+        .map(|surface| {
+            format!(
+                "{}: raise from {}% to 100% by clearing {} blocker(s)",
+                surface.surface,
+                surface.score,
+                surface.blockers.len()
+            )
+        })
+        .collect::<Vec<_>>();
+
+    FullSurfaceReadiness {
+        release_line: "aoxc.v.0.1.1-akdeniz",
+        overall_status: if blockers.is_empty() {
+            "candidate"
+        } else if overall_score >= 75 {
+            "hardening"
+        } else {
+            "not-ready"
+        },
+        overall_score,
+        candidate_surfaces,
+        total_surfaces: surfaces.len() as u8,
+        surfaces,
+        blockers,
+        next_focus,
+    }
+}
+
 fn locate_repo_artifact_dir(artifact_name: &str) -> PathBuf {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     for candidate in cwd.ancestors() {
@@ -334,6 +674,49 @@ fn locate_repo_artifact_dir(artifact_name: &str) -> PathBuf {
         }
     }
     cwd.join("artifacts").join(artifact_name)
+}
+
+fn surface_check(name: &'static str, passed: bool, detail: String) -> SurfaceCheck {
+    SurfaceCheck {
+        name,
+        passed,
+        detail,
+    }
+}
+
+fn build_surface(
+    surface: &'static str,
+    owner: &'static str,
+    checks: Vec<SurfaceCheck>,
+    evidence: Vec<String>,
+) -> SurfaceReadiness {
+    let blockers = checks
+        .iter()
+        .filter(|check| !check.passed)
+        .map(|check| format!("{}: {}", check.name, check.detail))
+        .collect::<Vec<_>>();
+    let passed = checks.iter().filter(|check| check.passed).count() as u16;
+    let score = if checks.is_empty() {
+        0
+    } else {
+        (passed * 100 / checks.len() as u16) as u8
+    };
+
+    SurfaceReadiness {
+        surface,
+        owner,
+        status: if blockers.is_empty() {
+            "ready"
+        } else if score >= 50 {
+            "hardening"
+        } else {
+            "blocked"
+        },
+        score,
+        blockers,
+        evidence,
+        checks,
+    }
 }
 
 fn readiness_check(
@@ -1088,11 +1471,12 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        compare_aoxhub_network_profiles, compare_embedded_network_profiles,
-        evaluate_mainnet_readiness, has_desktop_wallet_compat_artifact, has_matching_artifact,
+        build_surface, compare_aoxhub_network_profiles, compare_embedded_network_profiles,
+        evaluate_full_surface_readiness, evaluate_mainnet_readiness,
+        has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
         locate_repo_artifact_dir, parse_network_profile, ports_are_shifted_consistently,
-        readiness_markdown_report, write_readiness_markdown_report,
+        readiness_markdown_report, surface_check, write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -1244,6 +1628,65 @@ mod tests {
             .next_focus
             .iter()
             .any(|entry| entry.starts_with("configuration:")));
+    }
+
+    #[test]
+    fn surface_builder_reports_blocked_surface_when_checks_fail() {
+        let surface = build_surface(
+            "wallet",
+            "client-platform",
+            vec![
+                surface_check("desktop-wallet-compat", true, "compat present".to_string()),
+                surface_check(
+                    "production-audit",
+                    false,
+                    "production audit missing".to_string(),
+                ),
+            ],
+            vec!["artifacts/network-production-closure/desktop-wallet-compat.json".to_string()],
+        );
+
+        assert_eq!(surface.surface, "wallet");
+        assert_eq!(surface.status, "hardening");
+        assert_eq!(surface.score, 50);
+        assert_eq!(surface.blockers.len(), 1);
+        assert!(surface.blockers[0].contains("production-audit"));
+    }
+
+    #[test]
+    fn full_surface_readiness_reports_all_target_surfaces() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "mainnet".to_string();
+        settings.logging.json = true;
+        settings.network.bind_host = "0.0.0.0".to_string();
+        settings.telemetry.enable_metrics = true;
+
+        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+        let full = evaluate_full_surface_readiness(&settings, &readiness);
+
+        assert_eq!(full.release_line, "aoxc.v.0.1.1-akdeniz");
+        assert_eq!(full.total_surfaces, 5);
+        assert_eq!(full.surfaces.len(), 5);
+        assert!(full
+            .surfaces
+            .iter()
+            .any(|surface| surface.surface == "mainnet"));
+        assert!(full
+            .surfaces
+            .iter()
+            .any(|surface| surface.surface == "testnet"));
+        assert!(full
+            .surfaces
+            .iter()
+            .any(|surface| surface.surface == "aoxhub"));
+        assert!(full
+            .surfaces
+            .iter()
+            .any(|surface| surface.surface == "wallet"));
+        assert!(full
+            .surfaces
+            .iter()
+            .any(|surface| surface.surface == "telemetry"));
     }
 
     #[test]

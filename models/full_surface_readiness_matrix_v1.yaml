@@ -1,0 +1,50 @@
+version: 1
+release_line: aoxc.v.0.1.1-akdeniz
+objective: >
+  Canonical full-surface production readiness matrix covering mainnet, testnet,
+  AOXHub, wallet, and telemetry for a single release decision.
+surfaces:
+  - id: mainnet
+    owner: protocol-release
+    status: in_progress
+    required_evidence:
+      - docs/src/MAINNET_READINESS_CHECKLIST.md
+      - artifacts/network-production-closure/production-audit.json
+    verification_command: aoxc mainnet-readiness --format json
+    blocker: "Mainnet sign-off requires every checklist area to be green or exception-approved."
+  - id: testnet
+    owner: network-operations
+    status: in_progress
+    required_evidence:
+      - configs/deterministic-testnet/genesis.json
+      - scripts/validation/multi_host_validation.sh
+    verification_command: scripts/validation/multi_host_validation.sh
+    blocker: "Deterministic fixture exists, but multi-host validation evidence must remain current."
+  - id: aoxhub
+    owner: hub-platform
+    status: in_progress
+    required_evidence:
+      - artifacts/network-production-closure/aoxhub-rollout.json
+      - docs/src/FRONTEND_RPC_API_INTEGRATION_TR.md
+    verification_command: scripts/validation/network_production_closure.sh --scenario soak
+    blocker: "Hub parity must stay aligned with mainnet/testnet routing and release baselines."
+  - id: wallet
+    owner: client-platform
+    status: in_progress
+    required_evidence:
+      - artifacts/network-production-closure/desktop-wallet-compat.json
+      - docs/src/MAINNET_READINESS_CHECKLIST.md
+    verification_command: aoxc production-audit --format json
+    blocker: "Wallet signing and environment-routing flows need explicit compatibility evidence for release sign-off."
+  - id: telemetry
+    owner: sre-observability
+    status: in_progress
+    required_evidence:
+      - artifacts/network-production-closure/telemetry-snapshot.json
+      - artifacts/network-production-closure/alert-rules.md
+    verification_command: scripts/validation/network_production_closure.sh --scenario soak
+    blocker: "Alert coverage, readiness scoring, and retained telemetry evidence must be kept fresh per release."
+next_actions:
+  - "Mark every surface ready/blocked with a dated evidence refresh."
+  - "Add owner-specific closure checks for the remaining 8 steps."
+  - "Do not promote a release when any surface lacks current evidence or an accountable owner."

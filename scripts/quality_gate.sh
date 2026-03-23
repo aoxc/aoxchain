@@ -20,6 +20,14 @@ require_cmd() {
     fi
 }
 
+ensure_cargo_tool() {
+    local tool="$1"
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        printf '\n\033[1;33m==> Installing missing cargo tool: %s\033[0m\n' "$tool"
+        cargo install "$tool" --locked
+    fi
+}
+
 run() {
     local label="$1"
     shift
@@ -35,30 +43,30 @@ require_cmd cargo
 
 case "${MODE}" in
     quick)
-        run "Format Check" cargo fmt --all -- --check
-        run "Compile Check" cargo check --workspace
+        run "Format Check" cargo fmt --all --check
+        run "Compile Check" cargo check --locked --workspace --all-targets
         run "Locked Unit Tests" cargo test --locked --workspace --no-fail-fast
         ;;
 
     full)
-        require_cmd cargo-audit
+        ensure_cargo_tool cargo-audit
         run "Security Audit" cargo audit
-        run "Format Check" cargo fmt --all -- --check
+        run "Format Check" cargo fmt --all --check
         run "Linter (Clippy)" cargo clippy --workspace --all-targets --all-features -- -D warnings
-        run "Compile Check" cargo check --workspace --all-targets
+        run "Compile Check" cargo check --locked --workspace --all-targets
         run "Locked Comprehensive Tests" cargo test --locked --workspace --all-targets --no-fail-fast
         run "Doc Tests" cargo test --doc
         ;;
 
     audit | release)
-        require_cmd cargo-audit
-        require_cmd cargo-deny
+        ensure_cargo_tool cargo-audit
+        ensure_cargo_tool cargo-deny
         run "Vulnerability Audit" cargo audit
         run "License & Dependency Audit" cargo deny check
-        run "Format Check" cargo fmt --all -- --check
-        run "Compile Check (Release)" cargo check --workspace --release
+        run "Format Check" cargo fmt --all --check
+        run "Compile Check (Release)" cargo check --locked --workspace --all-targets --release
         run "Clippy (Strict)" cargo clippy --workspace --all-targets --all-features -- -D warnings
-        run "Build Production Binary" cargo build --release -p aoxcmd --bin aoxc
+        run "Build Production Binary" cargo build --locked --release -p aoxcmd --bin aoxc
         run "Release Artifact Certification" ./scripts/release_artifact_certify.sh target/release/aoxc
         run "Locked Production Test Suite" cargo test --locked --workspace --release --all-targets --no-fail-fast
         ;;
