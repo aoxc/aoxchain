@@ -376,10 +376,9 @@ impl Mempool {
                 break;
             }
 
-            let tx = self
-                .queue
-                .pop_front()
-                .expect("MEMPOOL: front element must exist after successful front() check");
+            let Some(tx) = self.queue.pop_front() else {
+                break;
+            };
 
             self.total_bytes -= tx.size();
             self.index.remove(&tx.id);
