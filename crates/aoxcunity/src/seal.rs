@@ -31,13 +31,13 @@ impl QuorumCertificate {
         block_hash: [u8; 32],
         height: u64,
         round: u64,
-        mut signers: Vec<ValidatorId>,
+        signers: Vec<ValidatorId>,
         observed_voting_power: u64,
         total_voting_power: u64,
         threshold_numerator: u64,
         threshold_denominator: u64,
     ) -> Self {
-        signers.sort();
+        let signers = canonicalize_signers(signers);
         let certificate_hash = compute_certificate_hash(
             block_hash,
             height,

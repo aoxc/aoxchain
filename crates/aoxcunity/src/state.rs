@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::block::Block;
 use crate::error::ConsensusError;
@@ -268,6 +268,7 @@ impl ConsensusState {
     ) -> Option<QuorumCertificate> {
         let block = self.blocks.get(&block_hash)?;
 
+        let mut signer_set = BTreeSet::new();
         let mut signers = Vec::new();
         let mut observed_voting_power = 0u64;
 
@@ -279,13 +280,14 @@ impl ConsensusState {
                 continue;
             }
 
+            if !signer_set.insert(vote.voter) {
+                continue;
+            }
+
             let voting_power = self.rotation.eligible_voting_power_of(vote.voter)?;
             signers.push(vote.voter);
             observed_voting_power = observed_voting_power.saturating_add(voting_power);
         }
-
-        signers.sort();
-        signers.dedup();
 
         let total_voting_power = self.rotation.total_voting_power();
         if !self
