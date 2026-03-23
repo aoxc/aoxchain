@@ -2,9 +2,10 @@ use crate::{
     error::AppError,
     keys::{
         loader::{load_operator_key, persist_operator_key},
-        material::KeyMaterial,
+        material::{ExportedIdentityArtifacts, KeyMaterial, KeyMaterialSummary},
     },
 };
+use aoxcore::identity::key_bundle::NodeKeyOperationalState;
 
 pub fn bootstrap_operator_key(
     name: &str,
@@ -16,23 +17,65 @@ pub fn bootstrap_operator_key(
     Ok(material)
 }
 
+pub fn rotate_operator_key(
+    name: &str,
+    profile: &str,
+    password: &str,
+) -> Result<KeyMaterialSummary, AppError> {
+    let previous = load_operator_key()?;
+    let rotated = KeyMaterial::rotate_from_existing(&previous, name, profile, password)?;
+    persist_operator_key(&rotated)?;
+    rotated.summary()
+}
+
 pub fn operator_fingerprint() -> Result<String, AppError> {
-    Ok(load_operator_key()?.fingerprint)
+    Ok(load_operator_key()?.fingerprint().to_string())
+}
+
+pub fn consensus_public_key_hex() -> Result<String, AppError> {
+    Ok(load_operator_key()?.consensus_public_key_hex()?.to_string())
+}
+
+pub fn inspect_operator_key() -> Result<KeyMaterialSummary, AppError> {
+    load_operator_key()?.summary()
+}
+
+pub fn export_operator_identity(
+    chain: &str,
+    actor_id: &str,
+    zone: &str,
+    issued_at: u64,
+    expires_at: u64,
+) -> Result<ExportedIdentityArtifacts, AppError> {
+    load_operator_key()?.export_validator_identity(chain, actor_id, zone, issued_at, expires_at)
+}
+
+pub fn set_operator_key_state(
+    state: NodeKeyOperationalState,
+) -> Result<KeyMaterialSummary, AppError> {
+    let mut key = load_operator_key()?;
+    key.bundle.set_operational_state(state);
+    persist_operator_key(&key)?;
+    key.summary()
 }
 
 pub fn verify_operator_key(password: Option<&str>) -> Result<(), AppError> {
     let key = load_operator_key()?;
-    if key.name.trim().is_empty()
-        || key.public_key.trim().is_empty()
-        || key.fingerprint.trim().is_empty()
-        || key.hd_path.trim().is_empty()
-    {
-        return Err(crate::error::AppError::new(
+    key.bundle.validate().map_err(|error| {
+        crate::error::AppError::with_source(
             crate::error::ErrorCode::KeyMaterialInvalid,
-            "Operator key material failed mandatory field validation",
-        ));
-    }
-    let envelope = crate::keys::material::validate_key_envelope(&key.encrypted_private_key)?;
+            "Operator key bundle failed mandatory field validation",
+            error,
+        )
+    })?;
+    let serialized = serde_json::to_string_pretty(key.encrypted_root_seed()).map_err(|error| {
+        crate::error::AppError::with_source(
+            crate::error::ErrorCode::OutputEncodingFailed,
+            "Failed to encode operator root-seed envelope",
+            error,
+        )
+    })?;
+    let envelope = crate::keys::material::validate_key_envelope(&serialized)?;
     if let Some(password) = password {
         aoxcore::identity::keyfile::decrypt_key_from_envelope(&envelope, password).map_err(
             |error| {
