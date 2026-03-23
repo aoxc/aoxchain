@@ -151,8 +151,6 @@ Useful entry points:
 - `configs/deterministic-testnet/launch-testnet.sh`
 - `scripts/run-local.sh`
 - `scripts/validation/multi_host_validation.sh`
-- `scripts/validation/network_production_closure.sh`
-- `scripts/release/generate_release_evidence.sh`
 
 Suggested validation order:
 
@@ -205,9 +203,7 @@ Every named release should capture:
 - test outcomes,
 - documentation changes,
 - known limitations and blockers,
-- artifact and provenance policy status,
-- compatibility matrix status,
-- network production closure artifacts.
+- artifact and provenance policy status.
 
 ---
 

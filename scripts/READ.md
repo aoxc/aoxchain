@@ -25,7 +25,6 @@ This document defines the mandatory roadmap for advancing the covered workspace 
 - Binary artifacts, deployment bundles, and audit records must reference the same release identifier without ambiguity.
 
 ## Change Ledger
-- `aoxc.v.0.1.1-akdeniz`: added `validation/network_production_closure.sh` and `release/generate_release_evidence.sh` to formalize network closure, release trust-chain evidence, and compatibility bundle generation.
 - `aoxc.v.0.1.1-akdeniz`: initialized audit roadmap, introduced strict Akdeniz release baseline, and reserved this folder for continuous release tracking.
 - Future entries must describe the exact implementation delta, affected artifacts, and verification evidence added in that version.
 
