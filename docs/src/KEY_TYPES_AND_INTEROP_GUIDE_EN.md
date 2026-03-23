@@ -99,21 +99,6 @@ aoxc interop-gate --audit-complete true --fuzz-complete true --replay-complete t
 
 For the next identity-hardening step, see `AOXC Node Identity v0.1.0-alpha`, which proposes a canonical hybrid node identity bundle, typed node certificates, and role-separated key lifecycle modeling before block-format expansion.
 
-## 3.3) Current integration status
-
-The repository now has a typed `aoxcore::identity::key_bundle` model and CLI integration points:
-
-- `aoxcmd key-bootstrap` persists the canonical bundle
-- `aoxcmd keys-inspect` emits a bundle-derived operator/consensus/transport summary
-- `aoxcmd keys-export-identity` projects `node.cert.json` and `node.passport.json` from the bundle
-- `aoxcmd keys-enter-recovery-mode` can freeze the bundle into a recovery-only operational state
-- `aoxcmd keys-mark-compromised` marks the bundle compromised so consensus/transport authorization paths fail closed
-- `aoxcmd keys-mark-revoked` moves the bundle into a revoked state for hard fail-closed operator handling
-- `aoxcmd keys-rotate --password <value>` creates a successor bundle with rotation lineage (`previous_bundle_fingerprint`, `rotation_counter`)
-- `aoxcmd keys-verify` validates the bundle and encrypted root-seed envelope
-- `aoxc-keyforge key inspect-bundle --file <path>` inspects and validates stored bundle JSON
-- block validation can additionally bind producer identity to the bundle's consensus role
-
 ## 4) Recommended Production Path
 
 - Stage A: single-lane hardened testnet (EVM first)

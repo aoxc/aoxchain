@@ -83,24 +83,17 @@ fn build_block_for_tx(
     )?;
 
     let proposer_key = proposer_key_from_material(key_material)?;
-    let transactions = [transaction_from_payload(tx)?];
-    let receipts = [receipt_for_transaction(&transactions[0], tx)?];
-    let assembly_plan = CanonicalBlockAssemblyPlan::from_transactions(
-        height,
-        parent_hash,
-        proposer_key,
-        &transactions,
-        &receipts,
-    )
-    .map_err(|error| {
-        AppError::with_source(
-            ErrorCode::NodeStateInvalid,
-            format!("Failed to build canonical assembly plan at height {height}"),
-            error,
-        )
-    })?;
 
-    let lane_commitment = lane_commitment_from_assembly(&assembly_plan, tx, round)?;
+    let lane_commitment = LaneCommitment {
+        lane_id: 1,
+        lane_type: LaneType::Native,
+        tx_count: 1,
+        input_root: derive_digest32("AOXC-CMD-INPUT", tx.as_bytes()),
+        output_root: derive_digest32("AOXC-CMD-OUTPUT", tx.as_bytes()),
+        receipt_root: derive_digest32("AOXC-CMD-RECEIPT", tx.as_bytes()),
+        state_commitment: derive_digest32("AOXC-CMD-STATE", format!("{height}:{tx}").as_bytes()),
+        proof_commitment: derive_digest32("AOXC-CMD-PROOF", format!("{round}:{tx}").as_bytes()),
+    };
 
     let body = BlockBody {
         sections: vec![BlockSection::LaneCommitment(LaneCommitmentSection {

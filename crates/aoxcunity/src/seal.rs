@@ -112,12 +112,6 @@ impl AuthenticatedQuorumCertificate {
     }
 }
 
-fn canonicalize_signers(mut signers: Vec<ValidatorId>) -> Vec<ValidatorId> {
-    signers.sort();
-    signers.dedup();
-    signers
-}
-
 #[allow(clippy::too_many_arguments)]
 fn compute_certificate_hash(
     block_hash: [u8; 32],
@@ -187,21 +181,5 @@ mod tests {
         let b = AuthenticatedQuorumCertificate::new(certificate, 2626, 2, [9u8; 32], 1);
 
         assert_ne!(a.authenticated_hash, b.authenticated_hash);
-    }
-
-    #[test]
-    fn quorum_certificate_canonicalizes_duplicate_signers() {
-        let certificate = QuorumCertificate::new(
-            [1u8; 32],
-            10,
-            3,
-            vec![[2u8; 32], [1u8; 32], [2u8; 32]],
-            20,
-            30,
-            2,
-            3,
-        );
-
-        assert_eq!(certificate.signers, vec![[1u8; 32], [2u8; 32]]);
     }
 }
