@@ -39,7 +39,31 @@ struct Readiness {
     verdict: &'static str,
     blockers: Vec<String>,
     remediation_plan: Vec<String>,
+    next_focus: Vec<String>,
+    area_progress: Vec<ReadinessAreaProgress>,
+    track_progress: Vec<ReadinessTrackProgress>,
     checks: Vec<ReadinessCheck>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct ReadinessAreaProgress {
+    area: &'static str,
+    completed_weight: u8,
+    max_weight: u8,
+    ratio: u8,
+    passed_checks: u8,
+    total_checks: u8,
+    status: &'static str,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct ReadinessTrackProgress {
+    name: &'static str,
+    completed_weight: u8,
+    max_weight: u8,
+    ratio: u8,
+    status: &'static str,
+    objective: &'static str,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -322,6 +346,9 @@ fn readiness_from_checks(profile: String, checks: Vec<ReadinessCheck>) -> Readin
         .map(|check| format!("{}: {}", check.name, check.detail))
         .collect::<Vec<_>>();
     let remediation_plan = remediation_plan(&checks);
+    let area_progress = area_progress(&checks);
+    let track_progress = track_progress(&checks);
+    let next_focus = next_focus(&area_progress);
 
     Readiness {
         profile,
@@ -345,7 +372,132 @@ fn readiness_from_checks(profile: String, checks: Vec<ReadinessCheck>) -> Readin
         },
         blockers,
         remediation_plan,
+        next_focus,
+        area_progress,
+        track_progress,
         checks,
+    }
+}
+
+fn area_progress(checks: &[ReadinessCheck]) -> Vec<ReadinessAreaProgress> {
+    let area_order = [
+        "configuration",
+        "network",
+        "observability",
+        "identity",
+        "runtime",
+        "release",
+        "operations",
+    ];
+    let mut progress = Vec::new();
+
+    for area in area_order {
+        let area_checks = checks
+            .iter()
+            .filter(|check| check.area == area)
+            .collect::<Vec<_>>();
+        if area_checks.is_empty() {
+            continue;
+        }
+
+        let max_weight = area_checks.iter().map(|check| check.weight).sum::<u8>();
+        let completed_weight = area_checks
+            .iter()
+            .filter(|check| check.passed)
+            .map(|check| check.weight)
+            .sum::<u8>();
+        let passed_checks = area_checks.iter().filter(|check| check.passed).count() as u8;
+        let total_checks = area_checks.len() as u8;
+        let ratio = ratio(completed_weight, max_weight);
+
+        progress.push(ReadinessAreaProgress {
+            area,
+            completed_weight,
+            max_weight,
+            ratio,
+            passed_checks,
+            total_checks,
+            status: progress_status(ratio),
+        });
+    }
+
+    progress
+}
+
+fn track_progress(checks: &[ReadinessCheck]) -> Vec<ReadinessTrackProgress> {
+    let testnet_max = checks
+        .iter()
+        .filter(|check| check.name != "mainnet-profile")
+        .map(|check| check.weight)
+        .sum::<u8>();
+    let testnet_completed = checks
+        .iter()
+        .filter(|check| check.name != "mainnet-profile" && check.passed)
+        .map(|check| check.weight)
+        .sum::<u8>();
+    let mainnet_max = checks.iter().map(|check| check.weight).sum::<u8>();
+    let mainnet_completed = checks
+        .iter()
+        .filter(|check| check.passed)
+        .map(|check| check.weight)
+        .sum::<u8>();
+
+    vec![
+        ReadinessTrackProgress {
+            name: "testnet",
+            completed_weight: testnet_completed,
+            max_weight: testnet_max,
+            ratio: ratio(testnet_completed, testnet_max),
+            status: progress_status(ratio(testnet_completed, testnet_max)),
+            objective: "Public testnet should close all non-mainnet-specific blockers and sustain AOXHub/core parity.",
+        },
+        ReadinessTrackProgress {
+            name: "mainnet",
+            completed_weight: mainnet_completed,
+            max_weight: mainnet_max,
+            ratio: ratio(mainnet_completed, mainnet_max),
+            status: progress_status(ratio(mainnet_completed, mainnet_max)),
+            objective: "Mainnet requires every weighted control to pass, including production profile, keys, runtime, and release evidence.",
+        },
+    ]
+}
+
+fn next_focus(area_progress: &[ReadinessAreaProgress]) -> Vec<String> {
+    let mut weakest = area_progress
+        .iter()
+        .filter(|area| area.ratio < 100)
+        .collect::<Vec<_>>();
+    weakest.sort_by_key(|area| (area.ratio, area.area));
+
+    weakest
+        .into_iter()
+        .take(3)
+        .map(|area| {
+            format!(
+                "{}: raise from {}% to 100% ({} of {} checks passing)",
+                area.area, area.ratio, area.passed_checks, area.total_checks
+            )
+        })
+        .collect()
+}
+
+fn ratio(completed_weight: u8, max_weight: u8) -> u8 {
+    if max_weight == 0 {
+        0
+    } else {
+        (completed_weight as u16 * 100 / max_weight as u16) as u8
+    }
+}
+
+fn progress_status(ratio: u8) -> &'static str {
+    if ratio == 100 {
+        "ready"
+    } else if ratio >= 75 {
+        "hardening"
+    } else if ratio >= 50 {
+        "in-progress"
+    } else {
+        "bootstrap"
     }
 }
 
@@ -798,6 +950,41 @@ mod tests {
         assert!(readiness.blockers.is_empty());
         assert_eq!(readiness.remediation_plan.len(), 1);
         assert!(readiness.remediation_plan[0].contains("100%"));
+        assert_eq!(readiness.track_progress.len(), 2);
+        assert_eq!(readiness.track_progress[0].ratio, 100);
+        assert_eq!(readiness.track_progress[1].ratio, 100);
+        assert!(readiness.next_focus.is_empty());
+        assert!(readiness
+            .area_progress
+            .iter()
+            .all(|progress| progress.ratio == 100));
+    }
+
+    #[test]
+    fn readiness_reports_testnet_progress_separately_from_mainnet() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "validator".to_string();
+        settings.logging.json = true;
+        settings.network.bind_host = "0.0.0.0".to_string();
+
+        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+
+        let testnet = readiness
+            .track_progress
+            .iter()
+            .find(|track| track.name == "testnet")
+            .expect("testnet track should exist");
+        let mainnet = readiness
+            .track_progress
+            .iter()
+            .find(|track| track.name == "mainnet")
+            .expect("mainnet track should exist");
+
+        assert!(testnet.ratio > mainnet.ratio);
+        assert!(readiness
+            .next_focus
+            .iter()
+            .any(|entry| entry.starts_with("configuration:")));
     }
 
     #[test]
