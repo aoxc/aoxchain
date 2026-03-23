@@ -59,7 +59,10 @@ Describe:
   sovereign-core | module-architecture | compat-matrix | port-map
 
 Bootstrap:
-  key-bootstrap | keys-show-fingerprint | keys-verify [--password <value>]
+  key-bootstrap | keys-inspect | keys-export-identity | keys-show-fingerprint
+  keys-enter-recovery-mode | keys-mark-compromised | keys-mark-revoked
+  keys-rotate --password <value>
+  keys-verify [--password <value>]
   genesis-init | genesis-validate | genesis-inspect | genesis-hash
   config-init | config-validate | config-print
 

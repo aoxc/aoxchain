@@ -30,7 +30,8 @@ pub fn cmd_load_benchmark(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
     let settings = load_or_init()?;
-    let key_ok = crate::keys::manager::verify_operator_key(None).is_ok();
+    let key_summary = crate::keys::manager::inspect_operator_key().ok();
+    let key_ok = key_summary.is_some();
     let genesis_ok = crate::cli::bootstrap::genesis_ready();
     let node_ok = lifecycle::load_state().is_ok();
     #[derive(serde::Serialize)]
@@ -41,6 +42,7 @@ pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
         genesis_present: bool,
         node_state_present: bool,
         enforce_official_peers: bool,
+        key_operational_state: &'static str,
         verdict: &'static str,
     }
     let readiness = Readiness {
@@ -50,7 +52,25 @@ pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
         genesis_present: genesis_ok,
         node_state_present: node_ok,
         enforce_official_peers: settings.network.enforce_official_peers,
-        verdict: if key_ok && genesis_ok && node_ok && settings.network.enforce_official_peers {
+        key_operational_state: key_summary
+            .as_ref()
+            .map(|summary| match summary.operational_state.as_str() {
+                "active" => "active",
+                "recovery_only" => "recovery_only",
+                "compromised" => "compromised",
+                "revoked" => "revoked",
+                _ => "unknown",
+            })
+            .unwrap_or("missing"),
+        verdict: if key_ok
+            && genesis_ok
+            && node_ok
+            && settings.network.enforce_official_peers
+            && key_summary
+                .as_ref()
+                .map(|summary| summary.operational_state == "active")
+                .unwrap_or(false)
+        {
             "candidate"
         } else {
             "not-ready"
@@ -97,6 +117,7 @@ pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
     let settings = load_or_init()?;
+    let key_summary = crate::keys::manager::inspect_operator_key()?;
     let mut details = BTreeMap::new();
     details.insert("bind_host".to_string(), settings.network.bind_host);
     details.insert(
@@ -107,6 +128,14 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
         "probe".to_string(),
         "local-listener-simulated-ok".to_string(),
     );
+    details.insert(
+        "transport_public_key".to_string(),
+        key_summary.transport_public_key,
+    );
+    details.insert(
+        "key_operational_state".to_string(),
+        key_summary.operational_state,
+    );
     emit_serialized(
         &text_envelope("network-smoke", "ok", details),
         output_format(args),
@@ -115,11 +144,20 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_real_network(args: &[String]) -> Result<(), AppError> {
     let settings = load_or_init()?;
+    let key_summary = crate::keys::manager::inspect_operator_key()?;
     let mut details = BTreeMap::new();
     details.insert("mode".to_string(), "deterministic-local".to_string());
     details.insert(
         "enforce_official_peers".to_string(),
         settings.network.enforce_official_peers.to_string(),
+    );
+    details.insert(
+        "key_operational_state".to_string(),
+        key_summary.operational_state,
+    );
+    details.insert(
+        "transport_public_key".to_string(),
+        key_summary.transport_public_key,
     );
     emit_serialized(
         &text_envelope("real-network", "ok", details),

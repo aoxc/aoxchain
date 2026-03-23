@@ -1,9 +1,11 @@
 use crate::keyforge::cli::{KeyCommand, KeySubcommand};
-use aoxcore::identity::pq_keys;
+use crate::keyforge::util::read_text_file;
+use aoxcore::identity::{key_bundle::NodeKeyBundleV1, pq_keys};
 
 pub fn handle(command: KeyCommand) -> Result<(), String> {
     match command.command {
         KeySubcommand::Generate => generate(),
+        KeySubcommand::InspectBundle { file } => inspect_bundle(&file),
     }
 }
 
@@ -30,6 +32,19 @@ fn generate() -> Result<(), String> {
     Ok(())
 }
 
+fn inspect_bundle(file: &str) -> Result<(), String> {
+    let data = read_text_file(file)?;
+    let bundle = NodeKeyBundleV1::from_json(&data).map_err(|error| error.to_string())?;
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&bundle)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error))?
+    );
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -43,5 +58,17 @@ mod tests {
             result.is_ok(),
             "Key generation should succeed without errors"
         );
+    }
+
+    #[test]
+    fn inspect_bundle_rejects_invalid_json() {
+        let path = std::env::temp_dir().join("aoxc-invalid-key-bundle.json");
+        std::fs::write(&path, "{not-json").expect("temp file write must succeed");
+
+        let result = inspect_bundle(path.to_str().expect("path must be valid utf-8"));
+
+        assert!(result.is_err());
+
+        let _ = std::fs::remove_file(path);
     }
 }
