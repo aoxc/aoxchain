@@ -12,12 +12,14 @@ use crate::{
         core::runtime_context, handles::default_handles, node::health_status, unity::unity_status,
     },
 };
+use serde::Serialize;
 use std::{
     collections::BTreeMap,
+    fs,
     path::{Path, PathBuf},
 };
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 struct ReadinessCheck {
     name: &'static str,
     area: &'static str,
@@ -26,7 +28,7 @@ struct ReadinessCheck {
     detail: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 struct Readiness {
     profile: String,
     stage: &'static str,
@@ -36,7 +38,35 @@ struct Readiness {
     remaining_weight: u8,
     verdict: &'static str,
     blockers: Vec<String>,
+    remediation_plan: Vec<String>,
     checks: Vec<ReadinessCheck>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct ProfileBaselineReport {
+    mainnet_path: String,
+    testnet_path: String,
+    passed: bool,
+    shared_controls: Vec<BaselineControl>,
+    drift: Vec<String>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct BaselineControl {
+    name: &'static str,
+    mainnet: String,
+    testnet: String,
+    passed: bool,
+    expectation: &'static str,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct NetworkProfileConfig {
+    chain_id: String,
+    listen_addr: String,
+    rpc_addr: String,
+    peers: Vec<String>,
+    security_mode: String,
 }
 
 pub fn cmd_load_benchmark(args: &[String]) -> Result<(), AppError> {
@@ -68,7 +98,32 @@ pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
         genesis_ok,
         node_ok,
     );
+
+    if has_flag(args, "--enforce") && readiness.verdict != "candidate" {
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            format!(
+                "Mainnet readiness enforcement failed at score {} with blockers: {}",
+                readiness.readiness_score,
+                readiness.blockers.join(" | ")
+            ),
+        ));
+    }
+
     emit_serialized(&readiness, output_format(args))
+}
+
+pub fn cmd_profile_baseline(args: &[String]) -> Result<(), AppError> {
+    let report = compare_embedded_network_profiles()?;
+
+    if has_flag(args, "--enforce") && !report.passed {
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            "Mainnet/testnet baseline parity failed; inspect drift before production promotion",
+        ));
+    }
+
+    emit_serialized(&report, output_format(args))
 }
 
 fn evaluate_mainnet_readiness(
@@ -80,6 +135,7 @@ fn evaluate_mainnet_readiness(
 ) -> Readiness {
     let release_dir = locate_repo_artifact_dir("release-evidence");
     let closure_dir = locate_repo_artifact_dir("network-production-closure");
+    let baseline_parity = compare_embedded_network_profiles().ok();
     let key_state = key_operational_state.unwrap_or("missing");
 
     let checks = vec![
@@ -140,6 +196,26 @@ fn evaluate_mainnet_readiness(
             matches!(key_state, "active"),
             12,
             format!("Operator key operational state is {key_state}"),
+        ),
+        readiness_check(
+            "profile-baseline-parity",
+            "release",
+            baseline_parity.as_ref().is_some_and(|report| report.passed),
+            8,
+            baseline_parity
+                .map(|report| {
+                    if report.passed {
+                        "Mainnet and testnet embedded baselines share the same production control shape".to_string()
+                    } else {
+                        format!(
+                            "Embedded mainnet/testnet baseline drift detected: {}",
+                            report.drift.join("; ")
+                        )
+                    }
+                })
+                .unwrap_or_else(|| {
+                    "Unable to compare embedded mainnet/testnet baseline files".to_string()
+                }),
         ),
         readiness_check(
             "release-evidence",
@@ -224,6 +300,7 @@ fn readiness_from_checks(profile: String, checks: Vec<ReadinessCheck>) -> Readin
         .filter(|check| !check.passed)
         .map(|check| format!("{}: {}", check.name, check.detail))
         .collect::<Vec<_>>();
+    let remediation_plan = remediation_plan(&checks);
 
     Readiness {
         profile,
@@ -246,8 +323,71 @@ fn readiness_from_checks(profile: String, checks: Vec<ReadinessCheck>) -> Readin
             "not-ready"
         },
         blockers,
+        remediation_plan,
         checks,
     }
+}
+
+fn remediation_plan(checks: &[ReadinessCheck]) -> Vec<String> {
+    let mut plan = Vec::new();
+
+    for check in checks.iter().filter(|check| !check.passed) {
+        let step = match check.name {
+            "config-valid" => {
+                "Run `aoxc config-validate` and fix the operator settings file before promotion."
+            }
+            "mainnet-profile" => {
+                "Run `aoxc production-bootstrap --profile mainnet --password <value>` or `aoxc config-init --profile mainnet --json-logs`."
+            }
+            "official-peers" => {
+                "Re-enable curated peer enforcement in the operator settings before joining production."
+            }
+            "telemetry-metrics" => {
+                "Keep Prometheus telemetry enabled so production SLOs and alerts remain actionable."
+            }
+            "structured-logging" => {
+                "Enable JSON logging to preserve audit-quality operator trails and SIEM ingestion."
+            }
+            "genesis-present" => {
+                "Materialize genesis with `aoxc genesis-init` or re-run `aoxc production-bootstrap`."
+            }
+            "node-state-present" => {
+                "Initialize runtime state with `aoxc node-bootstrap` or re-run `aoxc production-bootstrap`."
+            }
+            "operator-key-active" => {
+                "Bootstrap or rotate operator keys with `aoxc key-bootstrap --profile mainnet --password <value>`."
+            }
+            "profile-baseline-parity" => {
+                "Run `aoxc profile-baseline --enforce` and align embedded mainnet/testnet configs before promotion."
+            }
+            "release-evidence" => {
+                "Regenerate release evidence under `artifacts/release-evidence/` before promotion."
+            }
+            "production-closure" => {
+                "Refresh production closure artifacts under `artifacts/network-production-closure/`."
+            }
+            "compatibility-matrix" => {
+                "Publish a fresh compatibility matrix for the candidate release."
+            }
+            "provenance-attestation" => {
+                "Attach provenance attestation evidence before release sign-off."
+            }
+            _ => continue,
+        };
+
+        if !plan.iter().any(|existing| existing == step) {
+            plan.push(step.to_string());
+        }
+    }
+
+    if plan.is_empty() {
+        plan.push(
+            "Candidate is at 100%; keep running `aoxc mainnet-readiness --enforce --format json` in CI to prevent regressions."
+                .to_string(),
+        );
+    }
+
+    plan
 }
 
 fn has_release_evidence(dir: &Path) -> bool {
@@ -277,6 +417,160 @@ fn has_matching_artifact(dir: &Path, prefix: &str, suffix: &str) -> bool {
         .filter_map(|entry| entry.ok())
         .filter_map(|entry| entry.file_name().into_string().ok())
         .any(|name| name.starts_with(prefix) && name.ends_with(suffix))
+}
+
+fn compare_embedded_network_profiles() -> Result<ProfileBaselineReport, AppError> {
+    let repo_root = locate_repo_root();
+    let mainnet_path = repo_root.join("configs").join("mainnet.toml");
+    let testnet_path = repo_root.join("configs").join("testnet.toml");
+    let mainnet = parse_network_profile(&mainnet_path)?;
+    let testnet = parse_network_profile(&testnet_path)?;
+
+    let shared_controls = vec![
+        BaselineControl {
+            name: "security_mode",
+            mainnet: mainnet.security_mode.clone(),
+            testnet: testnet.security_mode.clone(),
+            passed: !mainnet.security_mode.trim().is_empty()
+                && mainnet.security_mode == testnet.security_mode,
+            expectation: "Both profiles must enforce the same security mode before promotion",
+        },
+        BaselineControl {
+            name: "peer_seed_count",
+            mainnet: mainnet.peers.len().to_string(),
+            testnet: testnet.peers.len().to_string(),
+            passed: !mainnet.peers.is_empty() && mainnet.peers.len() == testnet.peers.len(),
+            expectation: "Both profiles should define the same number of bootstrap peers",
+        },
+        BaselineControl {
+            name: "listen_port_offset",
+            mainnet: normalized_port_pair(&mainnet.listen_addr, &mainnet.rpc_addr),
+            testnet: normalized_port_pair(&testnet.listen_addr, &testnet.rpc_addr),
+            passed: ports_are_shifted_consistently(&mainnet, &testnet),
+            expectation:
+                "Testnet should differ only by deterministic port offsets, not by capability shape",
+        },
+    ];
+
+    let drift = shared_controls
+        .iter()
+        .filter(|control| !control.passed)
+        .map(|control| {
+            format!(
+                "{} mismatch (mainnet={}, testnet={})",
+                control.name, control.mainnet, control.testnet
+            )
+        })
+        .collect::<Vec<_>>();
+
+    Ok(ProfileBaselineReport {
+        mainnet_path: mainnet_path.display().to_string(),
+        testnet_path: testnet_path.display().to_string(),
+        passed: drift.is_empty(),
+        shared_controls,
+        drift,
+    })
+}
+
+fn locate_repo_root() -> PathBuf {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    for candidate in cwd.ancestors() {
+        if candidate.join("Cargo.toml").exists() && candidate.join("configs").exists() {
+            return candidate.to_path_buf();
+        }
+    }
+    cwd
+}
+
+fn parse_network_profile(path: &Path) -> Result<NetworkProfileConfig, AppError> {
+    let raw = fs::read_to_string(path).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to read network profile {}", path.display()),
+            e,
+        )
+    })?;
+    let mut config = NetworkProfileConfig::default();
+    let mut in_peers = false;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        if in_peers {
+            if trimmed == "]" {
+                in_peers = false;
+                continue;
+            }
+            let peer = trimmed.trim_end_matches(',').trim_matches('"');
+            if !peer.is_empty() {
+                config.peers.push(peer.to_string());
+            }
+            continue;
+        }
+
+        if let Some((key, value)) = trimmed.split_once('=') {
+            let key = key.trim();
+            let value = value.trim();
+            match key {
+                "chain_id" => config.chain_id = unquote(value),
+                "listen_addr" => config.listen_addr = unquote(value),
+                "rpc_addr" => config.rpc_addr = unquote(value),
+                "security_mode" => config.security_mode = unquote(value),
+                "peers" if value == "[" => in_peers = true,
+                _ => {}
+            }
+        }
+    }
+
+    if config.chain_id.is_empty()
+        || config.listen_addr.is_empty()
+        || config.rpc_addr.is_empty()
+        || config.security_mode.is_empty()
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Network profile {} is missing required fields",
+                path.display()
+            ),
+        ));
+    }
+
+    Ok(config)
+}
+
+fn unquote(value: &str) -> String {
+    value.trim().trim_matches('"').to_string()
+}
+
+fn normalized_port_pair(listen_addr: &str, rpc_addr: &str) -> String {
+    format!(
+        "{}/{}",
+        extract_port(listen_addr).map_or_else(|| "?".to_string(), |p| p.to_string()),
+        extract_port(rpc_addr).map_or_else(|| "?".to_string(), |p| p.to_string())
+    )
+}
+
+fn ports_are_shifted_consistently(
+    mainnet: &NetworkProfileConfig,
+    testnet: &NetworkProfileConfig,
+) -> bool {
+    let mainnet_listen = extract_port(&mainnet.listen_addr);
+    let testnet_listen = extract_port(&testnet.listen_addr);
+    let mainnet_rpc = extract_port(&mainnet.rpc_addr);
+    let testnet_rpc = extract_port(&testnet.rpc_addr);
+
+    match (mainnet_listen, testnet_listen, mainnet_rpc, testnet_rpc) {
+        (Some(ml), Some(tl), Some(mr), Some(tr)) => tl > ml && tr > mr && (tl - ml) == (tr - mr),
+        _ => false,
+    }
+}
+
+fn extract_port(addr: &str) -> Option<u16> {
+    addr.rsplit(':').next()?.parse::<u16>().ok()
 }
 
 pub fn cmd_node_bootstrap(args: &[String]) -> Result<(), AppError> {
@@ -379,8 +673,9 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        evaluate_mainnet_readiness, has_matching_artifact, has_production_closure_artifacts,
-        has_release_evidence, locate_repo_artifact_dir,
+        compare_embedded_network_profiles, evaluate_mainnet_readiness, has_matching_artifact,
+        has_production_closure_artifacts, has_release_evidence, locate_repo_artifact_dir,
+        parse_network_profile, ports_are_shifted_consistently, remediation_plan,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -458,6 +753,8 @@ mod tests {
         assert_eq!(readiness.readiness_score, 100);
         assert_eq!(readiness.verdict, "candidate");
         assert!(readiness.blockers.is_empty());
+        assert_eq!(readiness.remediation_plan.len(), 1);
+        assert!(readiness.remediation_plan[0].contains("100%"));
     }
 
     #[test]
@@ -467,6 +764,89 @@ mod tests {
             release_dir.ends_with(Path::new("artifacts").join("release-evidence")),
             "artifact lookup should resolve to repository artifacts directory"
         );
+    }
+
+    #[test]
+    fn embedded_profiles_share_expected_baseline_controls() {
+        let report = compare_embedded_network_profiles()
+            .expect("embedded network baseline comparison should load");
+
+        assert!(report.passed, "baseline drift: {:?}", report.drift);
+    }
+
+    #[test]
+    fn parse_network_profile_reads_expected_fields() {
+        let dir = unique_dir("network-profile");
+        let path = dir.join("profile.toml");
+        fs::create_dir_all(&dir).expect("fixture directory should be created");
+        fs::write(
+            &path,
+            r#"chain_id = "aox-testnet-9"
+listen_addr = "0.0.0.0:36656"
+rpc_addr = "0.0.0.0:18545"
+peers = [
+  "127.0.0.1:36657",
+  "127.0.0.1:36658",
+]
+security_mode = "audit_strict"
+"#,
+        )
+        .expect("profile fixture should be written");
+
+        let profile = parse_network_profile(&path).expect("profile should parse");
+
+        assert_eq!(profile.chain_id, "aox-testnet-9");
+        assert_eq!(profile.peers.len(), 2);
+        assert_eq!(profile.security_mode, "audit_strict");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn shifted_ports_require_same_delta_across_profiles() {
+        let mainnet_profile = super::NetworkProfileConfig {
+            chain_id: "aox-mainnet-1".to_string(),
+            listen_addr: "0.0.0.0:26656".to_string(),
+            rpc_addr: "0.0.0.0:8545".to_string(),
+            peers: vec!["seed-1".to_string(), "seed-2".to_string()],
+            security_mode: "audit_strict".to_string(),
+        };
+        let testnet_profile = super::NetworkProfileConfig {
+            chain_id: "aox-testnet-1".to_string(),
+            listen_addr: "0.0.0.0:36656".to_string(),
+            rpc_addr: "0.0.0.0:18545".to_string(),
+            peers: vec!["seed-1".to_string(), "seed-2".to_string()],
+            security_mode: "audit_strict".to_string(),
+        };
+
+        assert!(ports_are_shifted_consistently(
+            &mainnet_profile,
+            &testnet_profile
+        ));
+    }
+
+    #[test]
+    fn remediation_plan_maps_failed_checks_to_operator_actions() {
+        let plan = remediation_plan(&[
+            super::ReadinessCheck {
+                name: "mainnet-profile",
+                area: "configuration",
+                passed: false,
+                weight: 10,
+                detail: "profile drift".to_string(),
+            },
+            super::ReadinessCheck {
+                name: "profile-baseline-parity",
+                area: "release",
+                passed: false,
+                weight: 8,
+                detail: "baseline drift".to_string(),
+            },
+        ]);
+
+        assert_eq!(plan.len(), 2);
+        assert!(plan[0].contains("production-bootstrap"));
+        assert!(plan[1].contains("profile-baseline --enforce"));
     }
 }
 

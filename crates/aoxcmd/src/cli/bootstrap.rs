@@ -283,7 +283,7 @@ pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
             .unwrap_or_default(),
         chain_num: genesis.chain_num,
         node_height: state.current_height,
-        readiness_hint: "run `aoxc mainnet-readiness --format json` after bootstrap to inspect remaining blockers",
+        readiness_hint: "run `aoxc mainnet-readiness --enforce --format json` after bootstrap to verify candidate status",
     };
     emit_serialized(&result, output_format(args))
 }

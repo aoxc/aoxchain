@@ -41,6 +41,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "module-architecture" => describe::cmd_module_architecture(),
         "compat-matrix" => describe::cmd_compat_matrix(),
         "port-map" => describe::cmd_port_map(),
+        "profile-baseline" => ops::cmd_profile_baseline(&args[2..]),
         "testnet-fixture-init" => bootstrap::cmd_testnet_fixture_init(&args[2..]),
         "load-benchmark" => ops::cmd_load_benchmark(&args[2..]),
         "mainnet-readiness" => ops::cmd_mainnet_readiness(&args[2..]),

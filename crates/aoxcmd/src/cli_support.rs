@@ -56,7 +56,7 @@ Usage:
 
 Describe:
   version | vision | build-manifest | node-connection-policy
-  sovereign-core | module-architecture | compat-matrix | port-map
+  sovereign-core | module-architecture | compat-matrix | port-map | profile-baseline [--enforce]
 
 Bootstrap:
   key-bootstrap | keys-inspect | keys-show-fingerprint | keys-verify [--password <value>]
