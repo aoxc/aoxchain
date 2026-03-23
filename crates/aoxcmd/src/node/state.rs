@@ -67,6 +67,41 @@ impl NodeState {
     pub fn touch(&mut self) {
         self.updated_at = Utc::now().to_rfc3339();
     }
+
+    pub fn validate(&self) -> Result<(), String> {
+        chrono::DateTime::parse_from_rfc3339(&self.updated_at)
+            .map_err(|_| "updated_at must be a valid RFC3339 timestamp".to_string())?;
+        if self.running && !self.initialized {
+            return Err("running node state must also be initialized".to_string());
+        }
+        if self.produced_blocks > self.current_height {
+            return Err("produced_blocks cannot exceed current_height".to_string());
+        }
+        validate_hex_field(
+            &self.consensus.last_parent_hash_hex,
+            32,
+            "consensus.last_parent_hash_hex",
+        )?;
+        validate_hex_field(
+            &self.consensus.last_block_hash_hex,
+            32,
+            "consensus.last_block_hash_hex",
+        )?;
+        validate_hex_field(
+            &self.consensus.last_proposer_hex,
+            32,
+            "consensus.last_proposer_hex",
+        )?;
+        Ok(())
+    }
+}
+
+fn validate_hex_field(value: &str, bytes: usize, field: &str) -> Result<(), String> {
+    let decoded = hex::decode(value).map_err(|_| format!("{field} must be valid hex"))?;
+    if decoded.len() != bytes {
+        return Err(format!("{field} must decode to {bytes} bytes"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -100,5 +135,22 @@ mod tests {
         assert_eq!(state.consensus.last_block_hash_hex, hex::encode([0u8; 32]));
         assert_eq!(state.consensus.last_message_kind, "bootstrap");
         assert!(state.key_material.consensus_public_key_hex.is_empty());
+    }
+
+    #[test]
+    fn validate_rejects_non_initialized_running_state() {
+        let mut state = NodeState::bootstrap();
+        state.initialized = false;
+        state.running = true;
+
+        assert!(state.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_invalid_consensus_hashes() {
+        let mut state = NodeState::bootstrap();
+        state.consensus.last_block_hash_hex = "xyz".to_string();
+
+        assert!(state.validate().is_err());
     }
 }

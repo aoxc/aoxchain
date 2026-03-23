@@ -29,6 +29,19 @@ impl LedgerState {
             updated_at: Utc::now().to_rfc3339(),
         }
     }
+
+    pub fn validate(&self) -> Result<(), String> {
+        chrono::DateTime::parse_from_rfc3339(&self.updated_at)
+            .map_err(|_| "updated_at must be a valid RFC3339 timestamp".to_string())?;
+        if self
+            .delegations
+            .keys()
+            .any(|validator| validator.trim().is_empty())
+        {
+            return Err("delegations cannot contain blank validator ids".to_string());
+        }
+        Ok(())
+    }
 }
 
 pub fn ledger_path() -> Result<PathBuf, AppError> {
@@ -43,12 +56,19 @@ pub fn load() -> Result<LedgerState, AppError> {
             format!("Ledger file is missing at {}", path.display()),
         )
     })?;
-    serde_json::from_str(&raw).map_err(|e| {
+    let ledger: LedgerState = serde_json::from_str(&raw).map_err(|e| {
         AppError::with_source(ErrorCode::LedgerInvalid, "Failed to parse ledger state", e)
-    })
+    })?;
+    ledger
+        .validate()
+        .map_err(|e| AppError::new(ErrorCode::LedgerInvalid, e))?;
+    Ok(ledger)
 }
 
 pub fn persist(ledger: &LedgerState) -> Result<(), AppError> {
+    ledger
+        .validate()
+        .map_err(|e| AppError::new(ErrorCode::LedgerInvalid, e))?;
     let path = ledger_path()?;
     let content = serde_json::to_string_pretty(ledger).map_err(|e| {
         AppError::with_source(
@@ -111,4 +131,69 @@ pub fn undelegate(validator: &str, amount: u64) -> Result<LedgerState, AppError>
     ledger.updated_at = Utc::now().to_rfc3339();
     persist(&ledger)?;
     Ok(ledger)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{load, persist, LedgerState};
+    use crate::error::ErrorCode;
+    use std::{
+        env, fs,
+        path::PathBuf,
+        sync::{Mutex, OnceLock},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn unique_test_home(label: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        env::temp_dir().join(format!("aoxcmd-{label}-{nanos}"))
+    }
+
+    #[test]
+    fn persist_rejects_blank_delegation_targets() {
+        let _guard = env_lock().lock().expect("test env mutex must lock");
+        let home = unique_test_home("ledger-invalid-persist");
+        env::set_var("AOXC_HOME", &home);
+
+        let mut ledger = LedgerState::new();
+        ledger.delegations.insert(" ".to_string(), 10);
+
+        let error = persist(&ledger).expect_err("blank delegation target should be rejected");
+        assert_eq!(error.code(), ErrorCode::LedgerInvalid.as_str());
+
+        let _ = fs::remove_dir_all(&home);
+        env::remove_var("AOXC_HOME");
+    }
+
+    #[test]
+    fn load_rejects_invalid_timestamp() {
+        let _guard = env_lock().lock().expect("test env mutex must lock");
+        let home = unique_test_home("ledger-invalid-load");
+        env::set_var("AOXC_HOME", &home);
+
+        let mut ledger = LedgerState::new();
+        ledger.updated_at = "not-a-timestamp".to_string();
+        let path = home.join("ledger").join("ledger.json");
+        std::fs::create_dir_all(path.parent().expect("parent must exist"))
+            .expect("ledger dir should create");
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&ledger).expect("ledger should encode"),
+        )
+        .expect("ledger should write");
+
+        let error = load().expect_err("invalid timestamp should be rejected");
+        assert_eq!(error.code(), ErrorCode::LedgerInvalid.as_str());
+
+        let _ = fs::remove_dir_all(&home);
+        env::remove_var("AOXC_HOME");
+    }
 }

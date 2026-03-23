@@ -17,9 +17,13 @@ pub fn load_state() -> Result<NodeState, AppError> {
             format!("Node state file is missing at {}", path.display()),
         )
     })?;
-    serde_json::from_str(&raw).map_err(|e| {
+    let state: NodeState = serde_json::from_str(&raw).map_err(|e| {
         AppError::with_source(ErrorCode::NodeStateInvalid, "Failed to parse node state", e)
-    })
+    })?;
+    state
+        .validate()
+        .map_err(|e| AppError::new(ErrorCode::NodeStateInvalid, e))?;
+    Ok(state)
 }
 
 pub fn persist_state(state: &NodeState) -> Result<(), AppError> {
@@ -43,6 +47,7 @@ pub fn bootstrap_state() -> Result<NodeState, AppError> {
 #[cfg(test)]
 mod tests {
     use super::{bootstrap_state, load_state, persist_state, state_path};
+    use crate::error::ErrorCode;
     use crate::node::state::NodeState;
     use std::{
         env, fs,
@@ -107,6 +112,24 @@ mod tests {
         assert_eq!(reloaded.last_tx, "smoke");
         assert_eq!(reloaded.consensus.last_round, 4);
         assert_eq!(reloaded.consensus.last_message_kind, "block_proposal");
+
+        let _ = fs::remove_dir_all(&home);
+        env::remove_var("AOXC_HOME");
+    }
+
+    #[test]
+    fn load_state_rejects_invalid_semantic_payload() {
+        let _guard = env_lock().lock().expect("test env mutex must lock");
+        let home = unique_test_home("invalid-state");
+        env::set_var("AOXC_HOME", &home);
+
+        let mut state = NodeState::bootstrap();
+        state.produced_blocks = 5;
+        state.current_height = 1;
+        persist_state(&state).expect("invalid semantic payload should still persist for test");
+
+        let error = load_state().expect_err("invalid semantic payload should be rejected");
+        assert_eq!(error.code(), ErrorCode::NodeStateInvalid.as_str());
 
         let _ = fs::remove_dir_all(&home);
         env::remove_var("AOXC_HOME");

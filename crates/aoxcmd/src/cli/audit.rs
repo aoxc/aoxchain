@@ -208,17 +208,24 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
     });
 
     let node_state = load_state();
+    let node_state_detail = match node_state.as_ref() {
+        Ok(_) => "Node runtime state is present and parseable".to_string(),
+        Err(error) => error.to_string(),
+    };
     checks.push(Check {
         name: "node-state",
         passed: node_state.is_ok(),
-        detail: "Node runtime state is present and parseable".to_string(),
+        detail: node_state_detail,
     });
 
-    let ledger_path = home.join("ledger").join("ledger.json");
+    let ledger_state = crate::economy::ledger::load();
     checks.push(Check {
-        name: "ledger-present",
-        passed: ledger_path.exists(),
-        detail: format!("Ledger path checked at {}", ledger_path.display()),
+        name: "ledger-state",
+        passed: ledger_state.is_ok(),
+        detail: match ledger_state.as_ref() {
+            Ok(_) => "Ledger state is present and semantically valid".to_string(),
+            Err(error) => error.to_string(),
+        },
     });
 
     checks.push(Check {

@@ -68,19 +68,66 @@ impl Settings {
         if self.home_dir.trim().is_empty() {
             return Err("home_dir must not be empty".to_string());
         }
+        if !matches!(
+            self.profile.trim().to_ascii_lowercase().as_str(),
+            "validator" | "testnet" | "mainnet"
+        ) {
+            return Err("profile must be one of validator, testnet, or mainnet".to_string());
+        }
         if self.network.p2p_port == 0
             || self.network.rpc_port == 0
             || self.telemetry.prometheus_port == 0
         {
             return Err("ports must be non-zero".to_string());
         }
+        if self.network.p2p_port == self.network.rpc_port
+            || self.network.p2p_port == self.telemetry.prometheus_port
+            || self.network.rpc_port == self.telemetry.prometheus_port
+        {
+            return Err("p2p, rpc, and prometheus ports must be distinct".to_string());
+        }
         if self.network.bind_host.trim().is_empty() {
             return Err("bind_host must not be empty".to_string());
+        }
+        if self.policy.allow_remote_peers && self.network.enforce_official_peers {
+            return Err(
+                "allow_remote_peers cannot be enabled while enforce_official_peers is active"
+                    .to_string(),
+            );
         }
         Ok(())
     }
 
     pub fn redacted(&self) -> Self {
         self.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Settings;
+
+    #[test]
+    fn validate_rejects_unknown_profile() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "staging".to_string();
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_port_collisions() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.network.rpc_port = settings.network.p2p_port;
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_conflicting_peer_policy() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.policy.allow_remote_peers = true;
+
+        assert!(settings.validate().is_err());
     }
 }
