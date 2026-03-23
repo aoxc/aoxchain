@@ -93,41 +93,6 @@ struct CommandPreset {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct DatabaseSurface {
-    title: String,
-    status: String,
-    path: String,
-    detail: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct LogSurface {
-    title: String,
-    status: String,
-    path: String,
-    detail: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ExplorerSurface {
-    title: String,
-    status: String,
-    target: String,
-    detail: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TerminalSurface {
-    title: String,
-    command: String,
-    detail: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 struct ControlCenterSnapshot {
     stage: String,
     verdict: String,
@@ -143,10 +108,6 @@ struct ControlCenterSnapshot {
     telemetry: Vec<TelemetrySurface>,
     reports: Vec<ReportAsset>,
     commands: Vec<CommandPreset>,
-    databases: Vec<DatabaseSurface>,
-    logs: Vec<LogSurface>,
-    explorer: Vec<ExplorerSurface>,
-    terminals: Vec<TerminalSurface>,
 }
 
 #[tauri::command]
@@ -173,10 +134,6 @@ fn load_control_center_snapshot() -> AppResult<ControlCenterSnapshot> {
     let telemetry = discover_telemetry_surfaces(&repo_root);
     let wallets = wallet_surfaces();
     let commands = command_presets();
-    let databases = database_surfaces(&repo_root);
-    let logs = log_surfaces(&repo_root);
-    let explorer = explorer_surfaces(&repo_root);
-    let terminals = terminal_surfaces();
 
     let summary = format!(
         "{} blocker(s), {} node control surface(s), {} wallet lane(s), and {} report asset(s) are currently exposed through AOXHub desktop.",
@@ -224,10 +181,6 @@ fn load_control_center_snapshot() -> AppResult<ControlCenterSnapshot> {
         telemetry,
         reports,
         commands,
-        databases,
-        logs,
-        explorer,
-        terminals,
     })
 }
 
@@ -531,84 +484,6 @@ fn command_presets() -> Vec<CommandPreset> {
             title: "Produce closure bundle".into(),
             command: "scripts/validation/network_production_closure.sh --scenario soak".into(),
             intent: "Collect telemetry, runtime, and rollout evidence for the admin cockpit reporting tab.".into(),
-        },
-    ]
-}
-
-
-fn database_surfaces(repo_root: &Path) -> Vec<DatabaseSurface> {
-    vec![
-        DatabaseSurface {
-            title: "Runtime state store".into(),
-            status: if repo_root.join("artifacts").exists() { "ready".into() } else { "queued".into() },
-            path: "artifacts/".into(),
-            detail: "Runtime state, release artifacts, and closure bundles should be queryable from the desktop database view.".into(),
-        },
-        DatabaseSurface {
-            title: "Deterministic testnet fixtures".into(),
-            status: if repo_root.join("configs/deterministic-testnet/accounts.json").exists() { "ready".into() } else { "queued".into() },
-            path: "configs/deterministic-testnet/accounts.json".into(),
-            detail: "Fixture accounts, node identity, and deterministic operator data.".into(),
-        },
-    ]
-}
-
-fn log_surfaces(repo_root: &Path) -> Vec<LogSurface> {
-    vec![
-        LogSurface {
-            title: "Production closure logs".into(),
-            status: if repo_root.join("artifacts/network-production-closure").exists() { "ready".into() } else { "queued".into() },
-            path: "artifacts/network-production-closure".into(),
-            detail: "Soak, telemetry, and recovery evidence should be explorable as log bundles.".into(),
-        },
-        LogSurface {
-            title: "Release evidence logs".into(),
-            status: if repo_root.join("artifacts/release-evidence").exists() { "ready".into() } else { "queued".into() },
-            path: "artifacts/release-evidence".into(),
-            detail: "SBOM, provenance, and compatibility evidence for explorer/audit timelines.".into(),
-        },
-    ]
-}
-
-fn explorer_surfaces(repo_root: &Path) -> Vec<ExplorerSurface> {
-    vec![
-        ExplorerSurface {
-            title: "Progress explorer".into(),
-            status: file_exists(repo_root, "AOXC_PROGRESS_REPORT.md"),
-            target: "AOXC_PROGRESS_REPORT.md".into(),
-            detail: "Readiness explorer for blockers, progress, parity, and remediation order.".into(),
-        },
-        ExplorerSurface {
-            title: "Node fixture explorer".into(),
-            status: file_exists(repo_root, "configs/deterministic-testnet/nodes/atlas.toml"),
-            target: "configs/deterministic-testnet/nodes".into(),
-            detail: "Node topology explorer for local cluster management and RPC endpoint mapping.".into(),
-        },
-        ExplorerSurface {
-            title: "Artifact explorer".into(),
-            status: file_exists(repo_root, "artifacts/release-evidence"),
-            target: "artifacts/".into(),
-            detail: "Evidence explorer for release, audit, telemetry, and network-closure artifacts.".into(),
-        },
-    ]
-}
-
-fn terminal_surfaces() -> Vec<TerminalSurface> {
-    vec![
-        TerminalSurface {
-            title: "Cluster terminal".into(),
-            command: "configs/deterministic-testnet/launch-testnet.sh".into(),
-            detail: "Bootstraps the deterministic local network from the desktop terminal rail.".into(),
-        },
-        TerminalSurface {
-            title: "Audit terminal".into(),
-            command: "cargo run -q -p aoxcmd -- production-audit --format json".into(),
-            detail: "Generates the operator audit output consumed by reporting panels.".into(),
-        },
-        TerminalSurface {
-            title: "Closure terminal".into(),
-            command: "scripts/validation/network_production_closure.sh --scenario soak".into(),
-            detail: "Runs the closure bundle workflow and fills telemetry/report explorers.".into(),
         },
     ]
 }
