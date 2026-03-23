@@ -11,9 +11,10 @@ pub mod hash;
 pub use error::BlockError;
 pub use hash::{
     HASH_FORMAT_VERSION, HASH_SIZE, ZERO_HASH, calculate_task_root, compute_hash, empty_task_root,
-    hash_header, hash_internal_node, hash_task, hash_task_leaf,
+    hash_header, hash_internal_node, hash_task, hash_task_leaf, try_hash_task, try_hash_task_leaf,
 };
 
+use crate::identity::key_bundle::NodeKeyBundleV1;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -176,8 +177,7 @@ impl Task {
     }
 
     /// Returns the canonical task hash.
-    #[must_use]
-    pub fn hash(&self) -> [u8; 32] {
+    pub fn hash(&self) -> Result<[u8; 32], BlockError> {
         hash::hash_task(self)
     }
 }
@@ -374,7 +374,7 @@ impl Block {
         }
 
         if self.header.producer == ZERO_HASH {
-            return Err(BlockError::InvalidPreviousHash);
+            return Err(BlockError::InvalidProducer);
         }
 
         Ok(())
@@ -450,18 +450,22 @@ impl Block {
     }
 
     /// Returns the canonical task-root commitment.
-    ///
-    /// Production code should prefer `try_task_root()` in order to handle errors
-    /// explicitly. This method is preserved for compatibility with existing call sites.
-    #[must_use]
-    pub fn task_root(&self) -> [u8; 32] {
-        self.try_task_root()
-            .expect("BLOCK_DOMAIN: task root calculation failed for a previously validated block")
+    pub fn task_root(&self) -> Result<[u8; 32], BlockError> {
+        hash::calculate_task_root(&self.tasks)
     }
 
-    /// Returns the canonical task-root commitment without panicking.
+    /// Returns the canonical task-root commitment.
     pub fn try_task_root(&self) -> Result<[u8; 32], BlockError> {
-        hash::calculate_task_root(&self.tasks)
+        self.task_root()
+    }
+
+    /// Validates the block and enforces producer authorization against the
+    /// canonical consensus key in the provided node key bundle.
+    pub fn validate_with_key_bundle(&self, bundle: &NodeKeyBundleV1) -> Result<(), BlockError> {
+        self.validate()?;
+        bundle
+            .authorize_block_producer(self.header.producer)
+            .map_err(|_| BlockError::InvalidProducer)
     }
 
     /// Returns `true` if the block contains duplicate task identifiers.
@@ -622,7 +626,43 @@ mod tests {
             tasks: Vec::new(),
         };
 
-        assert_eq!(block.validate(), Err(BlockError::InvalidPreviousHash));
+        assert_eq!(block.validate(), Err(BlockError::InvalidProducer));
+    }
+
+    #[test]
+    fn block_validate_with_key_bundle_accepts_matching_consensus_producer() {
+        use crate::identity::{
+            key_bundle::{CryptoProfile, NodeKeyBundleV1, NodeKeyRole},
+            key_engine::{KeyEngine, MASTER_SEED_LEN},
+            keyfile::encrypt_key_to_envelope,
+        };
+
+        let engine = KeyEngine::from_seed([0x66; MASTER_SEED_LEN]);
+        let envelope =
+            encrypt_key_to_envelope(engine.master_seed(), "Test#2026!").expect("must encrypt");
+        let bundle = NodeKeyBundleV1::generate(
+            "validator-01",
+            "validator",
+            "2026-01-01T00:00:00Z".to_string(),
+            CryptoProfile::HybridEd25519Dilithium3,
+            &engine,
+            envelope,
+        )
+        .expect("bundle generation must succeed");
+        let producer = bundle
+            .public_key_bytes_for_role(NodeKeyRole::Consensus)
+            .expect("consensus key must decode");
+        let task = Task::new(
+            bytes32(1),
+            Capability::UserSigned,
+            TargetOutpost::AovmNative,
+            vec![1, 2, 3],
+        )
+        .expect("task must build");
+        let block = Block::new_active(1, ZERO_HASH, bytes32(9), producer, vec![task])
+            .expect("block must build");
+
+        assert!(block.validate_with_key_bundle(&bundle).is_ok());
     }
 
     #[test]

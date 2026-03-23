@@ -15,7 +15,6 @@
 use core::fmt;
 use std::collections::HashMap;
 
-use super::hash::hash_transaction;
 use super::{Transaction, TransactionError};
 
 /// Canonical transaction identifier type.
@@ -278,7 +277,7 @@ impl TransactionPool {
     pub fn add(&mut self, tx: Transaction) -> Result<TransactionId, TransactionPoolError> {
         tx.verify_signature()?;
 
-        let tx_id = hash_transaction(&tx);
+        let tx_id = tx.try_tx_id()?;
         let sender_nonce = (tx.sender, tx.nonce);
 
         if self.pending.contains_key(&tx_id) {
@@ -461,7 +460,13 @@ mod tests {
             signature: [0u8; 64],
         };
 
-        let signature = signing_key.sign(&unsigned.signing_message()).to_bytes();
+        let signature = signing_key
+            .sign(
+                &unsigned
+                    .signing_message()
+                    .expect("signing message must encode"),
+            )
+            .to_bytes();
 
         Transaction {
             signature,
