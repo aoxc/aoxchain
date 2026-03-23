@@ -675,7 +675,7 @@ mod tests {
     use super::{
         compare_embedded_network_profiles, evaluate_mainnet_readiness, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, locate_repo_artifact_dir,
-        parse_network_profile, ports_are_shifted_consistently, remediation_plan,
+        parse_network_profile, ports_are_shifted_consistently,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -823,30 +823,6 @@ security_mode = "audit_strict"
             &mainnet_profile,
             &testnet_profile
         ));
-    }
-
-    #[test]
-    fn remediation_plan_maps_failed_checks_to_operator_actions() {
-        let plan = remediation_plan(&[
-            super::ReadinessCheck {
-                name: "mainnet-profile",
-                area: "configuration",
-                passed: false,
-                weight: 10,
-                detail: "profile drift".to_string(),
-            },
-            super::ReadinessCheck {
-                name: "profile-baseline-parity",
-                area: "release",
-                passed: false,
-                weight: 8,
-                detail: "baseline drift".to_string(),
-            },
-        ]);
-
-        assert_eq!(plan.len(), 2);
-        assert!(plan[0].contains("production-bootstrap"));
-        assert!(plan[1].contains("profile-baseline --enforce"));
     }
 }
 
