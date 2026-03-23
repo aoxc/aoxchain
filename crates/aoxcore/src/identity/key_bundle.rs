@@ -114,10 +114,6 @@ pub enum NodeKeyBundleError {
     EmptyPublicKey(NodeKeyRole),
     EmptyFingerprint(NodeKeyRole),
     EmptyHdPath(NodeKeyRole),
-    InvalidPublicKeyHex(NodeKeyRole),
-    InvalidPublicKeyLength(NodeKeyRole),
-    UnauthorizedConsensusSigner,
-    UnauthorizedTransportPeer,
     InvalidKeyfile(KeyfileError),
     SerializationFailed(String),
     InvalidHdPath(HdPathError),
@@ -166,28 +162,6 @@ impl fmt::Display for NodeKeyBundleError {
                 "node key bundle validation failed: hd_path is empty for role {}",
                 role.as_str()
             ),
-            Self::InvalidPublicKeyHex(role) => write!(
-                f,
-                "node key bundle validation failed: public_key hex is invalid for role {}",
-                role.as_str()
-            ),
-            Self::InvalidPublicKeyLength(role) => write!(
-                f,
-                "node key bundle validation failed: public_key length is invalid for role {}",
-                role.as_str()
-            ),
-            Self::UnauthorizedConsensusSigner => {
-                write!(
-                    f,
-                    "node key bundle authorization failed: consensus signer mismatch"
-                )
-            }
-            Self::UnauthorizedTransportPeer => {
-                write!(
-                    f,
-                    "node key bundle authorization failed: transport peer mismatch"
-                )
-            }
             Self::InvalidKeyfile(error) => {
                 write!(f, "node key bundle validation failed: {}", error)
             }
@@ -300,62 +274,6 @@ impl NodeKeyBundleV1 {
         }
 
         Ok(())
-    }
-
-    /// Returns the canonical record for the requested role.
-    #[must_use]
-    pub fn key_record(&self, role: NodeKeyRole) -> Option<&NodeKeyRecord> {
-        self.keys.iter().find(|record| record.role == role)
-    }
-
-    /// Returns the public key bytes for the requested role.
-    pub fn public_key_bytes_for_role(
-        &self,
-        role: NodeKeyRole,
-    ) -> Result<[u8; 32], NodeKeyBundleError> {
-        let record = self
-            .key_record(role.clone())
-            .ok_or_else(|| NodeKeyBundleError::MissingRole(role.clone()))?;
-        let decoded = hex::decode(&record.public_key)
-            .map_err(|_| NodeKeyBundleError::InvalidPublicKeyHex(role.clone()))?;
-        let bytes: [u8; 32] = decoded
-            .as_slice()
-            .try_into()
-            .map_err(|_| NodeKeyBundleError::InvalidPublicKeyLength(role))?;
-        Ok(bytes)
-    }
-
-    /// Returns the public key hex string for the requested role.
-    pub fn public_key_hex_for_role(&self, role: NodeKeyRole) -> Result<&str, NodeKeyBundleError> {
-        let record = self
-            .key_record(role.clone())
-            .ok_or_else(|| NodeKeyBundleError::MissingRole(role))?;
-        Ok(record.public_key.as_str())
-    }
-
-    /// Validates whether the supplied signer matches the bundle consensus role.
-    pub fn authorize_consensus_signer(&self, signer: [u8; 32]) -> Result<(), NodeKeyBundleError> {
-        let expected = self.public_key_bytes_for_role(NodeKeyRole::Consensus)?;
-        if signer == expected {
-            Ok(())
-        } else {
-            Err(NodeKeyBundleError::UnauthorizedConsensusSigner)
-        }
-    }
-
-    /// Validates whether the supplied producer identity matches the consensus role.
-    pub fn authorize_block_producer(&self, producer: [u8; 32]) -> Result<(), NodeKeyBundleError> {
-        self.authorize_consensus_signer(producer)
-    }
-
-    /// Validates whether the supplied peer identity matches the transport role.
-    pub fn authorize_transport_peer(&self, peer: [u8; 32]) -> Result<(), NodeKeyBundleError> {
-        let expected = self.public_key_bytes_for_role(NodeKeyRole::Transport)?;
-        if peer == expected {
-            Ok(())
-        } else {
-            Err(NodeKeyBundleError::UnauthorizedTransportPeer)
-        }
     }
 
     /// Serializes the bundle to pretty JSON.
@@ -496,27 +414,5 @@ mod tests {
         let decoded = NodeKeyBundleV1::from_json(&json).expect("json decoding must succeed");
 
         assert_eq!(bundle.bundle_fingerprint, decoded.bundle_fingerprint);
-    }
-
-    #[test]
-    fn authorize_consensus_signer_accepts_matching_consensus_key() {
-        let engine = KeyEngine::from_seed([0x55; MASTER_SEED_LEN]);
-        let envelope =
-            encrypt_key_to_envelope(engine.master_seed(), "Test#2026!").expect("must encrypt");
-        let bundle = NodeKeyBundleV1::generate(
-            "validator-03",
-            "validator",
-            "2026-01-01T00:00:00Z".to_string(),
-            CryptoProfile::HybridEd25519Dilithium3,
-            &engine,
-            envelope,
-        )
-        .expect("bundle generation must succeed");
-
-        let signer = bundle
-            .public_key_bytes_for_role(NodeKeyRole::Consensus)
-            .expect("consensus key must decode");
-
-        assert!(bundle.authorize_consensus_signer(signer).is_ok());
     }
 }

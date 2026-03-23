@@ -50,18 +50,6 @@ impl KeyMaterial {
     pub fn encrypted_root_seed(&self) -> &KeyfileEnvelope {
         &self.bundle.encrypted_root_seed
     }
-
-    pub fn consensus_public_key_hex(&self) -> Result<&str, AppError> {
-        self.bundle
-            .public_key_hex_for_role(aoxcore::identity::key_bundle::NodeKeyRole::Consensus)
-            .map_err(|error| {
-                AppError::with_source(
-                    ErrorCode::KeyMaterialInvalid,
-                    "Failed to read canonical consensus public key from key bundle",
-                    error,
-                )
-            })
-    }
 }
 
 fn infer_crypto_profile(profile: &str) -> CryptoProfile {

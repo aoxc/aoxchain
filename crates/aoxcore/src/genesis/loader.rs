@@ -91,7 +91,7 @@ impl GenesisLoader {
 
         config.validate().map_err(GenesisError::ValidationError)?;
 
-        GenesisBlock::new(config).map_err(GenesisError::ConstructionError)
+        GenesisBlock::try_new(config).map_err(GenesisError::ConstructionError)
     }
 
     /// Persists genesis configuration to disk.
@@ -133,7 +133,8 @@ impl GenesisLoader {
         config.treasury = DEFAULT_TREASURY;
         config.add_account(TREASURY_ACCOUNT.to_string(), DEFAULT_TREASURY);
 
-        GenesisBlock::new(config).map_err(GenesisError::ConstructionError)
+        GenesisBlock::try_new(config)
+            .expect("GENESIS_DEFAULT: default genesis configuration must remain valid")
     }
 
     /// Loads genesis from disk, or creates and persists a default genesis
