@@ -33,6 +33,7 @@
 - [Frontend RPC API Integration](./FRONTEND_RPC_API_INTEGRATION_TR.md)
 - [Local Benchmark & Mainnet Readiness](./LOCAL_BENCHMARK_AND_MAINNET_READINESS_TR.md)
 - [Key Types & Interoperability](./KEY_TYPES_AND_INTEROP_GUIDE_EN.md)
+- [AOXC Node Identity v0.1.0-alpha](./AOXC_NODE_IDENTITY_V0_1_0_ALPHA.md)
 - [Advanced Production Suggestions](./ADVANCED_PRODUCTION_SUGGESTIONS_TR.md)
 
 ---
