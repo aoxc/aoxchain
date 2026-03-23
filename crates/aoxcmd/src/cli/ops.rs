@@ -36,7 +36,6 @@ struct Readiness {
     remaining_weight: u8,
     verdict: &'static str,
     blockers: Vec<String>,
-    next_steps: Vec<String>,
     checks: Vec<ReadinessCheck>,
 }
 
@@ -69,16 +68,6 @@ pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
         genesis_ok,
         node_ok,
     );
-    if has_flag(args, "--enforce") && readiness.verdict != "candidate" {
-        return Err(AppError::new(
-            ErrorCode::PolicyGateFailed,
-            format!(
-                "Mainnet readiness gate failed at {}%. Outstanding blockers: {}",
-                readiness.readiness_score,
-                readiness.blockers.join(" | ")
-            ),
-        ));
-    }
     emit_serialized(&readiness, output_format(args))
 }
 
@@ -235,7 +224,6 @@ fn readiness_from_checks(profile: String, checks: Vec<ReadinessCheck>) -> Readin
         .filter(|check| !check.passed)
         .map(|check| format!("{}: {}", check.name, check.detail))
         .collect::<Vec<_>>();
-    let next_steps = remediation_steps(&checks);
 
     Readiness {
         profile,
@@ -258,38 +246,8 @@ fn readiness_from_checks(profile: String, checks: Vec<ReadinessCheck>) -> Readin
             "not-ready"
         },
         blockers,
-        next_steps,
         checks,
     }
-}
-
-fn remediation_steps(checks: &[ReadinessCheck]) -> Vec<String> {
-    let mut steps = Vec::new();
-    for check in checks.iter().filter(|check| !check.passed) {
-        let command = match check.name {
-            "mainnet-profile" | "structured-logging" => {
-                "aoxc config-init --profile mainnet --json-logs".to_string()
-            }
-            "genesis-present" => "aoxc genesis-init --chain-num 1".to_string(),
-            "node-state-present" => "aoxc node-bootstrap".to_string(),
-            "operator-key-active" => {
-                "aoxc key-bootstrap --profile mainnet --password '<strong-password>'".to_string()
-            }
-            "config-valid" => "aoxc config-validate".to_string(),
-            "release-evidence" | "compatibility-matrix" | "provenance-attestation" => {
-                "./scripts/release/generate_release_evidence.sh".to_string()
-            }
-            "production-closure" => {
-                "./scripts/validation/network_production_closure.sh --scenario all".to_string()
-            }
-            _ => continue,
-        };
-
-        if !steps.iter().any(|existing| existing == &command) {
-            steps.push(command);
-        }
-    }
-    steps
 }
 
 fn has_release_evidence(dir: &Path) -> bool {
@@ -422,7 +380,7 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 mod tests {
     use super::{
         evaluate_mainnet_readiness, has_matching_artifact, has_production_closure_artifacts,
-        has_release_evidence, locate_repo_artifact_dir, readiness_check, remediation_steps,
+        has_release_evidence, locate_repo_artifact_dir,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -500,7 +458,6 @@ mod tests {
         assert_eq!(readiness.readiness_score, 100);
         assert_eq!(readiness.verdict, "candidate");
         assert!(readiness.blockers.is_empty());
-        assert!(readiness.next_steps.is_empty());
     }
 
     #[test]
@@ -510,43 +467,6 @@ mod tests {
             release_dir.ends_with(Path::new("artifacts").join("release-evidence")),
             "artifact lookup should resolve to repository artifacts directory"
         );
-    }
-
-    #[test]
-    fn remediation_steps_map_failed_controls_to_operator_commands() {
-        let steps = remediation_steps(&[
-            readiness_check(
-                "mainnet-profile",
-                "configuration",
-                false,
-                10,
-                "profile mismatch".to_string(),
-            ),
-            readiness_check(
-                "genesis-present",
-                "identity",
-                false,
-                10,
-                "missing genesis".to_string(),
-            ),
-            readiness_check(
-                "production-closure",
-                "operations",
-                false,
-                7,
-                "missing closure artifacts".to_string(),
-            ),
-        ]);
-
-        assert!(steps
-            .iter()
-            .any(|step| step.contains("config-init --profile mainnet")));
-        assert!(steps
-            .iter()
-            .any(|step| step.contains("genesis-init --chain-num 1")));
-        assert!(steps
-            .iter()
-            .any(|step| step.contains("network_production_closure.sh --scenario all")));
     }
 }
 
