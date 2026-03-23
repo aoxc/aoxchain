@@ -22,12 +22,6 @@ pub enum TransactionHashError {
     LengthOverflow,
 }
 
-impl From<std::num::TryFromIntError> for TransactionHashError {
-    fn from(_: std::num::TryFromIntError) -> Self {
-        Self::LengthOverflow
-    }
-}
-
 /// Canonical hash output size in bytes.
 pub const HASH_SIZE: usize = 32;
 
@@ -149,8 +143,10 @@ pub fn try_compute_hash(data: &[u8]) -> Result<[u8; HASH_SIZE], TransactionHashE
     Ok(finalize_hash(hasher))
 }
 
-pub fn compute_hash(data: &[u8]) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+#[must_use]
+pub fn compute_hash(data: &[u8]) -> [u8; HASH_SIZE] {
     try_compute_hash(data)
+        .expect("TX_HASH: generic transaction hash input exceeded encoding limits")
 }
 
 /// Returns the canonical empty transaction root.
@@ -179,8 +175,10 @@ pub fn try_hash_signing_payload(tx: &Transaction) -> Result<[u8; HASH_SIZE], Tra
     Ok(finalize_hash(hasher))
 }
 
-pub fn hash_signing_payload(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+#[must_use]
+pub fn hash_signing_payload(tx: &Transaction) -> [u8; HASH_SIZE] {
     try_hash_signing_payload(tx)
+        .expect("TX_HASH: signing payload exceeded canonical encoding limits")
 }
 
 /// Computes the canonical unsigned transaction intent hash.
@@ -203,8 +201,10 @@ pub fn try_hash_transaction_intent(
     Ok(finalize_hash(hasher))
 }
 
-pub fn hash_transaction_intent(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+#[must_use]
+pub fn hash_transaction_intent(tx: &Transaction) -> [u8; HASH_SIZE] {
     try_hash_transaction_intent(tx)
+        .expect("TX_HASH: transaction intent exceeded canonical encoding limits")
 }
 
 /// Computes the canonical signed transaction hash.
@@ -224,8 +224,10 @@ pub fn try_hash_transaction(tx: &Transaction) -> Result<[u8; HASH_SIZE], Transac
     Ok(finalize_hash(hasher))
 }
 
-pub fn hash_transaction(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+#[must_use]
+pub fn hash_transaction(tx: &Transaction) -> [u8; HASH_SIZE] {
     try_hash_transaction(tx)
+        .expect("TX_HASH: signed transaction exceeded canonical encoding limits")
 }
 
 /// Computes the canonical transaction leaf hash used in collection-root
@@ -244,8 +246,10 @@ pub fn try_hash_transaction_leaf(
     Ok(finalize_hash(hasher))
 }
 
-pub fn hash_transaction_leaf(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+#[must_use]
+pub fn hash_transaction_leaf(tx: &Transaction) -> [u8; HASH_SIZE] {
     try_hash_transaction_leaf(tx)
+        .expect("TX_HASH: transaction leaf exceeded canonical encoding limits")
 }
 
 /// Computes the canonical commitment root for a slice of transactions.
@@ -277,10 +281,10 @@ pub fn try_calculate_transaction_root(
     Ok(finalize_hash(hasher))
 }
 
-pub fn calculate_transaction_root(
-    transactions: &[Transaction],
-) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+#[must_use]
+pub fn calculate_transaction_root(transactions: &[Transaction]) -> [u8; HASH_SIZE] {
     try_calculate_transaction_root(transactions)
+        .expect("TX_HASH: transaction root exceeded canonical encoding limits")
 }
 
 /// Computes a future-reserved internal-node hash for transaction tree

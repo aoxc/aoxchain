@@ -5,9 +5,7 @@ use crate::{
     data_home::{ensure_layout, read_file, resolve_home, write_file},
     error::{AppError, ErrorCode},
     keys::manager::{
-        bootstrap_operator_key, consensus_public_key_hex, export_operator_identity,
-        inspect_operator_key, operator_fingerprint, rotate_operator_key, set_operator_key_state,
-        verify_operator_key,
+        bootstrap_operator_key, consensus_public_key_hex, operator_fingerprint, verify_operator_key,
     },
 };
 use aoxcore::identity::key_bundle::NodeKeyOperationalState;
@@ -98,93 +96,6 @@ pub fn cmd_keys_show_fingerprint(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_keys_inspect(args: &[String]) -> Result<(), AppError> {
     let summary = inspect_operator_key()?;
-    emit_serialized(&summary, output_format(args))
-}
-
-pub fn cmd_keys_export_identity(args: &[String]) -> Result<(), AppError> {
-    let chain = arg_value(args, "--chain").unwrap_or_else(|| "AOXC-LOCAL".to_string());
-    let actor_id = arg_value(args, "--actor-id").unwrap_or_else(|| "AOXC-VAL-LOCAL-01".to_string());
-    let zone = arg_value(args, "--zone").unwrap_or_else(|| "local".to_string());
-    let issued_at = arg_value(args, "--issued-at")
-        .unwrap_or_else(|| "0".to_string())
-        .parse::<u64>()
-        .map_err(|_| {
-            AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                "Invalid --issued-at value",
-            )
-        })?;
-    let expires_at = arg_value(args, "--expires-at")
-        .unwrap_or_else(|| "4102444800".to_string())
-        .parse::<u64>()
-        .map_err(|_| {
-            AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                "Invalid --expires-at value",
-            )
-        })?;
-    let artifacts = export_operator_identity(&chain, &actor_id, &zone, issued_at, expires_at)?;
-
-    if let Some(output_dir) = arg_value(args, "--output-dir") {
-        let dir = std::path::PathBuf::from(output_dir);
-        std::fs::create_dir_all(&dir).map_err(|error| {
-            AppError::with_source(
-                ErrorCode::FilesystemIoFailed,
-                format!(
-                    "Failed to create identity export directory {}",
-                    dir.display()
-                ),
-                error,
-            )
-        })?;
-        let cert_path = dir.join("node.cert.json");
-        let passport_path = dir.join("node.passport.json");
-        let cert_text = serde_json::to_string_pretty(&artifacts.certificate).map_err(|error| {
-            AppError::with_source(
-                ErrorCode::OutputEncodingFailed,
-                "Failed to encode exported certificate JSON",
-                error,
-            )
-        })?;
-        let passport_text = serde_json::to_string_pretty(&artifacts.passport).map_err(|error| {
-            AppError::with_source(
-                ErrorCode::OutputEncodingFailed,
-                "Failed to encode exported passport JSON",
-                error,
-            )
-        })?;
-        write_file(&cert_path, &cert_text)?;
-        write_file(&passport_path, &passport_text)?;
-    }
-
-    emit_serialized(&artifacts, output_format(args))
-}
-
-pub fn cmd_keys_enter_recovery_mode(args: &[String]) -> Result<(), AppError> {
-    let summary = set_operator_key_state(NodeKeyOperationalState::RecoveryOnly)?;
-    emit_serialized(&summary, output_format(args))
-}
-
-pub fn cmd_keys_mark_compromised(args: &[String]) -> Result<(), AppError> {
-    let summary = set_operator_key_state(NodeKeyOperationalState::Compromised)?;
-    emit_serialized(&summary, output_format(args))
-}
-
-pub fn cmd_keys_mark_revoked(args: &[String]) -> Result<(), AppError> {
-    let summary = set_operator_key_state(NodeKeyOperationalState::Revoked)?;
-    emit_serialized(&summary, output_format(args))
-}
-
-pub fn cmd_keys_rotate(args: &[String]) -> Result<(), AppError> {
-    let profile = arg_value(args, "--profile").unwrap_or_else(|| "validator".to_string());
-    let name = arg_value(args, "--name").unwrap_or_else(|| "validator-01".to_string());
-    let password = arg_value(args, "--password").ok_or_else(|| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Missing required flag --password for key rotation",
-        )
-    })?;
-    let summary = rotate_operator_key(&name, &profile, &password)?;
     emit_serialized(&summary, output_format(args))
 }
 

@@ -126,8 +126,10 @@ impl Receipt {
         Ok(finalize_hash(hasher))
     }
 
-    pub fn hash(&self) -> Result<[u8; HASH_SIZE], ReceiptHashError> {
+    #[must_use]
+    pub fn hash(&self) -> [u8; HASH_SIZE] {
         self.try_hash()
+            .expect("RECEIPT_HASH: receipt exceeded canonical encoding limits")
     }
 }
 
@@ -225,8 +227,10 @@ pub fn try_calculate_receipts_root(
     Ok(finalize_hash(hasher))
 }
 
-pub fn calculate_receipts_root(receipts: &[Receipt]) -> Result<[u8; HASH_SIZE], ReceiptHashError> {
+#[must_use]
+pub fn calculate_receipts_root(receipts: &[Receipt]) -> [u8; HASH_SIZE] {
     try_calculate_receipts_root(receipts)
+        .expect("RECEIPT_HASH: receipts root exceeded canonical encoding limits")
 }
 
 /// Returns canonical empty receipts root.

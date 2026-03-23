@@ -291,17 +291,6 @@ Update bootstrap and key-management flows so `aoxcmd` and `aoxckit` emit, inspec
 
 After the identity model is stable, update consensus headers, validator membership references, transport handshake metadata, and rotation rules to commit to the new identity surfaces.
 
-#### Current implementation note
-
-The repository now has an initial implementation of this phase:
-
-- a typed `NodeKeyBundleV1` exists in `aoxcore::identity`,
-- `aoxcmd` bootstrap persists the bundle,
-- validator bootstrap can expose the canonical consensus public key,
-- and block validation can enforce that a producer matches the bundle's consensus key.
-
-Transport admission, revocation distribution, recovery authorization, and validator-set membership binding still need deeper runtime integration.
-
 ## 12. Risks and constraints
 
 ### 12.1 Payload size
@@ -330,10 +319,6 @@ If AOXChain adopts this design direction, the project gains a cleaner foundation
 - transport authentication,
 - certificate issuance and revocation,
 - and post-quantum migration planning.
-
-## 13.1 Core-first implementation note
-
-The preferred implementation model is **core-first**: identity validation, certificate verification, signer authorization, revocation, and key-rotation continuity should ultimately be enforced inside `aoxcore` and the consensus/security kernel rather than delegated to CLI or application-layer policy. Operator tools should consume these rules, not redefine them.
 
 ## 14. Summary recommendation
 

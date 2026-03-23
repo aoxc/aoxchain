@@ -71,11 +71,6 @@ pub enum AssemblyError {
         transactions: usize,
         receipts: usize,
     },
-    ReceiptTransactionMismatch {
-        index: usize,
-        expected: [u8; 32],
-        found: [u8; 32],
-    },
     TaskCountOverflow,
     PayloadLengthOverflow,
     Transaction(TransactionError),
@@ -94,15 +89,6 @@ impl core::fmt::Display for AssemblyError {
                 f,
                 "block assembly failed: receipt count {} does not match transaction count {}",
                 receipts, transactions
-            ),
-            Self::ReceiptTransactionMismatch {
-                index,
-                expected,
-                found,
-            } => write!(
-                f,
-                "block assembly failed: receipt {} commits to transaction {:02x?} but expected {:02x?}",
-                index, found, expected
             ),
             Self::TaskCountOverflow => write!(
                 f,
@@ -153,18 +139,6 @@ impl CanonicalBlockAssemblyPlan {
                 transactions: transactions.len(),
                 receipts: receipts.len(),
             });
-        }
-
-        for (index, (transaction, receipt)) in transactions.iter().zip(receipts.iter()).enumerate()
-        {
-            let expected = transaction.tx_id()?;
-            if receipt.transaction_hash != expected {
-                return Err(AssemblyError::ReceiptTransactionMismatch {
-                    index,
-                    expected,
-                    found: receipt.transaction_hash,
-                });
-            }
         }
 
         let tasks = transactions
@@ -351,30 +325,6 @@ mod tests {
                 transactions: 1,
                 receipts: 0
             }
-        ));
-    }
-
-    #[test]
-    fn assembly_plan_rejects_receipt_transaction_mismatch() {
-        let (tx, tx_hash) = signed_tx(1, TargetOutpost::AovmNative, b"hello");
-        let wrong_receipt = Receipt::success([9u8; 32], 10);
-
-        let error = CanonicalBlockAssemblyPlan::from_transactions(
-            1,
-            [0u8; 32],
-            [1u8; 32],
-            &[tx],
-            &[wrong_receipt],
-        )
-        .expect_err("receipt hash mismatch must fail");
-
-        assert!(matches!(
-            error,
-            super::AssemblyError::ReceiptTransactionMismatch {
-                index: 0,
-                expected,
-                found,
-            } if expected == tx_hash && found == [9u8; 32]
         ));
     }
 }
