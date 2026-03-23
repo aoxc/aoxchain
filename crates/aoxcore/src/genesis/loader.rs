@@ -19,6 +19,7 @@ pub enum GenesisError {
     ReadError(String),
     ParseError(String),
     ValidationError(String),
+    ConstructionError(String),
     WriteError(String),
 }
 
@@ -28,6 +29,7 @@ impl std::fmt::Display for GenesisError {
             Self::ReadError(error) => write!(f, "GENESIS_READ_ERROR: {error}"),
             Self::ParseError(error) => write!(f, "GENESIS_PARSE_ERROR: {error}"),
             Self::ValidationError(error) => write!(f, "GENESIS_VALIDATION_ERROR: {error}"),
+            Self::ConstructionError(error) => write!(f, "GENESIS_CONSTRUCTION_ERROR: {error}"),
             Self::WriteError(error) => write!(f, "GENESIS_WRITE_ERROR: {error}"),
         }
     }
@@ -89,7 +91,7 @@ impl GenesisLoader {
 
         config.validate().map_err(GenesisError::ValidationError)?;
 
-        Ok(GenesisBlock::new(config))
+        GenesisBlock::try_new(config).map_err(GenesisError::ConstructionError)
     }
 
     /// Persists genesis configuration to disk.
@@ -132,7 +134,8 @@ impl GenesisLoader {
         config.treasury = DEFAULT_TREASURY;
         config.add_account(TREASURY_ACCOUNT.to_string(), DEFAULT_TREASURY);
 
-        GenesisBlock::new(config)
+        GenesisBlock::try_new(config)
+            .expect("GENESIS_DEFAULT: default genesis configuration must remain valid")
     }
 
     /// Loads genesis from disk, or creates and persists a default genesis
@@ -213,4 +216,24 @@ fn sync_parent_directory(path: &Path) -> io::Result<()> {
 
     let dir = OpenOptions::new().read(true).open(parent)?;
     dir.sync_all()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_returns_validation_error_for_invalid_genesis_file() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("aoxc-genesis-loader-test-{}", std::process::id()));
+        fs::create_dir_all(&temp_dir).expect("temp dir must be created");
+        let path = temp_dir.join("genesis.json");
+        fs::write(&path, r#"{"chain_id":"","chain_num":1001,"accounts":[],"validators":[],"treasury":0,"block_time":0,"genesis_seal":{"node_sig":null,"ai_sig":null,"dao_sig":null},"settlement_link":{"native_symbol":"AOXC","native_decimals":18,"settlement_network":"xlayer-mainnet","settlement_token_address":"0x1111111111111111111111111111111111111111","settlement_main_contract":"0x2222222222222222222222222222222222222222","settlement_multisig_contract":"0x3333333333333333333333333333333333333333","equivalence_mode":"1:1"}}"#).expect("invalid genesis fixture must write");
+
+        let err = GenesisLoader::load(&path).expect_err("invalid genesis must be rejected");
+        assert!(matches!(err, GenesisError::ValidationError(_)));
+
+        let _ = fs::remove_file(&path);
+        let _ = fs::remove_dir(&temp_dir);
+    }
 }

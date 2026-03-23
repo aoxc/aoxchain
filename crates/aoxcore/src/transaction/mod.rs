@@ -16,9 +16,11 @@ pub mod hash;
 pub mod pool;
 
 pub use hash::{
-    HASH_FORMAT_VERSION, HASH_SIZE, ZERO_HASH, calculate_transaction_root, compute_hash,
-    empty_transaction_root, hash_internal_node, hash_signing_payload, hash_transaction,
-    hash_transaction_intent, hash_transaction_leaf,
+    HASH_FORMAT_VERSION, HASH_SIZE, TransactionHashError, ZERO_HASH, calculate_transaction_root,
+    compute_hash, empty_transaction_root, hash_internal_node, hash_signing_payload,
+    hash_transaction, hash_transaction_intent, hash_transaction_leaf,
+    try_calculate_transaction_root, try_compute_hash, try_hash_signing_payload,
+    try_hash_transaction, try_hash_transaction_intent, try_hash_transaction_leaf,
 };
 pub use pool::{
     SenderId, TransactionId, TransactionPool, TransactionPoolConfig, TransactionPoolError,
@@ -72,6 +74,9 @@ pub enum TransactionError {
     /// The payload is empty and therefore not meaningful as a routed command.
     EmptyPayload,
 
+    /// Canonical transaction hashing/signing encoding failed.
+    HashEncodingFailed(hash::TransactionHashError),
+
     /// Conversion into a block-domain task failed.
     TaskConversionFailed(BlockError),
 }
@@ -86,6 +91,7 @@ impl TransactionError {
             Self::InvalidNonce => "TX_INVALID_NONCE",
             Self::PayloadTooLarge { .. } => "TX_PAYLOAD_TOO_LARGE",
             Self::EmptyPayload => "TX_EMPTY_PAYLOAD",
+            Self::HashEncodingFailed(_) => "TX_HASH_ENCODING_FAILED",
             Self::TaskConversionFailed(_) => "TX_TASK_CONVERSION_FAILED",
         }
     }
@@ -98,6 +104,7 @@ impl TransactionError {
             Self::InvalidNonce
             | Self::PayloadTooLarge { .. }
             | Self::EmptyPayload
+            | Self::HashEncodingFailed(_)
             | Self::TaskConversionFailed(_) => true,
         }
     }
@@ -127,6 +134,11 @@ impl fmt::Display for TransactionError {
                 f,
                 "transaction validation failed: payload must not be empty"
             ),
+            Self::HashEncodingFailed(err) => write!(
+                f,
+                "transaction canonical encoding failed during hashing/signing: {:?}",
+                err
+            ),
             Self::TaskConversionFailed(err) => {
                 write!(f, "transaction-to-task conversion failed: {}", err)
             }
@@ -139,6 +151,12 @@ impl std::error::Error for TransactionError {}
 impl From<BlockError> for TransactionError {
     fn from(value: BlockError) -> Self {
         Self::TaskConversionFailed(value)
+    }
+}
+
+impl From<hash::TransactionHashError> for TransactionError {
+    fn from(value: hash::TransactionHashError) -> Self {
+        Self::HashEncodingFailed(value)
     }
 }
 
@@ -239,8 +257,7 @@ impl Transaction {
     /// - target code
     /// - payload length
     /// - payload bytes
-    #[must_use]
-    pub fn signing_message(&self) -> Vec<u8> {
+    pub fn try_signing_message(&self) -> Result<Vec<u8>, TransactionError> {
         let mut message = Vec::with_capacity(
             TRANSACTION_SIGNING_DOMAIN.len() + 1 + 32 + 8 + 1 + 2 + 4 + self.payload.len(),
         );
@@ -253,11 +270,18 @@ impl Transaction {
         message.extend_from_slice(&self.target.code().to_le_bytes());
 
         let payload_len = u32::try_from(self.payload.len())
-            .expect("transaction payload length must fit into u32 because validation bounds it");
+            .map_err(hash::TransactionHashError::from)
+            .map_err(TransactionError::from)?;
         message.extend_from_slice(&payload_len.to_le_bytes());
         message.extend_from_slice(&self.payload);
 
-        message
+        Ok(message)
+    }
+
+    #[must_use]
+    pub fn signing_message(&self) -> Vec<u8> {
+        self.try_signing_message()
+            .expect("TX_SIGNING: validated transaction payload exceeded canonical encoding limits")
     }
 
     /// Verifies the transaction signature against the canonical signing payload.
@@ -266,7 +290,7 @@ impl Transaction {
 
         let public_key = self.verifying_key()?;
         let signature = Signature::from_bytes(&self.signature);
-        let message = self.signing_message();
+        let message = self.try_signing_message()?;
 
         public_key
             .verify(&message, &signature)
@@ -288,15 +312,27 @@ impl Transaction {
     }
 
     /// Returns the canonical unsigned intent identifier.
+    pub fn try_intent_id(&self) -> Result<[u8; 32], TransactionError> {
+        hash::try_hash_transaction_intent(self).map_err(TransactionError::from)
+    }
+
+    /// Returns the canonical unsigned intent identifier.
     #[must_use]
     pub fn intent_id(&self) -> [u8; 32] {
-        hash::hash_transaction_intent(self)
+        self.try_intent_id()
+            .expect("TX_ID: validated transaction intent exceeded canonical encoding limits")
+    }
+
+    /// Returns the canonical signed transaction identifier.
+    pub fn try_tx_id(&self) -> Result<[u8; 32], TransactionError> {
+        hash::try_hash_transaction(self).map_err(TransactionError::from)
     }
 
     /// Returns the canonical signed transaction identifier.
     #[must_use]
     pub fn tx_id(&self) -> [u8; 32] {
-        hash::hash_transaction(self)
+        self.try_tx_id()
+            .expect("TX_ID: validated signed transaction exceeded canonical encoding limits")
     }
 
     /// Converts this transaction into a block-domain task.
@@ -305,7 +341,7 @@ impl Transaction {
     /// the resulting task to the sealed transaction object.
     pub fn to_task(&self) -> Result<Task, TransactionError> {
         Task::new(
-            self.tx_id(),
+            self.try_tx_id()?,
             self.capability,
             self.target,
             self.payload.clone(),
@@ -348,6 +384,9 @@ mod tests {
     fn valid_transaction_signature_verifies() {
         let tx = signed_transaction(vec![1, 2, 3, 4], 1);
         assert_eq!(tx.verify_signature(), Ok(()));
+        assert!(tx.try_signing_message().is_ok());
+        assert!(tx.try_intent_id().is_ok());
+        assert!(tx.try_tx_id().is_ok());
     }
 
     #[test]

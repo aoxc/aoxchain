@@ -109,17 +109,6 @@ fn update_bytes(hasher: &mut Hasher, value: &[u8]) -> Result<(), BlockError> {
     Ok(())
 }
 
-/// Encodes a variable-length byte slice using a 64-bit length prefix.
-///
-/// This helper is reserved for hashing paths that are intentionally modeled as
-/// infallible under supported production architectures.
-#[inline]
-fn update_bytes_infallible(hasher: &mut Hasher, value: &[u8]) {
-    let len = u64::try_from(value.len()).expect("HASH: byte length must fit into u64");
-    update_u64(hasher, len);
-    hasher.update(value);
-}
-
 /// Finalizes the hasher into the canonical 32-byte digest format.
 #[inline]
 fn finalize_hash(hasher: Hasher) -> [u8; HASH_SIZE] {
@@ -163,31 +152,39 @@ pub fn hash_header(header: &BlockHeader) -> [u8; HASH_SIZE] {
 }
 
 /// Computes the canonical hash of a task.
-///
-/// This operation is infallible on supported production architectures.
-#[must_use]
-pub fn hash_task(task: &Task) -> [u8; HASH_SIZE] {
+pub fn try_hash_task(task: &Task) -> Result<[u8; HASH_SIZE], BlockError> {
     let mut hasher = new_tagged_hasher(DOMAIN_TASK);
 
     update_bytes32(&mut hasher, &task.task_id);
     update_u8(&mut hasher, task.capability.code());
     update_u16(&mut hasher, task.target_outpost.code());
-    update_bytes_infallible(&mut hasher, &task.payload);
+    update_bytes(&mut hasher, &task.payload)?;
 
-    finalize_hash(hasher)
+    Ok(finalize_hash(hasher))
+}
+
+/// Computes the canonical hash of a task.
+#[must_use]
+pub fn hash_task(task: &Task) -> [u8; HASH_SIZE] {
+    try_hash_task(task).expect("BLOCK_HASH: task payload exceeded canonical encoding limits")
 }
 
 /// Computes the canonical task leaf hash used in task-root aggregation.
 ///
 /// The leaf is domain-separated from both the raw task hash and internal nodes.
-#[must_use]
-pub fn hash_task_leaf(task: &Task) -> [u8; HASH_SIZE] {
-    let task_hash = hash_task(task);
+pub fn try_hash_task_leaf(task: &Task) -> Result<[u8; HASH_SIZE], BlockError> {
+    let task_hash = try_hash_task(task)?;
 
     let mut hasher = new_tagged_hasher(DOMAIN_TASK_LEAF);
     update_bytes32(&mut hasher, &task_hash);
 
-    finalize_hash(hasher)
+    Ok(finalize_hash(hasher))
+}
+
+/// Computes the canonical task leaf hash used in task-root aggregation.
+#[must_use]
+pub fn hash_task_leaf(task: &Task) -> [u8; HASH_SIZE] {
+    try_hash_task_leaf(task).expect("BLOCK_HASH: task leaf exceeded canonical encoding limits")
 }
 
 /// Computes the canonical internal-node hash for task-root tree constructions.
@@ -220,7 +217,7 @@ pub fn calculate_task_root(tasks: &[Task]) -> Result<[u8; HASH_SIZE], BlockError
 
     let mut leaves = Vec::with_capacity(tasks.len());
     for task in tasks {
-        leaves.push(hash_task_leaf(task));
+        leaves.push(try_hash_task_leaf(task)?);
     }
 
     let merkle_root = merkle_root_from_leaves(leaves);
