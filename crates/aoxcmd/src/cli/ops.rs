@@ -124,6 +124,15 @@ pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
         node_ok,
     );
 
+    if let Some(path) = arg_value(args, "--write-report") {
+        write_readiness_markdown_report(
+            Path::new(&path),
+            &readiness,
+            compare_embedded_network_profiles().ok().as_ref(),
+            compare_aoxhub_network_profiles().ok().as_ref(),
+        )?;
+    }
+
     if has_flag(args, "--enforce") && readiness.verdict != "candidate" {
         return Err(AppError::new(
             ErrorCode::PolicyGateFailed,
@@ -514,6 +523,157 @@ fn progress_status(ratio: u8) -> &'static str {
     } else {
         "bootstrap"
     }
+}
+
+fn write_readiness_markdown_report(
+    path: &Path,
+    readiness: &Readiness,
+    embedded_baseline: Option<&ProfileBaselineReport>,
+    aoxhub_baseline: Option<&ProfileBaselineReport>,
+) -> Result<(), AppError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!("Failed to create report directory {}", parent.display()),
+                e,
+            )
+        })?;
+    }
+
+    fs::write(
+        path,
+        readiness_markdown_report(readiness, embedded_baseline, aoxhub_baseline),
+    )
+    .map_err(|e| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to write readiness report {}", path.display()),
+            e,
+        )
+    })
+}
+
+fn readiness_markdown_report(
+    readiness: &Readiness,
+    embedded_baseline: Option<&ProfileBaselineReport>,
+    aoxhub_baseline: Option<&ProfileBaselineReport>,
+) -> String {
+    let mut out = String::new();
+    out.push_str("# AOXC Progress Report\n\n");
+    out.push_str(&format!(
+        "- Profile: `{}`\n- Stage: `{}`\n- Overall readiness: **{}%** ({}/{})\n- Verdict: `{}`\n\n",
+        readiness.profile,
+        readiness.stage,
+        readiness.readiness_score,
+        readiness.completed_weight,
+        readiness.max_score,
+        readiness.verdict,
+    ));
+
+    out.push_str("## Dual-track progress\n\n");
+    for track in &readiness.track_progress {
+        out.push_str(&format!(
+            "- **{}**: {}% ({}/{}) — {}\n  - Objective: {}\n",
+            track.name,
+            track.ratio,
+            track.completed_weight,
+            track.max_weight,
+            track.status,
+            track.objective
+        ));
+    }
+
+    out.push_str("\n## Area progress\n\n");
+    for area in &readiness.area_progress {
+        out.push_str(&format!(
+            "- **{}**: {}% ({}/{} checks, weight {}/{}) — {}\n",
+            area.area,
+            area.ratio,
+            area.passed_checks,
+            area.total_checks,
+            area.completed_weight,
+            area.max_weight,
+            area.status
+        ));
+    }
+
+    out.push_str("\n## Remaining blockers\n\n");
+    if readiness.blockers.is_empty() {
+        out.push_str("- No active blockers.\n");
+    } else {
+        for blocker in &readiness.blockers {
+            out.push_str(&format!("- {}\n", blocker));
+        }
+    }
+
+    out.push_str("\n## Recommended next focus\n\n");
+    if readiness.next_focus.is_empty() {
+        out.push_str("- Keep CI enforcement active and preserve current closure state.\n");
+    } else {
+        for focus in &readiness.next_focus {
+            out.push_str(&format!("- {}\n", focus));
+        }
+    }
+
+    out.push_str("\n## Remediation plan\n\n");
+    for step in &readiness.remediation_plan {
+        out.push_str(&format!("- {}\n", step));
+    }
+
+    out.push_str("\n## Baseline parity\n\n");
+    append_baseline_section(&mut out, "Embedded network profiles", embedded_baseline);
+    append_baseline_section(&mut out, "AOXHub network profiles", aoxhub_baseline);
+
+    out.push_str("\n## Check matrix\n\n");
+    for check in &readiness.checks {
+        let marker = if check.passed { "PASS" } else { "FAIL" };
+        out.push_str(&format!(
+            "- [{}] **{}** / {} / weight {} — {}\n",
+            marker, check.name, check.area, check.weight, check.detail
+        ));
+    }
+
+    out
+}
+
+fn append_baseline_section(
+    out: &mut String,
+    title: &str,
+    baseline: Option<&ProfileBaselineReport>,
+) {
+    out.push_str(&format!("### {}\n\n", title));
+    match baseline {
+        Some(report) => {
+            out.push_str(&format!(
+                "- Status: **{}**\n",
+                if report.passed {
+                    "aligned"
+                } else {
+                    "drift-detected"
+                }
+            ));
+            out.push_str(&format!("- Mainnet file: `{}`\n", report.mainnet_path));
+            out.push_str(&format!("- Testnet file: `{}`\n", report.testnet_path));
+            for control in &report.shared_controls {
+                out.push_str(&format!(
+                    "- {}: {} (mainnet=`{}`, testnet=`{}`)\n",
+                    control.name,
+                    if control.passed { "ok" } else { "drift" },
+                    control.mainnet,
+                    control.testnet
+                ));
+            }
+            if !report.drift.is_empty() {
+                out.push_str("- Drift summary:\n");
+                for drift in &report.drift {
+                    out.push_str(&format!("  - {}\n", drift));
+                }
+            }
+        }
+        None => out.push_str("- Status: unavailable\n"),
+    }
+    out.push('\n');
 }
 
 fn remediation_plan(checks: &[ReadinessCheck]) -> Vec<String> {
@@ -929,9 +1089,10 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 mod tests {
     use super::{
         compare_aoxhub_network_profiles, compare_embedded_network_profiles,
-        evaluate_mainnet_readiness, has_matching_artifact, has_production_closure_artifacts,
-        has_release_evidence, locate_repo_artifact_dir, parse_network_profile,
-        ports_are_shifted_consistently,
+        evaluate_mainnet_readiness, has_desktop_wallet_compat_artifact, has_matching_artifact,
+        has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
+        locate_repo_artifact_dir, parse_network_profile, ports_are_shifted_consistently,
+        readiness_markdown_report, write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -1134,6 +1295,51 @@ security_mode = "audit_strict"
         assert_eq!(profile.chain_id, "aox-testnet-9");
         assert_eq!(profile.peers.len(), 2);
         assert_eq!(profile.security_mode, "audit_strict");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn readiness_markdown_report_includes_dual_track_summary() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "validator".to_string();
+        settings.logging.json = true;
+        settings.network.bind_host = "0.0.0.0".to_string();
+
+        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+        let report = readiness_markdown_report(
+            &readiness,
+            compare_embedded_network_profiles().ok().as_ref(),
+            compare_aoxhub_network_profiles().ok().as_ref(),
+        );
+
+        assert!(report.contains("# AOXC Progress Report"));
+        assert!(report.contains("## Dual-track progress"));
+        assert!(report.contains("**testnet**"));
+        assert!(report.contains("**mainnet**"));
+        assert!(report.contains("## Baseline parity"));
+    }
+
+    #[test]
+    fn write_readiness_markdown_report_persists_file() {
+        let dir = unique_dir("readiness-report");
+        let path = dir.join("AOXC_PROGRESS_REPORT.md");
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "mainnet".to_string();
+        settings.logging.json = true;
+        settings.network.bind_host = "0.0.0.0".to_string();
+
+        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+        write_readiness_markdown_report(
+            &path,
+            &readiness,
+            compare_embedded_network_profiles().ok().as_ref(),
+            compare_aoxhub_network_profiles().ok().as_ref(),
+        )
+        .expect("report should write");
+
+        let saved = fs::read_to_string(&path).expect("report should be readable");
+        assert!(saved.contains("Overall readiness: **100%**"));
 
         let _ = fs::remove_dir_all(dir);
     }
