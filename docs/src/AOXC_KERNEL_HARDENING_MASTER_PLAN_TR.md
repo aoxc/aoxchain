@@ -2,6 +2,8 @@
 
 Bu belge, `aoxcunity` + `aoxcai` + çevresindeki çekirdek workspaceler için **consensus safety öncelikli**, **AI'nın asla authority olmadığı**, **audit-ready** ve **production-grade** bir AOXC çekirdeğine giden yolu tanımlar.
 
+Identity / certificate / revocation / admission tarafının neden uygulama yerine çekirdek seviyesinde kapanması gerektiğine dair tamamlayıcı model için ayrıca bkz. [`AOXC_CORE_IDENTITY_SECURITY_MODEL_TR.md`](./AOXC_CORE_IDENTITY_SECURITY_MODEL_TR.md).
+
 Belgenin amacı “küçük iyileştirme listesi” sunmak değil; mevcut scaffold yapısını, protokol seviyesinde katılaştırılmış bir kernel mimarisine dönüştürmek için doğrudan uygulanabilir bir ana plan vermektir.
 
 ## 1. Mimari hüküm: `aoxcai` asla consensus authority değildir
