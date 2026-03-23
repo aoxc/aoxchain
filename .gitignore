@@ -1,15 +1,32 @@
 # =============================================================================
 # AOXCHAIN - Workspace & Multi-Crate Rust Project Template
-# Standard: Security Audit, Reproducibility & Production Readiness
+# Full Coverage: Rust, Node.js, Docker, Web & Security
 # =============================================================================
 
+# --- Node.js & Web Dependencies (CRITICAL) ---
+# npm, yarn and pnpm folders anywhere in the tree
+**/node_modules/
+**/.pnpm-store/
+**/.yarn/cache/
+**/.yarn/unplugged/
+**/.yarn/build-state.yml
+**/.yarn/install-state.gz
+**/.pnp.*
+# Build outputs for frontend (React, Vue, Next.js vb.)
+**/dist/
+**/build/
+**/.next/
+**/.svelte-kit/
+**/.nuxt/
+# npm logs
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
 # --- Rust Workspace & Compilation (Global Coverage) ---
-# Any 'target' folder in root or subdirectories
 **/target/
-# Specific build artifacts that might leak outside target
 **/*.rs.bk
 **/cargo-incremental/
-# Compiled binaries, libraries and wasm blobs
 **/*.exe
 **/*.so
 **/*.dylib
@@ -17,13 +34,7 @@
 **/*.wasm
 **/*.rlib
 
-# --- Dependency Management ---
-# For Chain/Binary: We MUST keep Cargo.lock for deterministic builds.
-# Only uncomment if you are building a generic library:
-# Cargo.lock
-
-# --- Environment & Sensitive Data (CRITICAL - DO NOT COMMIT) ---
-# Secrets, keys and local-only configurations
+# --- Environment & Sensitive Data (SECURITY) ---
 **/.env
 **/.env.local
 **/.env.*.local
@@ -36,48 +47,62 @@
 **/credentials.json
 .local
 **/.local
+# Cloud provider configs
+**/.aws/
+**/.gcloud/
 
 # --- Blockchain / Node Specifics (Data & DBs) ---
-# Local database folders (RocksDB, Badger, SQLite)
 **/data/
 **/db/
 **/ledger/
 **/chain-data/
 **/snapshots/
-# Log files
 **/*.log
 **/logs/
-# Local wallets and keystores
 **/keystore/
 **/wallets/*.json
 !**/wallets/example.json
 
-# --- Testing & Benchmarking ---
-# Coverage reports (tarpaulin, grcov)
+# --- Testing, Benchmarking & CI ---
 **/tarpaulin-report.html
 **/coverage/
-# Benchmarking (criterion)
 **/target/criterion/
+**/.nyc_output/
+**/.cache/
+
+# --- Docker & Containerization ---
+**/.docker/
+**/*.tar
+**/*.tar.gz
+
+# --- Python (If used for scripts/tools) ---
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/.venv/
+**/venv/
+**/env/
 
 # --- IDEs & Editors (Clean Workspace) ---
-# Visual Studio Code
 **/.vscode/*
 !**/.vscode/settings.json
 !**/.vscode/tasks.json
 !**/.vscode/launch.json
 !**/.vscode/extensions.json
 *.code-workspace
-
-# JetBrains / IntelliJ / RustRover
 **/.idea/
 **/*.iml
+**/.helix/
+**/.project
+**/.settings/
 
-# System files
+# --- System Files ---
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+desktop.ini
 **/*.swp
 **/*~
-
-# --- Documentation ---
-# Local rustdoc output
-**/target/doc/
+**/*.tmp
+**/*.bak
