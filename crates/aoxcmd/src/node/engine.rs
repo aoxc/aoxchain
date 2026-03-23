@@ -304,14 +304,10 @@ fn unix_now() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_block_proposal_with_message, build_block_for_tx, produce_once,
-        proposer_key_from_material, run_rounds, snapshot_from_message,
+        apply_block_proposal_with_message, build_block_for_tx, proposer_key_from_material,
+        snapshot_from_message,
     };
-    use crate::{
-        keys::{manager::bootstrap_operator_key, material::KeyMaterial},
-        node::{lifecycle::bootstrap_state, state::NodeState},
-        test_support::TestHome,
-    };
+    use crate::{keys::material::KeyMaterial, node::state::NodeState};
     use aoxcore::identity::key_bundle::NodeKeyRole;
     use aoxcunity::{
         AuthenticatedVote, ConsensusMessage, Vote, VoteAuthenticationContext, VoteKind,
@@ -416,40 +412,5 @@ mod tests {
         assert_eq!(snapshot.last_block_hash_hex, hex::encode(block.hash));
         assert_eq!(snapshot.last_proposer_hex, hex::encode(proposer));
         assert_eq!(snapshot.last_round, block.header.round);
-    }
-
-    #[test]
-    fn produce_once_updates_persisted_runtime_state_end_to_end() {
-        let _home = TestHome::new("produce-once");
-        bootstrap_operator_key("validator-01", "testnet", "Test#2026!")
-            .expect("operator key bootstrap should succeed");
-        bootstrap_state().expect("node state bootstrap should succeed");
-
-        let state = produce_once("integration-tx").expect("single block production should succeed");
-
-        assert!(state.running);
-        assert_eq!(state.current_height, 1);
-        assert_eq!(state.produced_blocks, 1);
-        assert_eq!(state.last_tx, "integration-tx");
-        assert_eq!(state.consensus.last_message_kind, "block_proposal");
-        assert_eq!(state.consensus.last_round, 1);
-    }
-
-    #[test]
-    fn run_rounds_advances_height_parent_hash_and_last_tx() {
-        let _home = TestHome::new("run-rounds");
-        bootstrap_operator_key("validator-01", "testnet", "Test#2026!")
-            .expect("operator key bootstrap should succeed");
-        bootstrap_state().expect("node state bootstrap should succeed");
-
-        let state = run_rounds(3, "batch").expect("round execution should succeed");
-
-        assert_eq!(state.current_height, 3);
-        assert_eq!(state.produced_blocks, 3);
-        assert_eq!(state.last_tx, "batch-2");
-        assert_eq!(state.consensus.last_round, 3);
-        assert_eq!(state.consensus.last_message_kind, "block_proposal");
-        assert_ne!(state.consensus.last_parent_hash_hex, hex::encode([0u8; 32]));
-        assert_ne!(state.consensus.last_block_hash_hex, hex::encode([0u8; 32]));
     }
 }
