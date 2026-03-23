@@ -33,6 +33,10 @@ Production use should remain aligned with controlled change management.
 - Record environment limitations when verification cannot be completed exactly as planned.
 - Treat incident response readiness as part of engineering quality, not a post-release activity.
 
+
+## Testnet Parity Guidance
+The deterministic testnet flow should remain as close as practical to the production operational path, including bootstrap order, genesis validation, node startup, and health verification. Any intentional divergence must be documented explicitly so operators can distinguish test-only identities, prefixes, and custody material from production assets.
+
 ## Security Audit Log
 The following audit statements should be reviewed on each significant change.
 - Inputs are validated before they can influence durable or consensus-sensitive state.

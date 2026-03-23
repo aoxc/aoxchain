@@ -63,3 +63,9 @@ policy = "Formatting, clippy, and full test-suite checks are mandatory for merge
 aoxcore = "Increase property-based test coverage for identity and genesis models."
 aoxckit = "Add golden tests for key rotation and revocation workflows."
 aoxcdata = "Preserve deterministic storage/integrity coverage when changing persistence code."
+
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
