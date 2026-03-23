@@ -13,3 +13,6 @@ pub mod node;
 pub mod runtime;
 pub mod services;
 pub mod telemetry;
+
+#[cfg(test)]
+pub(crate) mod test_support;

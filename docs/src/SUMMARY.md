@@ -1,6 +1,7 @@
 # AOXChain Documentation
 
 [Introduction](./READ.md)
+[Akdeniz Release Baseline](./AKDENIZ_RELEASE_BASELINE.md)
 [Quick Start (10 Minutes Onboarding)](./ONBOARDING_10_MINUTES.md)
 
 ## 🚀 Production & Launch Strategy

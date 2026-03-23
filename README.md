@@ -1,52 +1,219 @@
-# AOX Chain Workspace
+# AOXC v0.1.1-akdeniz
 
-Enterprise overview for the AOX Chain Rust workspace, its security posture, and operational controls.
+<p align="center">
+  <img src="logos/aoxc_transparent.png" alt="AOXC logo" width="220" />
+</p>
 
-## Executive Summary
-This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
+<p align="center">
+  <strong>AOXChain Rust workspace for sovereign core, consensus, networking, RPC, operator tooling, and production-oriented runbooks.</strong>
+</p>
 
-## Architectural Overview
-The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
+---
 
-## Security Objectives
-The primary security objectives are listed below.
-- Preserve deterministic behavior for the same input set.
-- Reject malformed, stale, or conflicting inputs before state mutation.
-- Maintain bounded resource usage to reduce denial-of-service exposure.
-- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
+## 1. What this repository is
 
-## Audit Scope
-The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
+AOXC is a multi-crate Rust workspace that organizes the chain into clearly separated layers:
 
-## Verification Strategy
-Recommended verification activities include the following layers.
-1. Unit tests for validation rules, edge cases, and deterministic behavior.
-2. Integration tests for cross-module flows and operational hand-offs.
-3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
-4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
-5. Formatting, lint, and documentation checks before merge approval.
+- **`aoxcore`**: identity, genesis, mempool, receipts, transactions, and canonical block primitives.
+- **`aoxcunity`**: consensus kernel, quorum logic, validator rotation, vote handling, and finality rules.
+- **`aoxcnet`**: peer discovery, gossip, transport, sync, and resilience surfaces.
+- **`aoxcrpc`**: HTTP, gRPC, and WebSocket access layers.
+- **`aoxcmd`**: operator-facing bootstrap, runtime, diagnostics, and CLI workflows.
+- **`aoxcvm`**: multi-lane execution compatibility for native, EVM, WASM, and external lanes.
 
-## Operational Guidance
-Production use should remain aligned with controlled change management.
-- Update documentation whenever interfaces, invariants, or deployment assumptions change.
-- Preserve traceability between source code, tests, release artifacts, and audit evidence.
-- Record environment limitations when verification cannot be completed exactly as planned.
-- Treat incident response readiness as part of engineering quality, not a post-release activity.
+The repository also includes deterministic testnet fixtures, operations scripts, architecture documentation, and release/readiness material under `configs/`, `scripts/`, and `docs/`.
 
+---
 
-## Testnet Parity Guidance
-The deterministic testnet flow should remain as close as practical to the production operational path, including bootstrap order, genesis validation, node startup, and health verification. Any intentional divergence must be documented explicitly so operators can distinguish test-only identities, prefixes, and custody material from production assets.
+## 2. Recommended release naming
 
-## Security Audit Log
-The following audit statements should be reviewed on each significant change.
-- Inputs are validated before they can influence durable or consensus-sensitive state.
-- Error propagation remains explicit and avoids hidden control-flow shortcuts.
-- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
-- Test coverage includes both expected behavior and hostile or malformed scenarios.
-- Release evidence includes the commands used and the outcome observed in CI or local execution.
+I recommend using the following release convention:
 
-## Audit Checklist
-- [ ] Confirm deterministic behavior for identical inputs.
-- [ ] Confirm malformed and conflicting inputs are rejected.
-- [ ] Confirm verification evidence is attached to the release record.
-- [ ] Confirm documentation reflects current operational assumptions.
+- **Marketing / operator label:** `AOXC v0.1.1-akdeniz`
+- **Cargo / package version:** `0.1.1-akdeniz`
+- **Documentation baseline label:** `aoxc.v.0.1.1-akdeniz`
+
+Why this naming works:
+
+1. `0.1.1` is still honest about maturity.
+2. `akdeniz` gives the release line an identity without pretending the system is already final-mainnet.
+3. It avoids being stuck forever in vague `alpha` wording, which the repository’s own versioning roadmap argues against.
+
+---
+
+## 3. Current workspace structure
+
+### Core crates
+
+| Crate | Role |
+|---|---|
+| `crates/aoxcore` | chain domain model, identity, genesis, mempool, receipts |
+| `crates/aoxcunity` | consensus, fork choice, quorum, proposer logic |
+| `crates/aoxcnet` | networking, gossip, sync, transport |
+| `crates/aoxcrpc` | API ingress surfaces |
+| `crates/aoxcmd` | node lifecycle and operator command plane |
+| `crates/aoxcvm` | execution lane compatibility |
+
+### Supporting crates
+
+| Crate | Role |
+|---|---|
+| `aoxcdata` | storage and state persistence |
+| `aoxcontract` | contract metadata and validation |
+| `aoxconfig` | chain and contract config models |
+| `aoxckit` | keyforge/operator utility commands |
+| `aoxcsdk` | SDK-facing helper APIs |
+| `aoxcai` | policy/AI extension interfaces |
+| `aoxcenergy`, `aoxclibs`, `aoxcexec`, `aoxcmob`, `aoxchal` | supporting runtime, utility, and integration surfaces |
+
+---
+
+## 4. Production goals for the Akdeniz baseline
+
+The `v0.1.1-akdeniz` line should mean:
+
+- deterministic workspace behavior is preserved,
+- node bootstrap and operator workflows are testable,
+- key custody and lifecycle surfaces have explicit verification paths,
+- documentation is rich enough for operators, reviewers, and contributors,
+- release-readiness claims are tied to evidence, not only aspirations.
+
+This repository already contains the foundation for that through:
+
+- release/readiness planning in `docs/src/`,
+- deterministic testnet fixtures in `configs/deterministic-testnet/`,
+- operator scripts in `scripts/`,
+- integration coverage in `tests/`.
+
+---
+
+## 5. Quick start
+
+### Requirements
+
+- Rust toolchain with `cargo`
+- `git`
+- Linux or macOS recommended
+- enough disk space for target artifacts and local fixtures
+
+### Clone
+
+```bash
+git clone <your-repo-url> aoxchain
+cd aoxchain
+```
+
+### Format and test
+
+```bash
+cargo fmt --all
+cargo test -p aoxcmd
+```
+
+### Explore the operator CLI
+
+```bash
+cargo run -p aoxcmd --bin aoxc -- --help
+```
+
+---
+
+## 6. Operator bootstrap flow
+
+Typical local operator flow:
+
+```bash
+# 1) create or inspect the data home
+export AOXC_HOME="$PWD/.aoxc-local"
+
+# 2) bootstrap operator key material
+cargo run -p aoxcmd --bin aoxc -- bootstrap key \
+  --name validator-01 \
+  --profile testnet \
+  --password 'Test#2026!'
+
+# 3) bootstrap runtime state
+cargo run -p aoxcmd --bin aoxc -- bootstrap node
+
+# 4) produce a deterministic sample block
+cargo run -p aoxcmd --bin aoxc -- produce-once --tx demo-tx
+```
+
+If the exact CLI surface changes, the canonical source of truth is `crates/aoxcmd/src/cli/`.
+
+---
+
+## 7. Deterministic testnet and local validation
+
+Useful entry points:
+
+- `configs/deterministic-testnet/`
+- `configs/deterministic-testnet/launch-testnet.sh`
+- `scripts/run-local.sh`
+- `scripts/validation/multi_host_validation.sh`
+
+Suggested validation order:
+
+1. local single-node bootstrap,
+2. deterministic testnet fixture launch,
+3. targeted crate tests,
+4. multi-node and cross-host validation,
+5. readiness evidence update.
+
+---
+
+## 8. Documentation map
+
+Start here:
+
+- `docs/src/READ.md` — documentation entry and release baseline
+- `docs/src/SUMMARY.md` — mdBook navigation
+- `docs/src/AKDENIZ_RELEASE_BASELINE.md` — Akdeniz release definition
+- `docs/src/MAINNET_READINESS_CHECKLIST.md` — readiness expectations
+- `docs/src/REAL_NETWORK_VALIDATION_RUNBOOK_TR.md` — real-network validation
+- `docs/src/AOXC_REAL_VERSIONING_AND_RELEASE_ROADMAP_TR.md` — versioning policy
+
+---
+
+## 9. Quality gates
+
+Recommended minimum release gates:
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test
+```
+
+For this change set, the focused verification path remained:
+
+```bash
+cargo fmt --all
+cargo test -p aoxcmd
+```
+
+---
+
+## 10. Release evidence expectations
+
+Every named release should capture:
+
+- exact commit SHA,
+- exact commands executed,
+- test outcomes,
+- documentation changes,
+- known limitations and blockers,
+- artifact and provenance policy status.
+
+---
+
+## 11. Known reality
+
+This repository has strong architecture and documentation breadth, but some production-readiness areas still require additional closure, especially:
+
+- real cross-host validation,
+- state sync / recovery proof,
+- broader workspace-wide release gates,
+- full integration maturity across all crates.
+
+The goal of the Akdeniz line is to make the release surface coherent and evidence-driven, not to hide remaining work.

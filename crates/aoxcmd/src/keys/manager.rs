@@ -69,3 +69,47 @@ pub fn inspect_operator_key() -> Result<KeyMaterialSummary, AppError> {
 pub fn consensus_public_key_hex() -> Result<String, AppError> {
     Ok(inspect_operator_key()?.consensus_public_key)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        bootstrap_operator_key, consensus_public_key_hex, inspect_operator_key,
+        operator_fingerprint, rotate_operator_key, verify_operator_key,
+    };
+    use crate::test_support::TestHome;
+
+    #[test]
+    fn bootstrap_operator_key_persists_inspectable_material() {
+        let _home = TestHome::new("bootstrap-operator-key");
+
+        let material = bootstrap_operator_key("validator-01", "testnet", "Test#2026!")
+            .expect("operator key bootstrap should succeed");
+        let summary = inspect_operator_key().expect("bootstrapped key should be inspectable");
+
+        assert_eq!(
+            operator_fingerprint().expect("fingerprint should load"),
+            material.fingerprint()
+        );
+        assert_eq!(
+            consensus_public_key_hex().expect("consensus public key should load"),
+            summary.consensus_public_key
+        );
+        verify_operator_key(Some("Test#2026!"))
+            .expect("bootstrapped operator key should verify with the bootstrap password");
+    }
+
+    #[test]
+    fn rotate_operator_key_replaces_fingerprint_and_keeps_key_valid() {
+        let _home = TestHome::new("rotate-operator-key");
+
+        let original = bootstrap_operator_key("validator-01", "testnet", "Test#2026!")
+            .expect("initial operator key bootstrap should succeed");
+        let rotated = rotate_operator_key("validator-02", "mainnet", "Rotate#2026!")
+            .expect("operator key rotation should succeed");
+
+        assert_ne!(rotated.bundle_fingerprint, original.fingerprint());
+        assert_eq!(rotated.operational_state, "active");
+        verify_operator_key(Some("Rotate#2026!"))
+            .expect("rotated operator key should verify with the new password");
+    }
+}
