@@ -2,6 +2,7 @@ use aoxcunity::Validator;
 
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
+use std::convert::TryFrom;
 
 use std::collections::HashSet;
 
@@ -305,8 +306,7 @@ impl GenesisConfig {
     /// - runtime-only fields (`validators`, `genesis_seal`) remain excluded;
     /// - accounts are canonically ordered by address before hashing;
     /// - the serialized hash input is stable across insertion-order differences.
-    #[must_use]
-    pub fn state_hash(&self) -> String {
+    pub fn state_hash(&self) -> Result<String, String> {
         #[derive(Serialize)]
         struct CanonicalGenesisConfig<'a> {
             chain_num: u32,
@@ -329,14 +329,14 @@ impl GenesisConfig {
             settlement_link: &self.settlement_link,
         };
 
-        let encoded =
-            serde_json::to_vec(&canonical).expect("GENESIS_HASH: canonical serialization failure");
+        let encoded = serde_json::to_vec(&canonical)
+            .map_err(|error| format!("GENESIS_HASH: canonical serialization failure: {error}"))?;
 
         let mut hasher = Sha3_256::new();
         hasher.update(encoded);
 
         let digest = hasher.finalize();
-        hex::encode(digest)
+        Ok(hex::encode(digest))
     }
 
     /// Computes a lightweight deterministic fingerprint for quick identity checks.
@@ -410,26 +410,20 @@ pub struct GenesisBlock {
 }
 
 impl GenesisBlock {
-    /// Creates a genesis block from configuration.
-    ///
-    /// This constructor preserves the current infallible API contract.
-    /// Invalid configuration is treated as a bootstrap invariant violation.
-    #[must_use]
-    pub fn new(config: GenesisConfig) -> Self {
-        config
-            .validate()
-            .expect("GENESIS_BLOCK: invalid genesis configuration");
+    /// Creates a genesis block from configuration with explicit error handling.
+    pub fn new(config: GenesisConfig) -> Result<Self, String> {
+        config.validate()?;
 
         let timestamp = u64::try_from(chrono::Utc::now().timestamp())
-            .expect("GENESIS_BLOCK: timestamp must be non-negative");
-        let state_hash = config.state_hash();
+            .map_err(|_| "GENESIS_BLOCK: timestamp must be non-negative".to_string())?;
+        let state_hash = config.state_hash()?;
 
-        Self {
+        Ok(Self {
             chain_id: config.chain_id.clone(),
             timestamp,
             config,
             state_hash,
-        }
+        })
     }
 
     /// Creates a default genesis block.
@@ -439,8 +433,7 @@ impl GenesisBlock {
     /// - the canonical treasury account is inserted into `accounts`.
     ///
     /// `total_supply()` is hardened to avoid double-counting this treasury entry.
-    #[must_use]
-    pub fn new_default() -> Self {
+    pub fn new_default() -> Result<Self, String> {
         let mut config = GenesisConfig::new();
 
         config.treasury = 1_000_000_000;
@@ -545,6 +538,18 @@ mod tests {
             ..first.settlement_link.clone()
         };
 
-        assert_ne!(first.state_hash(), second.state_hash());
+        assert_ne!(
+            first.state_hash().expect("hash must compute"),
+            second.state_hash().expect("hash must compute")
+        );
+    }
+
+    #[test]
+    fn try_new_rejects_invalid_genesis_config_without_panicking() {
+        let mut cfg = GenesisConfig::new();
+        cfg.chain_id.clear();
+
+        let err = super::GenesisBlock::new(cfg).expect_err("invalid config must be rejected");
+        assert!(err.starts_with("GENESIS:"));
     }
 }
