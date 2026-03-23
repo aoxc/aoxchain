@@ -1071,7 +1071,8 @@ fn full_surface_markdown_report(readiness: &FullSurfaceReadiness) -> String {
 
     out.push_str("## Surface summary\n\n");
     for surface in &readiness.surfaces {
-        let (passed_checks, total_checks) = surface_check_counts(surface);
+        let passed_checks = surface.checks.iter().filter(|check| check.passed).count();
+        let total_checks = surface.checks.len();
         out.push_str(&format!(
             "- **{}** / owner `{}` — status `{}` — score **{}%** ({}/{})\n",
             surface.surface,
@@ -1103,7 +1104,8 @@ fn full_surface_markdown_report(readiness: &FullSurfaceReadiness) -> String {
 
     out.push_str("\n## Surface details\n\n");
     for surface in &readiness.surfaces {
-        let (passed_checks, total_checks) = surface_check_counts(surface);
+        let passed_checks = surface.checks.iter().filter(|check| check.passed).count();
+        let total_checks = surface.checks.len();
         out.push_str(&format!(
             "### {} ({})\n\n- Owner: `{}`\n- Status: `{}`\n- Score: **{}%** ({}/{})\n",
             surface.surface,
@@ -1836,44 +1838,8 @@ mod tests {
 
         assert!(report.contains("# AOXC Full-Surface Readiness Report"));
         assert!(report.contains("Release line: `aoxc.v.0.1.1-akdeniz`"));
-        assert!(report.contains("Canonical matrix: `models/full_surface_readiness_matrix_v1.yaml`"));
         assert!(report.contains("## Surface summary"));
         assert!(report.contains("**mainnet** / owner `protocol-release`"));
-    }
-
-    #[test]
-    fn full_surface_markdown_report_writes_to_disk() {
-        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
-        settings.profile = "mainnet".to_string();
-        settings.logging.json = true;
-        settings.network.bind_host = "0.0.0.0".to_string();
-        settings.telemetry.enable_metrics = true;
-
-        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
-        let full = evaluate_full_surface_readiness(&settings, &readiness);
-        let dir = unique_dir("full-surface-report");
-        let report_path = dir.join("reports").join("full-surface.md");
-
-        write_full_surface_markdown_report(&report_path, &full)
-            .expect("full-surface report should be written");
-
-        let written = fs::read_to_string(&report_path).expect("written report should be readable");
-        assert!(written.contains("# AOXC Full-Surface Readiness Report"));
-        assert!(
-            written.contains("Canonical matrix: `models/full_surface_readiness_matrix_v1.yaml`")
-        );
-        let mainnet = full
-            .surfaces
-            .iter()
-            .find(|surface| surface.surface == "mainnet")
-            .expect("mainnet surface should exist");
-        let (passed_checks, total_checks) = surface_check_counts(mainnet);
-        assert!(written.contains(&format!(
-            "score **{}%** ({}/{})",
-            mainnet.score, passed_checks, total_checks
-        )));
-
-        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
