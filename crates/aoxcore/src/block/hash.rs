@@ -164,8 +164,9 @@ pub fn try_hash_task(task: &Task) -> Result<[u8; HASH_SIZE], BlockError> {
 }
 
 /// Computes the canonical hash of a task.
-pub fn hash_task(task: &Task) -> Result<[u8; HASH_SIZE], BlockError> {
-    try_hash_task(task)
+#[must_use]
+pub fn hash_task(task: &Task) -> [u8; HASH_SIZE] {
+    try_hash_task(task).expect("BLOCK_HASH: task payload exceeded canonical encoding limits")
 }
 
 /// Computes the canonical task leaf hash used in task-root aggregation.
@@ -181,8 +182,9 @@ pub fn try_hash_task_leaf(task: &Task) -> Result<[u8; HASH_SIZE], BlockError> {
 }
 
 /// Computes the canonical task leaf hash used in task-root aggregation.
-pub fn hash_task_leaf(task: &Task) -> Result<[u8; HASH_SIZE], BlockError> {
-    try_hash_task_leaf(task)
+#[must_use]
+pub fn hash_task_leaf(task: &Task) -> [u8; HASH_SIZE] {
+    try_hash_task_leaf(task).expect("BLOCK_HASH: task leaf exceeded canonical encoding limits")
 }
 
 /// Computes the canonical internal-node hash for task-root tree constructions.

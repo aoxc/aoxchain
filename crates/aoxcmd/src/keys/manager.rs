@@ -2,7 +2,7 @@ use crate::{
     error::AppError,
     keys::{
         loader::{load_operator_key, persist_operator_key},
-        material::{ExportedIdentityArtifacts, KeyMaterial, KeyMaterialSummary},
+        material::{KeyMaterial, KeyMaterialSummary},
     },
 };
 use aoxcore::identity::key_bundle::NodeKeyOperationalState;
@@ -30,33 +30,6 @@ pub fn rotate_operator_key(
 
 pub fn operator_fingerprint() -> Result<String, AppError> {
     Ok(load_operator_key()?.fingerprint().to_string())
-}
-
-pub fn consensus_public_key_hex() -> Result<String, AppError> {
-    Ok(load_operator_key()?.consensus_public_key_hex()?.to_string())
-}
-
-pub fn inspect_operator_key() -> Result<KeyMaterialSummary, AppError> {
-    load_operator_key()?.summary()
-}
-
-pub fn export_operator_identity(
-    chain: &str,
-    actor_id: &str,
-    zone: &str,
-    issued_at: u64,
-    expires_at: u64,
-) -> Result<ExportedIdentityArtifacts, AppError> {
-    load_operator_key()?.export_validator_identity(chain, actor_id, zone, issued_at, expires_at)
-}
-
-pub fn set_operator_key_state(
-    state: NodeKeyOperationalState,
-) -> Result<KeyMaterialSummary, AppError> {
-    let mut key = load_operator_key()?;
-    key.bundle.set_operational_state(state);
-    persist_operator_key(&key)?;
-    key.summary()
 }
 
 pub fn verify_operator_key(password: Option<&str>) -> Result<(), AppError> {

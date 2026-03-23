@@ -463,15 +463,6 @@ impl Block {
         self.task_root()
     }
 
-    /// Validates the block and enforces producer authorization against the
-    /// canonical consensus key in the provided node key bundle.
-    pub fn validate_with_key_bundle(&self, bundle: &NodeKeyBundleV1) -> Result<(), BlockError> {
-        self.validate()?;
-        bundle
-            .authorize_block_producer(self.header.producer)
-            .map_err(|_| BlockError::InvalidProducer)
-    }
-
     /// Returns `true` if the block contains duplicate task identifiers.
     ///
     /// This helper is exposed for production callers that want stricter policy
