@@ -5,4 +5,4 @@ peers = [
   "127.0.0.1:36657",
   "127.0.0.1:36658",
 ]
-security_mode = "mutual_auth"
+security_mode = "audit_strict"
