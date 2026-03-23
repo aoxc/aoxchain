@@ -84,6 +84,10 @@ Example:
 aoxc interop-gate --audit-complete true --fuzz-complete true --replay-complete true --finality-matrix-complete true --slo-complete true --enforce
 ```
 
+## 3.2) Node Identity Architecture Follow-Up
+
+For the next identity-hardening step, see `AOXC Node Identity v0.1.0-alpha`, which proposes a canonical hybrid node identity bundle, typed node certificates, and role-separated key lifecycle modeling before block-format expansion.
+
 ## 4) Recommended Production Path
 
 - Stage A: single-lane hardened testnet (EVM first)
