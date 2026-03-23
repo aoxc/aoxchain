@@ -9,6 +9,7 @@
 - [Mainnet Readiness Checklist](./MAINNET_READINESS_CHECKLIST.md)
 - [Real Network Validation Criteria](./GERCEK_AG_HAZIRLIK_KRITERLERI_TR.md)
 - [Aligned 9-Stage Testnet + Mainnet Program](./TESTNET_MAINNET_HIZALI_9_ETAP_PROGRAMI_TR.md)
+- [Full Surface 9-Step Production Program](./FULL_SURFACE_9_STEP_PRODUCTION_PROGRAM_TR.md)
 - [Repository Gap Analysis](./REPO_GAP_ANALIZI_TR.md)
 
 ## 🏗️ Technical Architecture
