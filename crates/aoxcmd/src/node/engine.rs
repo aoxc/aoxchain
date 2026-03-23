@@ -6,10 +6,16 @@ use crate::{
         state::{ConsensusSnapshot, KeyMaterialSnapshot, NodeState},
     },
 };
+use aoxcore::{
+    block::{AssemblyLane, CanonicalBlockAssemblyPlan},
+    receipts::Receipt,
+    transaction::Transaction,
+};
 use aoxcunity::{
     Block, BlockBody, BlockSection, ConsensusMessage, LaneCommitment, LaneCommitmentSection,
     LaneType, Proposer,
 };
+use ed25519_dalek::{Signer, SigningKey};
 use sha3::{Digest, Sha3_256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -220,6 +226,86 @@ fn derive_digest32(domain: &str, payload: &[u8]) -> [u8; 32] {
     h.update(domain.as_bytes());
     h.update(payload);
     h.finalize().into()
+}
+
+fn lane_commitment_from_assembly(
+    assembly_plan: &CanonicalBlockAssemblyPlan,
+    tx: &str,
+    round: u64,
+) -> Result<LaneCommitment, AppError> {
+    let lane = assembly_plan.lanes.first().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::NodeStateInvalid,
+            "Canonical block assembly plan produced no execution lanes",
+        )
+    })?;
+
+    Ok(LaneCommitment {
+        lane_id: lane.lane_id,
+        lane_type: unity_lane_type(lane.lane),
+        tx_count: lane.task_count,
+        input_root: lane.task_root,
+        output_root: derive_digest32("AOXC-CMD-ASSEMBLY-OUTPUT", &assembly_plan.execution_root),
+        receipt_root: assembly_plan.receipts_root,
+        state_commitment: assembly_plan.execution_root,
+        proof_commitment: derive_digest32(
+            "AOXC-CMD-ASSEMBLY-PROOF",
+            format!("{round}:{}:{tx}", assembly_plan.height).as_bytes(),
+        ),
+    })
+}
+
+fn unity_lane_type(lane: AssemblyLane) -> LaneType {
+    match lane {
+        AssemblyLane::Native => LaneType::Native,
+        AssemblyLane::EthereumSettlement | AssemblyLane::BaseSettlement => LaneType::Evm,
+        AssemblyLane::SolanaReward => LaneType::External,
+    }
+}
+
+fn transaction_from_payload(tx: &str) -> Result<Transaction, AppError> {
+    let seed = derive_digest32("AOXC-CMD-TX-SIGNER", tx.as_bytes());
+    let signing_key = SigningKey::from_bytes(&seed);
+    let sender = signing_key.verifying_key().to_bytes();
+
+    let unsigned = Transaction {
+        sender,
+        nonce: 0,
+        capability: aoxcore::block::Capability::UserSigned,
+        target: aoxcore::block::TargetOutpost::AovmNative,
+        payload: tx.as_bytes().to_vec(),
+        signature: [0u8; 64],
+    };
+
+    let message = unsigned.signing_message().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::NodeStateInvalid,
+            "Failed to encode synthetic runtime transaction signing payload",
+            error,
+        )
+    })?;
+    let signature = signing_key.sign(&message).to_bytes();
+
+    Ok(Transaction {
+        signature,
+        ..unsigned
+    })
+}
+
+fn receipt_for_transaction(transaction: &Transaction, tx: &str) -> Result<Receipt, AppError> {
+    let tx_id = transaction.tx_id().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::NodeStateInvalid,
+            "Failed to derive canonical transaction identifier for runtime assembly",
+            error,
+        )
+    })?;
+    let mut receipt = Receipt::success(tx_id, tx.len() as u64);
+    receipt.push_event(aoxcore::receipts::Event {
+        event_type: 1,
+        data: tx.as_bytes().to_vec(),
+    });
+    Ok(receipt)
 }
 
 fn unix_now() -> u64 {

@@ -51,6 +51,9 @@ pub enum ConsensusError {
     #[error("vote is stale relative to finalized ancestry")]
     StaleVote,
 
+    #[error("authenticated vote context does not match the active consensus context")]
+    InvalidAuthenticatedContext,
+
     #[error("invalid quorum threshold")]
     InvalidQuorumThreshold,
 }
