@@ -46,20 +46,30 @@ pub fn localized_unknown_command(_lang: &str, command: &str) -> AppError {
 
 pub fn print_usage(_lang: &str) {
     println!(
-        r#"AOXCMD operator command plane
+        r#"╔══════════════════════════════════════════════════════════════╗
+║ AOXCMD • Operator Command Plane                             ║
+║ Deterministic bootstrap • audit UX • hardened local flows   ║
+╚══════════════════════════════════════════════════════════════╝
 
 Usage:
   aoxc <command> [flags]
 
-Core commands:
+Describe:
   version | vision | build-manifest | node-connection-policy
   sovereign-core | module-architecture | compat-matrix | port-map
-  key-bootstrap | keys-show-fingerprint | keys-verify
+
+Bootstrap:
+  key-bootstrap | keys-show-fingerprint | keys-verify [--password <value>]
   genesis-init | genesis-validate | genesis-inspect | genesis-hash
   config-init | config-validate | config-print
+
+Node and economy:
   node-bootstrap | produce-once | node-run | node-health
-  economy-init | treasury-transfer | stake-delegate | stake-undelegate | economy-status
-  runtime-status | load-benchmark | storage-smoke | network-smoke | real-network
+  economy-init | treasury-transfer | stake-delegate | stake-undelegate
+  economy-status | runtime-status
+
+Validation and audit:
+  load-benchmark | storage-smoke | network-smoke | real-network
   diagnostics-doctor | diagnostics-bundle
   interop-readiness | interop-gate | production-audit | mainnet-readiness
 
@@ -67,6 +77,11 @@ Global flags:
   --home <path>        Override AOXC home directory.
   --format <text|json|yaml>
   --redact             Redact secrets in config and bundle output.
+
+Operator style notes:
+  • text   => curated operator-facing layout
+  • json   => machine-readable automation contract
+  • yaml   => human review / runbook snapshots
 "#
     );
 }

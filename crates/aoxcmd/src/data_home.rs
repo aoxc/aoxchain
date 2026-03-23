@@ -62,7 +62,9 @@ pub fn write_file(path: &Path, content: &str) -> Result<(), AppError> {
             format!("Failed to write file {}", path.display()),
             e,
         )
-    })
+    })?;
+    harden_file_permissions(path)?;
+    Ok(())
 }
 
 pub fn read_file(path: &Path) -> Result<String, AppError> {
@@ -73,4 +75,20 @@ pub fn read_file(path: &Path) -> Result<String, AppError> {
             e,
         )
     })
+}
+
+fn harden_file_permissions(path: &Path) -> Result<(), AppError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(|e| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!("Failed to harden permissions on {}", path.display()),
+                e,
+            )
+        })?;
+    }
+
+    Ok(())
 }

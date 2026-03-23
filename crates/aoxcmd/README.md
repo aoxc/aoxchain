@@ -39,11 +39,11 @@ cargo run -- port-map
 
 ```bash
 cargo run -- key-bootstrap --name validator-01 --password "Example#2026!"
+cargo run -- keys-verify --password "Example#2026!"
 cargo run -- genesis-init --chain-num 1001 --treasury 1000000000000
 cargo run -- genesis-validate
 cargo run -- genesis-hash
 cargo run -- keys-show-fingerprint
-cargo run -- keys-verify
 ```
 
 ### Node / runtime / economy
@@ -109,6 +109,15 @@ Most commands support:
 --format text
 --format json
 --format yaml
+```
+
+## Key custody note
+
+`key-bootstrap` now stores operator secret material inside an encrypted seed envelope.
+Use password-backed verification when you want a deeper integrity check:
+
+```bash
+cargo run -- keys-verify --password "Example#2026!"
 ```
 
 ## Operational note

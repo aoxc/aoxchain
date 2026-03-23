@@ -30,7 +30,7 @@ pub fn cmd_load_benchmark(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
     let settings = load_or_init()?;
-    let key_ok = crate::keys::manager::verify_operator_key().is_ok();
+    let key_ok = crate::keys::manager::verify_operator_key(None).is_ok();
     let genesis_ok = crate::cli::bootstrap::genesis_ready();
     let node_ok = lifecycle::load_state().is_ok();
     #[derive(serde::Serialize)]

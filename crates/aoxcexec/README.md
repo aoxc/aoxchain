@@ -33,9 +33,18 @@ Before submitting changes to this crate, ensure it passes all static analysis an
 cargo check -p aoxcexec
 cargo clippy -p aoxcexec --all-targets --all-features -- -D warnings
 cargo test -p aoxcexec
-Related Components
-Top-level architecture: ../../README.md
+```
 
-Consensus Layer: ../aoxcunity/README.md
+## Current audit-oriented behavior
 
-Execution Lanes (VMs): ../aoxcvm/README.md
+- lane execution is policy-driven via `LanePolicy`
+- duplicate transaction hashes reject the whole batch early
+- per-payload failures become deterministic failed receipts instead of panics
+- cumulative gas accounting and state-root hints are deterministic
+- batch summaries are available for operator/audit reporting
+
+## Related Components
+
+- Top-level architecture: [`../../README.md`](../../README.md)
+- Consensus layer: [`../aoxcunity/README.md`](../aoxcunity/README.md)
+- Execution lanes (VMs): [`../aoxcvm/README.md`](../aoxcvm/README.md)

@@ -92,9 +92,18 @@ pub fn cmd_keys_show_fingerprint(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_keys_verify(args: &[String]) -> Result<(), AppError> {
-    verify_operator_key()?;
+    let password = arg_value(args, "--password");
+    verify_operator_key(password.as_deref())?;
     let mut details = BTreeMap::new();
     details.insert("result".to_string(), "verified".to_string());
+    details.insert(
+        "decrypt_check".to_string(),
+        if password.is_some() {
+            "passed".to_string()
+        } else {
+            "skipped-no-password".to_string()
+        },
+    );
     emit_serialized(
         &text_envelope("keys-verify", "ok", details),
         output_format(args),

@@ -196,7 +196,7 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
 
     checks.push(Check {
         name: "key-material",
-        passed: verify_operator_key().is_ok(),
+        passed: verify_operator_key(None).is_ok(),
         detail: "Operator key material is available and structurally valid".to_string(),
     });
 

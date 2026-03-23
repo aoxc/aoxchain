@@ -153,6 +153,7 @@ dependencies = [
 name = "aoxcexec"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "serde",
  "tokio",
 ]
@@ -193,6 +194,7 @@ name = "aoxcmd"
 version = "0.1.0"
 dependencies = [
  "aoxcai",
+ "aoxcore",
  "aoxcunity",
  "chrono",
  "hex",
