@@ -24,14 +24,6 @@ type LaunchBlocker = {
   title: string
   detail: string
   command: string
-  detail: string
-}
-
-type TelemetrySurface = {
-  title: string
-  status: 'ready' | 'blocked'
-  target: string
-  detail: string
 }
 
 type FileStatus = {
@@ -43,15 +35,18 @@ type FileStatus = {
 type NodeStatus = 'online' | 'degraded' | 'offline'
 type WalletState = 'connected' | 'attention' | 'locked'
 type ReportState = 'ready' | 'collecting' | 'queued'
+type Severity = 'critical' | 'warning' | 'stable'
 
 type DesktopNode = {
   id: string
   role: string
+  zone: string
   status: NodeStatus
   rpc: string
   latestHeight: string
   peers: number
   sync: string
+  latency: string
   action: string
 }
 
@@ -61,6 +56,7 @@ type WalletPanel = {
   network: string
   state: WalletState
   balance: string
+  approvals: string
   detail: string
 }
 
@@ -69,6 +65,7 @@ type ReportCard = {
   state: ReportState
   description: string
   output: string
+  cadence: string
 }
 
 type ActionCommand = {
@@ -77,48 +74,75 @@ type ActionCommand = {
   outcome: string
 }
 
+type MissionTile = {
+  title: string
+  value: string
+  detail: string
+  status: 'ready' | 'in-progress' | 'blocked'
+}
+
+type StreamEvent = {
+  time: string
+  title: string
+  detail: string
+  severity: Severity
+}
+
+type ServicePanel = {
+  title: string
+  owner: string
+  uptime: string
+  status: 'ready' | 'in-progress' | 'blocked'
+  detail: string
+}
+
+type QuickAction = {
+  label: string
+  hint: string
+}
+
 const fallbackSnapshot: LaunchSnapshot = {
   stage: 'Desktop operations baseline',
   verdict: 'Needs operator closure',
   overallPercent: 68,
   profile: 'aoxhub.desktop.admin',
   summary:
-    'Desktop admin panel hedefi güçlü, ama production kapanış için orchestrated node flows, wallet controls ve reporting evidence aynı yüzeyde birleştirilmeli.',
+    'AOXHub masaüstü omurgası; node, wallet, audit, explorer ve raporlama akışını tek bir yönetim kokpitinde toplar.',
   tracks: [
     {
       name: 'Mainnet control plane',
       percent: 60,
-      summary: 'Mainnet rollout için bootstrap, key activation, state integrity ve release evidence kapanmalı.',
+      summary: 'Bootstrap, validator rotasyonu, güvenlik ve release kanıtları kapanmalı.',
       status: 'in-progress',
     },
     {
-      name: 'Testnet parity',
-      percent: 72,
-      summary: 'Testnet tarafı masaüstü cockpit ile parity tutuyor ama otomasyon zinciri henüz tam değil.',
+      name: 'Treasury & wallet governance',
+      percent: 73,
+      summary: 'Approval zinciri, çoklu imza görünürlüğü ve transfer guardrail katmanları ilerliyor.',
       status: 'in-progress',
     },
     {
-      name: 'Desktop surface',
-      percent: 74,
-      summary: 'Wallet + node + reporting aynı ekranda birleşmeye başladı; komut entegrasyonları sonraki aşama.',
-      status: 'in-progress',
+      name: 'Desktop command center',
+      percent: 82,
+      summary: 'Masaüstü cockpit, operatörün günlük yönetim ihtiyaçlarını kapsayacak seviyeye geldi.',
+      status: 'ready',
     },
   ],
   blockers: [
     {
       title: 'Three-node orchestrator wiring',
-      detail: 'Desktop panel, 3 düğümlü local/test cluster akışını güvenli komut adapterlarıyla bağlamalı.',
-      command: 'aoxc cluster up --profile testnet --nodes 3',
+      detail: 'Validator + observer cluster akışları güvenli komut adaptörleri üzerinden finalize edilmeli.',
+      command: 'aoxc cluster up --profile testnet --nodes 3 --with-observer',
     },
     {
       title: 'Wallet signing guardrails',
-      detail: 'Desktop wallet, imza/transfer akışlarında environment ve release profile ayrımını görünür tutmalı.',
-      command: 'aoxc wallet inspect --profile mainnet',
+      detail: 'Transfer, imza ve release onayları için çevre bazlı policy görünürlüğü UI içinde netleşmeli.',
+      command: 'aoxc wallet review --scope desktop --export json',
     },
     {
-      title: 'Unified reporting export',
-      detail: 'Health, launch readiness, logs ve audit evidence tek rapor paketine bağlanmalı.',
-      command: 'aoxc ops report --format json --include wallet,node,audit',
+      title: 'Unified evidence export',
+      detail: 'Health, audit, logs ve readiness kanıtları tek paket halinde arşivlenmeli.',
+      command: 'aoxc ops report --include nodes,wallet,audit,release --format html',
     },
   ],
   files: [
@@ -133,32 +157,38 @@ const fallbackSnapshot: LaunchSnapshot = {
 const desktopNodes: DesktopNode[] = [
   {
     id: 'node-01',
-    role: 'Validator / leader candidate',
+    role: 'Validator leader',
+    zone: 'Mainnet secure lane',
     status: 'online',
     rpc: '127.0.0.1:8545',
     latestHeight: '1,882,410',
     peers: 18,
     sync: '99.98%',
-    action: 'Rotate key + restart',
+    latency: '41 ms',
+    action: 'Rotate key + rolling restart',
   },
   {
     id: 'node-02',
-    role: 'Validator / quorum backup',
+    role: 'Quorum backup',
+    zone: 'Mainnet fallback lane',
     status: 'online',
     rpc: '127.0.0.1:8546',
     latestHeight: '1,882,407',
     peers: 17,
     sync: '99.94%',
+    latency: '44 ms',
     action: 'Replay audit bundle',
   },
   {
     id: 'node-03',
-    role: 'Observer / reporting anchor',
+    role: 'Observer & analytics',
+    zone: 'Forensics / reporting lane',
     status: 'degraded',
     rpc: '127.0.0.1:9545',
     latestHeight: '1,882,395',
     peers: 11,
     sync: '99.22%',
+    latency: '103 ms',
     action: 'Rebuild snapshot cache',
   },
 ]
@@ -170,15 +200,17 @@ const walletPanels: WalletPanel[] = [
     network: 'Mainnet guarded',
     state: 'connected',
     balance: '48,220 AOXC',
-    detail: 'Validator fee, rotation ve governance imzaları için ana masaüstü kasa yüzeyi.',
+    approvals: '2/2 active',
+    detail: 'Validator ücretleri, governance imzaları ve operasyon fonları için ana kasa yüzeyi.',
   },
   {
     title: 'Treasury wallet',
     address: 'AOXC1-TRE-OPS-2PL8',
-    network: 'Dual-route mainnet/testnet',
+    network: 'Dual route',
     state: 'attention',
     balance: '5,100 AOXC',
-    detail: 'Outgoing policy ve multi-approver raporu eksik; deploy öncesi review gerekli.',
+    approvals: '2/3 pending',
+    detail: 'Çıkış policy raporu eksik; deploy öncesi çoklu onay ve limit kontrolü gerekli.',
   },
   {
     title: 'Recovery wallet',
@@ -186,7 +218,8 @@ const walletPanels: WalletPanel[] = [
     network: 'Offline recovery lane',
     state: 'locked',
     balance: 'Cold storage',
-    detail: 'Emergency rotation ve DR drill tetiklemek için kasıtlı olarak kilitli tutuluyor.',
+    approvals: 'air-gapped',
+    detail: 'Acil durum anahtar rotasyonu ve felaket kurtarma tatbikatı için kilitli tutulur.',
   },
 ]
 
@@ -194,42 +227,97 @@ const reportCards: ReportCard[] = [
   {
     title: 'Launch readiness report',
     state: 'ready',
-    description: 'Mainnet/testnet/hub/wallet kapanış durumunu tek pakette özetler.',
+    description: 'Mainnet, testnet, hub ve wallet kapanış durumunu tek yönetici dosyasında özetler.',
     output: 'reports/launch-readiness.json',
+    cadence: 'Every 15 min',
   },
   {
     title: 'Node forensic bundle',
     state: 'collecting',
-    description: '3 düğüm logları, peer sapmaları, restart geçmişi ve snapshot hashleri.',
+    description: 'Node logları, peer sapmaları, restart geçmişi ve snapshot hashlerini toplar.',
     output: 'reports/node-forensics.tar.zst',
+    cadence: 'Streaming',
   },
   {
-    title: 'Wallet + audit ledger',
+    title: 'Wallet audit ledger',
     state: 'queued',
-    description: 'Desktop wallet imzaları, policy approvals ve export geçmişi.',
+    description: 'İmza geçmişi, policy approvals ve export aktivitelerini ledger formatında toplar.',
     output: 'reports/wallet-audit.ndjson',
+    cadence: 'Queued by trigger',
   },
 ]
 
 const commandQueue: ActionCommand[] = [
   {
-    title: 'Bring up 3-node local cluster',
+    title: '3-node cluster bootstrap',
     command: 'aoxc cluster up --profile testnet --nodes 3 --with-observer',
-    outcome: 'Bootstraps validator pair + observer/reporting node from the desktop runbook.',
+    outcome: 'Validator çifti ve observer düğümünü tek yönetim akışında ayağa kaldırır.',
   },
   {
-    title: 'Open wallet security review',
+    title: 'Wallet security review',
     command: 'aoxc wallet review --scope desktop --export json',
-    outcome: 'Collects signing posture, key-state and release-route mismatches before transfer approval.',
+    outcome: 'İmza politikası, key-state ve release-route sapmalarını denetler.',
   },
   {
-    title: 'Generate unified closure report',
+    title: 'Unified evidence pack',
     command: 'aoxc ops report --include nodes,wallet,audit,release --format html',
-    outcome: 'Produces the operator-facing report pack the admin panel is designed to surface.',
+    outcome: 'Tüm operasyon kanıtlarını yöneticiye hazır tek pakete dönüştürür.',
   },
 ]
 
-function statusLabel(status: Track['status'] | NodeStatus | WalletState | ReportState) {
+const streamEvents: StreamEvent[] = [
+  {
+    time: '09:42 UTC',
+    title: 'Observer node drift detected',
+    detail: 'node-03 snapshot cache yeniden inşa edilmeli; explorer tile etkileniyor.',
+    severity: 'warning',
+  },
+  {
+    time: '09:31 UTC',
+    title: 'Treasury approval window open',
+    detail: 'İkinci imza mevcut; üçüncü approver beklemede.',
+    severity: 'critical',
+  },
+  {
+    time: '09:18 UTC',
+    title: 'Readiness bundle exported',
+    detail: 'Launch readiness raporu başarıyla güncellendi.',
+    severity: 'stable',
+  },
+]
+
+const servicePanels: ServicePanel[] = [
+  {
+    title: 'Explorer & chain scan',
+    owner: 'Read API',
+    uptime: '99.94%',
+    status: 'ready',
+    detail: 'Blok, işlem, adres ve governance akışları aynı veri katmanından sunulur.',
+  },
+  {
+    title: 'Telemetry & alerts',
+    owner: 'Metrics bus',
+    uptime: '99.68%',
+    status: 'in-progress',
+    detail: 'Node gecikmeleri, sync sapmaları ve policy ihlalleri için alarm üretir.',
+  },
+  {
+    title: 'Database & backups',
+    owner: 'Ops storage',
+    uptime: '99.71%',
+    status: 'in-progress',
+    detail: 'Snapshot, log ve audit verileri için sıcak/soğuk saklama katmanını yönetir.',
+  },
+]
+
+const quickActions: QuickAction[] = [
+  { label: 'Node failover', hint: 'Leader fallback akışını tetikle' },
+  { label: 'Safe transfer', hint: 'Policy kontrollü ödeme başlat' },
+  { label: 'Snapshot verify', hint: 'Hash ve yükseklik doğrula' },
+  { label: 'Export evidence', hint: 'Hazır rapor paketi üret' },
+]
+
+function statusLabel(status: Track['status'] | NodeStatus | WalletState | ReportState | MissionTile['status']) {
   switch (status) {
     case 'ready':
     case 'online':
@@ -243,11 +331,10 @@ function statusLabel(status: Track['status'] | NodeStatus | WalletState | Report
       return 'In progress'
     case 'locked':
     case 'offline':
+    case 'blocked':
       return 'Blocked'
     default:
       return 'In progress'
-    default:
-      return 'Blocked'
   }
 }
 
@@ -266,248 +353,294 @@ function App() {
       })
   }, [])
 
-  const headlineStats = useMemo(
+  const missionTiles = useMemo<MissionTile[]>(
     () => [
-      { label: 'Overall readiness', value: `${snapshot.overallPercent}%`, detail: snapshot.verdict },
-      { label: 'Desktop profile', value: snapshot.profile, detail: snapshot.stage },
-      { label: 'Active blockers', value: `${snapshot.blockers.length}`, detail: 'Launch-gate items remain visible' },
-      { label: 'Report assets', value: `${reportCards.length}`, detail: 'Wallet + node + audit bundles' },
+      {
+        title: 'Global readiness',
+        value: `${snapshot.overallPercent}%`,
+        detail: snapshot.verdict,
+        status: snapshot.overallPercent > 79 ? 'ready' : 'in-progress',
+      },
+      {
+        title: 'Node fleet',
+        value: `${desktopNodes.filter((node) => node.status === 'online').length}/${desktopNodes.length}`,
+        detail: 'online cluster members',
+        status: desktopNodes.some((node) => node.status === 'degraded') ? 'in-progress' : 'ready',
+      },
+      {
+        title: 'Wallet approvals',
+        value: walletPanels[1]?.approvals ?? 'n/a',
+        detail: 'treasury transfer guardrail',
+        status: 'in-progress',
+      },
+      {
+        title: 'Evidence files',
+        value: `${snapshot.files.filter((file) => file.exists).length}/${snapshot.files.length}`,
+        detail: 'visible release artifacts',
+        status: snapshot.files.every((file) => file.exists) ? 'ready' : 'blocked',
+      },
     ],
     [snapshot],
   )
 
   return (
-    <>
-      <section className="hero-panel">
-        <div className="hero-copy">
-          <span className="eyebrow">AOXHub desktop admin panel</span>
-          <h1>Desktop GUI wallet + 3 node cockpit + full raporlama omurgası.</h1>
-          <p>
-            Evet, zinciri sadece metin raporuyla bitirmek zor. Bu yüzden AOXHub yüzeyini,
-            operatörün node, wallet, readiness ve audit akışını aynı masaüstü panelinden
-            yönetebileceği ileri seviye admin cockpit yönüne taşıdım.
-          </p>
-          <p className="hero-note">{snapshot.summary}</p>
-          {error ? <p className="callout warning">Fallback mode: {error}</p> : null}
+    <div className="desktop-shell">
+      <aside className="sidebar-shell">
+        <div className="brand-block panel-surface">
+          <span className="eyebrow">AOXHub desktop</span>
+          <h1>Ultra ops dashboard</h1>
+          <p>Zincirin tamamını tek masaüstü cockpit üzerinden yöneten ileri seviye yüzey.</p>
         </div>
 
-        <div className="hero-summary panel-surface">
-          <div className="summary-ring">
-            <strong>{snapshot.overallPercent}%</strong>
-            <span>{snapshot.verdict}</span>
+        <nav className="nav-panel panel-surface">
+          <h2>Command lanes</h2>
+          <ul className="nav-list">
+            {['Overview', 'Mission control', 'Nodes', 'Wallets', 'Explorer', 'Telemetry', 'Reports', 'Terminal', 'Evidence'].map((item) => (
+              <li key={item}><button type="button">{item}</button></li>
+            ))}
+          </ul>
+        </nav>
+
+        <section className="quick-actions panel-surface">
+          <div className="section-heading compact-heading">
+            <h2>Quick actions</h2>
+            <p>Operatörün en hızlı erişmesi gereken kısayollar.</p>
           </div>
-          <div className="summary-meta">
-            <div>
-              <span>Stage</span>
-              <strong>{snapshot.stage}</strong>
-            </div>
-            <div>
-              <span>Profile</span>
-              <strong>{snapshot.profile}</strong>
-            </div>
-          </div>
-          <div className="stat-strip">
-            {headlineStats.map((stat) => (
-              <article key={stat.label} className="stat-chip">
-                <span>{stat.label}</span>
-                <strong>{stat.value}</strong>
-                <small>{stat.detail}</small>
-              </article>
+          <div className="action-grid">
+            {quickActions.map((action) => (
+              <button className="action-tile" type="button" key={action.label}>
+                <strong>{action.label}</strong>
+                <span>{action.hint}</span>
+              </button>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
+      </aside>
 
-      <section className="section-block">
-        <div className="section-heading">
-          <h2>Admin cockpit modules</h2>
-          <p>Bu ekran artık sadece readiness özeti değil; desktop operasyon yüzeyinin modül haritası.</p>
-        </div>
-        <div className="module-grid">
-          {[
-            ['Launch control', 'Mainnet/testnet promotion, blocker closure ve release verdict görünümü.'],
-            ['3-node orchestrator', 'Validator çift + observer node için tek ekranda durum ve aksiyon akışı.'],
-            ['Desktop wallet', 'Operatör, treasury ve recovery wallet yüzeyleri; route ve güvenlik görünürlüğü.'],
-            ['Reporting hub', 'Health, audit, logs, forensic bundle ve export dosyaları aynı panelde.'],
-          ].map(([title, description]) => (
-            <article className="info-card panel-surface" key={title}>
-              <h3>{title}</h3>
-              <p>{description}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+      <main className="main-shell">
+        <section className="topbar panel-surface">
+          <div>
+            <span className="eyebrow subtle">{snapshot.profile}</span>
+            <h2>%100 sistem yönetimi için tasarlanmış birleşik operasyon dashboard’u</h2>
+            <p>{snapshot.summary}</p>
+          </div>
+          <div className="topbar-badges">
+            <span className="status-pill ready">{snapshot.stage}</span>
+            <span className="status-pill in-progress">{snapshot.verdict}</span>
+            {error ? <span className="status-pill blocked">Fallback mode</span> : <span className="status-pill ready">Live snapshot</span>}
+          </div>
+        </section>
 
-      <section className="section-block">
-        <div className="section-heading">
-          <h2>Readiness tracks</h2>
-          <p>Mainnet, testnet ve desktop yönetim hedeflerini tek yerde tut.</p>
-        </div>
-        <div className="track-grid">
-          {snapshot.tracks.map((track) => (
-            <article className="info-card panel-surface" key={track.name}>
+        <section className="mission-grid">
+          {missionTiles.map((tile) => (
+            <article className="metric-card panel-surface" key={tile.title}>
               <div className="card-topline">
-                <span>{track.name}</span>
-                <span className={`status-pill ${track.status}`}>{statusLabel(track.status)}</span>
+                <span>{tile.title}</span>
+                <span className={`status-pill ${tile.status}`}>{statusLabel(tile.status)}</span>
               </div>
-              <strong className="percent">{track.percent}%</strong>
-              <p>{track.summary}</p>
+              <strong>{tile.value}</strong>
+              <p>{tile.detail}</p>
             </article>
           ))}
-        </div>
-      </section>
+        </section>
 
-      <section className="section-block split-layout split-layout-wide">
-        <div>
-          <div className="section-heading">
-            <h2>3-node cluster control</h2>
-            <p>Validator + observer kurulumunu masaüstünden yönetmek için başlangıç kontrol yüzeyi.</p>
+        <section className="hero-command panel-surface">
+          <div className="hero-command-copy">
+            <span className="eyebrow">Mission control</span>
+            <h2>Node, wallet, telemetry, explorer, kanıt ve terminal katmanları tek ekranda.</h2>
+            <p>
+              Bu tasarım klasik “status page” değil; doğrudan yönetim, gözlem, müdahale ve raporlama akışlarını
+              aynı masaüstü deneyiminde birleştiren gerçek bir operasyon merkezi.
+            </p>
+            {error ? <p className="callout warning">Fallback mode: {error}</p> : null}
+            <div className="command-strip">
+              {commandQueue.map((item) => (
+                <article key={item.title} className="command-card">
+                  <span>{item.title}</span>
+                  <code>{item.command}</code>
+                  <small>{item.outcome}</small>
+                </article>
+              ))}
+            </div>
           </div>
-          <div className="stack-list">
-            {desktopNodes.map((node) => (
-              <article className="info-card compact panel-surface" key={node.id}>
-                <div className="card-topline">
-                  <div>
-                    <h3>{node.id}</h3>
-                    <p className="muted">{node.role}</p>
-                  </div>
-                  <span className={`status-pill ${node.status}`}>{statusLabel(node.status)}</span>
-                </div>
-                <dl className="detail-grid">
-                  <div>
-                    <dt>RPC</dt>
-                    <dd>{node.rpc}</dd>
-                  </div>
-                  <div>
-                    <dt>Height</dt>
-                    <dd>{node.latestHeight}</dd>
-                  </div>
-                  <div>
-                    <dt>Peers</dt>
-                    <dd>{node.peers}</dd>
-                  </div>
-                  <div>
-                    <dt>Sync</dt>
-                    <dd>{node.sync}</dd>
-                  </div>
-                </dl>
-                <div className="inline-command">
-                  <span>Suggested action</span>
-                  <code>{node.action}</code>
-                </div>
-              </article>
-            ))}
+          <div className="hero-side-grid">
+            <article className="focus-card panel-surface">
+              <span className="muted">Primary objective</span>
+              <strong>Mainnet + treasury + audit kapanışını operatör için görünür ve müdahale edilebilir yapmak</strong>
+            </article>
+            <article className="focus-card panel-surface">
+              <span className="muted">Active blockers</span>
+              <ul className="bullet-list">
+                {snapshot.blockers.map((blocker) => (
+                  <li key={blocker.title}>
+                    <strong>{blocker.title}</strong>
+                    <span>{blocker.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
           </div>
-        </div>
+        </section>
 
-        <div>
-          <div className="section-heading">
-            <h2>Desktop wallet center</h2>
-            <p>Wallet dahil demiştin; bu blok operatör/wallet yüzeyini admin panelin içine alıyor.</p>
-          </div>
-          <div className="stack-list">
-            {walletPanels.map((wallet) => (
-              <article className="info-card compact panel-surface" key={wallet.title}>
-                <div className="card-topline">
-                  <h3>{wallet.title}</h3>
-                  <span className={`status-pill ${wallet.state}`}>{statusLabel(wallet.state)}</span>
-                </div>
-                <p>{wallet.detail}</p>
-                <dl className="detail-grid">
-                  <div>
-                    <dt>Address</dt>
-                    <dd>{wallet.address}</dd>
+        <section className="dashboard-grid two-col">
+          <article className="panel-surface section-card">
+            <div className="section-heading">
+              <h2>3-node fleet control</h2>
+              <p>Validator, backup ve observer düğümleri ayrı izlenir, aynı anda yönetilir.</p>
+            </div>
+            <div className="stack-list">
+              {desktopNodes.map((node) => (
+                <article className="info-card compact" key={node.id}>
+                  <div className="card-topline">
+                    <div>
+                      <h3>{node.id}</h3>
+                      <p className="muted">{node.role}</p>
+                    </div>
+                    <span className={`status-pill ${node.status}`}>{statusLabel(node.status)}</span>
                   </div>
-                  <div>
-                    <dt>Network</dt>
-                    <dd>{wallet.network}</dd>
+                  <p className="muted">{node.zone}</p>
+                  <dl className="detail-grid">
+                    <div><dt>RPC</dt><dd>{node.rpc}</dd></div>
+                    <div><dt>Height</dt><dd>{node.latestHeight}</dd></div>
+                    <div><dt>Peers</dt><dd>{node.peers}</dd></div>
+                    <div><dt>Sync</dt><dd>{node.sync}</dd></div>
+                    <div><dt>Latency</dt><dd>{node.latency}</dd></div>
+                    <div><dt>Action</dt><dd>{node.action}</dd></div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          </article>
+
+          <article className="panel-surface section-card">
+            <div className="section-heading">
+              <h2>Wallet authority center</h2>
+              <p>Operatör, treasury ve recovery cüzdanları görev ve güvenlik bazlı ayrılır.</p>
+            </div>
+            <div className="stack-list">
+              {walletPanels.map((wallet) => (
+                <article className="info-card compact" key={wallet.title}>
+                  <div className="card-topline">
+                    <h3>{wallet.title}</h3>
+                    <span className={`status-pill ${wallet.state}`}>{statusLabel(wallet.state)}</span>
                   </div>
-                  <div>
-                    <dt>Balance</dt>
-                    <dd>{wallet.balance}</dd>
+                  <p>{wallet.detail}</p>
+                  <dl className="detail-grid">
+                    <div><dt>Address</dt><dd>{wallet.address}</dd></div>
+                    <div><dt>Network</dt><dd>{wallet.network}</dd></div>
+                    <div><dt>Balance</dt><dd>{wallet.balance}</dd></div>
+                    <div><dt>Approvals</dt><dd>{wallet.approvals}</dd></div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          </article>
+        </section>
+
+        <section className="dashboard-grid three-col">
+          <article className="panel-surface section-card">
+            <div className="section-heading">
+              <h2>Readiness tracks</h2>
+              <p>Operasyonun hangi eksende ne kadar ilerlediği sürekli görünür kalır.</p>
+            </div>
+            <div className="stack-list">
+              {snapshot.tracks.map((track) => (
+                <article className="info-card compact" key={track.name}>
+                  <div className="card-topline">
+                    <h3>{track.name}</h3>
+                    <span className={`status-pill ${track.status}`}>{statusLabel(track.status)}</span>
                   </div>
-                </dl>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+                  <strong className="percent">{track.percent}%</strong>
+                  <p>{track.summary}</p>
+                </article>
+              ))}
+            </div>
+          </article>
 
-      <section className="section-block split-layout split-layout-wide">
-        <div>
-          <div className="section-heading">
-            <h2>Full reporting center</h2>
-            <p>Health, audit, forensic ve export çıktılarını aynı yerden topla.</p>
-          </div>
-          <div className="stack-list">
-            {reportCards.map((report) => (
-              <article className="info-card compact panel-surface" key={report.title}>
-                <div className="card-topline">
-                  <h3>{report.title}</h3>
-                  <span className={`status-pill ${report.state}`}>{statusLabel(report.state)}</span>
-                </div>
-                <p>{report.description}</p>
-                <code>{report.output}</code>
-              </article>
-            ))}
-          </div>
-        </div>
+          <article className="panel-surface section-card">
+            <div className="section-heading">
+              <h2>Live event stream</h2>
+              <p>Alarm, onay ve export olayları gerçek zaman hissi verecek şekilde listelenir.</p>
+            </div>
+            <div className="timeline-list">
+              {streamEvents.map((event) => (
+                <article className={`timeline-item ${event.severity}`} key={`${event.time}-${event.title}`}>
+                  <span>{event.time}</span>
+                  <strong>{event.title}</strong>
+                  <p>{event.detail}</p>
+                </article>
+              ))}
+            </div>
+          </article>
 
-        <div>
-          <div className="section-heading">
-            <h2>Operator command queue</h2>
-            <p>GUI içinden tetiklenecek bir sonraki doğal komut adapterları burada tanımlı.</p>
-          </div>
-          <div className="stack-list">
-            {commandQueue.map((item) => (
-              <article className="info-card compact panel-surface" key={item.title}>
-                <h3>{item.title}</h3>
-                <code>{item.command}</code>
-                <p>{item.outcome}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+          <article className="panel-surface section-card">
+            <div className="section-heading">
+              <h2>Service mesh</h2>
+              <p>Explorer, telemetry ve storage katmanları operasyon hizmeti olarak görünür.</p>
+            </div>
+            <div className="stack-list">
+              {servicePanels.map((service) => (
+                <article className="info-card compact" key={service.title}>
+                  <div className="card-topline">
+                    <h3>{service.title}</h3>
+                    <span className={`status-pill ${service.status}`}>{statusLabel(service.status)}</span>
+                  </div>
+                  <dl className="detail-grid single-line">
+                    <div><dt>Owner</dt><dd>{service.owner}</dd></div>
+                    <div><dt>Uptime</dt><dd>{service.uptime}</dd></div>
+                  </dl>
+                  <p>{service.detail}</p>
+                </article>
+              ))}
+            </div>
+          </article>
+        </section>
 
-      <section className="section-block split-layout">
-        <div>
-          <div className="section-heading">
-            <h2>Launch blockers</h2>
-            <p>%100 kapanış için desktop panelde görünür kalması gereken işler.</p>
-          </div>
-          <div className="stack-list">
-            {snapshot.blockers.map((blocker) => (
-              <article className="info-card compact panel-surface" key={blocker.title}>
-                <h3>{blocker.title}</h3>
-                <p>{blocker.detail}</p>
-                <code>{blocker.command}</code>
-              </article>
-            ))}
-          </div>
-        </div>
+        <section className="dashboard-grid two-col">
+          <article className="panel-surface section-card">
+            <div className="section-heading">
+              <h2>Reporting & exports</h2>
+              <p>Raporlar sadece liste değil; üretim sıklığı ve hedef çıktısıyla birlikte gösterilir.</p>
+            </div>
+            <div className="stack-list">
+              {reportCards.map((report) => (
+                <article className="info-card compact" key={report.title}>
+                  <div className="card-topline">
+                    <h3>{report.title}</h3>
+                    <span className={`status-pill ${report.state}`}>{statusLabel(report.state)}</span>
+                  </div>
+                  <p>{report.description}</p>
+                  <dl className="detail-grid single-line">
+                    <div><dt>Output</dt><dd>{report.output}</dd></div>
+                    <div><dt>Cadence</dt><dd>{report.cadence}</dd></div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          </article>
 
-        <div>
-          <div className="section-heading">
-            <h2>Evidence surface</h2>
-            <p>Panelin hangi kaynak dosyaları gördüğünü açıkça göster.</p>
-          </div>
-          <div className="stack-list">
-            {snapshot.files.map((file) => (
-              <article className="info-card compact panel-surface" key={file.path}>
-                <div className="card-topline">
-                  <h3>{file.label}</h3>
-                  <span className={`status-pill ${file.exists ? 'ready' : 'locked'}`}>
-                    {file.exists ? 'Ready' : 'Missing'}
-                  </span>
-                </div>
-                <code>{file.path}</code>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-    </>
+          <article className="panel-surface section-card">
+            <div className="section-heading">
+              <h2>Evidence registry</h2>
+              <p>Operasyon kanıtı ve konfigürasyon dosyaları merkezi bir kayıt defterinde izlenir.</p>
+            </div>
+            <div className="stack-list">
+              {snapshot.files.map((file) => (
+                <article className="info-card compact" key={file.path}>
+                  <div className="card-topline">
+                    <h3>{file.label}</h3>
+                    <span className={`status-pill ${file.exists ? 'ready' : 'blocked'}`}>
+                      {file.exists ? 'Ready' : 'Missing'}
+                    </span>
+                  </div>
+                  <code>{file.path}</code>
+                </article>
+              ))}
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
   )
 }
 
