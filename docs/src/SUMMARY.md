@@ -14,6 +14,7 @@
 - [Sovereign Core Model](./SOVEREIGN_CORE_MODEL_TR.md)
 - [Five-Module Relay Architecture](./FIVE_MODULE_RELAY_ARCHITECTURE_TR.md)
 - [Kernel Hardening Master Plan](./AOXC_KERNEL_HARDENING_MASTER_PLAN_TR.md)
+- [Real Versioning & Release Roadmap](./AOXC_REAL_VERSIONING_AND_RELEASE_ROADMAP_TR.md)
 - [Deep Technical Analysis](./TEKNIK_DERIN_ANALIZ_TR.md)
 - [Unity Engine Roadmap](./AOXCUNITY_ENGINE_ROADMAP_TR.md)
 
@@ -33,6 +34,8 @@
 - [Frontend RPC API Integration](./FRONTEND_RPC_API_INTEGRATION_TR.md)
 - [Local Benchmark & Mainnet Readiness](./LOCAL_BENCHMARK_AND_MAINNET_READINESS_TR.md)
 - [Key Types & Interoperability](./KEY_TYPES_AND_INTEROP_GUIDE_EN.md)
+- [AOXC Node Identity v0.1.0-alpha](./AOXC_NODE_IDENTITY_V0_1_0_ALPHA.md)
+- [AOXC Core Identity Security Model (TR)](./AOXC_CORE_IDENTITY_SECURITY_MODEL_TR.md)
 - [Advanced Production Suggestions](./ADVANCED_PRODUCTION_SUGGESTIONS_TR.md)
 
 ---

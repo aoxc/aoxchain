@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::block::Block;
 use crate::error::ConsensusError;
@@ -6,9 +6,12 @@ use crate::fork_choice::{BlockMeta, ForkChoice};
 use crate::quorum::QuorumThreshold;
 use crate::rotation::ValidatorRotation;
 use crate::round::RoundState;
-use crate::seal::{BlockSeal, QuorumCertificate};
+use crate::seal::{AuthenticatedQuorumCertificate, BlockSeal, QuorumCertificate};
 use crate::validator::ValidatorId;
-use crate::vote::{SignedVote, VerifiedVote, Vote, VoteAuthenticationError, VoteKind};
+use crate::vote::{
+    SignedVote, VerifiedAuthenticatedVote, VerifiedVote, Vote, VoteAuthenticationContext,
+    VoteAuthenticationError, VoteKind,
+};
 use crate::vote_pool::VotePool;
 
 /// In-memory consensus state container.
@@ -126,6 +129,18 @@ impl ConsensusState {
 
     pub fn add_verified_vote(&mut self, verified_vote: VerifiedVote) -> Result<(), ConsensusError> {
         self.add_vote(verified_vote.into_vote())
+    }
+
+    pub fn add_authenticated_vote(
+        &mut self,
+        verified_vote: VerifiedAuthenticatedVote,
+        expected_context: VoteAuthenticationContext,
+    ) -> Result<(), ConsensusError> {
+        if verified_vote.context != expected_context {
+            return Err(ConsensusError::InvalidAuthenticatedContext);
+        }
+
+        self.add_vote(verified_vote.vote)
     }
 
     /// Admits a vote into local consensus state after eligibility validation.
@@ -253,6 +268,22 @@ impl ConsensusState {
         }
     }
 
+    pub fn authenticated_quorum_certificate(
+        &self,
+        block_hash: [u8; 32],
+        finalized_round: u64,
+        context: VoteAuthenticationContext,
+    ) -> Option<AuthenticatedQuorumCertificate> {
+        let certificate = self.build_quorum_certificate(block_hash, finalized_round)?;
+        Some(AuthenticatedQuorumCertificate::new(
+            certificate,
+            context.network_id,
+            context.epoch,
+            context.validator_set_root,
+            context.signature_scheme,
+        ))
+    }
+
     /// Builds a deterministic quorum certificate from eligible commit votes.
     ///
     /// # Certificate Rules
@@ -268,6 +299,7 @@ impl ConsensusState {
     ) -> Option<QuorumCertificate> {
         let block = self.blocks.get(&block_hash)?;
 
+        let mut signer_set = BTreeSet::new();
         let mut signers = Vec::new();
         let mut observed_voting_power = 0u64;
 
@@ -279,13 +311,14 @@ impl ConsensusState {
                 continue;
             }
 
+            if !signer_set.insert(vote.voter) {
+                continue;
+            }
+
             let voting_power = self.rotation.eligible_voting_power_of(vote.voter)?;
             signers.push(vote.voter);
             observed_voting_power = observed_voting_power.saturating_add(voting_power);
         }
-
-        signers.sort();
-        signers.dedup();
 
         let total_voting_power = self.rotation.total_voting_power();
         if !self
@@ -347,7 +380,7 @@ mod tests {
     use crate::quorum::QuorumThreshold;
     use crate::rotation::ValidatorRotation;
     use crate::validator::{Validator, ValidatorRole};
-    use crate::vote::{Vote, VoteKind};
+    use crate::vote::{VerifiedAuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind};
 
     use super::ConsensusState;
 
@@ -942,6 +975,44 @@ mod tests {
         assert_eq!(
             err.to_string(),
             crate::vote::VoteAuthenticationError::MalformedPublicKey.to_string()
+        );
+    }
+
+    #[test]
+    fn authenticated_vote_rejects_context_mismatch() {
+        let mut state =
+            state_with_validators(vec![validator(1, 10, ValidatorRole::Validator, true)]);
+        let block = admit_genesis(&mut state, [1u8; 32]);
+
+        let err = state
+            .add_authenticated_vote(
+                VerifiedAuthenticatedVote {
+                    vote: Vote {
+                        voter: [1u8; 32],
+                        block_hash: block.hash,
+                        height: 0,
+                        round: 0,
+                        kind: VoteKind::Commit,
+                    },
+                    context: VoteAuthenticationContext {
+                        network_id: 2626,
+                        epoch: 7,
+                        validator_set_root: [9u8; 32],
+                        signature_scheme: 1,
+                    },
+                },
+                VoteAuthenticationContext {
+                    network_id: 2626,
+                    epoch: 0,
+                    validator_set_root: state.rotation.validator_set_hash(),
+                    signature_scheme: 1,
+                },
+            )
+            .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            ConsensusError::InvalidAuthenticatedContext.to_string()
         );
     }
 

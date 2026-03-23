@@ -81,7 +81,7 @@ mod tests {
     };
     use crate::kernel::{ConsensusEvent, VerifiedVote};
     use crate::seal::QuorumCertificate;
-    use crate::vote::{Vote, VoteKind};
+    use crate::vote::{VerifiedAuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind};
 
     use super::{
         ConsensusEvidence, ConsensusJournal, EvidenceStore, FinalityStore, KernelSnapshot,
@@ -148,12 +148,20 @@ mod tests {
                 sequence: 1,
                 event_hash: [1u8; 32],
                 event: ConsensusEvent::AdmitVerifiedVote(VerifiedVote {
-                    vote: Vote {
-                        voter: [7u8; 32],
-                        block_hash: [8u8; 32],
-                        height: 2,
-                        round: 3,
-                        kind: VoteKind::Commit,
+                    authenticated_vote: VerifiedAuthenticatedVote {
+                        vote: Vote {
+                            voter: [7u8; 32],
+                            block_hash: [8u8; 32],
+                            height: 2,
+                            round: 3,
+                            kind: VoteKind::Commit,
+                        },
+                        context: VoteAuthenticationContext {
+                            network_id: 2626,
+                            epoch: 0,
+                            validator_set_root: [6u8; 32],
+                            signature_scheme: 1,
+                        },
                     },
                     verification_tag: [9u8; 32],
                 }),

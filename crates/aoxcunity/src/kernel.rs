@@ -10,15 +10,15 @@ use crate::error::ConsensusError;
 use crate::safety::{
     JustificationRef, LockState, SafeToVote, SafetyViolation, evaluate_safe_to_vote,
 };
-use crate::seal::QuorumCertificate;
+use crate::seal::AuthenticatedQuorumCertificate;
 use crate::state::ConsensusState;
 use crate::store::ConsensusEvidence;
 use crate::validator::ValidatorId;
-use crate::vote::{Vote, VoteKind};
+use crate::vote::{VerifiedAuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerifiedVote {
-    pub vote: Vote,
+    pub authenticated_vote: VerifiedAuthenticatedVote,
     pub verification_tag: [u8; 32],
 }
 
@@ -52,7 +52,7 @@ pub enum ConsensusEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum KernelCertificate {
-    Execution(QuorumCertificate),
+    Execution(AuthenticatedQuorumCertificate),
     Legitimacy(LegitimacyCertificate),
     Continuity(ContinuityCertificate),
     Constitutional(ConstitutionalSeal),
@@ -224,25 +224,39 @@ impl ConsensusEngine {
     }
 
     fn apply_admit_verified_vote(&mut self, verified_vote: VerifiedVote) -> TransitionResult {
-        let candidate = justification_from_vote(&verified_vote.vote, self.current_epoch);
+        let candidate = justification_from_vote(
+            &verified_vote.authenticated_vote.vote,
+            verified_vote.authenticated_vote.context.epoch,
+        );
         if let SafeToVote::No(violation) = evaluate_safe_to_vote(&self.lock_state, &candidate) {
             return TransitionResult::rejected(map_safety_violation(violation));
         }
 
-        match self.state.add_vote(verified_vote.vote.clone()) {
+        let expected_context = self.vote_authentication_context();
+        match self
+            .state
+            .add_authenticated_vote(verified_vote.authenticated_vote.clone(), expected_context)
+        {
             Ok(()) => {
-                if matches!(verified_vote.vote.kind, VoteKind::Commit) {
+                if matches!(verified_vote.authenticated_vote.vote.kind, VoteKind::Commit) {
                     self.lock_state.advance_to(candidate);
                 }
-                self.current_height = self.current_height.max(verified_vote.vote.height);
+                self.current_epoch = self
+                    .current_epoch
+                    .max(verified_vote.authenticated_vote.context.epoch);
+                self.current_height = self
+                    .current_height
+                    .max(verified_vote.authenticated_vote.vote.height);
                 TransitionResult::accepted(KernelEffect::VoteAccepted(
-                    verified_vote.vote.block_hash,
+                    verified_vote.authenticated_vote.vote.block_hash,
                 ))
             }
             Err(error) => {
                 if matches!(error, ConsensusError::EquivocatingVote) {
-                    self.evidence_buffer
-                        .push(equivocation_evidence(verified_vote.vote.block_hash, "vote"));
+                    self.evidence_buffer.push(equivocation_evidence(
+                        verified_vote.authenticated_vote.vote.block_hash,
+                        "vote",
+                    ));
                 }
                 TransitionResult::rejected(map_consensus_error(&error))
             }
@@ -350,6 +364,11 @@ impl ConsensusEngine {
             return TransitionResult::rejected(KernelRejection::StaleArtifact);
         };
 
+        let authenticated_certificate = self.state.authenticated_quorum_certificate(
+            block_hash,
+            finalized_round,
+            self.vote_authentication_context(),
+        );
         let Some(seal) = self.state.try_finalize(block_hash, finalized_round) else {
             return TransitionResult::rejected(KernelRejection::FinalityConflict);
         };
@@ -360,11 +379,11 @@ impl ConsensusEngine {
             seal.certificate.clone(),
         );
         let mut result = TransitionResult::accepted(KernelEffect::BlockFinalized(block_hash));
-        result
-            .emitted_certificates
-            .push(KernelCertificate::Execution(
-                execution.quorum_certificate.clone(),
-            ));
+        if let Some(certificate) = authenticated_certificate {
+            result
+                .emitted_certificates
+                .push(KernelCertificate::Execution(certificate));
+        }
 
         if let (Some(legitimacy), Some(continuity)) = (
             self.legitimacy_by_block.get(&block_hash),
@@ -436,6 +455,15 @@ impl ConsensusEngine {
             signers,
         ))
     }
+
+    fn vote_authentication_context(&self) -> VoteAuthenticationContext {
+        VoteAuthenticationContext {
+            network_id: 2626,
+            epoch: self.current_epoch,
+            validator_set_root: self.state.rotation.validator_set_hash(),
+            signature_scheme: 1,
+        }
+    }
 }
 
 fn prune_state_to_height(state: &mut ConsensusState, finalized_height: u64) -> usize {
@@ -465,6 +493,7 @@ fn map_consensus_error(error: &ConsensusError) -> KernelRejection {
         ConsensusError::EquivocatingVote => KernelRejection::InvariantViolation,
         ConsensusError::VoteForUnknownBlock
         | ConsensusError::StaleVote
+        | ConsensusError::InvalidAuthenticatedContext
         | ConsensusError::HeightRegression
         | ConsensusError::InvalidParentHeight
         | ConsensusError::InvalidGenesisParent => KernelRejection::StaleArtifact,
@@ -511,7 +540,7 @@ mod tests {
     use crate::quorum::QuorumThreshold;
     use crate::rotation::ValidatorRotation;
     use crate::validator::{Validator, ValidatorRole};
-    use crate::vote::{Vote, VoteKind};
+    use crate::vote::{VerifiedAuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind};
 
     use super::{
         ConsensusEngine, ConsensusEvent, InvariantStatus, KernelCertificate, KernelEffect,
@@ -530,6 +559,15 @@ mod tests {
         ConsensusEngine::new(crate::state::ConsensusState::new(rotation, quorum))
     }
 
+    fn vote_context(engine: &ConsensusEngine, epoch: u64) -> VoteAuthenticationContext {
+        VoteAuthenticationContext {
+            network_id: 2626,
+            epoch,
+            validator_set_root: engine.state.rotation.validator_set_hash(),
+            signature_scheme: 1,
+        }
+    }
+
     fn make_block(parent_hash: [u8; 32], height: u64, proposer: [u8; 32], round: u64) -> Block {
         BlockBuilder::build(
             1,
@@ -544,14 +582,22 @@ mod tests {
         .unwrap()
     }
 
-    fn commit_vote(voter: u8, block: &Block, round: u64) -> ConsensusEvent {
+    fn commit_vote(
+        engine: &ConsensusEngine,
+        voter: u8,
+        block: &Block,
+        round: u64,
+    ) -> ConsensusEvent {
         ConsensusEvent::AdmitVerifiedVote(VerifiedVote {
-            vote: Vote {
-                voter: [voter; 32],
-                block_hash: block.hash,
-                height: block.header.height,
-                round,
-                kind: VoteKind::Commit,
+            authenticated_vote: VerifiedAuthenticatedVote {
+                vote: Vote {
+                    voter: [voter; 32],
+                    block_hash: block.hash,
+                    height: block.header.height,
+                    round,
+                    kind: VoteKind::Commit,
+                },
+                context: vote_context(engine, 0),
             },
             verification_tag: [voter.wrapping_add(20); 32],
         })
@@ -576,21 +622,20 @@ mod tests {
 
     #[test]
     fn deterministic_event_stream_produces_same_results_and_state() {
+        let mut a = engine();
+        let mut b = engine();
         let genesis = make_block([0u8; 32], 0, [1u8; 32], 0);
         let child = make_block(genesis.hash, 1, [2u8; 32], 1);
         let events = vec![
             ConsensusEvent::AdmitBlock(genesis.clone()),
             ConsensusEvent::AdmitBlock(child.clone()),
-            commit_vote(1, &child, 1),
-            commit_vote(2, &child, 1),
-            commit_vote(3, &child, 1),
+            commit_vote(&a, 1, &child, 1),
+            commit_vote(&a, 2, &child, 1),
+            commit_vote(&a, 3, &child, 1),
             ConsensusEvent::EvaluateFinality {
                 block_hash: child.hash,
             },
         ];
-
-        let mut a = engine();
-        let mut b = engine();
         let results_a: Vec<_> = events
             .iter()
             .cloned()
@@ -689,7 +734,7 @@ mod tests {
             }));
         }
         for voter in [1u8, 2u8, 3u8] {
-            let _ = engine.apply_event(commit_vote(voter, &block, 1));
+            let _ = engine.apply_event(commit_vote(&engine, voter, &block, 1));
         }
 
         let result = engine.apply_event(ConsensusEvent::EvaluateFinality {
@@ -701,6 +746,20 @@ mod tests {
                 .emitted_certificates
                 .iter()
                 .any(|certificate| matches!(certificate, KernelCertificate::Execution(_)))
+        );
+        let execution = result
+            .emitted_certificates
+            .iter()
+            .find_map(|certificate| match certificate {
+                KernelCertificate::Execution(certificate) => Some(certificate),
+                _ => None,
+            })
+            .expect("authenticated execution certificate must be emitted");
+        assert_eq!(execution.network_id, 2626);
+        assert_eq!(execution.epoch, 0);
+        assert_eq!(
+            execution.validator_set_root,
+            engine.state.rotation.validator_set_hash()
         );
         assert!(
             result

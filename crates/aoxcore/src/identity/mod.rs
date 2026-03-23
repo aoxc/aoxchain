@@ -5,6 +5,7 @@ pub mod gate;
 pub mod handshake;
 pub mod hd_path;
 pub mod hexa_quorum;
+pub mod key_bundle;
 pub mod key_engine;
 pub mod keyfile;
 pub mod passport;

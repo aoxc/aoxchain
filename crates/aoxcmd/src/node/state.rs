@@ -10,7 +10,17 @@ pub struct NodeState {
     pub last_tx: String,
     pub updated_at: String,
     #[serde(default)]
+    pub key_material: KeyMaterialSnapshot,
+    #[serde(default)]
     pub consensus: ConsensusSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct KeyMaterialSnapshot {
+    pub bundle_fingerprint: String,
+    pub operational_state: String,
+    pub consensus_public_key_hex: String,
+    pub transport_public_key_hex: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +59,7 @@ impl NodeState {
             produced_blocks: 0,
             last_tx: "none".to_string(),
             updated_at: Utc::now().to_rfc3339(),
+            key_material: KeyMaterialSnapshot::default(),
             consensus: ConsensusSnapshot::default(),
         }
     }
@@ -69,6 +80,7 @@ mod tests {
         assert_eq!(state.consensus.network_id, 2626);
         assert_eq!(state.consensus.last_message_kind, "bootstrap");
         assert_eq!(state.consensus.last_section_count, 0);
+        assert!(state.key_material.bundle_fingerprint.is_empty());
     }
 
     #[test]
@@ -87,5 +99,6 @@ mod tests {
         assert_eq!(state.current_height, 7);
         assert_eq!(state.consensus.last_block_hash_hex, hex::encode([0u8; 32]));
         assert_eq!(state.consensus.last_message_kind, "bootstrap");
+        assert!(state.key_material.consensus_public_key_hex.is_empty());
     }
 }
