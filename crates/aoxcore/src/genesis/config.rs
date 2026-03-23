@@ -458,7 +458,7 @@ impl GenesisBlock {
         config.treasury = 1_000_000_000;
         config.add_account(TREASURY_ACCOUNT.to_string(), 1_000_000_000);
 
-        Self::new(config)
+        Ok(Self::new(config))
     }
 }
 
@@ -557,10 +557,7 @@ mod tests {
             ..first.settlement_link.clone()
         };
 
-        assert_ne!(
-            first.state_hash().expect("hash must compute"),
-            second.state_hash().expect("hash must compute")
-        );
+        assert_ne!(first.state_hash(), second.state_hash());
     }
 
     #[test]
@@ -568,12 +565,12 @@ mod tests {
         let mut cfg = GenesisConfig::new();
         cfg.chain_id.clear();
 
-        let err = super::GenesisBlock::new(cfg).expect_err("invalid config must be rejected");
+        let err = super::GenesisBlock::try_new(cfg).expect_err("invalid config must be rejected");
         assert!(err.starts_with("GENESIS:"));
     }
 
     #[test]
-    fn try_new_rejects_invalid_genesis_config_without_panicking() {
+    fn new_panics_for_invalid_genesis_config() {
         let mut cfg = GenesisConfig::new();
         cfg.chain_id.clear();
 

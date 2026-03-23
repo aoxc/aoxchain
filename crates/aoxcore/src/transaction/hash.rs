@@ -348,8 +348,8 @@ mod tests {
 
     #[test]
     fn empty_transaction_root_is_stable_and_non_zero() {
-        let a = calculate_transaction_root(&[]).expect("root must calculate");
-        let b = calculate_transaction_root(&[]).expect("root must calculate");
+        let a = calculate_transaction_root(&[]);
+        let b = calculate_transaction_root(&[]);
 
         assert_eq!(a, b);
         assert_eq!(a, empty_transaction_root());
@@ -361,9 +361,8 @@ mod tests {
         let tx1 = sample_transaction(vec![1]);
         let tx2 = sample_transaction(vec![2]);
 
-        let root_a =
-            calculate_transaction_root(&[tx1.clone(), tx2.clone()]).expect("root must calculate");
-        let root_b = calculate_transaction_root(&[tx2, tx1]).expect("root must calculate");
+        let root_a = calculate_transaction_root(&[tx1.clone(), tx2.clone()]);
+        let root_b = calculate_transaction_root(&[tx2, tx1]);
 
         assert_ne!(root_a, root_b);
     }
@@ -373,10 +372,7 @@ mod tests {
         let payload = vec![1, 2, 3, 4];
         let tx = sample_transaction(payload.clone());
 
-        assert_ne!(
-            compute_hash(&payload).expect("hash must calculate"),
-            hash_transaction(&tx).expect("hash must calculate")
-        );
+        assert_ne!(compute_hash(&payload), hash_transaction(&tx));
     }
 
     #[test]

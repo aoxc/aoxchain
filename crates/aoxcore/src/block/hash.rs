@@ -364,7 +364,7 @@ mod tests {
         let task = sample_task(payload.clone());
 
         let a = compute_hash(&payload).expect("generic hash must calculate");
-        let b = hash_task(&task).expect("task hash must calculate");
+        let b = hash_task(&task);
 
         assert_ne!(a, b);
     }

@@ -309,6 +309,29 @@ impl NodeKeyBundleV1 {
         let digest = hasher.finalize();
         Ok(hex::encode_upper(&digest[..16]))
     }
+
+    pub fn public_key_bytes_for_role(
+        &self,
+        role: NodeKeyRole,
+    ) -> Result<[u8; 32], NodeKeyBundleError> {
+        let record = self
+            .keys
+            .iter()
+            .find(|record| record.role == role)
+            .ok_or_else(|| NodeKeyBundleError::MissingRole(role.clone()))?;
+        let bytes = hex::decode(&record.public_key)
+            .map_err(|error| NodeKeyBundleError::SerializationFailed(error.to_string()))?;
+        if bytes.len() != 32 {
+            return Err(NodeKeyBundleError::SerializationFailed(format!(
+                "public key for role {} is {} bytes, expected 32",
+                role.as_str(),
+                bytes.len()
+            )));
+        }
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&bytes);
+        Ok(out)
+    }
 }
 
 fn required_roles() -> Vec<NodeKeyRole> {

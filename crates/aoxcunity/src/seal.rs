@@ -112,6 +112,12 @@ impl AuthenticatedQuorumCertificate {
     }
 }
 
+fn canonicalize_signers(mut signers: Vec<ValidatorId>) -> Vec<ValidatorId> {
+    signers.sort_unstable();
+    signers.dedup();
+    signers
+}
+
 #[allow(clippy::too_many_arguments)]
 fn compute_certificate_hash(
     block_hash: [u8; 32],

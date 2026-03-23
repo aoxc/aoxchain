@@ -5,7 +5,6 @@ use crate::{
         material::{KeyMaterial, KeyMaterialSummary},
     },
 };
-use aoxcore::identity::key_bundle::NodeKeyOperationalState;
 
 pub fn bootstrap_operator_key(
     name: &str,
@@ -22,8 +21,8 @@ pub fn rotate_operator_key(
     profile: &str,
     password: &str,
 ) -> Result<KeyMaterialSummary, AppError> {
-    let previous = load_operator_key()?;
-    let rotated = KeyMaterial::rotate_from_existing(&previous, name, profile, password)?;
+    let _previous = load_operator_key()?;
+    let rotated = KeyMaterial::generate(name, profile, password)?;
     persist_operator_key(&rotated)?;
     rotated.summary()
 }
@@ -61,4 +60,12 @@ pub fn verify_operator_key(password: Option<&str>) -> Result<(), AppError> {
         )?;
     }
     Ok(())
+}
+
+pub fn inspect_operator_key() -> Result<KeyMaterialSummary, AppError> {
+    load_operator_key()?.summary()
+}
+
+pub fn consensus_public_key_hex() -> Result<String, AppError> {
+    Ok(inspect_operator_key()?.consensus_public_key)
 }
