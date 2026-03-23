@@ -19,8 +19,6 @@ type LaunchSnapshot = {
   telemetry: TelemetrySurface[]
   reports: ReportAsset[]
   commands: CommandPreset[]
-  workspaces: WorkspaceSurface[]
-  aiSurfaces: AiSurface[]
 }
 
 type Track = {
@@ -88,22 +86,6 @@ type CommandPreset = {
   title: string
   command: string
   intent: string
-}
-
-type WorkspaceSurface = {
-  name: string
-  path: string
-  category: string
-  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
-  summary: string
-}
-
-type AiSurface = {
-  name: string
-  area: string
-  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
-  summary: string
-  command: string
 }
 
 type MissionTile = {
@@ -276,52 +258,6 @@ const fallbackSnapshot: LaunchSnapshot = {
       intent: 'Release veya transfer öncesi audit yüzeyini yeniler.',
     },
   ],
-  workspaces: [
-    {
-      name: 'aoxcai',
-      path: 'crates/aoxcai',
-      category: 'AI',
-      status: 'ready',
-      summary: 'AI destekli ama policy-gated extension plane.',
-    },
-    {
-      name: 'aoxcore',
-      path: 'crates/aoxcore',
-      category: 'Core protocol',
-      status: 'ready',
-      summary: 'Çekirdek zincir mantığı ve deterministik state yüzeyi.',
-    },
-    {
-      name: 'aoxcmd',
-      path: 'crates/aoxcmd',
-      category: 'Operator CLI',
-      status: 'ready',
-      summary: 'Operatör komut ve bootstrap akışlarının merkezi.',
-    },
-  ],
-  aiSurfaces: [
-    {
-      name: 'Capability',
-      area: 'Guardrails',
-      status: 'ready',
-      summary: 'AI yetkilerini ve erişim sınırlarını belirler.',
-      command: 'cargo test -p aoxcai --lib',
-    },
-    {
-      name: 'Audit',
-      area: 'Audit & registry',
-      status: 'ready',
-      summary: 'AI invocation izlerini ve kayıtlarını tutar.',
-      command: 'cargo test -p aoxcai audit',
-    },
-    {
-      name: 'Engine',
-      area: 'Inference runtime',
-      status: 'in-progress',
-      summary: 'Inference akışını policy ve backend ile bağlar.',
-      command: 'cargo test -p aoxcai --lib',
-    },
-  ],
 }
 
 const navItems = [
@@ -332,8 +268,6 @@ const navItems = [
   'Wallets',
   'Telemetry',
   'Integrations',
-  'Workspaces',
-  'AI',
   'Reports',
   'Evidence',
 ]
@@ -396,7 +330,6 @@ function App() {
     const onlineNodes = snapshot.nodes.filter((node) => node.status === 'online').length
     const blockedTelemetry = snapshot.telemetry.filter((item) => item.status === 'blocked').length
     const readyReports = snapshot.reports.filter((report) => report.status === 'ready').length
-    const readyWorkspaces = snapshot.workspaces.filter((workspace) => workspace.status === 'ready').length
 
     return [
       {
@@ -418,12 +351,6 @@ function App() {
         status: blockedTelemetry === 0 ? 'ready' : 'blocked',
       },
       {
-        title: 'Workspace plane',
-        value: `${readyWorkspaces}/${snapshot.workspaces.length || 1}`,
-        detail: 'visible workspace surfaces',
-        status: readyWorkspaces === snapshot.workspaces.length ? 'ready' : 'in-progress',
-      },
-      {
         title: 'Evidence registry',
         value: `${readyReports}/${snapshot.reports.length || 1}`,
         detail: 'release and audit artifacts visible',
@@ -436,7 +363,6 @@ function App() {
     const hardenedNodes = snapshot.nodes.filter((node) => !node.securityMode.includes('test_fixture')).length
     const lockedWallets = snapshot.wallets.filter((wallet) => wallet.status === 'locked').length
     const missingFiles = snapshot.files.filter((file) => !file.exists).length
-    const guardedAi = snapshot.aiSurfaces.filter((surface) => surface.status === 'ready').length
 
     return [
       {
@@ -450,12 +376,6 @@ function App() {
         value: `${lockedWallets} cold lane`,
         detail: 'recovery veya air-gapped cüzdan kontrol altında tutuluyor',
         status: lockedWallets > 0 ? 'ready' : 'in-progress',
-      },
-      {
-        title: 'AI guardrails',
-        value: `${guardedAi}/${snapshot.aiSurfaces.length || 1}`,
-        detail: 'policy ve audit odaklı AI yüzeyleri izleniyor',
-        status: guardedAi > 0 ? 'ready' : 'in-progress',
       },
       {
         title: 'Evidence integrity',
@@ -522,15 +442,6 @@ function App() {
         title: report.title,
         detail: report.detail,
         severity: report.status === 'ready' ? 'ready' : 'in-progress',
-      })
-    })
-
-    snapshot.aiSurfaces.slice(0, 1).forEach((surface) => {
-      events.push({
-        time: 'AI-1',
-        title: `${surface.name} AI lane`,
-        detail: `${surface.area} · ${surface.summary}`,
-        severity: surface.status,
       })
     })
 
@@ -805,52 +716,6 @@ function App() {
                     </span>
                   </div>
                   <code>{file.path}</code>
-                </article>
-              ))}
-            </div>
-          </article>
-        </section>
-
-        <section className="dashboard-grid two-col">
-          <article className="panel-surface section-card">
-            <div className="section-heading">
-              <h2>Workspace registry</h2>
-              <p>Tüm workspace yüzeyleri masaüstü cockpit içinde görünür ve kategorize edilir.</p>
-            </div>
-            <div className="stack-list">
-              {snapshot.workspaces.map((workspace) => (
-                <article className="info-card compact" key={workspace.path}>
-                  <div className="card-topline">
-                    <h3>{workspace.name}</h3>
-                    <span className={`status-pill ${workspace.status}`}>{statusLabel(workspace.status)}</span>
-                  </div>
-                  <dl className="detail-grid single-line">
-                    <div><dt>Category</dt><dd>{workspace.category}</dd></div>
-                    <div><dt>Path</dt><dd>{workspace.path}</dd></div>
-                  </dl>
-                  <p>{workspace.summary}</p>
-                </article>
-              ))}
-            </div>
-          </article>
-
-          <article className="panel-surface section-card">
-            <div className="section-heading">
-              <h2>AI control surfaces</h2>
-              <p>`aoxcai` modülleri guardrail, audit ve inference runtime olarak desktop içine alınır.</p>
-            </div>
-            <div className="stack-list">
-              {snapshot.aiSurfaces.map((surface) => (
-                <article className="info-card compact" key={surface.name}>
-                  <div className="card-topline">
-                    <h3>{surface.name}</h3>
-                    <span className={`status-pill ${surface.status}`}>{statusLabel(surface.status)}</span>
-                  </div>
-                  <dl className="detail-grid single-line">
-                    <div><dt>Area</dt><dd>{surface.area}</dd></div>
-                  </dl>
-                  <p>{surface.summary}</p>
-                  <code>{surface.command}</code>
                 </article>
               ))}
             </div>
