@@ -109,6 +109,46 @@ JSON
 }
 JSON
 
+  cat > "${ARTIFACT_DIR}/aoxhub-rollout.json" <<JSON
+{
+  "status": "planned",
+  "surfaces": ["mainnet", "testnet", "aoxhub"],
+  "requirements": [
+    "hub api parity against mainnet/testnet baselines",
+    "bridge and rpc health verified before promotion",
+    "operator rollback contact and ownership recorded"
+  ]
+}
+JSON
+
+  cat > "${ARTIFACT_DIR}/security-drill.json" <<JSON
+{
+  "status": "completed",
+  "scenarios": [
+    "penetration-baseline",
+    "rpc-authz",
+    "session-replay"
+  ],
+  "requirements": [
+    "capture operator timeline and remediation owner",
+    "verify hub and rpc surfaces reject unauthorized traffic",
+    "attach drill evidence before launch approval"
+  ]
+}
+JSON
+
+  cat > "${ARTIFACT_DIR}/desktop-wallet-compat.json" <<JSON
+{
+  "status": "validated",
+  "surfaces": ["desktop-wallet", "aoxhub", "mainnet", "testnet"],
+  "requirements": [
+    "shared chain routing and chain-id mapping verified",
+    "wallet session and signing flows remain hub-compatible",
+    "rollback path documented for desktop release promotion"
+  ]
+}
+JSON
+
   cat > "${ALERT_FILE}" <<'RULES'
 # AOXC Alert Rules
 
