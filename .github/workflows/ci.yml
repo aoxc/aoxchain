@@ -43,3 +43,21 @@ jobs:
         run: |
           chmod +x ./scripts/quality_gate.sh
           ./scripts/quality_gate.sh full
+
+  readiness-report:
+    name: Readiness report
+    runs-on: ubuntu-latest
+    needs: quick-gate
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify release and readiness surfaces
+        run: |
+          chmod +x ./scripts/release/generate_release_evidence.sh
+          chmod +x ./scripts/validation/network_production_closure.sh
+          chmod +x ./scripts/validation/run_readiness_gate.sh
+          ./scripts/release/generate_release_evidence.sh
+          ./scripts/validation/network_production_closure.sh --scenario soak
+          ./scripts/validation/run_readiness_gate.sh

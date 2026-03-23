@@ -7,6 +7,7 @@ set -euo pipefail
 # actual hostnames and fault hooks.
 
 HOSTS_FILE="${HOSTS_FILE:-configs/deterministic-testnet/hosts.txt}"
+HOSTS_TEMPLATE="${HOSTS_TEMPLATE:-configs/deterministic-testnet/hosts.txt.example}"
 REMOTE_BASE="${REMOTE_BASE:-~/aoxc-distributed}"
 FIXTURE_DIR="${FIXTURE_DIR:-configs/deterministic-testnet}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-artifacts/distributed-validation}"
@@ -18,7 +19,11 @@ mkdir -p "${ARTIFACT_DIR}"
 
 if [[ ! -f "${HOSTS_FILE}" ]]; then
   echo "[error] missing host file: ${HOSTS_FILE}" >&2
-  echo "[hint] create one hostname/IP per line for 3-5 hosts" >&2
+  if [[ -f "${HOSTS_TEMPLATE}" ]]; then
+    echo "[hint] copy ${HOSTS_TEMPLATE} to ${HOSTS_FILE} and replace placeholders with 3-5 hosts" >&2
+  else
+    echo "[hint] create one hostname/IP per line for 3-5 hosts" >&2
+  fi
   exit 2
 fi
 

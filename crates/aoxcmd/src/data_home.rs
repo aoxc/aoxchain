@@ -91,7 +91,7 @@ pub fn file_permissions_are_hardened(path: &Path) -> Result<bool, AppError> {
         use std::os::unix::fs::PermissionsExt;
 
         let mode = metadata.permissions().mode() & 0o777;
-        return Ok(mode & 0o077 == 0);
+        Ok(mode & 0o077 == 0)
     }
 
     #[cfg(not(unix))]

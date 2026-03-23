@@ -1,0 +1,17 @@
+{
+  "bomFormat": "AOXC-SBOM",
+  "specVersion": "1.0",
+  "serialNumber": "urn:aoxc:sbom:20260323T144016Z",
+  "metadata": {
+    "generated_by": "bootstrap-fixture",
+    "source": "tracked release evidence"
+  },
+  "components": [
+    {
+      "name": "aoxcmd",
+      "version": "0.1.1-akdeniz",
+      "manifest_path": "crates/aoxcmd/Cargo.toml",
+      "dependencies": ["aoxcai", "aoxcore", "aoxcunity"]
+    }
+  ]
+}

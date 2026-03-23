@@ -395,7 +395,22 @@ fn evaluate_mainnet_readiness(
             "release",
             has_matching_artifact(&release_dir, "compat-matrix-", ".json"),
             3,
-            "Compatibility matrix evidence must be generated for the candidate release".to_string(),
+                "Compatibility matrix evidence must be generated for the candidate release".to_string(),
+        ),
+        readiness_check(
+            "signature-evidence",
+            "release",
+            has_matching_artifact(&release_dir, "aoxc-", ".sig")
+                || has_matching_artifact(&release_dir, "aoxc-", ".sig.status"),
+            2,
+            "Signature evidence must exist for the candidate artifact, even if the signer is still pending".to_string(),
+        ),
+        readiness_check(
+            "sbom-artifact",
+            "release",
+            has_matching_artifact(&release_dir, "sbom-", ".json"),
+            2,
+            "An SBOM or dependency inventory must be generated for the candidate release".to_string(),
         ),
         readiness_check(
             "provenance-attestation",
@@ -1185,18 +1200,11 @@ fn readiness_markdown_report(
     out
 }
 
-fn surface_check_counts(surface: &SurfaceReadiness) -> (usize, usize) {
-    (
-        surface.checks.iter().filter(|check| check.passed).count(),
-        surface.checks.len(),
-    )
-}
-
 fn full_surface_markdown_report(readiness: &FullSurfaceReadiness) -> String {
     let mut out = String::new();
     out.push_str("# AOXC Full-Surface Readiness Report\n\n");
     out.push_str(&format!(
-        "- Release line: `{}`\n- Canonical matrix: `models/full_surface_readiness_matrix_v1.yaml`\n- Overall status: `{}`\n- Overall score: **{}%**\n- Candidate surfaces: **{}/{}**\n\n",
+        "- Release line: `{}`\n- Matrix path: `{}`\n- Matrix loaded: `{}`\n- Matrix release line: `{}`\n- Matrix surface count: `{}`\n- Overall status: `{}`\n- Overall score: **{}%**\n- Candidate surfaces: **{}/{}**\n\n",
         readiness.release_line,
         readiness.matrix_path,
         readiness.matrix_loaded,
@@ -1394,6 +1402,12 @@ fn remediation_plan(checks: &[ReadinessCheck]) -> Vec<String> {
             "compatibility-matrix" => {
                 "Publish a fresh compatibility matrix for the candidate release."
             }
+            "signature-evidence" => {
+                "Attach signature evidence for the candidate binary before release sign-off."
+            }
+            "sbom-artifact" => {
+                "Generate and archive an SBOM/dependency inventory for the candidate release."
+            }
             "provenance-attestation" => {
                 "Attach provenance attestation evidence before release sign-off."
             }
@@ -1420,6 +1434,9 @@ fn has_release_evidence(dir: &Path) -> bool {
         && has_matching_artifact(dir, "build-manifest-", ".json")
         && has_matching_artifact(dir, "compat-matrix-", ".json")
         && has_matching_artifact(dir, "production-audit-", ".json")
+        && has_matching_artifact(dir, "sbom-", ".json")
+        && (has_matching_artifact(dir, "aoxc-", ".sig")
+            || has_matching_artifact(dir, "aoxc-", ".sig.status"))
 }
 
 fn has_production_closure_artifacts(dir: &Path) -> bool {
@@ -1754,6 +1771,7 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::{
         build_surface, compare_aoxhub_network_profiles, compare_embedded_network_profiles,
@@ -1761,8 +1779,7 @@ mod tests {
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
         locate_repo_artifact_dir, parse_network_profile, ports_are_shifted_consistently,
-        readiness_markdown_report, surface_check, surface_check_counts,
-        write_full_surface_markdown_report, write_readiness_markdown_report,
+        readiness_markdown_report, surface_check, write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -1793,6 +1810,8 @@ mod tests {
         touch(&dir.join("build-manifest-20260323T000000Z.json"));
         touch(&dir.join("compat-matrix-20260323T000000Z.json"));
         touch(&dir.join("production-audit-20260323T000000Z.json"));
+        touch(&dir.join("sbom-20260323T000000Z.json"));
+        touch(&dir.join("aoxc-20260323T000000Z.sig.status"));
 
         assert!(has_release_evidence(&dir));
 

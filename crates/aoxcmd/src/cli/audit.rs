@@ -8,7 +8,10 @@ use crate::{
 };
 use chrono::Utc;
 use serde::Serialize;
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 /// Single diagnostics or audit check result.
 ///
@@ -308,7 +311,7 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
     })
 }
 
-fn permission_check(name: &'static str, path: &PathBuf) -> Result<Check, AppError> {
+fn permission_check(name: &'static str, path: &Path) -> Result<Check, AppError> {
     if !path.exists() {
         return Ok(Check {
             name,

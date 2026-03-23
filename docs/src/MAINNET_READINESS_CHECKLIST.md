@@ -6,6 +6,7 @@
 - [ ] `cargo clippy --workspace --all-targets --all-features -- -D warnings` passes
 - [ ] `cargo test` passes
 - [ ] CI policy in root `Cargo.toml` matches actual enforcement commands
+- [ ] release evidence includes checksum, SBOM, signature status, compatibility matrix, and provenance
 
 ## Consensus / state safety
 

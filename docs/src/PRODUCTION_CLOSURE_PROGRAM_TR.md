@@ -25,6 +25,7 @@ Supply-chain kapanışı için release evidence jeneratörü eklendi:
 Bu akış şu çıktıları üretir:
 
 - release checksum,
+- SBOM / dependency inventory,
 - build manifest,
 - compatibility matrix,
 - production audit,

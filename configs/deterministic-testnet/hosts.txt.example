@@ -1,0 +1,9 @@
+# One host per line. Replace these placeholders before running:
+#   cp configs/deterministic-testnet/hosts.txt.example configs/deterministic-testnet/hosts.txt
+# Example:
+# validator-01.example.net
+# validator-02.example.net
+# validator-03.example.net
+127.0.0.1
+127.0.0.2
+127.0.0.3
