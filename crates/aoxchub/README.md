@@ -1,15 +1,18 @@
 # AOXHub Desktop
 
-AOXHub Desktop is the Tauri/React control surface for tracking AOXChain launch readiness across mainnet, testnet, hub parity, and wallet-facing desktop flows.
+AOXHub Desktop is the Tauri/React control surface for AOXChain operations.
 
 ## Current focus
 
-The desktop app now presents:
+The desktop app is now being shaped as the **system heart** for AOXC operations, with a backend-driven control-center snapshot that can surface:
 
-- current mainnet readiness progress,
-- testnet progress and AOXHub parity status,
-- remaining launch blockers,
-- and the recommended execution order to move the program from the current baseline to 100% readiness.
+- launch readiness and blocker tracking,
+- chain-area progress (configuration, network, observability, identity, etc.),
+- a real 3-node deterministic testnet control surface,
+- desktop wallet lanes for operator / treasury / recovery workflows,
+- telemetry and API targets,
+- release/closure/report artifacts,
+- and operator command presets that are intended to become real Tauri command adapters.
 
 ## Development
 
