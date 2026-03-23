@@ -270,7 +270,7 @@ impl Transaction {
         message.extend_from_slice(&self.target.code().to_le_bytes());
 
         let payload_len = u32::try_from(self.payload.len())
-            .map_err(hash::TransactionHashError::from)
+            .map_err(|_| hash::TransactionHashError::LengthOverflow)
             .map_err(TransactionError::from)?;
         message.extend_from_slice(&payload_len.to_le_bytes());
         message.extend_from_slice(&self.payload);
@@ -372,13 +372,7 @@ mod tests {
             signature: [0u8; 64],
         };
 
-        let signature = signing_key
-            .sign(
-                &unsigned
-                    .signing_message()
-                    .expect("signing message must encode"),
-            )
-            .to_bytes();
+        let signature = signing_key.sign(&unsigned.signing_message()).to_bytes();
 
         Transaction {
             signature,
@@ -434,7 +428,7 @@ mod tests {
             .to_task()
             .expect("transaction must convert to a valid task");
 
-        assert_eq!(task.task_id, tx.tx_id().expect("tx id must compute"));
+        assert_eq!(task.task_id, tx.tx_id());
         assert_eq!(task.capability, tx.capability);
         assert_eq!(task.target_outpost, tx.target);
         assert_eq!(task.payload, tx.payload);

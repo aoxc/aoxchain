@@ -260,8 +260,8 @@ mod tests {
     fn receipt_hash_is_deterministic() {
         let receipt = sample_receipt();
 
-        let a = receipt.hash().expect("receipt hash must calculate");
-        let b = receipt.hash().expect("receipt hash must calculate");
+        let a = receipt.hash();
+        let b = receipt.hash();
 
         assert_eq!(a, b);
     }
@@ -276,10 +276,7 @@ mod tests {
             data: vec![9],
         });
 
-        assert_ne!(
-            r1.hash().expect("receipt hash must calculate"),
-            r2.hash().expect("receipt hash must calculate")
-        );
+        assert_ne!(r1.hash(), r2.hash());
     }
 
     #[test]
@@ -287,9 +284,8 @@ mod tests {
         let r1 = sample_receipt();
         let r2 = sample_receipt();
 
-        let root_a =
-            calculate_receipts_root(&[r1.clone(), r2.clone()]).expect("root must calculate");
-        let root_b = calculate_receipts_root(&[r1, r2]).expect("root must calculate");
+        let root_a = calculate_receipts_root(&[r1.clone(), r2.clone()]);
+        let root_b = calculate_receipts_root(&[r1, r2]);
 
         assert_eq!(root_a, root_b);
     }
@@ -304,9 +300,8 @@ mod tests {
             data: vec![1, 2, 3],
         });
 
-        let root_a =
-            calculate_receipts_root(&[r1.clone(), r2.clone()]).expect("root must calculate");
-        let root_b = calculate_receipts_root(&[r2, r1]).expect("root must calculate");
+        let root_a = calculate_receipts_root(&[r1.clone(), r2.clone()]);
+        let root_b = calculate_receipts_root(&[r2, r1]);
 
         assert_ne!(root_a, root_b);
     }

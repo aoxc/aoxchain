@@ -134,6 +134,24 @@ impl TransitionResult {
             invariant_status: InvariantStatus::healthy(),
         }
     }
+
+    #[must_use]
+    fn with_conflicting_finality_detected(mut self) -> Self {
+        self.invariant_status.conflicting_finality_detected = true;
+        self
+    }
+
+    #[must_use]
+    fn with_stale_branch_reactivated(mut self) -> Self {
+        self.invariant_status.stale_branch_reactivated = true;
+        self
+    }
+
+    #[must_use]
+    fn with_replay_diverged(mut self) -> Self {
+        self.invariant_status.replay_diverged = true;
+        self
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -226,7 +244,13 @@ impl ConsensusEngine {
                 self.current_height = self.current_height.max(block_height);
                 TransitionResult::accepted(KernelEffect::BlockAccepted(block_hash))
             }
-            Err(error) => TransitionResult::rejected(map_consensus_error(&error)),
+            Err(error) => {
+                let result = TransitionResult::rejected(map_consensus_error(&error));
+                if matches!(error, ConsensusError::HeightRegression) {
+                    return result.with_stale_branch_reactivated();
+                }
+                result
+            }
         }
     }
 
@@ -296,7 +320,8 @@ impl ConsensusEngine {
             }
             self.evidence_buffer
                 .push(equivocation_evidence(vote.block_hash, "timeout"));
-            return TransitionResult::rejected(KernelRejection::InvariantViolation);
+            return TransitionResult::rejected(KernelRejection::InvariantViolation)
+                .with_conflicting_finality_detected();
         }
 
         let key = TimeoutVoteKey {
@@ -377,7 +402,8 @@ impl ConsensusEngine {
             self.vote_authentication_context(),
         );
         let Some(seal) = self.state.try_finalize(block_hash, finalized_round) else {
-            return TransitionResult::rejected(KernelRejection::FinalityConflict);
+            return TransitionResult::rejected(KernelRejection::FinalityConflict)
+                .with_conflicting_finality_detected();
         };
 
         let execution = ExecutionCertificate::new(
@@ -431,7 +457,8 @@ impl ConsensusEngine {
 
     fn apply_recover_persisted_event(&mut self, event_hash: [u8; 32]) -> TransitionResult {
         if !self.replayed_event_hashes.insert(event_hash) {
-            return TransitionResult::rejected(KernelRejection::DuplicateArtifact);
+            return TransitionResult::rejected(KernelRejection::DuplicateArtifact)
+                .with_replay_diverged();
         }
 
         TransitionResult::accepted(KernelEffect::StateRecovered(event_hash))
@@ -778,5 +805,86 @@ mod tests {
             result.accepted_effects,
             vec![KernelEffect::BlockFinalized(block.hash)]
         );
+    }
+
+    #[test]
+    fn duplicate_recovery_event_sets_replay_diverged_invariant() {
+        let mut engine = engine();
+        let event_hash = [0xAA; 32];
+
+        let first = engine.apply_event(ConsensusEvent::RecoverPersistedEvent { event_hash });
+        let second = engine.apply_event(ConsensusEvent::RecoverPersistedEvent { event_hash });
+
+        assert_eq!(
+            first.accepted_effects,
+            vec![KernelEffect::StateRecovered(event_hash)]
+        );
+        assert_eq!(
+            second.rejected_reason,
+            Some(KernelRejection::DuplicateArtifact)
+        );
+        assert!(second.invariant_status.replay_diverged);
+    }
+
+    #[test]
+    fn height_regression_marks_stale_branch_reactivation_invariant() {
+        let mut engine = engine();
+        let genesis = make_block([0u8; 32], 0, [1u8; 32], 0);
+        let canonical = make_block(genesis.hash, 1, [2u8; 32], 1);
+        let conflicting = make_block(genesis.hash, 1, [3u8; 32], 1);
+
+        let _ = engine.apply_event(ConsensusEvent::AdmitBlock(genesis));
+        let _ = engine.apply_event(ConsensusEvent::AdmitBlock(canonical));
+        let result = engine.apply_event(ConsensusEvent::AdmitBlock(conflicting));
+
+        assert_eq!(result.rejected_reason, Some(KernelRejection::StaleArtifact));
+        assert!(result.invariant_status.stale_branch_reactivated);
+    }
+
+    #[test]
+    fn timeout_equivocation_sets_conflicting_finality_invariant() {
+        let mut engine = engine();
+        let genesis = make_block([0u8; 32], 0, [1u8; 32], 0);
+        let block_a = make_block(genesis.hash, 1, [2u8; 32], 1);
+        let block_b = Block {
+            hash: [0xBB; 32],
+            ..make_block(genesis.hash, 1, [3u8; 32], 1)
+        };
+        let _ = engine.apply_event(ConsensusEvent::AdmitBlock(genesis));
+        let _ = engine.apply_event(ConsensusEvent::AdmitBlock(block_a.clone()));
+        engine.state.blocks.insert(block_b.hash, block_b.clone());
+        engine.state.fork_choice.insert_block(crate::fork_choice::BlockMeta {
+            hash: block_b.hash,
+            parent: block_b.header.parent_hash,
+            height: block_b.header.height,
+            seal: None,
+        });
+
+        let vote = |block_hash| {
+            ConsensusEvent::AdmitTimeoutVote(VerifiedTimeoutVote {
+                timeout_vote: TimeoutVote {
+                    block_hash,
+                    height: 1,
+                    round: 1,
+                    epoch: 0,
+                    timeout_round: 2,
+                    voter: [1u8; 32],
+                },
+                verification_tag: [8u8; 32],
+            })
+        };
+
+        let first = engine.apply_event(vote(block_a.hash));
+        let second = engine.apply_event(vote(block_b.hash));
+
+        assert_eq!(
+            first.accepted_effects,
+            vec![KernelEffect::TimeoutAccepted(block_a.hash)]
+        );
+        assert_eq!(
+            second.rejected_reason,
+            Some(KernelRejection::InvariantViolation)
+        );
+        assert!(second.invariant_status.conflicting_finality_detected);
     }
 }

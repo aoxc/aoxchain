@@ -3,7 +3,6 @@ use aoxcore::identity::{
     key_bundle::{CryptoProfile, NodeKeyBundleV1},
     key_engine::KeyEngine,
     keyfile::{encrypt_key_to_envelope, KeyfileEnvelope},
-    passport::Passport,
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -11,6 +10,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyMaterial {
     pub bundle: NodeKeyBundleV1,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeyMaterialSummary {
+    pub bundle_fingerprint: String,
+    pub operational_state: String,
+    pub consensus_public_key: String,
+    pub transport_public_key: String,
 }
 
 impl KeyMaterial {
@@ -50,6 +57,59 @@ impl KeyMaterial {
 
     pub fn encrypted_root_seed(&self) -> &KeyfileEnvelope {
         &self.bundle.encrypted_root_seed
+    }
+
+    pub fn summary(&self) -> Result<KeyMaterialSummary, AppError> {
+        self.bundle.validate().map_err(|error| {
+            AppError::with_source(
+                ErrorCode::KeyMaterialInvalid,
+                "Failed to validate node key bundle while building key summary",
+                error,
+            )
+        })?;
+
+        let consensus_public_key = self
+            .bundle
+            .keys
+            .iter()
+            .find(|record| {
+                matches!(
+                    record.role,
+                    aoxcore::identity::key_bundle::NodeKeyRole::Consensus
+                )
+            })
+            .map(|record| record.public_key.clone())
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::KeyMaterialInvalid,
+                    "Consensus key record is missing from node key bundle",
+                )
+            })?;
+
+        let transport_public_key = self
+            .bundle
+            .keys
+            .iter()
+            .find(|record| {
+                matches!(
+                    record.role,
+                    aoxcore::identity::key_bundle::NodeKeyRole::Transport
+                )
+            })
+            .map(|record| record.public_key.clone())
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::KeyMaterialInvalid,
+                    "Transport key record is missing from node key bundle",
+                )
+            })?;
+
+        Ok(KeyMaterialSummary {
+            bundle_fingerprint: self.bundle.bundle_fingerprint.clone(),
+            operational_state: "active".to_string(),
+            consensus_public_key,
+            transport_public_key,
+        })
     }
 }
 
