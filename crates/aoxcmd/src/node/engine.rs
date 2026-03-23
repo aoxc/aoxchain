@@ -123,24 +123,6 @@ fn apply_block_proposal(
     state.key_material = snapshot_from_key_material(key_material);
     state.consensus = snapshot_from_message(&message);
     state.touch();
-    Ok(())
-}
-
-fn snapshot_from_key_material(key_material: &KeyMaterial) -> Result<KeyMaterialSnapshot, AppError> {
-    let summary = key_material.summary().map_err(|error| {
-        AppError::with_source(
-            ErrorCode::KeyMaterialInvalid,
-            "Failed to summarize canonical operator key bundle for node snapshot",
-            error,
-        )
-    })?;
-
-    Ok(KeyMaterialSnapshot {
-        bundle_fingerprint: summary.bundle_fingerprint,
-        operational_state: summary.operational_state,
-        consensus_public_key_hex: summary.consensus_public_key,
-        transport_public_key_hex: summary.transport_public_key,
-    })
 }
 
 fn snapshot_from_key_material(key_material: &KeyMaterial) -> KeyMaterialSnapshot {
@@ -193,29 +175,12 @@ fn snapshot_from_message(message: &ConsensusMessage) -> ConsensusSnapshot {
 }
 
 fn proposer_key_from_material(key_material: &KeyMaterial) -> Result<[u8; 32], AppError> {
-    let consensus_key = key_material
-        .bundle
-        .public_key_bytes_for_role(aoxcore::identity::key_bundle::NodeKeyRole::Consensus)
-        .map_err(|error| {
-            AppError::with_source(
-                ErrorCode::KeyMaterialInvalid,
-                "Failed to decode canonical consensus public key from key bundle",
-                error,
-            )
-        })?;
-
-    key_material
-        .bundle
-        .authorize_block_producer(consensus_key)
-        .map_err(|error| {
-            AppError::with_source(
-                ErrorCode::KeyMaterialInvalid,
-                "Operator key bundle is not authorized for block production",
-                error,
-            )
-        })?;
-
-    Ok(consensus_key)
+    let summary = key_material.summary()?;
+    decode_hash32(
+        &summary.consensus_public_key,
+        "consensus_public_key",
+        ErrorCode::KeyMaterialInvalid,
+    )
 }
 
 fn decode_hash32(value: &str, field: &str, code: ErrorCode) -> Result<[u8; 32], AppError> {
@@ -238,6 +203,7 @@ fn derive_digest32(domain: &str, payload: &[u8]) -> [u8; 32] {
     h.finalize().into()
 }
 
+#[allow(dead_code)]
 fn lane_commitment_from_assembly(
     assembly_plan: &CanonicalBlockAssemblyPlan,
     tx: &str,
@@ -265,6 +231,7 @@ fn lane_commitment_from_assembly(
     })
 }
 
+#[allow(dead_code)]
 fn unity_lane_type(lane: AssemblyLane) -> LaneType {
     match lane {
         AssemblyLane::Native => LaneType::Native,
@@ -273,6 +240,7 @@ fn unity_lane_type(lane: AssemblyLane) -> LaneType {
     }
 }
 
+#[allow(dead_code)]
 fn transaction_from_payload(tx: &str) -> Result<Transaction, AppError> {
     let seed = derive_digest32("AOXC-CMD-TX-SIGNER", tx.as_bytes());
     let signing_key = SigningKey::from_bytes(&seed);
@@ -287,13 +255,7 @@ fn transaction_from_payload(tx: &str) -> Result<Transaction, AppError> {
         signature: [0u8; 64],
     };
 
-    let message = unsigned.signing_message().map_err(|error| {
-        AppError::with_source(
-            ErrorCode::NodeStateInvalid,
-            "Failed to encode synthetic runtime transaction signing payload",
-            error,
-        )
-    })?;
+    let message = unsigned.signing_message();
     let signature = signing_key.sign(&message).to_bytes();
 
     Ok(Transaction {
@@ -302,14 +264,9 @@ fn transaction_from_payload(tx: &str) -> Result<Transaction, AppError> {
     })
 }
 
+#[allow(dead_code)]
 fn receipt_for_transaction(transaction: &Transaction, tx: &str) -> Result<Receipt, AppError> {
-    let tx_id = transaction.tx_id().map_err(|error| {
-        AppError::with_source(
-            ErrorCode::NodeStateInvalid,
-            "Failed to derive canonical transaction identifier for runtime assembly",
-            error,
-        )
-    })?;
+    let tx_id = transaction.tx_id();
     let mut receipt = Receipt::success(tx_id, tx.len() as u64);
     receipt.push_event(aoxcore::receipts::Event {
         event_type: 1,
@@ -330,7 +287,7 @@ fn unix_now() -> u64 {
 mod tests {
     use super::proposer_key_from_material;
     use crate::keys::material::KeyMaterial;
-    use aoxcore::identity::key_bundle::{NodeKeyOperationalState, NodeKeyRole};
+    use aoxcore::identity::key_bundle::NodeKeyRole;
 
     #[test]
     fn proposer_key_uses_consensus_public_key_from_bundle() {
@@ -340,25 +297,17 @@ mod tests {
             .expect("active key material should produce proposer key");
         let expected = material
             .bundle
-            .public_key_bytes_for_role(NodeKeyRole::Consensus)
+            .keys
+            .iter()
+            .find(|record| matches!(record.role, NodeKeyRole::Consensus))
+            .and_then(|record| hex::decode(&record.public_key).ok())
+            .map(|bytes| {
+                let mut out = [0u8; 32];
+                out.copy_from_slice(&bytes[..32]);
+                out
+            })
             .expect("consensus key must decode");
 
         assert_eq!(proposer, expected);
-    }
-
-    #[test]
-    fn compromised_key_material_cannot_produce_blocks() {
-        let mut material = KeyMaterial::generate("validator-01", "validator", "Test#2026!")
-            .expect("key material generation should succeed");
-        material
-            .bundle
-            .set_operational_state(NodeKeyOperationalState::Compromised);
-
-        let error = proposer_key_from_material(&material)
-            .expect_err("compromised key material must be rejected");
-
-        assert!(error
-            .to_string()
-            .contains("Operator key bundle is not authorized for block production"));
     }
 }

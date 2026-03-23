@@ -18,7 +18,6 @@ pub use hash::{
     hash_header, hash_internal_node, hash_task, hash_task_leaf, try_hash_task, try_hash_task_leaf,
 };
 
-use crate::identity::key_bundle::NodeKeyBundleV1;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -182,7 +181,7 @@ impl Task {
 
     /// Returns the canonical task hash.
     pub fn hash(&self) -> Result<[u8; 32], BlockError> {
-        hash::hash_task(self)
+        Ok(hash::hash_task(self))
     }
 }
 
@@ -211,6 +210,19 @@ impl Block {
             BlockType::Active,
             tasks,
         )
+    }
+
+    pub fn validate_with_key_bundle(
+        &self,
+        bundle: &crate::identity::key_bundle::NodeKeyBundleV1,
+    ) -> Result<(), BlockError> {
+        let consensus_key = bundle
+            .public_key_bytes_for_role(crate::identity::key_bundle::NodeKeyRole::Consensus)
+            .map_err(|_| BlockError::InvalidProducer)?;
+        if self.header.producer != consensus_key {
+            return Err(BlockError::InvalidProducer);
+        }
+        self.validate()
     }
 
     /// Creates a validated active block with an explicit timestamp.

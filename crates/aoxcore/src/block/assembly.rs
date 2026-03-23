@@ -146,8 +146,7 @@ impl CanonicalBlockAssemblyPlan {
             .map(Transaction::to_task)
             .collect::<Result<Vec<_>, _>>()?;
         let task_root = calculate_task_root(&tasks)?;
-        let receipts_root =
-            calculate_receipts_root(receipts).map_err(|_| AssemblyError::ReceiptHashingFailed)?;
+        let receipts_root = calculate_receipts_root(receipts);
         let task_count =
             u32::try_from(tasks.len()).map_err(|_| AssemblyError::TaskCountOverflow)?;
         let total_payload_bytes = tasks.iter().try_fold(0u64, |acc, task| {
@@ -276,7 +275,7 @@ mod tests {
             signature,
         )
         .expect("signed transaction must be valid");
-        let hash = signed.tx_id().expect("transaction id must hash");
+        let hash = signed.tx_id();
         (signed, hash)
     }
 

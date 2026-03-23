@@ -133,8 +133,8 @@ impl GenesisLoader {
         config.treasury = DEFAULT_TREASURY;
         config.add_account(TREASURY_ACCOUNT.to_string(), DEFAULT_TREASURY);
 
-        GenesisBlock::try_new(config)
-            .expect("GENESIS_DEFAULT: default genesis configuration must remain valid")
+        Ok(GenesisBlock::try_new(config)
+            .expect("GENESIS_DEFAULT: default genesis configuration must remain valid"))
     }
 
     /// Loads genesis from disk, or creates and persists a default genesis
