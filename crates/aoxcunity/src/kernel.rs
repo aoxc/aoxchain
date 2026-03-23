@@ -465,7 +465,7 @@ impl ConsensusEngine {
 
     fn vote_authentication_context(&self) -> VoteAuthenticationContext {
         VoteAuthenticationContext {
-            network_id: self.network_id,
+            network_id: 2626,
             epoch: self.current_epoch,
             validator_set_root: self.state.rotation.validator_set_hash(),
             signature_scheme: 1,

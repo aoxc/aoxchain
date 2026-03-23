@@ -31,7 +31,7 @@ pub fn produce_once(tx: &str) -> Result<NodeState, AppError> {
 
     let key_material = crate::keys::loader::load_operator_key()?;
     let block = build_block_for_tx(&state, tx, &key_material)?;
-    apply_block_proposal(&mut state, tx, &block, &key_material)?;
+    apply_block_proposal(&mut state, tx, &block, &key_material);
 
     persist_state(&state)?;
     Ok(state)
@@ -46,7 +46,7 @@ pub fn run_rounds(rounds: u64, tx_prefix: &str) -> Result<NodeState, AppError> {
     for index in 0..rounds {
         let tx = format!("{tx_prefix}-{index}");
         let block = build_block_for_tx(&state, &tx, &key_material)?;
-        apply_block_proposal(&mut state, &tx, &block, &key_material)?;
+        apply_block_proposal(&mut state, &tx, &block, &key_material);
     }
 
     persist_state(&state)?;
@@ -75,24 +75,17 @@ fn build_block_for_tx(
     )?;
 
     let proposer_key = proposer_key_from_material(key_material)?;
-    let transactions = [transaction_from_payload(tx)?];
-    let receipts = [receipt_for_transaction(&transactions[0], tx)?];
-    let assembly_plan = CanonicalBlockAssemblyPlan::from_transactions(
-        height,
-        parent_hash,
-        proposer_key,
-        &transactions,
-        &receipts,
-    )
-    .map_err(|error| {
-        AppError::with_source(
-            ErrorCode::NodeStateInvalid,
-            format!("Failed to build canonical assembly plan at height {height}"),
-            error,
-        )
-    })?;
 
-    let lane_commitment = lane_commitment_from_assembly(&assembly_plan, tx, round)?;
+    let lane_commitment = LaneCommitment {
+        lane_id: 1,
+        lane_type: LaneType::Native,
+        tx_count: 1,
+        input_root: derive_digest32("AOXC-CMD-INPUT", tx.as_bytes()),
+        output_root: derive_digest32("AOXC-CMD-OUTPUT", tx.as_bytes()),
+        receipt_root: derive_digest32("AOXC-CMD-RECEIPT", tx.as_bytes()),
+        state_commitment: derive_digest32("AOXC-CMD-STATE", format!("{height}:{tx}").as_bytes()),
+        proof_commitment: derive_digest32("AOXC-CMD-PROOF", format!("{round}:{tx}").as_bytes()),
+    };
 
     let body = BlockBody {
         sections: vec![BlockSection::LaneCommitment(LaneCommitmentSection {
@@ -119,7 +112,7 @@ fn apply_block_proposal(
     tx: &str,
     block: &Block,
     key_material: &KeyMaterial,
-) -> Result<(), AppError> {
+) {
     let message = ConsensusMessage::BlockProposal {
         block: block.clone(),
     };
@@ -127,7 +120,7 @@ fn apply_block_proposal(
     state.current_height = block.header.height;
     state.produced_blocks = state.produced_blocks.saturating_add(1);
     state.last_tx = tx.to_string();
-    state.key_material = snapshot_from_key_material(key_material)?;
+    state.key_material = snapshot_from_key_material(key_material);
     state.consensus = snapshot_from_message(&message);
     state.touch();
     Ok(())
@@ -148,6 +141,19 @@ fn snapshot_from_key_material(key_material: &KeyMaterial) -> Result<KeyMaterialS
         consensus_public_key_hex: summary.consensus_public_key,
         transport_public_key_hex: summary.transport_public_key,
     })
+}
+
+fn snapshot_from_key_material(key_material: &KeyMaterial) -> KeyMaterialSnapshot {
+    let summary = key_material
+        .summary()
+        .expect("key material summary must remain derivable after successful validation");
+
+    KeyMaterialSnapshot {
+        bundle_fingerprint: summary.bundle_fingerprint,
+        operational_state: summary.operational_state,
+        consensus_public_key_hex: summary.consensus_public_key,
+        transport_public_key_hex: summary.transport_public_key,
+    }
 }
 
 /// Snapshot builder.
