@@ -22,34 +22,39 @@ criteria:
     stretch_goal: false
   - name: Multi-host real network validation
     area: network
-    status: missing
+    status: partial
     weight: 15
     done_definition: 3-5 nodes run on separate hosts with propagation metrics and consolidated report.
-    evidence: []
+    evidence:
+      - scripts/validation/multi_host_validation.sh
+      - scripts/validation/network_production_closure.sh
     blocker: true
     stretch_goal: false
   - name: Partition and fault scenarios
     area: resilience
-    status: missing
+    status: partial
     weight: 15
     done_definition: Partition, restart, delay, drop, timeout, and basic fault injection scenarios are executed and documented.
-    evidence: []
+    evidence:
+      - scripts/validation/network_production_closure.sh --scenario partition
     blocker: true
     stretch_goal: false
   - name: State sync and snapshot recovery
     area: recovery
-    status: missing
+    status: partial
     weight: 15
     done_definition: Join/rejoin, snapshot export/import, and recovery consistency are tested.
-    evidence: []
+    evidence:
+      - scripts/validation/network_production_closure.sh --scenario recovery
     blocker: true
     stretch_goal: false
   - name: Soak test
     area: operations
-    status: missing
+    status: partial
     weight: 12
     done_definition: Long-duration continuous run with resource, error, and stall reporting exists.
-    evidence: []
+    evidence:
+      - scripts/validation/network_production_closure.sh --scenario soak
     blocker: true
     stretch_goal: false
   - name: Telemetry and alerting
@@ -60,14 +65,18 @@ criteria:
     evidence:
       - runtime-status
       - production-audit
+      - scripts/validation/network_production_closure.sh --scenario soak
+      - artifacts/network-production-closure/alert-rules.md
     blocker: false
     stretch_goal: false
   - name: Upgrade and migration planning
     area: upgrade
-    status: missing
+    status: partial
     weight: 10
     done_definition: Versioning, schema migration, rollback, and compatibility tests are written and validated.
-    evidence: []
+    evidence:
+      - aoxc compat-matrix
+      - scripts/release/generate_release_evidence.sh
     blocker: false
     stretch_goal: false
   - name: Operator runbook
