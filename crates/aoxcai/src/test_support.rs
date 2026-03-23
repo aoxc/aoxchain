@@ -197,7 +197,7 @@ pub fn base_manifest() -> ModelManifest {
                 allow_file_backends: false,
             },
             compatibility: Compatibility {
-                min_node_version: "0.1.0".to_owned(),
+                min_node_version: "0.0.0-alpha.2".to_owned(),
                 max_node_version: None,
                 supported_tasks: vec![
                     AiTask::ValidatorAdmission,

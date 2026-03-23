@@ -1,44 +1,48 @@
-# aoxcdata
+# AOXCDATA
 
-## Purpose
+Deterministic storage and contract state persistence services used by AOX Chain data planes.
 
-`aoxcdata` is the production-grade **Data and Persistence Layer** for the AOXChain workspace. 
+## Executive Summary
+This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
 
-To guarantee absolute consensus determinism and bypass the hidden non-determinism of traditional database engines, this crate implements a bespoke, auditable, and content-addressed storage architecture. It provides the sovereign core with crash-safe persistence, atomic writes, and cryptographic state verification.
+## Architectural Overview
+The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
 
-## Core Components
+## Security Objectives
+The primary security objectives are listed below.
+- Preserve deterministic behavior for the same input set.
+- Reject malformed, stale, or conflicting inputs before state mutation.
+- Maintain bounded resource usage to reduce denial-of-service exposure.
+- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
 
-The architecture relies on bounded, explicit persistence primitives rather than black-box databases:
-- **`FsCasBlobStore`**: An atomic, filesystem-backed Content-Addressable Storage (CAS) for raw block data and large payloads.
-- **`FileMetaIndexStore`**: An append-only metadata journal and indexing engine, featuring automatic snapshot compaction and crash-resilient replay mechanisms.
-- **`FileKvDb`**: Bounded, explicit key-value persistence primitives enforcing atomic, per-key disk writes.
-- **`StateTree`**: A deterministic, ordered Merkle tree engine responsible for generating consensus-critical state roots and verifying cryptographic inclusion proofs.
+## Audit Scope
+The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
 
-## Code Scope
+## Verification Strategy
+Recommended verification activities include the following layers.
+1. Unit tests for validation rules, edge cases, and deterministic behavior.
+2. Integration tests for cross-module flows and operational hand-offs.
+3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
+4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
+5. Formatting, lint, and documentation checks before merge approval.
 
-- `src/lib.rs` - Main entry point and persistence traits.
-- `src/store/` - Implementations of CAS, KV databases, and journal indexing.
-- `src/tree/` - Merkle tree generation and deterministic hashing engines.
+## Operational Guidance
+Production use should remain aligned with controlled change management.
+- Update documentation whenever interfaces, invariants, or deployment assumptions change.
+- Preserve traceability between source code, tests, release artifacts, and audit evidence.
+- Record environment limitations when verification cannot be completed exactly as planned.
+- Treat incident response readiness as part of engineering quality, not a post-release activity.
 
-## Security & Operational Notes
+## Security Audit Log
+The following audit statements should be reviewed on each significant change.
+- Inputs are validated before they can influence durable or consensus-sensitive state.
+- Error propagation remains explicit and avoids hidden control-flow shortcuts.
+- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
+- Test coverage includes both expected behavior and hostile or malformed scenarios.
+- Release evidence includes the commands used and the outcome observed in CI or local execution.
 
-- **Zero Silent Data Loss**: The architecture strictly enforces an atomic write discipline. Partial writes or corrupted flushes must be detected and fully recovered via the append-only journal.
-- **Absolute Determinism**: All hashing and state tree generations must yield the exact same Merkle root across all validator nodes, regardless of the underlying OS or filesystem block size.
-- **Strict Error Propagation**: Disk-level failures, I/O timeouts, or integrity validation faults must immediately and gracefully halt the node. The system must **never** serve corrupted or partial state to the consensus layer.
-- **Crash-Safe Persistence**: The node must be able to recover flawlessly from an unexpected power loss or process kill event by replaying the `FileMetaIndexStore` over the `StateTree`.
-
-## Local Validation
-
-Before submitting changes to the data layer, ensure all deterministic tests and static analysis checks pass flawlessly. Due to the nature of filesystem operations, ensure tests clean up their mock directories.
-
-```bash
-cargo fmt --all -- --check
-cargo check -p aoxcdata
-cargo clippy -p aoxcdata --all-targets --all-features -- -D warnings
-cargo test -p aoxcdata -- --nocapture
-Related Components
-Top-level architecture: ../../README.md
-
-Core Primitives & Hashing: ../aoxcore/README.md
-
-Sovereign Consensus: ../aoxcunity/README.md
+## Audit Checklist
+- [ ] Confirm deterministic behavior for identical inputs.
+- [ ] Confirm malformed and conflicting inputs are rejected.
+- [ ] Confirm verification evidence is attached to the release record.
+- [ ] Confirm documentation reflects current operational assumptions.

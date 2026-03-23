@@ -23,7 +23,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.0.0-alpha.2"
 edition = "2024"
 authors = ["Orcun <your@email.com>"]
 
@@ -63,3 +63,9 @@ policy = "Formatting, clippy, and full test-suite checks are mandatory for merge
 aoxcore = "Increase property-based test coverage for identity and genesis models."
 aoxckit = "Add golden tests for key rotation and revocation workflows."
 aoxcdata = "Preserve deterministic storage/integrity coverage when changing persistence code."
+
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1

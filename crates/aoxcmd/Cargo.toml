@@ -1,6 +1,6 @@
 [package]
 name = "aoxcmd"
-version = "0.1.0"
+version = "0.0.0-alpha.2"
 edition = "2021"
 default-run = "aoxc"
 build = "build.rs"

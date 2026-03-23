@@ -1,48 +1,48 @@
-# aoxcenergy
+# AOXCENERGY
 
-## Purpose
+Energy accounting primitives and execution-cost modeling inputs for bounded runtime economics.
 
-`aoxcenergy` provides the **deterministic economic floor engine** for the AOXChain workspace. 
+## Executive Summary
+This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
 
-This crate does **not** attempt to predict speculative market prices. Instead, it computes a deterministic, governance-auditable **full network cost floor** derived from physical and policy realities:
-- Energy expenditure & cooling overhead
-- Infrastructure and validator operations expenditure
-- Continuity and security risk buffers
-- Network tax burden
-- Treasury formation policy
-- Target sustainability margins
+## Architectural Overview
+The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
 
-## Core Components
+## Security Objectives
+The primary security objectives are listed below.
+- Preserve deterministic behavior for the same input set.
+- Reject malformed, stale, or conflicting inputs before state mutation.
+- Maintain bounded resource usage to reduce denial-of-service exposure.
+- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
 
-The engine strictly evaluates the operational realities of the network to produce a verifiable economic state:
-- **`EnergyAnchorEngine`**: The core deterministic calculator for computing the economic floor.
-- **`UnitAmount`**: A zero-risk, fixed-point monetary wrapper that entirely avoids floating-point arithmetic to prevent consensus drifts.
-- **`EconomicFloorReport`**: The comprehensive output detailing the `sustainable_cost`, `pre_tax_full_cost`, and `per_unit_floor`.
-- **`EconomicZone`**: Classifies realized network value into `LossZone`, `SurvivalZone`, or `TreasuryBuildZone`.
-- **`GovernanceDecision`**: Enforces strict protocol limits on period-over-period floor jumps, emitting `Approved`, `RequiresReview`, or `Rejected` statuses.
+## Audit Scope
+The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
 
-## Code Scope
+## Verification Strategy
+Recommended verification activities include the following layers.
+1. Unit tests for validation rules, edge cases, and deterministic behavior.
+2. Integration tests for cross-module flows and operational hand-offs.
+3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
+4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
+5. Formatting, lint, and documentation checks before merge approval.
 
-- `src/lib.rs` - Core economic engine, zero-risk arithmetic structures, zone classifiers, and governance evaluators.
+## Operational Guidance
+Production use should remain aligned with controlled change management.
+- Update documentation whenever interfaces, invariants, or deployment assumptions change.
+- Preserve traceability between source code, tests, release artifacts, and audit evidence.
+- Record environment limitations when verification cannot be completed exactly as planned.
+- Treat incident response readiness as part of engineering quality, not a post-release activity.
 
-## Security & Operational Notes
+## Security Audit Log
+The following audit statements should be reviewed on each significant change.
+- Inputs are validated before they can influence durable or consensus-sensitive state.
+- Error propagation remains explicit and avoids hidden control-flow shortcuts.
+- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
+- Test coverage includes both expected behavior and hostile or malformed scenarios.
+- Release evidence includes the commands used and the outcome observed in CI or local execution.
 
-- **Zero-Risk Arithmetic**: All monetary calculations (BPS application, unit addition, tax division) **must** use `checked_*` operations. Floating-point math is strictly forbidden in this crate to maintain absolute determinism across all validator nodes.
-- **Basis Points (BPS) Strictness**: All percentage-based policies (tax, margins, reserves) are represented in BPS where `10_000 bps = 100.00%`. The engine will aggressively reject any input exceeding this denominator.
-- **Governance Overrides**: Large economic floor adjustments are automatically rejected by the engine unless an explicit `emergency_override` is authorized by the sovereign network policy.
-
-## Local Validation
-
-Before submitting changes to the economic engine, ensure all deterministic tests and static analysis checks pass flawlessly:
-
-```bash
-cargo fmt --all -- --check
-cargo check -p aoxcenergy
-cargo clippy -p aoxcenergy --all-targets --all-features -- -D warnings
-cargo test -p aoxcenergy -- --nocapture
-Related Components
-Top-level architecture: ../../README.md
-
-Sovereign Consensus: ../aoxcunity/README.md
-
-Execution Orchestrator: ../aoxcexec/README.md
+## Audit Checklist
+- [ ] Confirm deterministic behavior for identical inputs.
+- [ ] Confirm malformed and conflicting inputs are rejected.
+- [ ] Confirm verification evidence is attached to the release record.
+- [ ] Confirm documentation reflects current operational assumptions.

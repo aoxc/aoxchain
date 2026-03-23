@@ -1,39 +1,48 @@
-# aoxcexec
+# AOXCEXEC
 
-## Purpose
+Execution coordination interfaces that connect higher-level runtimes to deterministic engine services.
 
-`aoxcexec` is the **Execution Orchestrator** domain within the AOXChain workspace. It serves as the deterministic bridge between the sovereign consensus layer (`aoxcunity`) and the multi-lane virtual machine environment (`aoxcvm`).
+## Executive Summary
+This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
 
-This crate now models a production-oriented execution pipeline that:
+## Architectural Overview
+The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
 
-- validates authenticated `ExecutionPayload` envelopes with replay protection,
-- resolves versioned lane policies via a governance-friendly `LaneRegistry`,
-- executes deterministic lane transitions against a concrete state store,
-- emits `ExecutionResult`, `WriteSet`, `StateDiff`, and `PostStateCommitment`,
-- derives canonical batch roots (`state_root`, `receipt_root`, `transactions_root`, `execution_trace_root`, `block_execution_root`), and
-- publishes operator-facing execution summaries with deterministic telemetry counters.
+## Security Objectives
+The primary security objectives are listed below.
+- Preserve deterministic behavior for the same input set.
+- Reject malformed, stale, or conflicting inputs before state mutation.
+- Maintain bounded resource usage to reduce denial-of-service exposure.
+- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
 
-## Core Components
+## Audit Scope
+The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
 
-- **`ExecutionPayload`**: Versioned transaction envelope with `chain_id`, `sender`, `nonce`, `signature`, fees, replay domain, and access scope.
-- **`LaneRegistry`**: Versioned lane policy registry with checksum verification and activation heights.
-- **`ExecutionLane`**: Runtime isolation contract for lane validation, gas estimation, execution, result verification, and state commits.
-- **`InMemoryStateStore`**: Deterministic authenticated state backend used for canonical roots and replay tests.
-- **`BatchExecutionOutcome`**: Final batch artifact containing receipts, execution results, telemetry summary, and all batch-level commitments.
+## Verification Strategy
+Recommended verification activities include the following layers.
+1. Unit tests for validation rules, edge cases, and deterministic behavior.
+2. Integration tests for cross-module flows and operational hand-offs.
+3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
+4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
+5. Formatting, lint, and documentation checks before merge approval.
 
-## Security & Operational Notes
+## Operational Guidance
+Production use should remain aligned with controlled change management.
+- Update documentation whenever interfaces, invariants, or deployment assumptions change.
+- Preserve traceability between source code, tests, release artifacts, and audit evidence.
+- Record environment limitations when verification cannot be completed exactly as planned.
+- Treat incident response readiness as part of engineering quality, not a post-release activity.
 
-- **Deterministic commitments**: All roots are domain-separated BLAKE3 commitments.
-- **Replay protection**: Payloads are rejected on `chain_id`, `replay_domain`, nonce, or signature mismatch.
-- **Canonical ordering**: Payloads are normalized by `(nonce, tx_hash)` before execution to guarantee deterministic replay.
-- **Policy integrity**: Registry entries are checksum-verified before a lane policy becomes active.
-- **State safety**: Invalid transactions never receive state mutation rights; only accepted payloads produce write-sets and state diffs.
-- **Operator telemetry**: Batch summaries expose rejected payload counts, nonce violations, lane gas utilization, and active policy versions.
+## Security Audit Log
+The following audit statements should be reviewed on each significant change.
+- Inputs are validated before they can influence durable or consensus-sensitive state.
+- Error propagation remains explicit and avoids hidden control-flow shortcuts.
+- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
+- Test coverage includes both expected behavior and hostile or malformed scenarios.
+- Release evidence includes the commands used and the outcome observed in CI or local execution.
 
-## Local Validation
-
-```bash
-cargo check -p aoxcexec
-cargo clippy -p aoxcexec --all-targets --all-features -- -D warnings
-cargo test -p aoxcexec
-```
+## Audit Checklist
+- [ ] Confirm deterministic behavior for identical inputs.
+- [ ] Confirm malformed and conflicting inputs are rejected.
+- [ ] Confirm verification evidence is attached to the release record.
+- [ ] Confirm documentation reflects current operational assumptions.

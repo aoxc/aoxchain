@@ -237,7 +237,7 @@ spec:
     allow_file_backends: false
 
   compatibility:
-    min_node_version: "0.1.0"
+    min_node_version: "0.0.0-alpha.2"
     max_node_version: null
     supported_tasks:
       - "validator_admission"
