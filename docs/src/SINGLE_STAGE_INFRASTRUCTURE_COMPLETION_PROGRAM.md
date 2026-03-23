@@ -1,434 +1,378 @@
-# AOXChain Infrastructure and Readiness Completion Program
+# AOXChain Single-Stage Infrastructure Completion Program
 
 ## Document Control
 
-- **Document status:** Active program baseline
-- **Stage 1 baseline:** `v0.1.1-alpha`
-- **Stage 2 target baseline:** `v0.2.0-alpha`
-- **Program model:** Two-stage closure with Stage 1 completed and Stage 2 active
-- **Primary objective:** Close the infrastructure baseline first, then complete the implementation-ready execution package
-- **Audience:** Engineering, protocol, DevOps, security, release management, operators, audit reviewers
-- **Authoritative use:** This document defines what Stage 1 delivered and what Stage 2 must fully complete before AOXChain can claim aligned testnet/mainnet operational readiness progression.
+- **Document status:** Active baseline program
+- **Program baseline:** `v0.1.1-alpha`
+- **Program model:** Single-stage completion
+- **Primary objective:** Infrastructure completeness at 100%
+- **Audience:** Engineering, protocol, DevOps, security, release management, audit reviewers
+- **Authoritative use:** This document defines what must be completed before AOXChain may claim a fully aligned testnet/mainnet infrastructure baseline.
 
 ---
 
 ## 1. Executive Summary
 
-This document records the transition from the completed documentation and infrastructure-baseline stage to the active implementation-completion stage.
+This document replaces the prior Turkish single-stage planning draft with an **English, audit-ready program** that can be read by external reviewers, engineers, operators, and security partners.
 
-The governing interpretation is now:
+The governing decision is simple:
 
-- **Stage 1 is complete** as the documentation and infrastructure-baseline closure for `v0.1.1-alpha`.
-- **Stage 2 is now active** and is the full completion package for execution, validation, recovery, security hardening, observability, and release governance needed to move beyond a documentation-only posture.
-- AOXChain will continue to use English as the mandatory language for reviewer-facing program artifacts.
+- AOXChain will treat the current baseline as **`v0.1.1-alpha`**.
+- AOXChain will not proceed with stage-based ambiguity, partial placeholders, or undocumented infrastructure assumptions.
+- AOXChain will close all foundational documentation, repository structure, versioning, infrastructure-file mapping, launch controls, and readiness expectations inside **one completion stage**.
 
-The program target is therefore split into two controlled outcomes:
+The target condition is:
 
-1. **Stage 1:** baseline clarity, versioning, structure, ownership, and evidence definitions,
-2. **Stage 2:** implementation-facing readiness closure for real network operation and launch governance.
+> **Infrastructure completeness at 100% for the documented baseline.**
 
----
+For this program, “100%” does **not** mean that every future production feature is finished. It means that, for the declared baseline:
 
-## 2. Program Status
-
-### 2.1 Stage 1 status: Completed baseline
-
-Stage 1 delivered the following closure outcomes:
-
-- English authoritative baseline program documentation,
-- mdBook navigation alignment,
-- baseline version declaration for `v0.1.1-alpha`,
-- owner and evidence expectations,
-- repository structure and infrastructure mapping expectations,
-- baseline go/no-go policy for documentation integrity.
-
-### 2.2 Stage 2 status: Active completion stage
-
-Stage 2 is the stage requested after Stage 1 completion. It is the stage where AOXChain must close the operational and implementation gaps that remain between a documented baseline and a credible testnet/mainnet readiness posture.
+1. no critical documentation gaps remain,
+2. no critical mdBook navigation gaps remain,
+3. no critical versioning ambiguity remains,
+4. no critical infrastructure-file ownership or placement ambiguity remains,
+5. no critical readiness evidence category is left undocumented,
+6. no launch-governance responsibility is left undefined.
 
 ---
 
-## 3. Versioning Policy
+## 2. Why This Document Exists
 
-### 3.1 Stage 1 baseline
+The previous approach suffered from a structural communication problem:
 
-- **Stage 1 baseline version:** `v0.1.1-alpha`
-- Meaning: documentation, repository structure, naming, ownership, and evidence expectations are stabilized.
+- strategic intent was documented in one place,
+- execution expectations were scattered elsewhere,
+- some navigation and document names were not suitable for an international engineering or audit audience,
+- and the repository lacked a single English baseline document that explained what the one-stage completion program actually delivers.
 
-### 3.2 Stage 2 target
-
-- **Stage 2 target version:** `v0.2.0-alpha`
-- Meaning: operational, validation, security, recovery, observability, and release-readiness deliverables are implemented or formally evidenced to the level defined in this document.
-
-### 3.3 Advancement rule
-
-Stage 2 may be declared complete only if all exit criteria in this document are satisfied and the required evidence package is approved by the designated owners.
+This document corrects that problem by establishing one authoritative English program for the baseline.
 
 ---
 
-## 4. What Stage 2 Must Fully Complete
+## 3. Program Scope
 
-Stage 2 is not a partial planning exercise. It is the execution stage that must close the remaining readiness package in full.
+This single-stage program covers the full infrastructure baseline required to support aligned testnet and mainnet readiness planning.
 
-### 4.1 Node and service operation
+### In scope
 
-Stage 2 must define and complete the operator-facing execution path for:
+1. documentation integrity,
+2. mdBook structure and navigation integrity,
+3. baseline versioning and release naming,
+4. repository infrastructure-file mapping,
+5. configuration, fixture, artifact, and output directory definitions,
+6. node bootstrap and service-operation documentation,
+7. network-validation expectations,
+8. consensus hardening dependency mapping,
+9. snapshot/recovery/rejoin expectations,
+10. RPC and public-surface security expectations,
+11. observability and soak-test evidence expectations,
+12. release, provenance, rollback, and upgrade governance,
+13. owner matrix and approval authority,
+14. audit-facing evidence package structure,
+15. launch go/no-go controls.
 
-- node bootstrap,
-- long-running node or service mode,
-- health and readiness checks,
-- operator startup/shutdown workflows,
-- and service-level expectations for persistent execution.
+### Out of scope
 
-### 4.2 Real network validation
-
-Stage 2 must define and execute a credible real-network validation package that covers:
-
-- multi-node validation beyond local-only smoke behavior,
-- evidence expectations for propagation and convergence,
-- operator-visible outputs and logs,
-- and an auditable definition of what qualifies as real network proof.
-
-### 4.3 Consensus and protocol hardening dependencies
-
-Stage 2 must explicitly close or evidence the protocol-facing readiness dependencies required before stronger readiness claims may be made, including:
-
-- consensus persistence expectations,
-- validator or authority-set state expectations,
-- replay and recovery assumptions,
-- authenticated transport-envelope expectations,
-- and the dependency relationship between protocol hardening and testnet confidence.
-
-### 4.4 Recovery and rejoin capability
-
-Stage 2 must fully define the recovery package, including:
-
-- snapshot expectations,
-- restore expectations,
-- rejoin expectations,
-- restart behavior expectations,
-- and the evidence required to prove consistency after interruption.
-
-### 4.5 Fault and resilience validation
-
-Stage 2 must include a fault-oriented validation model that covers:
-
-- restart scenarios,
-- delay and partition scenarios,
-- packet-loss or degraded-network assumptions,
-- and the expected evidence for recovery, convergence, or residual-risk acceptance.
-
-### 4.6 RPC and public-surface security
-
-Stage 2 must define the minimum security posture for public-facing and operator-facing surfaces, including:
-
-- transport security expectations,
-- authentication or trust-boundary expectations,
-- abuse-control expectations,
-- exposure policy,
-- and the distinction between what may be acceptable for testnet versus what remains a mainnet blocker.
-
-### 4.7 Observability and soak readiness
-
-Stage 2 must define the runtime evidence required to support longer-lived operation, including:
-
-- telemetry expectations,
-- sync-state visibility,
-- peer-state visibility,
-- error-counter visibility,
-- performance or block-progress visibility,
-- and soak-test evidence expectations.
-
-### 4.8 Release and launch governance
-
-Stage 2 must complete the release-governance package, including:
-
-- release owner approval requirements,
-- rollback and upgrade expectations,
-- artifact and provenance expectations,
-- residual risk review,
-- and final go/no-go decision controls.
+This document does not claim that the entire mainnet implementation is complete today. Instead, it defines the exact baseline package that must be complete before the program can declare the infrastructure foundation fully closed for `v0.1.1-alpha`.
 
 ---
 
-## 5. Full Stage 2 Work Packages
+## 4. Baseline Versioning Policy
 
-Stage 2 is complete only when all work packages below are complete.
+### 4.1 Baseline identifier
 
-### Work Package A — Service Runtime Completion
+The official baseline for this program is:
 
-**Objective:** Convert operator guidance into a complete service/runtime operating model.
+- **`v0.1.1-alpha`**
 
-**Required outputs:**
+### 4.2 Meaning of `v0.1.1-alpha`
 
-- defined persistent node/service path,
-- startup and shutdown procedure,
-- health/readiness signal expectations,
-- operator command boundary between demo flow and real service flow.
+For this repository, `v0.1.1-alpha` means:
 
-**Completion standard:**
+- the baseline scope is frozen,
+- the minimum required infrastructure documentation is frozen,
+- the expected repository structure is frozen,
+- required owner assignments are frozen,
+- and completion can be audited against a stable reference.
 
-A reviewer can determine how AOXChain is expected to run continuously, not only as a local smoke command.
+### 4.3 Advancement rule
 
-### Work Package B — Multi-Host Network Validation Completion
-
-**Objective:** Establish the evidence package for real network behavior.
-
-**Required outputs:**
-
-- documented validation topology expectations,
-- required evidence types for propagation and convergence,
-- output/log location expectations,
-- pass/fail interpretation guidance.
-
-**Completion standard:**
-
-A reviewer can distinguish local deterministic smoke from credible multi-host validation and see what evidence is required.
-
-### Work Package C — Consensus and Recovery Dependency Closure
-
-**Objective:** Connect protocol hardening expectations to operational readiness claims.
-
-**Required outputs:**
-
-- protocol dependency map,
-- persistence and replay expectations,
-- recovery dependency statements,
-- testnet-vs-mainnet blocker boundaries.
-
-**Completion standard:**
-
-The documentation no longer leaves ambiguity about which protocol gaps are informational versus blocking.
-
-### Work Package D — Snapshot, Restore, and Rejoin Completion
-
-**Objective:** Define the operational recovery lifecycle.
-
-**Required outputs:**
-
-- snapshot expectation statement,
-- restore path expectation statement,
-- rejoin behavior expectation statement,
-- recovery-evidence requirements.
-
-**Completion standard:**
-
-Operators and reviewers can determine what recovery capability must exist and what evidence proves it.
-
-### Work Package E — Fault and Resilience Completion
-
-**Objective:** Make resilience a required evidence category, not an implied future task.
-
-**Required outputs:**
-
-- fault scenario inventory,
-- partition/restart/degradation test expectations,
-- residual-risk recording rules for incomplete resilience coverage.
-
-**Completion standard:**
-
-The program cannot hide resilience gaps behind generic readiness language.
-
-### Work Package F — Security Surface Completion
-
-**Objective:** Define the minimum operator and public-surface security posture.
-
-**Required outputs:**
-
-- security control expectation list,
-- trust-boundary statement,
-- testnet exception policy,
-- mainnet blocker policy.
-
-**Completion standard:**
-
-A reviewer can see which security controls are mandatory before readiness claims can be upgraded.
-
-### Work Package G — Observability and Soak Completion
-
-**Objective:** Define the minimum runtime visibility package.
-
-**Required outputs:**
-
-- telemetry signal list,
-- health and sync visibility list,
-- error and peer-state visibility list,
-- soak-evidence expectations.
-
-**Completion standard:**
-
-Long-running operation is measurable rather than assumed.
-
-### Work Package H — Release Governance Completion
-
-**Objective:** Close the final approval package for version advancement.
-
-**Required outputs:**
-
-- release checklist expectations,
-- rollback and upgrade governance expectations,
-- provenance expectations,
-- approval sign-off requirements,
-- final go/no-go evidence bundle.
-
-**Completion standard:**
-
-Version advancement beyond Stage 2 cannot occur without explicit release governance evidence.
+No subsequent planning version should be declared complete until the exit criteria in this document are met and evidenced.
 
 ---
 
-## 6. Stage 2 Deliverables
+## 5. Stage Objective
 
-The following deliverables must exist and be internally consistent for Stage 2 to be considered complete.
+The single stage has one objective:
 
-### 6.1 Operational deliverables
-
-- service-runtime operating definition,
-- operator lifecycle procedure,
-- health/readiness evidence expectations,
-- network-validation procedure and evidence expectations.
-
-### 6.2 Protocol and recovery deliverables
-
-- protocol dependency and blocker map,
-- recovery lifecycle expectations,
-- snapshot/restore/rejoin evidence expectations,
-- restart and resilience requirement definitions.
-
-### 6.3 Security deliverables
-
-- public-surface security expectation set,
-- trust-boundary statement,
-- testnet exception statement,
-- mainnet blocker statement.
-
-### 6.4 Runtime-evidence deliverables
-
-- telemetry expectation set,
-- peer/sync/error visibility expectations,
-- soak-evidence definition,
-- evidence retention expectation.
-
-### 6.5 Release deliverables
-
-- release-governance expectation set,
-- rollback/upgrade expectation set,
-- approval matrix,
-- residual-risk review record,
-- go/no-go decision record.
+> Deliver a complete, English, audit-ready infrastructure baseline that clearly defines what exists, where it lives, how it is operated, what version it belongs to, who owns it, and what evidence is required to advance readiness claims.
 
 ---
 
-## 7. Owner Matrix for Stage 2
+## 6. What Will Be Done in the Single Stage
 
-| Role | Stage 2 responsibility | Required sign-off |
+This section directly answers the user-level question, “What exactly will be done in Stage 1?”
+
+### 6.1 Documentation normalization
+
+The repository documentation set will be normalized so that:
+
+- English becomes the default language for the core completion program,
+- strategic, operational, readiness, and technical documents are clearly separated,
+- cross-references are explicit,
+- naming is suitable for external reviewers,
+- and no critical baseline topic is documented only through implicit tribal knowledge.
+
+### 6.2 mdBook correction
+
+The documentation navigation will be corrected so that:
+
+- the sidebar points to the authoritative program document,
+- labels are understandable to external readers,
+- obsolete or misleading labels are removed,
+- and the book structure reflects the actual information architecture.
+
+### 6.3 Versioning formalization
+
+The baseline version will be formalized so that:
+
+- `v0.1.1-alpha` has a defined meaning,
+- its closure criteria are documented,
+- and future reviewers can determine whether the baseline was truly completed.
+
+### 6.4 Infrastructure-file mapping
+
+The repository will be documented from an infrastructure perspective so that reviewers can identify:
+
+- where configuration files are expected,
+- where fixtures are expected,
+- where generated artifacts are expected,
+- where network-validation outputs are expected,
+- and which directories are authoritative versus temporary.
+
+### 6.5 Operational path clarification
+
+The documentation will define the intended operational path, including:
+
+- what qualifies as a local smoke command,
+- what qualifies as a persistent node/service flow,
+- what evidence must be collected for real network validation,
+- and how operators should interpret readiness boundaries.
+
+### 6.6 Control and accountability definition
+
+The program will define:
+
+- who owns protocol sign-off,
+- who owns infrastructure sign-off,
+- who owns security sign-off,
+- who owns release sign-off,
+- and what evidence each owner must review before program closure.
+
+### 6.7 Audit evidence packaging
+
+The program will specify the evidence pack required for closure, including:
+
+- version declaration,
+- owner approvals,
+- repository structure references,
+- readiness checklists,
+- residual risk logs,
+- and required decision records.
+
+---
+
+## 7. Required Deliverables
+
+The single stage is not complete unless all deliverables below exist and are internally consistent.
+
+### 7.1 Governance deliverables
+
+- Program baseline declaration for `v0.1.1-alpha`
+- Owner matrix
+- Approval matrix
+- Go/no-go decision template
+- Residual risk register format
+
+### 7.2 Documentation deliverables
+
+- Authoritative single-stage completion program in English
+- Updated mdBook summary/navigation entry
+- Cross-reference alignment to readiness and operational documents
+- Clear classification of strategy vs. checklist vs. runbook vs. technical analysis
+
+### 7.3 Infrastructure deliverables
+
+- Repository directory dictionary for infrastructure-relevant paths
+- Defined expectations for config, fixture, artifact, and output placement
+- Declared evidence locations for network, recovery, and soak validation outputs
+- Explicit statement of any remaining placeholder content and its owner
+
+### 7.4 Operational deliverables
+
+- Defined distinction between local smoke and real-network validation
+- Defined operator expectations for node lifecycle flows
+- Defined evidence expectations for health/readiness visibility
+- Defined relationship between testnet claims and mainnet blockers
+
+### 7.5 Security and release deliverables
+
+- Defined baseline expectations for RPC/public-surface controls
+- Defined upgrade, rollback, and provenance governance expectations
+- Defined required sign-off roles before readiness claims may be elevated
+
+---
+
+## 8. Repository Structure Expectations
+
+The program requires every infrastructure-relevant area to be documented with purpose and expected contents.
+
+### 8.1 Minimum repository mapping categories
+
+The repository mapping should cover, at minimum:
+
+- `docs/` for published documentation,
+- `scripts/` for operational and validation scripts,
+- `models/` for readiness evidence models and structured planning data,
+- configuration-related paths,
+- fixture-related paths,
+- artifact/output paths,
+- and any path used by testnet or mainnet operational flows.
+
+### 8.2 Required directory-level statements
+
+For each critical path, the program should define:
+
+- purpose,
+- owner,
+- expected inputs,
+- expected outputs,
+- retention expectations,
+- and whether the path is authoritative, generated, or temporary.
+
+---
+
+## 9. Owner Matrix
+
+The single stage must assign accountable roles. One individual may hold multiple roles, but the responsibilities must be explicit.
+
+| Role | Responsibility | Required sign-off |
 | --- | --- | --- |
-| Program Owner | Final Stage 2 closure and evidence completeness | Yes |
-| Protocol Owner | Consensus, validator, replay, recovery dependency approval | Yes |
-| Infrastructure Owner | Runtime operation, topology, and evidence-path approval | Yes |
-| Security Owner | Security posture and exposure-boundary approval | Yes |
-| SRE / Operations Owner | Observability, soak, and operational-lifecycle approval | Yes |
-| Release Owner | Version advancement, rollback, and provenance approval | Yes |
-| Documentation Owner | Program consistency and reviewer readability | Yes |
-| Audit Liaison | Audit evidence-pack review support | Recommended |
+| Program Owner | Overall closure decision and program integrity | Yes |
+| Protocol Owner | Consensus, validator, recovery dependency review | Yes |
+| Infrastructure Owner | Repository structure, config/artifact layout, operator path review | Yes |
+| Security Owner | RPC/public-surface, transport, and residual risk review | Yes |
+| Release Owner | Version baseline, release notes, rollback/upgrade governance | Yes |
+| Documentation Owner | mdBook integrity, naming consistency, cross-reference quality | Yes |
+| Audit Liaison | Evidence-pack completeness and reviewer readiness | Recommended |
 
 ---
 
-## 8. Stage 2 Exit Criteria
+## 10. Exit Criteria
 
-Stage 2 is complete only if all criteria below are satisfied.
+The stage is complete only when every criterion below is satisfied.
 
-### 8.1 Runtime closure
+### 10.1 Documentation closure
 
-- The persistent runtime/service path is clearly documented.
-- Operator lifecycle expectations are clearly documented.
-- Health/readiness expectations are clearly documented.
+- The authoritative single-stage completion document exists in English.
+- The document is suitable for external engineering and audit review.
+- No core program dependency is described only in Turkish inside the completion baseline.
 
-### 8.2 Network-validation closure
+### 10.2 Navigation closure
 
-- Real-network validation requirements are defined.
-- Evidence categories for propagation and convergence are defined.
-- Output and log expectations are defined.
+- `docs/src/SUMMARY.md` points to the authoritative English completion document.
+- Navigation labels are understandable and professional.
+- The navigation does not imply an outdated multi-stage or non-English-only baseline.
 
-### 8.3 Protocol-closure boundary
+### 10.3 Versioning closure
 
-- Protocol hardening dependencies are explicitly mapped.
-- Testnet-acceptable gaps and mainnet blockers are explicitly separated.
-- Recovery and replay expectations are explicitly defined.
+- `v0.1.1-alpha` is explicitly defined.
+- The baseline meaning is documented.
+- Stage completion is tied to versioned evidence rather than informal statements.
 
-### 8.4 Recovery closure
+### 10.4 Infrastructure closure
 
-- Snapshot, restore, rejoin, and restart expectations are defined.
-- Recovery evidence requirements are defined.
+- The program defines the expected repository mapping categories.
+- Infrastructure-relevant file families are described in operationally meaningful terms.
+- The location and purpose of evidence outputs are defined.
 
-### 8.5 Security closure
+### 10.5 Governance closure
 
-- Public-surface security expectations are defined.
-- Trust-boundary assumptions are defined.
-- Residual security risks are reviewable.
+- Owner roles are explicit.
+- Approval responsibilities are explicit.
+- The go/no-go review input set is defined.
+- Residual risk recording is required.
 
-### 8.6 Observability closure
+### 10.6 Audit closure
 
-- Telemetry and runtime-visibility expectations are defined.
-- Soak evidence expectations are defined.
-
-### 8.7 Release closure
-
-- Release-governance expectations are defined.
-- Rollback and upgrade expectations are defined.
-- Required sign-offs are complete.
+- A reviewer can determine what the baseline claims.
+- A reviewer can determine what the baseline does not claim.
+- A reviewer can determine what evidence is required to advance beyond the baseline.
 
 ---
 
-## 9. Stage 2 Evidence Package
+## 11. Evidence Package Required for Closure
 
-The evidence package for Stage 2 must contain, at minimum:
+The closure package for the single stage must contain, at minimum:
 
-1. Stage 2 version declaration for `v0.2.0-alpha`,
-2. service-runtime and operator-lifecycle references,
-3. network-validation evidence specification,
-4. protocol dependency and blocker map,
-5. recovery expectation set,
-6. security expectation and exception records,
-7. telemetry/soak expectation set,
-8. release approval package,
-9. residual risk register,
-10. final go/no-go decision record.
+1. the authoritative completion document,
+2. updated documentation navigation,
+3. version-baseline declaration,
+4. owner/sign-off matrix,
+5. infrastructure path dictionary,
+6. readiness cross-reference set,
+7. residual risk register,
+8. go/no-go decision record.
 
 ---
 
-## 10. Go/No-Go Rules for Stage 2
+## 12. Go/No-Go Rules
 
-Stage 2 must be marked **No-Go** if any of the following is true:
+The stage must be marked **No-Go** if any of the following is true:
 
-- the operator runtime path remains ambiguous,
-- real-network validation remains undefined,
-- recovery expectations remain undefined,
-- security posture remains undefined,
-- telemetry and soak expectations remain undefined,
-- release-governance evidence remains incomplete,
-- or owner sign-off remains incomplete.
+- the authoritative completion document is not in English,
+- navigation still points to obsolete or misleading stage labels,
+- the baseline version is not defined,
+- owner accountability is missing,
+- required evidence categories are not described,
+- or the repository structure remains materially ambiguous for operators or auditors.
 
-Stage 2 may be marked **Go** only if every work package, deliverable, exit criterion, and evidence requirement in this document has been satisfied and approved.
-
----
-
-## 11. Mandatory Language Policy
-
-For this program and all future revisions of the baseline artifact:
-
-- English is mandatory for the authoritative reviewer-facing program,
-- naming must be suitable for an international engineering and audit audience,
-- and localized companion material may exist only as secondary support material.
+The stage may be marked **Go** only if all exit criteria are satisfied and the sign-off owners accept the evidence package.
 
 ---
 
-## 12. Immediate Implementation in This Change
+## 13. Expected Outcome After Completion
 
-This repository change advances the program from a Stage 1-only completion artifact to a Stage 1-complete / Stage 2-active program record by:
+When this single stage is complete, AOXChain should be able to answer the following questions unambiguously:
 
-1. recording Stage 1 as completed,
-2. defining the Stage 2 target as `v0.2.0-alpha`,
-3. documenting the full Stage 2 work packages,
-4. defining Stage 2 deliverables, exit criteria, evidence, and go/no-go rules,
-5. and keeping the program authoritative and English-first for audit use.
+- What is the baseline version?
+- What exactly does the baseline claim?
+- Which documents are authoritative?
+- Where should operators look for infrastructure-relevant assets?
+- Which readiness areas remain implementation blockers beyond documentation?
+- Who is responsible for advancing the next readiness gate?
+
+If those questions cannot be answered from repository documentation, the program is not complete.
+
+---
+
+## 14. Mandatory Language Policy for the Baseline Program
+
+For this completion program and future revisions of this baseline artifact:
+
+- **English is mandatory**,
+- reviewer-facing naming must be professional and internationally understandable,
+- and core program intent must not depend on Turkish-only terminology.
+
+Localized companion documents may exist, but the authoritative baseline completion program must remain English-first.
+
+---
+
+## 15. Immediate Implementation in This Change
+
+This repository change implements the first mandatory baseline correction by:
+
+1. replacing the prior Turkish one-stage planning document with an English audit-ready version,
+2. moving the navigation to an English file name and English-facing title,
+3. and preserving the single-stage completion model centered on `v0.1.1-alpha` and infrastructure completeness.
+
