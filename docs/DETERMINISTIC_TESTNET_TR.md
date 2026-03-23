@@ -1,18 +1,24 @@
-# Deterministik 5 Düğümlü Test Ağı (Test Only)
+# Deterministic Five-Node Testnet Fixture
 
-Bu kurgu, **gerçek üretim anahtarı değil**, yalnızca geliştirme / demo / entegrasyon testi için hazırlanmış **kalıcı ve herkese açık** test seed'leri içerir.
+This fixture is intended for deterministic development, demo, and CI validation. It models a multi-node AOX Chain deployment with stable validator identities, a reproducible genesis file, and explicit node-specific configuration files.
 
-## İçerik
+## Scope
 
-`configs/deterministic-testnet/` altında şunlar üretilir:
+The fixture generated under `configs/deterministic-testnet/` is designed to stay operationally close to the main deployment flow while remaining clearly marked as a test network.
 
-- `accounts.json`: 5 bilinen düğüm, adres, validator kimliği, HD path ve seed listesi
-- `genesis.json`: aynı 5 hesabı fonlayan genesis dosyası
-- `nodes/*.toml`: düğüm başına p2p/rpc port planı
-- `homes/<node>/identity/test-node-seed.hex`: düğümün deterministik seed dosyası
-- `launch-testnet.sh`: her düğümü sırayla bootstrap edip blok ürettiren yardımcı script
+Generated assets include:
 
-## 5 sabit test düğümü
+- `accounts.json`: deterministic validator inventory and funding plan.
+- `genesis.json`: reproducible genesis payload for the fixture network.
+- `manifest.json`: parity policy, prefix policy, and validator inventory for audit tooling.
+- `nodes/*.toml`: node-specific networking plans.
+- `hosts.txt`: canonical local peer list for deterministic node wiring.
+- `homes/<node>/identity/test-node-seed.hex`: deterministic local fixture seed material.
+- `launch-testnet.sh`: helper script that boots the fixture nodes in sequence.
+
+## Fixed validator set
+
+The fixture currently models five stable validators:
 
 - atlas
 - boreal
@@ -20,7 +26,7 @@ Bu kurgu, **gerçek üretim anahtarı değil**, yalnızca geliştirme / demo / e
 - delta
 - ember
 
-## Üretim komutu
+## Generation command
 
 ```bash
 cargo run -q -p aoxcmd -- testnet-fixture-init \
@@ -29,16 +35,21 @@ cargo run -q -p aoxcmd -- testnet-fixture-init \
   --fund-amount 2500000000000000000000
 ```
 
-## Çalıştırma
+## Launch command
 
 ```bash
 bash configs/deterministic-testnet/launch-testnet.sh
 ```
 
-## Güvenlik notu
+## Testnet parity policy
 
-Bu fixture içindeki seed'ler bilerek repoya yazılır. Bu nedenle:
+This fixture should follow the same execution, validation, and operational flow expected from the main network wherever practical. The intentional differences must remain explicit:
 
-- mainnet'te kullanılamaz,
-- public testnet'te gerçek değer taşıyan hesap için kullanılamaz,
-- sadece yerel / CI / demo ağları için kullanılmalıdır.
+- the network is labeled as testnet-only,
+- fixture keys and seeds must never be reused for mainnet custody,
+- public-facing identifiers may carry testnet-specific naming to prevent operator confusion,
+- economic value and trust assumptions remain non-production.
+
+## Security notice
+
+The deterministic seeds used by this fixture are not production secrets. They are suitable only for local development, CI, demos, and controlled interoperability rehearsals.

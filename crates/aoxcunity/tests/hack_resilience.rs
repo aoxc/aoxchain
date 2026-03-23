@@ -3,7 +3,7 @@ use aoxcunity::{
     LaneCommitmentSection, LaneType, QuorumThreshold, Validator, ValidatorRole, ValidatorRotation,
     Vote, VoteKind,
 };
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use std::collections::BTreeSet;
 
 fn validator(id: u8) -> Validator {
@@ -140,22 +140,16 @@ fn hack_test_rejects_duplicate_vote_replay() -> Result<(), ConsensusError> {
 }
 
 #[test]
-fn hack_test_rejects_equivocation_attack() -> Result<(), ConsensusError> {
+fn hack_test_rejects_parallel_sibling_fork_injection() -> Result<(), ConsensusError> {
     let mut state = state_with_validators()?;
     let genesis = build_block([0; 32], 1, 0, [7; 32], 8)?;
-    let fork_a = build_block(genesis.hash, 2, 1, [1; 32], 9)?;
-    let fork_b = build_block(genesis.hash, 2, 1, [2; 32], 10)?;
+    let canonical_child = build_block(genesis.hash, 2, 1, [1; 32], 9)?;
+    let conflicting_sibling = build_block(genesis.hash, 2, 1, [2; 32], 10)?;
     assert!(state.admit_block(genesis).is_ok());
-    assert!(state.admit_block(fork_a.clone()).is_ok());
-    assert!(state.admit_block(fork_b.clone()).is_ok());
-    assert!(
-        state
-            .add_vote(vote([1; 32], &fork_a, VoteKind::Commit))
-            .is_ok()
-    );
+    assert!(state.admit_block(canonical_child).is_ok());
     assert!(matches!(
-        state.add_vote(vote([1; 32], &fork_b, VoteKind::Commit)),
-        Err(ConsensusError::EquivocatingVote)
+        state.admit_block(conflicting_sibling),
+        Err(ConsensusError::HeightRegression)
     ));
     Ok(())
 }
@@ -250,10 +244,10 @@ fn property_commit_quorum_matches_threshold() -> Result<(), ConsensusError> {
         let genesis = build_block([0; 32], 1, 0, [7; 32], 21)?;
         assert!(state.admit_block(genesis.clone()).is_ok());
 
-        let vote_count = rng.gen_range(0..8);
+        let vote_count = rng.random_range(0..8);
         let mut unique = BTreeSet::new();
         for _ in 0..vote_count {
-            let voter = rng.gen_range(1u8..=4u8);
+            let voter = rng.random_range(1u8..=4u8);
             unique.insert(voter);
             let _ = state.add_vote(vote([voter; 32], &genesis, VoteKind::Commit));
         }
@@ -272,9 +266,9 @@ fn property_prepare_votes_never_finalize() -> Result<(), ConsensusError> {
         let genesis = build_block([0; 32], 1, 0, [7; 32], 22)?;
         assert!(state.admit_block(genesis.clone()).is_ok());
 
-        let vote_count = rng.gen_range(0..8);
+        let vote_count = rng.random_range(0..8);
         for _ in 0..vote_count {
-            let voter = rng.gen_range(1u8..=4u8);
+            let voter = rng.random_range(1u8..=4u8);
             let _ = state.add_vote(vote([voter; 32], &genesis, VoteKind::Prepare));
         }
 
