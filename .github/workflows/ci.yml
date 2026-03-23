@@ -25,7 +25,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Run quick quality gate
-        run: ./scripts/quality_gate.sh quick
+        run: |
+          chmod +x ./scripts/quality_gate.sh
+          ./scripts/quality_gate.sh quick
 
   full-gate:
     name: Full quality gate
@@ -38,4 +40,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Run full quality gate
-        run: ./scripts/quality_gate.sh full
+        run: |
+          chmod +x ./scripts/quality_gate.sh
+          ./scripts/quality_gate.sh full
