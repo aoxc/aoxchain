@@ -9,6 +9,11 @@
 use blake3::Hasher;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReceiptHashError {
+    LengthOverflow,
+}
+
 /// Canonical receipt hash size.
 pub const HASH_SIZE: usize = 32;
 
@@ -93,8 +98,7 @@ impl Receipt {
     }
 
     /// Computes canonical receipt hash.
-    #[must_use]
-    pub fn hash(&self) -> [u8; HASH_SIZE] {
+    pub fn try_hash(&self) -> Result<[u8; HASH_SIZE], ReceiptHashError> {
         let mut hasher = new_tagged_hasher(DOMAIN_RECEIPT);
 
         update_bytes32(&mut hasher, &self.transaction_hash);
@@ -111,16 +115,19 @@ impl Receipt {
             }
         }
 
-        let event_count =
-            u32::try_from(self.events.len()).expect("RECEIPT_HASH: event count must fit into u32");
+        let event_count = checked_len(self.events.len())?;
         update_u32(&mut hasher, event_count);
 
         for event in &self.events {
-            let event_hash = hash_event(event);
+            let event_hash = try_hash_event(event)?;
             update_bytes32(&mut hasher, &event_hash);
         }
 
-        finalize_hash(hasher)
+        Ok(finalize_hash(hasher))
+    }
+
+    pub fn hash(&self) -> Result<[u8; HASH_SIZE], ReceiptHashError> {
+        self.try_hash()
     }
 }
 
@@ -169,11 +176,16 @@ fn update_bytes32(hasher: &mut Hasher, value: &[u8; HASH_SIZE]) {
 
 /// Encodes a variable-length byte slice using a `u32` length prefix.
 #[inline]
-fn update_bytes(hasher: &mut Hasher, value: &[u8]) {
-    let len =
-        u32::try_from(value.len()).expect("RECEIPT_HASH: byte slice length must fit into u32");
+fn checked_len(value: usize) -> Result<u32, ReceiptHashError> {
+    u32::try_from(value).map_err(|_| ReceiptHashError::LengthOverflow)
+}
+
+#[inline]
+fn update_bytes(hasher: &mut Hasher, value: &[u8]) -> Result<(), ReceiptHashError> {
+    let len = checked_len(value.len())?;
     update_u32(hasher, len);
     hasher.update(value);
+    Ok(())
 }
 
 /// Finalizes the hasher into the canonical 32-byte digest format.
@@ -183,35 +195,38 @@ fn finalize_hash(hasher: Hasher) -> [u8; HASH_SIZE] {
 }
 
 /// Hashes a single event.
-#[must_use]
-fn hash_event(event: &Event) -> [u8; HASH_SIZE] {
+fn try_hash_event(event: &Event) -> Result<[u8; HASH_SIZE], ReceiptHashError> {
     let mut hasher = new_tagged_hasher(DOMAIN_EVENT);
 
     update_u16(&mut hasher, event.event_type);
-    update_bytes(&mut hasher, &event.data);
+    update_bytes(&mut hasher, &event.data)?;
 
-    finalize_hash(hasher)
+    Ok(finalize_hash(hasher))
 }
 
 /// Computes deterministic receipts root for a block.
-#[must_use]
-pub fn calculate_receipts_root(receipts: &[Receipt]) -> [u8; HASH_SIZE] {
+pub fn try_calculate_receipts_root(
+    receipts: &[Receipt],
+) -> Result<[u8; HASH_SIZE], ReceiptHashError> {
     if receipts.is_empty() {
-        return empty_receipts_root();
+        return Ok(empty_receipts_root());
     }
 
     let mut hasher = new_tagged_hasher(DOMAIN_RECEIPT_ROOT);
 
-    let count =
-        u32::try_from(receipts.len()).expect("RECEIPT_HASH: receipt count must fit into u32");
+    let count = checked_len(receipts.len())?;
     update_u32(&mut hasher, count);
 
     for receipt in receipts {
-        let receipt_hash = receipt.hash();
+        let receipt_hash = receipt.try_hash()?;
         update_bytes32(&mut hasher, &receipt_hash);
     }
 
-    finalize_hash(hasher)
+    Ok(finalize_hash(hasher))
+}
+
+pub fn calculate_receipts_root(receipts: &[Receipt]) -> Result<[u8; HASH_SIZE], ReceiptHashError> {
+    try_calculate_receipts_root(receipts)
 }
 
 /// Returns canonical empty receipts root.
@@ -241,8 +256,8 @@ mod tests {
     fn receipt_hash_is_deterministic() {
         let receipt = sample_receipt();
 
-        let a = receipt.hash();
-        let b = receipt.hash();
+        let a = receipt.hash().expect("receipt hash must calculate");
+        let b = receipt.hash().expect("receipt hash must calculate");
 
         assert_eq!(a, b);
     }
@@ -257,7 +272,10 @@ mod tests {
             data: vec![9],
         });
 
-        assert_ne!(r1.hash(), r2.hash());
+        assert_ne!(
+            r1.hash().expect("receipt hash must calculate"),
+            r2.hash().expect("receipt hash must calculate")
+        );
     }
 
     #[test]
@@ -265,8 +283,9 @@ mod tests {
         let r1 = sample_receipt();
         let r2 = sample_receipt();
 
-        let root_a = calculate_receipts_root(&[r1.clone(), r2.clone()]);
-        let root_b = calculate_receipts_root(&[r1, r2]);
+        let root_a =
+            calculate_receipts_root(&[r1.clone(), r2.clone()]).expect("root must calculate");
+        let root_b = calculate_receipts_root(&[r1, r2]).expect("root must calculate");
 
         assert_eq!(root_a, root_b);
     }
@@ -281,9 +300,18 @@ mod tests {
             data: vec![1, 2, 3],
         });
 
-        let root_a = calculate_receipts_root(&[r1.clone(), r2.clone()]);
-        let root_b = calculate_receipts_root(&[r2, r1]);
+        let root_a =
+            calculate_receipts_root(&[r1.clone(), r2.clone()]).expect("root must calculate");
+        let root_b = calculate_receipts_root(&[r2, r1]).expect("root must calculate");
 
         assert_ne!(root_a, root_b);
+    }
+
+    #[test]
+    fn checked_len_rejects_usize_values_above_u32() {
+        assert_eq!(
+            checked_len((u32::MAX as usize) + 1),
+            Err(ReceiptHashError::LengthOverflow)
+        );
     }
 }

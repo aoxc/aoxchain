@@ -22,7 +22,8 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
+use tracing::warn;
 
 use crate::capability::{AiActionClass, AiCapability, KernelZone};
 
@@ -150,24 +151,33 @@ pub struct MemoryAuditSink {
 }
 
 impl MemoryAuditSink {
+    fn lock_records(&self) -> MutexGuard<'_, Vec<AiInvocationAuditRecord>> {
+        match self.records.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                warn!(
+                    target: "aoxcai::audit",
+                    "recovering poisoned memory audit sink mutex to preserve audit evidence"
+                );
+                poisoned.into_inner()
+            }
+        }
+    }
+
     /// Returns a point-in-time snapshot of all captured records.
     ///
-    /// # Panic behavior
-    /// This method will panic if the internal audit mutex is poisoned.
-    /// Such a condition indicates a serious internal synchronization failure and
-    /// should be treated as a runtime integrity problem rather than silently ignored.
+    /// # Poison recovery
+    /// If a previous writer panicked while holding the mutex, the sink recovers
+    /// the inner buffer instead of panicking so audit evidence remains observable.
     #[must_use]
     pub fn snapshot(&self) -> Vec<AiInvocationAuditRecord> {
-        self.records.lock().expect("audit mutex poisoned").clone()
+        self.lock_records().clone()
     }
 }
 
 impl AiAuditSink for MemoryAuditSink {
     fn record(&self, record: AiInvocationAuditRecord) {
-        self.records
-            .lock()
-            .expect("audit mutex poisoned")
-            .push(record);
+        self.lock_records().push(record);
     }
 }
 
@@ -241,6 +251,23 @@ mod tests {
         for (index, record) in snapshot.iter().enumerate() {
             assert_eq!(record.invocation_id, format!("inv-{index}"));
         }
+    }
+
+    #[test]
+    fn memory_audit_sink_recovers_after_poisoned_writer() {
+        let sink = MemoryAuditSink::default();
+        sink.record(sample_record());
+
+        let poisoned = sink.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = poisoned.records.lock().unwrap();
+            panic!("intentional poison for audit recovery test");
+        })
+        .join();
+
+        sink.record(sample_record());
+        let snapshot = sink.snapshot();
+        assert_eq!(snapshot.len(), 2);
     }
 
     #[test]
