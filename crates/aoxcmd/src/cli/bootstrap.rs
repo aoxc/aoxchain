@@ -4,7 +4,10 @@ use crate::{
     config::loader::{init_default, load, load_or_init},
     data_home::{ensure_layout, read_file, resolve_home, write_file},
     error::{AppError, ErrorCode},
-    keys::manager::{bootstrap_operator_key, operator_fingerprint, verify_operator_key},
+    keys::manager::{
+        bootstrap_operator_key, consensus_public_key_hex, export_operator_identity,
+        inspect_operator_key, operator_fingerprint, verify_operator_key,
+    },
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -91,6 +94,70 @@ pub fn cmd_keys_show_fingerprint(args: &[String]) -> Result<(), AppError> {
     )
 }
 
+pub fn cmd_keys_inspect(args: &[String]) -> Result<(), AppError> {
+    let summary = inspect_operator_key()?;
+    emit_serialized(&summary, output_format(args))
+}
+
+pub fn cmd_keys_export_identity(args: &[String]) -> Result<(), AppError> {
+    let chain = arg_value(args, "--chain").unwrap_or_else(|| "AOXC-LOCAL".to_string());
+    let actor_id = arg_value(args, "--actor-id").unwrap_or_else(|| "AOXC-VAL-LOCAL-01".to_string());
+    let zone = arg_value(args, "--zone").unwrap_or_else(|| "local".to_string());
+    let issued_at = arg_value(args, "--issued-at")
+        .unwrap_or_else(|| "0".to_string())
+        .parse::<u64>()
+        .map_err(|_| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Invalid --issued-at value",
+            )
+        })?;
+    let expires_at = arg_value(args, "--expires-at")
+        .unwrap_or_else(|| "4102444800".to_string())
+        .parse::<u64>()
+        .map_err(|_| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Invalid --expires-at value",
+            )
+        })?;
+    let artifacts = export_operator_identity(&chain, &actor_id, &zone, issued_at, expires_at)?;
+
+    if let Some(output_dir) = arg_value(args, "--output-dir") {
+        let dir = std::path::PathBuf::from(output_dir);
+        std::fs::create_dir_all(&dir).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to create identity export directory {}",
+                    dir.display()
+                ),
+                error,
+            )
+        })?;
+        let cert_path = dir.join("node.cert.json");
+        let passport_path = dir.join("node.passport.json");
+        let cert_text = serde_json::to_string_pretty(&artifacts.certificate).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::OutputEncodingFailed,
+                "Failed to encode exported certificate JSON",
+                error,
+            )
+        })?;
+        let passport_text = serde_json::to_string_pretty(&artifacts.passport).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::OutputEncodingFailed,
+                "Failed to encode exported passport JSON",
+                error,
+            )
+        })?;
+        write_file(&cert_path, &cert_text)?;
+        write_file(&passport_path, &passport_text)?;
+    }
+
+    emit_serialized(&artifacts, output_format(args))
+}
+
 pub fn cmd_keys_verify(args: &[String]) -> Result<(), AppError> {
     let password = arg_value(args, "--password");
     verify_operator_key(password.as_deref())?;
@@ -133,7 +200,7 @@ pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
         .unwrap_or_else(|| "1000000000000".to_string())
         .parse::<u64>()
         .map_err(|_| AppError::new(ErrorCode::UsageInvalidArguments, "Invalid --treasury value"))?;
-    let validator_key = operator_fingerprint().unwrap_or_else(|_| "unbootstrapped".to_string());
+    let validator_key = consensus_public_key_hex().unwrap_or_else(|_| "unbootstrapped".to_string());
 
     let genesis = GenesisDocument {
         network_name: "AOXC Local Genesis".to_string(),

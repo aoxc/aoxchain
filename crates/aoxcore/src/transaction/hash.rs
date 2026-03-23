@@ -17,6 +17,17 @@ use blake3::Hasher;
 
 use super::Transaction;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransactionHashError {
+    LengthOverflow,
+}
+
+impl From<std::num::TryFromIntError> for TransactionHashError {
+    fn from(_: std::num::TryFromIntError) -> Self {
+        Self::LengthOverflow
+    }
+}
+
 /// Canonical hash output size in bytes.
 pub const HASH_SIZE: usize = 32;
 
@@ -110,11 +121,16 @@ fn update_bytes64(hasher: &mut Hasher, value: &[u8; 64]) {
 
 /// Encodes a variable-length byte slice using a `u32` length prefix.
 #[inline]
-fn update_bytes(hasher: &mut Hasher, value: &[u8]) {
-    let len = u32::try_from(value.len())
-        .expect("TX_HASH: byte slice length must fit into u32 for canonical transaction hashing");
+fn checked_len(value: usize) -> Result<u32, TransactionHashError> {
+    u32::try_from(value).map_err(|_| TransactionHashError::LengthOverflow)
+}
+
+#[inline]
+fn update_bytes(hasher: &mut Hasher, value: &[u8]) -> Result<(), TransactionHashError> {
+    let len = checked_len(value.len())?;
     update_u32(hasher, len);
     hasher.update(value);
+    Ok(())
 }
 
 /// Finalizes the hasher into the canonical 32-byte digest format.
@@ -127,11 +143,14 @@ fn finalize_hash(hasher: Hasher) -> [u8; HASH_SIZE] {
 ///
 /// This helper is suitable for transaction-adjacent standalone byte payloads,
 /// but structured transaction objects should use dedicated functions.
-#[must_use]
-pub fn compute_hash(data: &[u8]) -> [u8; HASH_SIZE] {
+pub fn try_compute_hash(data: &[u8]) -> Result<[u8; HASH_SIZE], TransactionHashError> {
     let mut hasher = new_tagged_hasher(DOMAIN_GENERIC);
-    update_bytes(&mut hasher, data);
-    finalize_hash(hasher)
+    update_bytes(&mut hasher, data)?;
+    Ok(finalize_hash(hasher))
+}
+
+pub fn compute_hash(data: &[u8]) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+    try_compute_hash(data)
 }
 
 /// Returns the canonical empty transaction root.
@@ -148,17 +167,20 @@ pub fn empty_transaction_root() -> [u8; HASH_SIZE] {
 ///
 /// This is distinct from the raw `Transaction::signing_message()` byte vector
 /// and intentionally bound to a dedicated hashing namespace.
-#[must_use]
-pub fn hash_signing_payload(tx: &Transaction) -> [u8; HASH_SIZE] {
+pub fn try_hash_signing_payload(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
     let mut hasher = new_tagged_hasher(DOMAIN_SIGNING_PAYLOAD);
 
     update_bytes32(&mut hasher, &tx.sender);
     update_u64(&mut hasher, tx.nonce);
     update_u8(&mut hasher, tx.capability.code());
     update_u16(&mut hasher, tx.target.code());
-    update_bytes(&mut hasher, &tx.payload);
+    update_bytes(&mut hasher, &tx.payload)?;
 
-    finalize_hash(hasher)
+    Ok(finalize_hash(hasher))
+}
+
+pub fn hash_signing_payload(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+    try_hash_signing_payload(tx)
 }
 
 /// Computes the canonical unsigned transaction intent hash.
@@ -167,35 +189,43 @@ pub fn hash_signing_payload(tx: &Transaction) -> [u8; HASH_SIZE] {
 /// - pre-signing caching
 /// - semantic deduplication of unsigned commands
 /// - intent-level indexing
-#[must_use]
-pub fn hash_transaction_intent(tx: &Transaction) -> [u8; HASH_SIZE] {
+pub fn try_hash_transaction_intent(
+    tx: &Transaction,
+) -> Result<[u8; HASH_SIZE], TransactionHashError> {
     let mut hasher = new_tagged_hasher(DOMAIN_TX_INTENT);
 
     update_bytes32(&mut hasher, &tx.sender);
     update_u64(&mut hasher, tx.nonce);
     update_u8(&mut hasher, tx.capability.code());
     update_u16(&mut hasher, tx.target.code());
-    update_bytes(&mut hasher, &tx.payload);
+    update_bytes(&mut hasher, &tx.payload)?;
 
-    finalize_hash(hasher)
+    Ok(finalize_hash(hasher))
+}
+
+pub fn hash_transaction_intent(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+    try_hash_transaction_intent(tx)
 }
 
 /// Computes the canonical signed transaction hash.
 ///
 /// This hash includes the signature and serves as the stable identifier of the
 /// fully sealed transaction object.
-#[must_use]
-pub fn hash_transaction(tx: &Transaction) -> [u8; HASH_SIZE] {
+pub fn try_hash_transaction(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
     let mut hasher = new_tagged_hasher(DOMAIN_TX_SIGNED);
 
     update_bytes32(&mut hasher, &tx.sender);
     update_u64(&mut hasher, tx.nonce);
     update_u8(&mut hasher, tx.capability.code());
     update_u16(&mut hasher, tx.target.code());
-    update_bytes(&mut hasher, &tx.payload);
+    update_bytes(&mut hasher, &tx.payload)?;
     update_bytes64(&mut hasher, &tx.signature);
 
-    finalize_hash(hasher)
+    Ok(finalize_hash(hasher))
+}
+
+pub fn hash_transaction(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+    try_hash_transaction(tx)
 }
 
 /// Computes the canonical transaction leaf hash used in collection-root
@@ -203,14 +233,19 @@ pub fn hash_transaction(tx: &Transaction) -> [u8; HASH_SIZE] {
 ///
 /// The leaf namespace is intentionally distinct from the standalone signed
 /// transaction hash namespace to preserve future flexibility.
-#[must_use]
-pub fn hash_transaction_leaf(tx: &Transaction) -> [u8; HASH_SIZE] {
-    let tx_hash = hash_transaction(tx);
+pub fn try_hash_transaction_leaf(
+    tx: &Transaction,
+) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+    let tx_hash = try_hash_transaction(tx)?;
 
     let mut hasher = new_tagged_hasher(DOMAIN_TX_LEAF);
     update_bytes32(&mut hasher, &tx_hash);
 
-    finalize_hash(hasher)
+    Ok(finalize_hash(hasher))
+}
+
+pub fn hash_transaction_leaf(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+    try_hash_transaction_leaf(tx)
 }
 
 /// Computes the canonical commitment root for a slice of transactions.
@@ -222,24 +257,30 @@ pub fn hash_transaction_leaf(tx: &Transaction) -> [u8; HASH_SIZE] {
 /// This aggregation model is intentionally simple and stable. A future Merkle
 /// construction can be introduced under a newer hash format version without
 /// silently changing current outputs.
-#[must_use]
-pub fn calculate_transaction_root(transactions: &[Transaction]) -> [u8; HASH_SIZE] {
+pub fn try_calculate_transaction_root(
+    transactions: &[Transaction],
+) -> Result<[u8; HASH_SIZE], TransactionHashError> {
     if transactions.is_empty() {
-        return empty_transaction_root();
+        return Ok(empty_transaction_root());
     }
 
     let mut hasher = new_tagged_hasher(DOMAIN_TX_ROOT);
 
-    let tx_count =
-        u32::try_from(transactions.len()).expect("TX_HASH: transaction count must fit into u32");
+    let tx_count = checked_len(transactions.len())?;
     update_u32(&mut hasher, tx_count);
 
     for tx in transactions {
-        let leaf = hash_transaction_leaf(tx);
+        let leaf = try_hash_transaction_leaf(tx)?;
         update_bytes32(&mut hasher, &leaf);
     }
 
-    finalize_hash(hasher)
+    Ok(finalize_hash(hasher))
+}
+
+pub fn calculate_transaction_root(
+    transactions: &[Transaction],
+) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+    try_calculate_transaction_root(transactions)
 }
 
 /// Computes a future-reserved internal-node hash for transaction tree
@@ -303,8 +344,8 @@ mod tests {
 
     #[test]
     fn empty_transaction_root_is_stable_and_non_zero() {
-        let a = calculate_transaction_root(&[]);
-        let b = calculate_transaction_root(&[]);
+        let a = calculate_transaction_root(&[]).expect("root must calculate");
+        let b = calculate_transaction_root(&[]).expect("root must calculate");
 
         assert_eq!(a, b);
         assert_eq!(a, empty_transaction_root());
@@ -316,8 +357,9 @@ mod tests {
         let tx1 = sample_transaction(vec![1]);
         let tx2 = sample_transaction(vec![2]);
 
-        let root_a = calculate_transaction_root(&[tx1.clone(), tx2.clone()]);
-        let root_b = calculate_transaction_root(&[tx2, tx1]);
+        let root_a =
+            calculate_transaction_root(&[tx1.clone(), tx2.clone()]).expect("root must calculate");
+        let root_b = calculate_transaction_root(&[tx2, tx1]).expect("root must calculate");
 
         assert_ne!(root_a, root_b);
     }
@@ -327,7 +369,10 @@ mod tests {
         let payload = vec![1, 2, 3, 4];
         let tx = sample_transaction(payload.clone());
 
-        assert_ne!(compute_hash(&payload), hash_transaction(&tx));
+        assert_ne!(
+            compute_hash(&payload).expect("hash must calculate"),
+            hash_transaction(&tx).expect("hash must calculate")
+        );
     }
 
     #[test]
@@ -338,6 +383,14 @@ mod tests {
         assert_eq!(
             hash_internal_node(&left, &right),
             hash_internal_node(&left, &right)
+        );
+    }
+
+    #[test]
+    fn checked_len_rejects_usize_values_above_u32() {
+        assert_eq!(
+            checked_len((u32::MAX as usize) + 1),
+            Err(TransactionHashError::LengthOverflow)
         );
     }
 }

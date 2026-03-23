@@ -19,9 +19,20 @@ This document summarizes production-focused key handling and cross-chain compati
 
 ### 1.3 Node Key Artifacts (`aoxcmd key-bootstrap`)
 Generated artifacts:
-- `node.key` (encrypted secret + identity bundle)
+- `node.key` (encrypted root seed + canonical node key bundle)
 - `node.cert.json` (signed certificate)
 - `node.passport.json` (runtime identity passport)
+
+The canonical node key bundle now carries role-separated entries for:
+
+- identity
+- consensus
+- transport
+- operator
+- recovery
+- PQ attestation
+
+`genesis-init` should bind validator entries to the bundle's canonical consensus public key rather than to a loose operator fingerprint.
 
 On Unix-like systems, AOXChain persists these artifacts with restrictive file mode (`0600`).
 
@@ -83,6 +94,21 @@ Example:
 ```bash
 aoxc interop-gate --audit-complete true --fuzz-complete true --replay-complete true --finality-matrix-complete true --slo-complete true --enforce
 ```
+
+## 3.2) Node Identity Architecture Follow-Up
+
+For the next identity-hardening step, see `AOXC Node Identity v0.1.0-alpha`, which proposes a canonical hybrid node identity bundle, typed node certificates, and role-separated key lifecycle modeling before block-format expansion.
+
+## 3.3) Current integration status
+
+The repository now has a typed `aoxcore::identity::key_bundle` model and CLI integration points:
+
+- `aoxcmd key-bootstrap` persists the canonical bundle
+- `aoxcmd keys-inspect` emits a bundle-derived operator/consensus/transport summary
+- `aoxcmd keys-export-identity` projects `node.cert.json` and `node.passport.json` from the bundle
+- `aoxcmd keys-verify` validates the bundle and encrypted root-seed envelope
+- `aoxc-keyforge key inspect-bundle --file <path>` inspects and validates stored bundle JSON
+- block validation can additionally bind producer identity to the bundle's consensus role
 
 ## 4) Recommended Production Path
 
