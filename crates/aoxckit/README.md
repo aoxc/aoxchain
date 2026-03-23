@@ -1,43 +1,48 @@
-# aoxckit
+# AOXCKIT
 
-## Purpose
+Operator-facing cryptographic toolkit for identity lifecycle, certificates, and revocation flows.
 
-`aoxckit` (Keyforge) is the production-grade **Cryptographic Toolkit and Command-Line Interface (CLI)** for the AOXChain workspace. 
+## Executive Summary
+This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
 
-Designed to be executed in strictly offline, air-gapped environments, this tool serves as the sovereign entry point for node operators and validators. It handles all pre-network cryptographic operations including post-quantum key generation, sovereign identity issuance, threshold quorums, and Zero-Knowledge Proof (ZKP) parameter setups. It intentionally contains **zero network code** to guarantee that private key material is never accidentally transmitted.
+## Architectural Overview
+The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
 
-## Core Components
+## Security Objectives
+The primary security objectives are listed below.
+- Preserve deterministic behavior for the same input set.
+- Reject malformed, stale, or conflicting inputs before state mutation.
+- Maintain bounded resource usage to reduce denial-of-service exposure.
+- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
 
-The CLI is structured into deterministic, highly focused subcommands:
-- **`cmd_key.rs` & `cmd_keyfile.rs`**: Generates post-quantum (e.g., Dilithium3) cryptographic keypairs and safely exports them into encrypted, deterministically formatted wallet files.
-- **`cmd_actor_id.rs`, `cmd_passport.rs`, `cmd_cert.rs`**: Manages the creation of Sovereign Identities. It binds raw public keys to network-recognized Actor IDs, Passports, and Certificates required for governance and validator registration.
-- **`cmd_zkp_setup.rs` & `cmd_quorum.rs`**: Handles advanced cryptographic ceremonies, including generating ZKP public parameters/proofs and configuring threshold multi-signature quorums.
-- **`cmd_registry.rs` & `cmd_revoke.rs`**: Generates the exact payload structures required to register a new identity on-chain or revoke a compromised one.
+## Audit Scope
+The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
 
-## Code Scope
+## Verification Strategy
+Recommended verification activities include the following layers.
+1. Unit tests for validation rules, edge cases, and deterministic behavior.
+2. Integration tests for cross-module flows and operational hand-offs.
+3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
+4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
+5. Formatting, lint, and documentation checks before merge approval.
 
-- `src/main.rs` - The CLI entry point and argument router (powered by `clap`).
-- `src/keyforge/` - The isolated command handlers enforcing strict output formatting.
+## Operational Guidance
+Production use should remain aligned with controlled change management.
+- Update documentation whenever interfaces, invariants, or deployment assumptions change.
+- Preserve traceability between source code, tests, release artifacts, and audit evidence.
+- Record environment limitations when verification cannot be completed exactly as planned.
+- Treat incident response readiness as part of engineering quality, not a post-release activity.
 
-## Security & Operational Notes
+## Security Audit Log
+The following audit statements should be reviewed on each significant change.
+- Inputs are validated before they can influence durable or consensus-sensitive state.
+- Error propagation remains explicit and avoids hidden control-flow shortcuts.
+- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
+- Test coverage includes both expected behavior and hostile or malformed scenarios.
+- Release evidence includes the commands used and the outcome observed in CI or local execution.
 
-- **Air-Gapped Execution**: This tool must never attempt to make HTTP, RPC, or P2P connections. It operates entirely on local inputs and outputs.
-- **JSON-First Determinism**: To ensure machine-readability and prevent parsing errors in automated deployment pipelines, all successful command outputs must be deterministically formatted JSON.
-- **Secret Wiping**: Temporary memory allocations holding secret keys or mnemonic phrases during generation must be explicitly zeroed out (via `aoxchal` or similar secure memory primitives) before the process exits.
-- **No Silent Failures**: If key generation, file writing, or parameter validation fails, the CLI must exit with a non-zero status code and print a deterministic error to `stderr`.
-
-## Local Validation
-
-Because this crate interacts with the command line and generates highly sensitive outputs, it requires both strict unit tests and end-to-end CLI integration tests (located in the `tests/` directory):
-
-```bash
-cargo fmt --all -- --check
-cargo check -p aoxckit
-cargo clippy -p aoxckit --all-targets --all-features -- -D warnings
-cargo test -p aoxckit -- --nocapture
-Related Components
-Top-level architecture: ../../README.md
-
-Core cryptographic primitives: ../aoxcore/README.md
-
-Hardware Abstraction & Secure Memory: ../aoxchal/README.md
+## Audit Checklist
+- [ ] Confirm deterministic behavior for identical inputs.
+- [ ] Confirm malformed and conflicting inputs are rejected.
+- [ ] Confirm verification evidence is attached to the release record.
+- [ ] Confirm documentation reflects current operational assumptions.

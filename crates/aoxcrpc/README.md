@@ -1,49 +1,48 @@
-# aoxcrpc
+# AOXCRPC
 
-## Purpose
+RPC gateway services spanning HTTP, gRPC, WebSocket, middleware, and contract-facing APIs.
 
-`aoxcrpc` is responsible for the **API ingress layer (HTTP/gRPC/WebSocket)** domain within the AOXChain workspace.
+## Executive Summary
+This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
 
-## Code Scope
+## Architectural Overview
+The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
 
-- `proto/`
-- `src/middleware/`
-- `src/grpc/`
-- `src/http/`
-- `src/websocket/`
-- `src/config.rs`
+## Security Objectives
+The primary security objectives are listed below.
+- Preserve deterministic behavior for the same input set.
+- Reject malformed, stale, or conflicting inputs before state mutation.
+- Maintain bounded resource usage to reduce denial-of-service exposure.
+- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
 
-## Operational Notes
-This crate now includes a production-oriented secure API skeleton:
+## Audit Scope
+The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
 
-- `proto/` definitions for binary gRPC contracts,
-- security middleware (`mTLS`, `rate limiting`, `ZKP validation`),
-- split service boundaries for query and transaction submission,
-- HTTP health + Prometheus metrics snapshot export,
-- HTTP health endpoint supports detailed production payloads (`chain_id`, `genesis_hash`, TLS/mTLS readiness, certificate SHA-256 fingerprint, readiness score, warnings/errors/recommendations, uptime).
-- HTTP health endpoint supports detailed production payloads (`chain_id`, `genesis_hash`, TLS/mTLS readiness, certificate SHA-256 fingerprint, readiness score, warnings, uptime).
-- websocket event framing for block confirmations.
-- rate limiter rejections include `retry_after_ms` metadata for deterministic client backoff UX.
-- canonical `RpcErrorResponse` model is available for machine-readable error payloads (`code`, `message`, `retry_after_ms`, `request_id`).
-- in-memory limiter supports stale key pruning and bounded key tracking (LRU-style eviction) to control long-run memory growth risk.
-- Prometheus snapshot includes `aox_rpc_rate_limited_total`, `aox_rpc_rate_limiter_active_keys`, and `aox_rpc_health_readiness_score` for abuse + readiness visibility.
-- Prometheus snapshot includes `aox_rpc_rate_limited_total` and `aox_rpc_rate_limiter_active_keys` for abuse-visibility.
-- rate limiter rejections now include `retry_after_ms` metadata to support client-side backoff UX.
-- in-memory limiter supports stale key pruning to prevent unbounded map growth in long-running nodes.
+## Verification Strategy
+Recommended verification activities include the following layers.
+1. Unit tests for validation rules, edge cases, and deterministic behavior.
+2. Integration tests for cross-module flows and operational hand-offs.
+3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
+4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
+5. Formatting, lint, and documentation checks before merge approval.
 
-- API and behavior changes should be evaluated for backward impact.
-- Prefer explicit parameters over implicit defaults in critical paths.
-- Security-impacting changes in this crate should be accompanied by test/example updates.
-- `RpcConfig::validate()` provides startup-time sanity checks for chain identity, genesis hash format, and limiter thresholds.
-- Test coverage is expanded for validation + health + limiter + metrics paths to improve audit confidence.
+## Operational Guidance
+Production use should remain aligned with controlled change management.
+- Update documentation whenever interfaces, invariants, or deployment assumptions change.
+- Preserve traceability between source code, tests, release artifacts, and audit evidence.
+- Record environment limitations when verification cannot be completed exactly as planned.
+- Treat incident response readiness as part of engineering quality, not a post-release activity.
 
-## Local Validation
+## Security Audit Log
+The following audit statements should be reviewed on each significant change.
+- Inputs are validated before they can influence durable or consensus-sensitive state.
+- Error propagation remains explicit and avoids hidden control-flow shortcuts.
+- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
+- Test coverage includes both expected behavior and hostile or malformed scenarios.
+- Release evidence includes the commands used and the outcome observed in CI or local execution.
 
-```bash
-cargo check -p aoxcrpc
-```
-
-## Related Components
-
-- Top-level architecture: [`../../README.md`](../../README.md)
-- Crate catalog: [`../README.md`](../README.md)
+## Audit Checklist
+- [ ] Confirm deterministic behavior for identical inputs.
+- [ ] Confirm malformed and conflicting inputs are rejected.
+- [ ] Confirm verification evidence is attached to the release record.
+- [ ] Confirm documentation reflects current operational assumptions.

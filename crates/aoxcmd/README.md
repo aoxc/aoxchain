@@ -1,125 +1,48 @@
 # AOXCMD
 
-AOXCMD is the audit-oriented operator command plane for AOXChain-style local node bootstrap, identity material handling, ledger initialization, diagnostics, and readiness reporting.
+Command-line control plane for node lifecycle operations, audit routines, and runtime orchestration.
 
-## Design posture
+## Executive Summary
+This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
 
-This package is designed for:
+## Architectural Overview
+The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
 
-- deterministic local bootstrap,
-- reproducible operator workflows,
-- explicit filesystem layout,
-- machine-readable audit output,
-- conservative failure handling.
+## Security Objectives
+The primary security objectives are listed below.
+- Preserve deterministic behavior for the same input set.
+- Reject malformed, stale, or conflicting inputs before state mutation.
+- Maintain bounded resource usage to reduce denial-of-service exposure.
+- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
 
-## Default home directory
+## Audit Scope
+The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
 
-Unless overridden by `--home` or `AOXC_HOME`, AOXCMD uses:
+## Verification Strategy
+Recommended verification activities include the following layers.
+1. Unit tests for validation rules, edge cases, and deterministic behavior.
+2. Integration tests for cross-module flows and operational hand-offs.
+3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
+4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
+5. Formatting, lint, and documentation checks before merge approval.
 
-```text
-$HOME/.aoxc-data
-```
+## Operational Guidance
+Production use should remain aligned with controlled change management.
+- Update documentation whenever interfaces, invariants, or deployment assumptions change.
+- Preserve traceability between source code, tests, release artifacts, and audit evidence.
+- Record environment limitations when verification cannot be completed exactly as planned.
+- Treat incident response readiness as part of engineering quality, not a post-release activity.
 
-## Core command groups
+## Security Audit Log
+The following audit statements should be reviewed on each significant change.
+- Inputs are validated before they can influence durable or consensus-sensitive state.
+- Error propagation remains explicit and avoids hidden control-flow shortcuts.
+- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
+- Test coverage includes both expected behavior and hostile or malformed scenarios.
+- Release evidence includes the commands used and the outcome observed in CI or local execution.
 
-### Describe / policy / manifest
-
-```bash
-cargo run -- version
-cargo run -- vision
-cargo run -- build-manifest
-cargo run -- node-connection-policy
-cargo run -- sovereign-core
-cargo run -- module-architecture
-cargo run -- compat-matrix
-cargo run -- port-map
-```
-
-### Bootstrap / identity / genesis
-
-```bash
-cargo run -- key-bootstrap --name validator-01 --password "Example#2026!"
-cargo run -- keys-verify --password "Example#2026!"
-cargo run -- genesis-init --chain-num 1001 --treasury 1000000000000
-cargo run -- genesis-validate
-cargo run -- genesis-hash
-cargo run -- keys-show-fingerprint
-```
-
-### Node / runtime / economy
-
-```bash
-cargo run -- node-bootstrap
-cargo run -- produce-once --tx boot-sequence-1
-cargo run -- node-run --rounds 5 --tx-prefix AOXC
-cargo run -- node-health
-cargo run -- economy-init
-cargo run -- treasury-transfer --to ops --amount 1000
-cargo run -- economy-status
-cargo run -- runtime-status
-```
-
-### Diagnostics / audit
-
-```bash
-cargo run -- diagnostics-doctor
-cargo run -- diagnostics-bundle
-cargo run -- interop-readiness
-cargo run -- interop-gate --enforce-official
-cargo run -- production-audit
-cargo run -- mainnet-readiness
-```
-
-### Config
-
-```bash
-cargo run -- config-init
-cargo run -- config-validate
-cargo run -- config-print --redact
-```
-
-## Filesystem layout
-
-The command plane provisions the following structure:
-
-```text
-~/.aoxc-data/
-  config/
-    settings.json
-  identity/
-    genesis.json
-    node_identity.json
-  keys/
-    operator_key.json
-  ledger/
-    ledger.json
-  runtime/
-    node_state.json
-  telemetry/
-    metrics.json
-  reports/
-  support/
-```
-
-## Output modes
-
-Most commands support:
-
-```text
---format text
---format json
---format yaml
-```
-
-## Key custody note
-
-`key-bootstrap` now stores operator secret material inside an encrypted seed envelope.
-Use password-backed verification when you want a deeper integrity check:
-
-```bash
-cargo run -- keys-verify --password "Example#2026!"
-```
-
-## Operational note
-
-No software package should be treated as “guaranteed error-free.” This package is written with audit-oriented discipline, but all production promotion decisions should still be gated by review, integration testing, and environment-specific verification.
+## Audit Checklist
+- [ ] Confirm deterministic behavior for identical inputs.
+- [ ] Confirm malformed and conflicting inputs are rejected.
+- [ ] Confirm verification evidence is attached to the release record.
+- [ ] Confirm documentation reflects current operational assumptions.

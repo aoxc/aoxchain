@@ -1,161 +1,48 @@
-<div align="center">
-  <a href="https://github.com/aoxc/aoxcore">
-    <img src="logos/aoxc_transparent.png" alt="AOXChain Logo" width="180" />
-  </a>
+# AOX Chain Workspace
 
-# AOXChain
-### Experimental Sovereign Coordination Chain
-#### AOXC Alpha: Genesis V1
+Enterprise overview for the AOX Chain Rust workspace, its security posture, and operational controls.
 
-![Status](https://img.shields.io/badge/status-experimental-orange)
-![Model](https://img.shields.io/badge/architecture-sovereign--core-purple)
-![Stack](https://img.shields.io/badge/stack-rust-orange)
-![CLI](https://img.shields.io/badge/tooling-aoxcmd-blue)
+## Executive Summary
+This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
 
-</div>
+## Architectural Overview
+The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
 
-AOXChain is an experimental Rust blockchain workspace built around one core idea:
+## Security Objectives
+The primary security objectives are listed below.
+- Preserve deterministic behavior for the same input set.
+- Reject malformed, stale, or conflicting inputs before state mutation.
+- Maintain bounded resource usage to reduce denial-of-service exposure.
+- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
 
-> **the local chain is the sovereign constitutional core, and remote systems are execution domains.**
+## Audit Scope
+The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
 
-This repository should be read as a **new chain project**. It is not positioned as a wrapper around another network, and this README intentionally describes AOXChain on its own terms.
+## Verification Strategy
+Recommended verification activities include the following layers.
+1. Unit tests for validation rules, edge cases, and deterministic behavior.
+2. Integration tests for cross-module flows and operational hand-offs.
+3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
+4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
+5. Formatting, lint, and documentation checks before merge approval.
 
----
+## Operational Guidance
+Production use should remain aligned with controlled change management.
+- Update documentation whenever interfaces, invariants, or deployment assumptions change.
+- Preserve traceability between source code, tests, release artifacts, and audit evidence.
+- Record environment limitations when verification cannot be completed exactly as planned.
+- Treat incident response readiness as part of engineering quality, not a post-release activity.
 
-## 1. What AOXChain is
+## Security Audit Log
+The following audit statements should be reviewed on each significant change.
+- Inputs are validated before they can influence durable or consensus-sensitive state.
+- Error propagation remains explicit and avoids hidden control-flow shortcuts.
+- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
+- Test coverage includes both expected behavior and hostile or malformed scenarios.
+- Release evidence includes the commands used and the outcome observed in CI or local execution.
 
-AOXChain is designed to own the parts of a system that must remain canonical:
-
-- identity,
-- supply,
-- governance,
-- relay authorization,
-- validator/security policy,
-- settlement finality,
-- treasury and reserves.
-
-Remote domains may execute logic, hold contract adapters, and provide ecosystem-specific integrations, but the **final constitutional authority** stays on AOXChain.
-
----
-
-## 2. Current architecture in one sentence
-
-- **Local chain:** sovereign constitutional core.
-- **Remote chains/domains:** execution, integration, liquidity, and application surfaces.
-
-If you want the machine-readable view, run:
-
-```bash
-cargo run -p aoxcmd -- vision
-cargo run -p aoxcmd -- sovereign-core
-cargo run -p aoxcmd -- module-architecture
-```
-
----
-
-## 3. Canonical local roots
-
-AOXChain currently models the following local constitutional roots:
-
-1. `identity`
-2. `supply`
-3. `governance`
-4. `relay`
-5. `security`
-6. `settlement`
-7. `treasury`
-
-These can be inspected from the CLI:
-
-```bash
-cargo run -p aoxcmd -- sovereign-core
-```
-
----
-
-## 4. Address and key derivation format
-
-AOXChain uses a BIP44-style derivation prefix centered on the AOXC coin type.
-
-### Canonical HD path
-
-```text
-m/44/2626/<chain>/<role>/<zone>/<index>
-```
-
-Example:
-
-```text
-m/44/2626/1/1/2/0
-```
-
-Meaning:
-
-- `44` -> BIP44 purpose
-- `2626` -> AOXC coin type / chain identity namespace
-- `chain` -> chain identifier
-- `role` -> actor role
-- `zone` -> logical or geographic zone
-- `index` -> sequential key index
-
-This path model is implemented in the AOXC identity layer and should be treated as the canonical derivation format for operator and system key material.
-
----
-
-## 5. Workspace layout
-
-| Layer | Crate(s) | Responsibility |
-|---|---|---|
-| Protocol | `aoxcore` | identity, protocol primitives, genesis, tx, receipts |
-| Consensus | `aoxcunity` | rounds, quorum, vote/finality state |
-| Networking | `aoxcnet` | transport, discovery, gossip, sync |
-| RPC / Ingress | `aoxcrpc` | HTTP, gRPC, WebSocket, security middleware |
-| Execution | `aoxcvm` | multi-lane runtime and compatibility layers |
-| Operations | `aoxcmd`, `aoxckit` | bootstrap, runtime ops, manifests, policy commands |
-
----
-
-## 6. 10-minute operator onboarding
-
-For the fastest operator-oriented setup path, start here:
-
-- [`docs/ONBOARDING_10_MINUTES.md`](docs/ONBOARDING_10_MINUTES.md)
-- [`docs/ONCALL_RUNBOOK.md`](docs/ONCALL_RUNBOOK.md)
-- [`docs/MAINNET_READINESS_CHECKLIST.md`](docs/MAINNET_READINESS_CHECKLIST.md)
-- [`docs/INCIDENT_RESPONSE_DRILL.md`](docs/INCIDENT_RESPONSE_DRILL.md)
-
-Recommended local validation flow:
-
-```bash
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test
-```
-
----
-
-## 7. Mainnet-readiness operator guides
-
-- **On-call / SRE runbook:** [`docs/ONCALL_RUNBOOK.md`](docs/ONCALL_RUNBOOK.md)
-- **Incident response drill:** [`docs/INCIDENT_RESPONSE_DRILL.md`](docs/INCIDENT_RESPONSE_DRILL.md)
-- **Mainnet checklist:** [`docs/MAINNET_READINESS_CHECKLIST.md`](docs/MAINNET_READINESS_CHECKLIST.md)
-- **Readiness / audit context:** [`docs/AUDIT_READINESS_AND_OPERATIONS.md`](docs/AUDIT_READINESS_AND_OPERATIONS.md)
-
----
-
-## 8. Existing technical references
-
-Additional architecture and operational analysis documents remain under [`docs/`](docs/):
-
-- `REPO_GAP_ANALIZI_TR.md`
-- `GERCEK_AG_HAZIRLIK_KRITERLERI_TR.md`
-- `REAL_CHAIN_RUNBOOK_TR.md`
-- `REAL_NETWORK_VALIDATION_RUNBOOK_TR.md`
-- `ADVANCED_PRODUCTION_SUGGESTIONS_TR.md`
-- `V0_1_0_ALPHA_PRODUCTION_PLAN.md`
-
----
-
-## 9. Status note
-
-AOXChain is still experimental. The presence of runbooks and checklists in this repository should be read as **preparation material**, not as proof that a production mainnet is already ready for launch.
+## Audit Checklist
+- [ ] Confirm deterministic behavior for identical inputs.
+- [ ] Confirm malformed and conflicting inputs are rejected.
+- [ ] Confirm verification evidence is attached to the release record.
+- [ ] Confirm documentation reflects current operational assumptions.

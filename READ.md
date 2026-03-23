@@ -1,228 +1,48 @@
-# AOXChain Developer and Operator Readbook
-
-This document is the practical companion to `README.md`.
-It focuses on:
-
-- developers building AOXChain locally,
-- operators bootstrapping deterministic nodes,
-- reviewers validating that the repository behaves like a real chain project.
-
----
-
-## 1. Chain identity summary
-
-AOXChain should be treated as:
-
-- an **experimental sovereign chain**,
-- with a **constitutional local core**,
-- and **remote execution domains** attached through policy and settlement.
-
-The shortest architecture commands are:
-
-```bash
-cargo run -p aoxcmd -- vision
-cargo run -p aoxcmd -- sovereign-core
-cargo run -p aoxcmd -- module-architecture
-```
-
----
-
-## 2. Canonical address / key derivation rule
-
-AOXC HD derivation format:
-
-```text
-m/44/2626/<chain>/<role>/<zone>/<index>
-```
-
-Examples:
-
-```text
-m/44/2626/1/1/1/0
-m/44/2626/1001/2/4/7
-```
-
-This repo uses `2626` as the AOXC coin-type namespace.
-
-Do not document or implement alternate local derivation roots unless there is an explicit migration plan.
-
----
-
-## 3. Clean local development flow
-
-### Step 1 — format, check, test
-
-```bash
-make fmt
-make check
-make test
-```
-
-### Step 2 — lint and quality gates
-
-```bash
-make clippy
-make quality-quick
-```
-
-### Step 3 — release-style validation
-
-```bash
-make quality-release
-make package-bin
-```
-
----
-
-## 4. Build metadata and release policy
-
-Inspect build identity:
-
-```bash
-make version
-make manifest
-make policy
-```
-
-Direct CLI equivalents:
-
-```bash
-cargo run -p aoxcmd -- version
-cargo run -p aoxcmd -- build-manifest
-cargo run -p aoxcmd -- node-connection-policy
-```
-
-These outputs are important because they expose:
-
-- version,
-- commit,
-- dirty/clean state,
-- build profile,
-- release channel,
-- attestation hash,
-- embedded certificate fingerprint status.
-
----
-
-## 5. Deterministic node bootstrap
-
-```bash
-export AOXC_HOME="$PWD/.aoxc-devhome"
-umask 077
-mkdir -p "$AOXC_HOME"
-```
-
-### Key material
-
-```bash
-cargo run -p aoxcmd -- key-bootstrap \
-  --home "$AOXC_HOME" \
-  --profile testnet \
-  --name validator-01 \
-  --password 'TEST#Secure2026!'
-```
-
-### Genesis
-
-```bash
-cargo run -p aoxcmd -- genesis-init \
-  --home "$AOXC_HOME" \
-  --chain-num 1001 \
-  --block-time 6 \
-  --treasury 1000000000000
-```
-
-### Node bootstrap
-
-```bash
-cargo run -p aoxcmd -- node-bootstrap --home "$AOXC_HOME"
-```
-
-### Single block
-
-```bash
-cargo run -p aoxcmd -- produce-once --home "$AOXC_HOME" --tx 'hello-aoxc'
-```
-
-### Short run
-
-```bash
-cargo run -p aoxcmd -- node-run \
-  --home "$AOXC_HOME" \
-  --rounds 15 \
-  --sleep-ms 1000 \
-  --tx-prefix AOXC_DEV
-```
-
----
-
-## 6. Make targets for developers
-
-### Fast day-to-day
-
-```bash
-make help
-make fmt
-make check
-make test
-make clippy
-```
-
-### Packaging
-
-```bash
-make build-release
-make package-bin
-```
-
-### Chain loop
-
-```bash
-make real-chain-run-once
-make real-chain-run
-make real-chain-tail
-make real-chain-health
-```
-
----
-
-## 7. What should be improved next for ~75% readiness?
-
-If the target is “closer to 75%”, I would add these next:
-
-### A. Test coverage
-
-1. multi-node deterministic consensus simulation
-2. replay fixtures for settlement and receipts
-3. message-envelope serialization/compatibility tests
-4. policy tests for official-release-only peering
-5. genesis/state migration tests
-
-### B. Release and security tooling
-
-1. cert issue / rotate / revoke commands
-2. signed release manifest
-3. SBOM generation
-4. provenance attestation verification
-5. peer handshake enforcement using attestation hash + cert fingerprint
-
-### C. Operator UX
-
-1. better `make help`
-2. rich terminal dashboard
-3. structured JSON logs + pretty logs together
-4. summary command for runtime health
-5. peer / cert / finality / settlement status panels
-
-These additions would move AOXChain from “experimental but structured” toward “serious testnet candidate”.
-
----
-
-## 8. Rule of thumb
-
-When in doubt:
-
-- keep the local chain small,
-- keep the authority local,
-- keep execution remote,
-- and keep every critical decision auditable.
+# AOX Chain Audit Companion
+
+Extended audit narrative that explains governance, assurance boundaries, verification workflows, and release expectations.
+
+## Executive Summary
+This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
+
+## Architectural Overview
+The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
+
+## Security Objectives
+The primary security objectives are listed below.
+- Preserve deterministic behavior for the same input set.
+- Reject malformed, stale, or conflicting inputs before state mutation.
+- Maintain bounded resource usage to reduce denial-of-service exposure.
+- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
+
+## Audit Scope
+The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
+
+## Verification Strategy
+Recommended verification activities include the following layers.
+1. Unit tests for validation rules, edge cases, and deterministic behavior.
+2. Integration tests for cross-module flows and operational hand-offs.
+3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
+4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
+5. Formatting, lint, and documentation checks before merge approval.
+
+## Operational Guidance
+Production use should remain aligned with controlled change management.
+- Update documentation whenever interfaces, invariants, or deployment assumptions change.
+- Preserve traceability between source code, tests, release artifacts, and audit evidence.
+- Record environment limitations when verification cannot be completed exactly as planned.
+- Treat incident response readiness as part of engineering quality, not a post-release activity.
+
+## Security Audit Log
+The following audit statements should be reviewed on each significant change.
+- Inputs are validated before they can influence durable or consensus-sensitive state.
+- Error propagation remains explicit and avoids hidden control-flow shortcuts.
+- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
+- Test coverage includes both expected behavior and hostile or malformed scenarios.
+- Release evidence includes the commands used and the outcome observed in CI or local execution.
+
+## Audit Checklist
+- [ ] Confirm deterministic behavior for identical inputs.
+- [ ] Confirm malformed and conflicting inputs are rejected.
+- [ ] Confirm verification evidence is attached to the release record.
+- [ ] Confirm documentation reflects current operational assumptions.
