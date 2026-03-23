@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::block::Block;
-use crate::seal::BlockSeal;
-use crate::vote::Vote;
+use crate::seal::{AuthenticatedQuorumCertificate, BlockSeal};
+use crate::vote::AuthenticatedVote;
 
 /// Canonical consensus message surface.
 ///
@@ -17,9 +17,14 @@ use crate::vote::Vote;
 /// payload semantics defined here.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConsensusMessage {
-    BlockProposal { block: Block },
-    Vote(Vote),
-    Finalize { seal: BlockSeal },
+    BlockProposal {
+        block: Block,
+    },
+    Vote(AuthenticatedVote),
+    Finalize {
+        seal: BlockSeal,
+        certificate: AuthenticatedQuorumCertificate,
+    },
 }
 
 impl ConsensusMessage {
@@ -54,13 +59,14 @@ impl ConsensusMessage {
                 bytes.extend_from_slice(&signing_bytes);
                 bytes
             }
-            Self::Finalize { seal } => {
-                let mut bytes = Vec::with_capacity(1 + 32 + 8 + 32 + 32);
+            Self::Finalize { seal, certificate } => {
+                let mut bytes = Vec::with_capacity(1 + 32 + 8 + 32 + 32 + 32);
                 bytes.push(2);
                 bytes.extend_from_slice(&seal.block_hash);
                 bytes.extend_from_slice(&seal.finalized_round.to_le_bytes());
                 bytes.extend_from_slice(&seal.attestation_root);
                 bytes.extend_from_slice(&seal.certificate.certificate_hash);
+                bytes.extend_from_slice(&certificate.authenticated_hash);
                 bytes
             }
         }
@@ -69,8 +75,8 @@ impl ConsensusMessage {
 
 #[cfg(test)]
 mod tests {
-    use crate::seal::{BlockSeal, QuorumCertificate};
-    use crate::vote::{Vote, VoteKind};
+    use crate::seal::{AuthenticatedQuorumCertificate, BlockSeal, QuorumCertificate};
+    use crate::vote::{AuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind};
 
     use super::ConsensusMessage;
 
@@ -83,9 +89,19 @@ mod tests {
             round: 4,
             kind: VoteKind::Commit,
         };
+        let authenticated = AuthenticatedVote {
+            vote,
+            context: VoteAuthenticationContext {
+                network_id: 2626,
+                epoch: 1,
+                validator_set_root: [7u8; 32],
+                signature_scheme: 1,
+            },
+            signature: vec![5u8; 64],
+        };
 
-        let a = ConsensusMessage::Vote(vote.clone()).canonical_bytes();
-        let b = ConsensusMessage::Vote(vote).canonical_bytes();
+        let a = ConsensusMessage::Vote(authenticated.clone()).canonical_bytes();
+        let b = ConsensusMessage::Vote(authenticated).canonical_bytes();
 
         assert_eq!(a, b);
     }
@@ -101,11 +117,19 @@ mod tests {
             attestation_root: [4u8; 32],
             certificate,
         };
+        let authenticated_certificate =
+            AuthenticatedQuorumCertificate::new(seal.certificate.clone(), 2626, 1, [6u8; 32], 1);
 
         let certificate_hash = seal.certificate.certificate_hash;
-        let bytes = ConsensusMessage::Finalize { seal }.canonical_bytes();
+        let authenticated_hash = authenticated_certificate.authenticated_hash;
+        let bytes = ConsensusMessage::Finalize {
+            seal,
+            certificate: authenticated_certificate,
+        }
+        .canonical_bytes();
 
         assert!(bytes.windows(32).any(|window| window == [4u8; 32]));
         assert!(bytes.windows(32).any(|window| window == certificate_hash));
+        assert!(bytes.windows(32).any(|window| window == authenticated_hash));
     }
 }

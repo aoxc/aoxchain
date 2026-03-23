@@ -157,6 +157,7 @@ struct TimeoutConflictKey {
 #[derive(Debug, Clone)]
 pub struct ConsensusEngine {
     pub state: ConsensusState,
+    pub network_id: u32,
     pub lock_state: LockState,
     pub current_epoch: u64,
     pub current_height: u64,
@@ -171,8 +172,14 @@ pub struct ConsensusEngine {
 impl ConsensusEngine {
     #[must_use]
     pub fn new(state: ConsensusState) -> Self {
+        Self::with_network_id(state, 2626)
+    }
+
+    #[must_use]
+    pub fn with_network_id(state: ConsensusState, network_id: u32) -> Self {
         Self {
             state,
+            network_id,
             lock_state: LockState::default(),
             current_epoch: 0,
             current_height: 0,

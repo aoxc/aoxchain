@@ -601,7 +601,7 @@ mod tests {
     use crate::error::NetworkError;
     use crate::gossip::peer::{NodeCertificate, Peer, PeerRole};
     use aoxcunity::messages::ConsensusMessage;
-    use aoxcunity::vote::{Vote, VoteKind};
+    use aoxcunity::vote::{AuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind};
 
     fn test_certificate() -> NodeCertificate {
         NodeCertificate {
@@ -628,12 +628,21 @@ mod tests {
     }
 
     fn test_vote() -> ConsensusMessage {
-        ConsensusMessage::Vote(Vote {
-            voter: [1u8; 32],
-            block_hash: [2u8; 32],
-            height: 1,
-            round: 0,
-            kind: VoteKind::Prepare,
+        ConsensusMessage::Vote(AuthenticatedVote {
+            vote: Vote {
+                voter: [1u8; 32],
+                block_hash: [2u8; 32],
+                height: 1,
+                round: 0,
+                kind: VoteKind::Prepare,
+            },
+            context: VoteAuthenticationContext {
+                network_id: 2626,
+                epoch: 0,
+                validator_set_root: [3u8; 32],
+                signature_scheme: 1,
+            },
+            signature: vec![4u8; 64],
         })
     }
 

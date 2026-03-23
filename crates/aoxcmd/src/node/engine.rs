@@ -19,14 +19,6 @@ use ed25519_dalek::{Signer, SigningKey};
 use sha3::{Digest, Sha3_256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Default network identifier used when a consensus message variant does not
-/// carry an explicit network identifier in the persisted snapshot model.
-///
-/// Rationale:
-/// - Prevents undefined network context in non-block messages.
-/// - Ensures deterministic fallback for snapshot reconstruction.
-const DEFAULT_NETWORK_ID: u32 = 2626;
-
 /// Produces a single block from the provided transaction payload.
 ///
 /// Security guarantees:
@@ -131,6 +123,24 @@ fn apply_block_proposal(
     state.key_material = snapshot_from_key_material(key_material);
     state.consensus = snapshot_from_message(&message);
     state.touch();
+    Ok(())
+}
+
+fn snapshot_from_key_material(key_material: &KeyMaterial) -> Result<KeyMaterialSnapshot, AppError> {
+    let summary = key_material.summary().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::KeyMaterialInvalid,
+            "Failed to summarize canonical operator key bundle for node snapshot",
+            error,
+        )
+    })?;
+
+    Ok(KeyMaterialSnapshot {
+        bundle_fingerprint: summary.bundle_fingerprint,
+        operational_state: summary.operational_state,
+        consensus_public_key_hex: summary.consensus_public_key,
+        transport_public_key_hex: summary.transport_public_key,
+    })
 }
 
 fn snapshot_from_key_material(key_material: &KeyMaterial) -> KeyMaterialSnapshot {
@@ -160,17 +170,17 @@ fn snapshot_from_message(message: &ConsensusMessage) -> ConsensusSnapshot {
             last_section_count: block.body.sections.len(),
         },
         ConsensusMessage::Vote(vote) => ConsensusSnapshot {
-            network_id: DEFAULT_NETWORK_ID,
+            network_id: vote.context.network_id,
             last_parent_hash_hex: hex::encode([0u8; 32]),
-            last_block_hash_hex: hex::encode(vote.block_hash),
-            last_proposer_hex: hex::encode(vote.voter),
-            last_round: vote.round,
+            last_block_hash_hex: hex::encode(vote.vote.block_hash),
+            last_proposer_hex: hex::encode(vote.vote.voter),
+            last_round: vote.vote.round,
             last_timestamp_unix: 0,
             last_message_kind: "vote".to_string(),
             last_section_count: 0,
         },
-        ConsensusMessage::Finalize { seal } => ConsensusSnapshot {
-            network_id: DEFAULT_NETWORK_ID,
+        ConsensusMessage::Finalize { seal, certificate } => ConsensusSnapshot {
+            network_id: certificate.network_id,
             last_block_hash_hex: hex::encode(seal.block_hash),
             last_parent_hash_hex: hex::encode([0u8; 32]),
             last_proposer_hex: hex::encode([0u8; 32]),
