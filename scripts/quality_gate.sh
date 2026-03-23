@@ -37,7 +37,7 @@ case "${MODE}" in
     quick)
         run "Format Check" cargo fmt --all -- --check
         run "Compile Check" cargo check --workspace
-        run "Unit Tests" cargo test --workspace --no-fail-fast
+        run "Locked Unit Tests" cargo test --locked --workspace --no-fail-fast
         ;;
 
     full)
@@ -46,7 +46,7 @@ case "${MODE}" in
         run "Format Check" cargo fmt --all -- --check
         run "Linter (Clippy)" cargo clippy --workspace --all-targets --all-features -- -D warnings
         run "Compile Check" cargo check --workspace --all-targets
-        run "Comprehensive Tests" cargo test --workspace --all-targets --no-fail-fast
+        run "Locked Comprehensive Tests" cargo test --locked --workspace --all-targets --no-fail-fast
         run "Doc Tests" cargo test --doc
         ;;
 
@@ -60,7 +60,7 @@ case "${MODE}" in
         run "Clippy (Strict)" cargo clippy --workspace --all-targets --all-features -- -D warnings
         run "Build Production Binary" cargo build --release -p aoxcmd --bin aoxc
         run "Release Artifact Certification" ./scripts/release_artifact_certify.sh target/release/aoxc
-        run "Production Test Suite" cargo test --workspace --release --all-targets --no-fail-fast
+        run "Locked Production Test Suite" cargo test --locked --workspace --release --all-targets --no-fail-fast
         ;;
 
     *)
