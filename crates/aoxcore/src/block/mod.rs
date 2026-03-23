@@ -5,9 +5,13 @@
 //! This module defines the canonical block-domain data structures, invariants,
 //! constructors, and validation rules for AOVM.
 
+pub mod assembly;
 pub mod error;
 pub mod hash;
 
+pub use assembly::{
+    AssemblyError, AssemblyLane, AssemblyLaneCommitment, CanonicalBlockAssemblyPlan,
+};
 pub use error::BlockError;
 pub use hash::{
     HASH_FORMAT_VERSION, HASH_SIZE, ZERO_HASH, calculate_task_root, compute_hash, empty_task_root,

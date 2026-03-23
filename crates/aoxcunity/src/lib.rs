@@ -38,6 +38,7 @@ pub use quorum::QuorumThreshold;
 pub use rotation::ValidatorRotation;
 pub use round::RoundState;
 pub use safety::{JustificationRef, LockState, SafeToVote, SafetyViolation, evaluate_safe_to_vote};
+pub use seal::AuthenticatedQuorumCertificate;
 pub use seal::{BlockSeal, QuorumCertificate};
 pub use state::ConsensusState;
 pub use store::{
@@ -50,5 +51,6 @@ pub use version::{
     AOXC_VOTE_FORMAT_LINE, KernelIdentity, kernel_identity,
 };
 
+pub use vote::{AuthenticatedVote, VerifiedAuthenticatedVote, VoteAuthenticationContext};
 pub use vote::{SignedVote, Vote, VoteAuthenticationError, VoteKind};
 pub use vote_pool::VotePool;
