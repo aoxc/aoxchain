@@ -1,26 +1,28 @@
-# aoxcsdk
+# AOXCSDK
 
-## Purpose
+**Documentation Version:** `aoxc.v.0.1.0-testnet.1`
+**Cargo-Compatible Version:** `0.1.0-testnet.1`
 
-`aoxcsdk` is responsible for the **SDK surface for AOXChain integrations** domain within the AOXChain workspace.
+## Executive Summary
+AOXCSDK provides integration helpers and contract-building utilities for downstream developers.
 
-## Code Scope
+## Architectural Overview
+This component is part of the AOX Chain production roadmap and is documented as a reviewable subsystem rather than a placeholder package. The goal of this README is to give enough context that an engineer, auditor, or operator can understand why the crate exists, what code families it owns, and where the main security boundaries live.
 
-- `lib.rs`
+## Main Code Areas
+- `contracts/builder.rs`: contract builder workflow support.
 
-## Operational Notes
+## Security and Audit Focus
+SDK ergonomics must not introduce insecure defaults or ambiguous manifests.
 
-- API and behavior changes should be evaluated for backward impact.
-- Prefer explicit parameters over implicit defaults in critical paths.
-- Security-impacting changes in this crate should be accompanied by test/example updates.
+Reviewers should additionally confirm the following before promotion.
+- Interfaces remain deterministic and version-aligned with the workspace baseline.
+- Inputs are validated before affecting durable state or privileged behavior.
+- Tests cover both expected behavior and hostile or malformed scenarios.
+- Operational assumptions are mirrored in the corresponding `READ.md` and `VERSION.md` files.
 
-## Local Validation
+## Integration Notes
+This README is intentionally paired with a folder-specific `READ.md` and `VERSION.md`. The README explains the subsystem at a high level, the READ document explains the production audit expectations in more depth, and the VERSION document defines the mandatory release-discipline rules for future changes.
 
-```bash
-cargo check -p aoxcsdk && cargo test -p aoxcsdk
-```
-
-## Related Components
-
-- Top-level architecture: [`../../README.md`](../../README.md)
-- Crate catalog: [`../README.md`](../README.md)
+## Release Status
+Current subsystem baseline: `aoxc.v.0.1.0-testnet.1` / `0.1.0-testnet.1`.

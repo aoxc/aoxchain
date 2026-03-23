@@ -1,26 +1,30 @@
-# aoxcontract
+# AOXCONTRACT
 
-## Purpose
+**Documentation Version:** `aoxc.v.0.1.0-testnet.1`
+**Cargo-Compatible Version:** `0.1.0-testnet.1`
 
-`aoxcontract` is responsible for the **base domain for smart-contract-related surfaces** domain within the AOXChain workspace.
+## Executive Summary
+AOXCONTRACT defines the canonical contract manifest language and related validation logic for AOX Chain.
 
-## Code Scope
+## Architectural Overview
+This component is part of the AOX Chain production roadmap and is documented as a reviewable subsystem rather than a placeholder package. The goal of this README is to give enough context that an engineer, auditor, or operator can understand why the crate exists, what code families it owns, and where the main security boundaries live.
 
-- `lib.rs`
+## Main Code Areas
+- `manifest`, `validate`, `policy`, and `compatibility`: the rules that determine whether a contract package is acceptable.
+- `artifact`, `entrypoint`, `runtime_binding`, and `registry_types`: metadata needed for installation and runtime coordination.
+- `tests` and `fixtures`: deterministic valid/invalid manifest evidence.
 
-## Operational Notes
+## Security and Audit Focus
+Manifest spoofing, invalid capability declarations, and incompatible runtime bindings must be rejected before execution.
 
-- API and behavior changes should be evaluated for backward impact.
-- Prefer explicit parameters over implicit defaults in critical paths.
-- Security-impacting changes in this crate should be accompanied by test/example updates.
+Reviewers should additionally confirm the following before promotion.
+- Interfaces remain deterministic and version-aligned with the workspace baseline.
+- Inputs are validated before affecting durable state or privileged behavior.
+- Tests cover both expected behavior and hostile or malformed scenarios.
+- Operational assumptions are mirrored in the corresponding `READ.md` and `VERSION.md` files.
 
-## Local Validation
+## Integration Notes
+This README is intentionally paired with a folder-specific `READ.md` and `VERSION.md`. The README explains the subsystem at a high level, the READ document explains the production audit expectations in more depth, and the VERSION document defines the mandatory release-discipline rules for future changes.
 
-```bash
-cargo check -p aoxcontract
-```
-
-## Related Components
-
-- Top-level architecture: [`../../README.md`](../../README.md)
-- Crate catalog: [`../README.md`](../README.md)
+## Release Status
+Current subsystem baseline: `aoxc.v.0.1.0-testnet.1` / `0.1.0-testnet.1`.

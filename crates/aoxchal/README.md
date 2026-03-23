@@ -1,40 +1,28 @@
-# aoxchal
+# AOXCHAL
 
-## Purpose
+**Documentation Version:** `aoxc.v.0.1.0-testnet.1`
+**Cargo-Compatible Version:** `0.1.0-testnet.1`
 
-`aoxchal` provides the **Hardware Abstraction Layer (HAL) and Resource Optimization** domain within the AOXChain workspace. It ensures that the sovereign core can safely, securely, and deterministically leverage bare-metal hardware capabilities—without compromising cross-platform portability or consensus determinism.
+## Executive Summary
+AOXCHAL contains hardware-aware support utilities and memory/cpu optimization helpers used by runtime-adjacent code.
 
-By abstracting underlying hardware resources, this crate allows high-performance components (like virtual machines and cryptographic verifiers) to utilize advanced CPU instructions and managed memory pools safely.
+## Architectural Overview
+This component is part of the AOX Chain production roadmap and is documented as a reviewable subsystem rather than a placeholder package. The goal of this README is to give enough context that an engineer, auditor, or operator can understand why the crate exists, what code families it owns, and where the main security boundaries live.
 
-## Core Components
+## Main Code Areas
+- `cpu_opt.rs` and `mem_manager.rs`: host-performance-aware utility surfaces.
 
-- **`cpu_opt.rs`**: Manages runtime CPU feature detection (e.g., AVX-512, NEON) to route cryptographic algorithms and hashing functions to their hardware-accelerated paths. It also handles thread-pinning and compute-bound workload distribution.
-- **`mem_manager.rs`**: Implements secure memory pooling, zero-copy buffer abstractions, and deterministic memory limit enforcement. It ensures high-throughput state transitions do not cause memory fragmentation or Out-of-Memory (OOM) attack vectors.
+## Security and Audit Focus
+Performance helpers must never silently bypass safety or create undocumented environment dependencies.
 
-## Code Scope
+Reviewers should additionally confirm the following before promotion.
+- Interfaces remain deterministic and version-aligned with the workspace baseline.
+- Inputs are validated before affecting durable state or privileged behavior.
+- Tests cover both expected behavior and hostile or malformed scenarios.
+- Operational assumptions are mirrored in the corresponding `READ.md` and `VERSION.md` files.
 
-- `src/lib.rs` - Main entry point and feature gates.
-- `src/cpu_opt.rs` - Processor optimizations and compute dispatching.
-- `src/mem_manager.rs` - Safe memory allocation, wiping, and bounding.
+## Integration Notes
+This README is intentionally paired with a folder-specific `READ.md` and `VERSION.md`. The README explains the subsystem at a high level, the READ document explains the production audit expectations in more depth, and the VERSION document defines the mandatory release-discipline rules for future changes.
 
-## Security & Operational Notes
-
-- **Software Fallbacks**: Every hardware-accelerated path in `cpu_opt.rs` **must** have a deterministic, fallback software implementation. If a specific CPU feature is missing, the node must continue to operate deterministically.
-- **Constant-Time & Memory Wiping**: Any memory managed by `mem_manager.rs` that touches private key material or ZKP proofs must be explicitly zeroed out (wiped) upon deallocation to prevent cold-boot and side-channel attacks.
-- **`unsafe` Code Boundaries**: Usage of `unsafe` Rust for hardware intrinsics or memory manipulation is strictly isolated to this crate. All `unsafe` blocks must be heavily documented, strictly bounded, and subjected to rigorous security audits.
-- **Determinism Over Speed**: Hardware optimizations must never alter the mathematical outcome of an operation. A block validated on an ARM CPU using NEON must yield the exact same state root as an x86 CPU using AVX.
-
-## Local Validation
-
-Before submitting changes to the HAL, ensure hardware-agnostic tests and static analysis pass flawlessly:
-
-```bash
-cargo check -p aoxchal
-cargo clippy -p aoxchal --all-targets --all-features -- -D warnings
-cargo test -p aoxchal
-Related Components
-Top-level architecture: ../../README.md
-
-Core cryptographic primitives: ../aoxcore/README.md
-
-Virtual Machine execution lanes: ../aoxcvm/README.md
+## Release Status
+Current subsystem baseline: `aoxc.v.0.1.0-testnet.1` / `0.1.0-testnet.1`.

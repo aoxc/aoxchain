@@ -1,6 +1,6 @@
 [package]
 name = "aoxcai"
-version = "0.1.0"
+version = "0.1.0-testnet.1"
 edition = "2024"
 authors = ["Orcun <your@email.com>"]
 

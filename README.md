@@ -1,161 +1,192 @@
-<div align="center">
-  <a href="https://github.com/aoxc/aoxcore">
-    <img src="logos/aoxc_transparent.png" alt="AOXChain Logo" width="180" />
-  </a>
+# AOX Chain
 
-# AOXChain
-### Experimental Sovereign Coordination Chain
-#### AOXC Alpha: Genesis V1
+**Release Baseline:** `aoxc.v.0.1.0-testnet.1`
+**Cargo Workspace Version:** `0.1.0-testnet.1`
 
-![Status](https://img.shields.io/badge/status-experimental-orange)
-![Model](https://img.shields.io/badge/architecture-sovereign--core-purple)
-![Stack](https://img.shields.io/badge/stack-rust-orange)
-![CLI](https://img.shields.io/badge/tooling-aoxcmd-blue)
+AOX Chain is a Rust workspace for a multi-component blockchain platform. The repository combines core protocol modeling, deterministic consensus, multi-VM execution, networking, RPC gateways, storage abstractions, operator tooling, mobile security utilities, SDK support, and AI-governance extensions. This root document is intended to be the primary entry point for engineers, auditors, operators, and release managers who need to understand how the system is organized and how it is expected to be operated.
 
-</div>
+## Architectural Overview
+The workspace is partitioned into crates and operational folders that each own a specific part of the system.
 
-AOXChain is an experimental Rust blockchain workspace built around one core idea:
+### Core protocol and consensus
+- **`crates/aoxcore`** defines the canonical protocol vocabulary for blocks, transactions, identities, genesis data, receipts, contracts, state, and mempool-facing primitives.
+- **`crates/aoxcunity`** implements the consensus kernel, including validator rotation, block admission, vote validation, quorum logic, finality, safety policy, timeout handling, and recovery-oriented state transitions.
 
-> **the local chain is the sovereign constitutional core, and remote systems are execution domains.**
+### Execution and runtime orchestration
+- **`crates/aoxcvm`** coordinates native and external execution lanes such as EVM, Wasm, Sui Move, Cardano, and system flows.
+- **`crates/aoxcexec`** provides execution-facing coordination interfaces that connect runtime services to execution engines.
+- **`crates/aoxchal`** contains lower-level host and hardware-aware support utilities.
+- **`crates/aoxcenergy`** models execution-economics primitives used for bounded runtime accounting.
 
-This repository should be read as a **new chain project**. It is not positioned as a wrapper around another network, and this README intentionally describes AOXChain on its own terms.
+### Networking and client interfaces
+- **`crates/aoxcnet`** owns peer discovery, gossip, transport, ports, sync behavior, and network configuration.
+- **`crates/aoxcrpc`** exposes HTTP, gRPC, WebSocket, and middleware-based client API surfaces.
+- **`crates/aoxcmob`** provides mobile and edge-side secure signing, session, gateway, and transport abstractions.
 
----
+### Storage, configuration, and contracts
+- **`crates/aoxcdata`** contains state persistence and contract storage abstractions.
+- **`crates/aoxconfig`** provides typed configuration models for blockchain and contract settings.
+- **`crates/aoxcontract`** defines the canonical contract manifest, policy, artifact, compatibility, and validation model.
+- **`crates/aoxcsdk`** contains developer-facing integration helpers and contract-building support.
 
-## 1. What AOXChain is
+### Operator workflows and governance
+- **`crates/aoxcmd`** is the operational binary and library crate used to bootstrap, run, inspect, and audit nodes.
+- **`crates/aoxckit`** provides cryptographic and identity-lifecycle tooling.
+- **`crates/aoxclibs`** contains shared low-level utility helpers.
+- **`crates/aoxcai`** defines AI-governance, capability policy, manifest, audit, and backend integration layers.
 
-AOXChain is designed to own the parts of a system that must remain canonical:
+## Repository Layout
+The root folders are organized for both implementation work and operational traceability.
 
-- identity,
-- supply,
-- governance,
-- relay authorization,
-- validator/security policy,
-- settlement finality,
-- treasury and reserves.
+- `README.md`: the high-level system overview and command guide.
+- `READ.md`: the root production audit guide.
+- `VERSION.md`: root version-governance rules and change ledger.
+- `crates/`: the Rust workspace packages that implement protocol, runtime, networking, storage, tooling, and integration behavior.
+- `tests/`: cross-crate integration validation flows.
+- `docs/`: runbooks, readiness plans, architecture notes, and operational guidance.
 
-Remote domains may execute logic, hold contract adapters, and provide ecosystem-specific integrations, but the **final constitutional authority** stays on AOXChain.
+- `docs/RELEASE_AND_PROVENANCE_RUNBOOK.md`: release evidence, SBOM, signing, and provenance workflow.
+- `docs/BACKUP_RESTORE_AND_ROLLBACK_RUNBOOK.md`: recovery and rollback expectations.
+- `docs/THREAT_MODEL_AND_ATTACK_SURFACE.md`: threat boundary summary for audit and release review.
+- `docs/RELEASE_OWNERSHIP_AND_ESCALATION.md`: role and escalation ownership for releases.
+- `configs/`: network, genesis, and deterministic testnet configuration packs.
+- `scripts/`: operational automation, validation harnesses, and release helpers.
+- `models/`: machine-readable risk and governance models.
+- `contracts/system/`: privileged or system-level contract artifacts.
 
----
+## Security Design Priorities
+AOX Chain is being documented and hardened toward a 99.99% production-readiness target. The dominant security priorities are:
 
-## 2. Current architecture in one sentence
+- deterministic execution and hashing,
+- explicit error propagation instead of panic-driven control flow,
+- bounded resource usage for execution, storage, and network-facing paths,
+- strict trust-boundary clarity between crates and operator surfaces,
+- version traceability across source, manifests, binaries, tests, and audit records,
+- release procedures that are observable, reproducible, and reviewable.
 
-- **Local chain:** sovereign constitutional core.
-- **Remote chains/domains:** execution, integration, liquidity, and application surfaces.
+## Build and Release Profile
+The workspace release profile is configured for production-oriented builds with:
 
-If you want the machine-readable view, run:
+- `panic = "abort"`,
+- `lto = true`,
+- `codegen-units = 1`.
 
-```bash
-cargo run -p aoxcmd -- vision
-cargo run -p aoxcmd -- sovereign-core
-cargo run -p aoxcmd -- module-architecture
-```
+These settings are intended to align release binaries with deterministic and optimized production expectations defined in the workspace manifest.
 
----
+## Primary Commands
+The main day-to-day operational commands are exposed through the `Makefile` and the `aoxc` binary built from `crates/aoxcmd`.
 
-## 3. Canonical local roots
+### Developer quality gates
+| Command | Purpose |
+| --- | --- |
+| `make fmt` | Format the entire workspace. |
+| `make check` | Run `cargo check --workspace`. |
+| `make test` | Run `cargo test --workspace`. |
+| `make clippy` | Run Clippy across all workspace targets and features. |
+| `make quality-quick` | Run the quick quality gate from `scripts/quality_gate.sh`. |
+| `make quality` | Run the full quality gate. |
+| `make quality-release` | Run the release-oriented quality gate. |
 
-AOXChain currently models the following local constitutional roots:
+### Build and release commands
+| Command | Purpose |
+| --- | --- |
+| `make build` | Build the full workspace in debug mode. |
+| `make build-release` | Build the release AOXC CLI binary. |
+| `make package-bin` | Copy the release binary to `./bin/aoxc`. |
+| `make version` | Print version/build information via the CLI. |
+| `make manifest` | Print the build manifest and supply-chain policy. |
+| `make policy` | Print node connection policy information. |
 
-1. `identity`
-2. `supply`
-3. `governance`
-4. `relay`
-5. `security`
-6. `settlement`
-7. `treasury`
+### Local workflow and node operation
+| Command | Purpose |
+| --- | --- |
+| `make dev-bootstrap` | Print a suggested local bootstrap sequence. |
+| `make run-local` | Package the binary and execute the local helper script. |
+| `make supervise-local` | Run the local supervisor helper. |
+| `make produce-loop` | Run the continuous producer helper. |
+| `make real-chain-prep` | Prepare local directories for a bounded real-chain workflow. |
+| `make real-chain-run-once` | Run one bounded real-chain daemon cycle. |
+| `make real-chain-run` | Run the local real-chain daemon loop. |
+| `make real-chain-health` | Execute a network smoke/health probe. |
+| `make real-chain-tail` | Tail the real-chain runtime and health logs. |
 
-These can be inspected from the CLI:
+## Suggested Local Development Flow
+A practical baseline flow for a contributor is:
 
-```bash
-cargo run -p aoxcmd -- sovereign-core
-```
+1. Format and validate the workspace:
+   - `make fmt`
+   - `make check`
+   - `make test`
+2. Run linting:
+   - `make clippy`
+3. Build the release CLI if local operator testing is needed:
+   - `make package-bin`
+4. Bootstrap a local environment using the guidance printed by:
+   - `make dev-bootstrap`
+5. If needed, run a local smoke flow:
+   - `make run-local`
+   - `make real-chain-run-once`
+   - `make real-chain-health`
 
----
+## CLI and Operational Entry Points
+The `aoxc` binary is the main operational interface. The `Makefile` shows several representative commands that are important when evaluating the system:
 
-## 4. Address and key derivation format
+- `cargo run -p aoxcmd -- version`
+- `cargo run -p aoxcmd -- build-manifest`
+- `cargo run -p aoxcmd -- node-connection-policy`
+- `cargo run -p aoxcmd -- key-bootstrap ...`
+- `cargo run -p aoxcmd -- genesis-init ...`
+- `cargo run -p aoxcmd -- node-bootstrap ...`
+- `cargo run -p aoxcmd -- produce-once ...`
 
-AOXChain uses a BIP44-style derivation prefix centered on the AOXC coin type.
+These commands are meaningful because they reflect the operator lifecycle from key material initialization to genesis creation, node bootstrap, and bounded transaction/block production.
 
-### Canonical HD path
+## Local Helper Scripts
+The repository includes several operational helper scripts under `scripts/`. Representative examples include:
 
-```text
-m/44/2626/<chain>/<role>/<zone>/<index>
-```
+- `scripts/run-local.sh`: package-binary smoke helper for local bootstrap and production of a sample transaction.
+- `scripts/node_supervisor.sh`: local supervision helper.
+- `scripts/quality_gate.sh`: quality-gate orchestration.
+- `scripts/real_chain_daemon.sh`: bounded local real-chain loop.
+- `scripts/release_artifact_certify.sh`: release artifact certification helper.
 
-Example:
+These scripts should be treated as part of the security and release surface, not as informal utilities.
 
-```text
-m/44/2626/1/1/2/0
-```
+## Verification Strategy
+The workspace aims to support multiple evidence layers.
 
-Meaning:
+1. Unit tests for individual validation and state-transition rules.
+2. Integration tests for cross-crate flows.
+3. Adversarial and hack-style tests for hostile conditions.
+4. Fuzz-style repetition for deterministic and parser-sensitive paths.
+5. Lint, formatting, and release-gating checks enforced before promotion.
 
-- `44` -> BIP44 purpose
-- `2626` -> AOXC coin type / chain identity namespace
-- `chain` -> chain identifier
-- `role` -> actor role
-- `zone` -> logical or geographic zone
-- `index` -> sequential key index
+For high-risk logic such as consensus, identity, configuration, and contract policy, reviewers should expect stronger-than-minimal evidence.
 
-This path model is implemented in the AOXC identity layer and should be treated as the canonical derivation format for operator and system key material.
+## Versioning and Release Governance
+The canonical documentation version is `aoxc.v.0.1.0-testnet.1` and the Cargo-compatible semantic version is `0.1.0-testnet.1`. The repository treats documentation, manifests, binaries, compatibility fixtures, and verification evidence as a single release package. A material change is expected to update the relevant version and ledger documentation together.
 
----
+For the strict governance rules, read:
+- `READ.md`
+- `VERSION.md`
+- the folder-level `READ.md` and `VERSION.md` files for the subsystem being changed
 
-## 5. Workspace layout
+## Where to Read Next
+Use the following sequence when onboarding or auditing the repository:
 
-| Layer | Crate(s) | Responsibility |
-|---|---|---|
-| Protocol | `aoxcore` | identity, protocol primitives, genesis, tx, receipts |
-| Consensus | `aoxcunity` | rounds, quorum, vote/finality state |
-| Networking | `aoxcnet` | transport, discovery, gossip, sync |
-| RPC / Ingress | `aoxcrpc` | HTTP, gRPC, WebSocket, security middleware |
-| Execution | `aoxcvm` | multi-lane runtime and compatibility layers |
-| Operations | `aoxcmd`, `aoxckit` | bootstrap, runtime ops, manifests, policy commands |
+1. `README.md` for the high-level architecture and command map.
+2. `READ.md` for the root production audit guide.
+3. `VERSION.md` for root-level release governance.
+4. `crates/README.md` for the crate portfolio map.
+5. the relevant subsystem `README.md`, `READ.md`, and `VERSION.md` before making or reviewing a change.
 
----
+## Security Audit Log
+- `aoxc.v.0.1.0-testnet.1`: root README expanded into a full system-level guide with subsystem mapping, command documentation, operational entry points, and release-governance context.
+- `aoxc.v.0.0.0-alpha.2`: initial full audit-roadmap baseline introduced for production tracking.
 
-## 6. 10-minute operator onboarding
-
-For the fastest operator-oriented setup path, start here:
-
-- [`docs/ONBOARDING_10_MINUTES.md`](docs/ONBOARDING_10_MINUTES.md)
-- [`docs/ONCALL_RUNBOOK.md`](docs/ONCALL_RUNBOOK.md)
-- [`docs/MAINNET_READINESS_CHECKLIST.md`](docs/MAINNET_READINESS_CHECKLIST.md)
-- [`docs/INCIDENT_RESPONSE_DRILL.md`](docs/INCIDENT_RESPONSE_DRILL.md)
-
-Recommended local validation flow:
-
-```bash
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test
-```
-
----
-
-## 7. Mainnet-readiness operator guides
-
-- **On-call / SRE runbook:** [`docs/ONCALL_RUNBOOK.md`](docs/ONCALL_RUNBOOK.md)
-- **Incident response drill:** [`docs/INCIDENT_RESPONSE_DRILL.md`](docs/INCIDENT_RESPONSE_DRILL.md)
-- **Mainnet checklist:** [`docs/MAINNET_READINESS_CHECKLIST.md`](docs/MAINNET_READINESS_CHECKLIST.md)
-- **Readiness / audit context:** [`docs/AUDIT_READINESS_AND_OPERATIONS.md`](docs/AUDIT_READINESS_AND_OPERATIONS.md)
-
----
-
-## 8. Existing technical references
-
-Additional architecture and operational analysis documents remain under [`docs/`](docs/):
-
-- `REPO_GAP_ANALIZI_TR.md`
-- `GERCEK_AG_HAZIRLIK_KRITERLERI_TR.md`
-- `REAL_CHAIN_RUNBOOK_TR.md`
-- `REAL_NETWORK_VALIDATION_RUNBOOK_TR.md`
-- `ADVANCED_PRODUCTION_SUGGESTIONS_TR.md`
-- `V0_1_0_ALPHA_PRODUCTION_PLAN.md`
-
----
-
-## 9. Status note
-
-AOXChain is still experimental. The presence of runbooks and checklists in this repository should be read as **preparation material**, not as proof that a production mainnet is already ready for launch.
+## Audit Checklist
+- [ ] Memory leaks and ownership assumptions reviewed.
+- [ ] Race-condition and async integrity risks reviewed.
+- [ ] Error propagation remains explicit.
+- [ ] Version metadata and compatibility declarations are synchronized.
+- [ ] Verification evidence is attached to the release record.

@@ -1,28 +1,31 @@
-# aoxcnet
+# AOXCNET
 
-## Purpose
+**Documentation Version:** `aoxc.v.0.1.0-testnet.1`
+**Cargo-Compatible Version:** `0.1.0-testnet.1`
 
-`aoxcnet` is the security-first networking plane for AOXChain. The crate is responsible for:
+## Executive Summary
+AOXCNET contains networking primitives for peer discovery, gossip, consensus transport, and configuration of external-facing sockets and ports.
 
-- peer admission and certificate policy enforcement,
-- replay-resistant session establishment,
-- consensus gossip wrapping,
-- discovery and seed rotation,
-- sync request scheduling,
-- transport abstraction for secure and smoke-test paths,
-- metrics and audit-oriented diagnostics.
+## Architectural Overview
+This component is part of the AOX Chain production roadmap and is documented as a reviewable subsystem rather than a placeholder package. The goal of this README is to give enough context that an engineer, auditor, or operator can understand why the crate exists, what code families it owns, and where the main security boundaries live.
 
-## Design Principles
+## Main Code Areas
+- `transport`: transport abstraction and live TCP implementation.
+- `gossip`: consensus gossip and peer-level message flow.
+- `discovery`, `sync`, and `p2p`: peer discovery and synchronization surfaces.
+- `config`, `ports`, and `metrics`: operator-controlled network parameters and observability hooks.
 
-- **Mutual trust is explicit.** Peers are admitted under a defined security policy.
-- **Replay resistance is mandatory.** Session-bound nonces and frame digests are enforced.
-- **Interop is typed.** External domains are represented with explicit identifiers.
-- **Deterministic diagnostics matter.** Failures produce stable error codes and metrics.
-- **Unsafe modes are explicit.** `Insecure` exists only for deterministic local validation.
+## Security and Audit Focus
+Inbound message validation, peer trust boundaries, and resource-bounding of network behavior are primary review areas.
 
-## Local Validation
+Reviewers should additionally confirm the following before promotion.
+- Interfaces remain deterministic and version-aligned with the workspace baseline.
+- Inputs are validated before affecting durable state or privileged behavior.
+- Tests cover both expected behavior and hostile or malformed scenarios.
+- Operational assumptions are mirrored in the corresponding `READ.md` and `VERSION.md` files.
 
-```bash
-cargo check -p aoxcnet
-cargo test -p aoxcnet -- --nocapture
-```
+## Integration Notes
+This README is intentionally paired with a folder-specific `READ.md` and `VERSION.md`. The README explains the subsystem at a high level, the READ document explains the production audit expectations in more depth, and the VERSION document defines the mandatory release-discipline rules for future changes.
+
+## Release Status
+Current subsystem baseline: `aoxc.v.0.1.0-testnet.1` / `0.1.0-testnet.1`.

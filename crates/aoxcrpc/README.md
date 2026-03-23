@@ -1,49 +1,31 @@
-# aoxcrpc
+# AOXCRPC
 
-## Purpose
+**Documentation Version:** `aoxc.v.0.1.0-testnet.1`
+**Cargo-Compatible Version:** `0.1.0-testnet.1`
 
-`aoxcrpc` is responsible for the **API ingress layer (HTTP/gRPC/WebSocket)** domain within the AOXChain workspace.
+## Executive Summary
+AOXCRPC provides the client-facing RPC surface for AOX Chain, covering HTTP, gRPC, WebSocket, middleware, and contract-oriented APIs.
 
-## Code Scope
+## Architectural Overview
+This component is part of the AOX Chain production roadmap and is documented as a reviewable subsystem rather than a placeholder package. The goal of this README is to give enough context that an engineer, auditor, or operator can understand why the crate exists, what code families it owns, and where the main security boundaries live.
 
-- `proto/`
-- `src/middleware/`
-- `src/grpc/`
-- `src/http/`
-- `src/websocket/`
-- `src/config.rs`
+## Main Code Areas
+- `http`, `grpc`, and `websocket`: transport-specific API surfaces and server wiring.
+- `middleware`: mTLS, rate limiting, and validation controls.
+- `contracts`: read/write models, mapping, service logic, and HTTP bindings for contract queries.
+- `proto`: versioned interface definitions for client interoperability.
 
-## Operational Notes
-This crate now includes a production-oriented secure API skeleton:
+## Security and Audit Focus
+Authentication, authorization, schema validation, rate limiting, and safe exposure of internal models are the central concerns.
 
-- `proto/` definitions for binary gRPC contracts,
-- security middleware (`mTLS`, `rate limiting`, `ZKP validation`),
-- split service boundaries for query and transaction submission,
-- HTTP health + Prometheus metrics snapshot export,
-- HTTP health endpoint supports detailed production payloads (`chain_id`, `genesis_hash`, TLS/mTLS readiness, certificate SHA-256 fingerprint, readiness score, warnings/errors/recommendations, uptime).
-- HTTP health endpoint supports detailed production payloads (`chain_id`, `genesis_hash`, TLS/mTLS readiness, certificate SHA-256 fingerprint, readiness score, warnings, uptime).
-- websocket event framing for block confirmations.
-- rate limiter rejections include `retry_after_ms` metadata for deterministic client backoff UX.
-- canonical `RpcErrorResponse` model is available for machine-readable error payloads (`code`, `message`, `retry_after_ms`, `request_id`).
-- in-memory limiter supports stale key pruning and bounded key tracking (LRU-style eviction) to control long-run memory growth risk.
-- Prometheus snapshot includes `aox_rpc_rate_limited_total`, `aox_rpc_rate_limiter_active_keys`, and `aox_rpc_health_readiness_score` for abuse + readiness visibility.
-- Prometheus snapshot includes `aox_rpc_rate_limited_total` and `aox_rpc_rate_limiter_active_keys` for abuse-visibility.
-- rate limiter rejections now include `retry_after_ms` metadata to support client-side backoff UX.
-- in-memory limiter supports stale key pruning to prevent unbounded map growth in long-running nodes.
+Reviewers should additionally confirm the following before promotion.
+- Interfaces remain deterministic and version-aligned with the workspace baseline.
+- Inputs are validated before affecting durable state or privileged behavior.
+- Tests cover both expected behavior and hostile or malformed scenarios.
+- Operational assumptions are mirrored in the corresponding `READ.md` and `VERSION.md` files.
 
-- API and behavior changes should be evaluated for backward impact.
-- Prefer explicit parameters over implicit defaults in critical paths.
-- Security-impacting changes in this crate should be accompanied by test/example updates.
-- `RpcConfig::validate()` provides startup-time sanity checks for chain identity, genesis hash format, and limiter thresholds.
-- Test coverage is expanded for validation + health + limiter + metrics paths to improve audit confidence.
+## Integration Notes
+This README is intentionally paired with a folder-specific `READ.md` and `VERSION.md`. The README explains the subsystem at a high level, the READ document explains the production audit expectations in more depth, and the VERSION document defines the mandatory release-discipline rules for future changes.
 
-## Local Validation
-
-```bash
-cargo check -p aoxcrpc
-```
-
-## Related Components
-
-- Top-level architecture: [`../../README.md`](../../README.md)
-- Crate catalog: [`../README.md`](../README.md)
+## Release Status
+Current subsystem baseline: `aoxc.v.0.1.0-testnet.1` / `0.1.0-testnet.1`.

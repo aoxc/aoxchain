@@ -1,59 +1,31 @@
-# aoxcunity
+# AOXCUNITY
 
-## Purpose
+**Documentation Version:** `aoxc.v.0.1.0-testnet.1`
+**Cargo-Compatible Version:** `0.1.0-testnet.1`
 
-`aoxcunity` is responsible for the **consensus engine** domain within the AOXChain workspace.
+## Executive Summary
+AOXCUNITY contains the consensus kernel that evaluates validator voting behavior, block admissibility, quorum thresholds, finality, pruning, and replay-safe recovery.
 
-## Code Scope
+## Architectural Overview
+This component is part of the AOX Chain production roadmap and is documented as a reviewable subsystem rather than a placeholder package. The goal of this README is to give enough context that an engineer, auditor, or operator can understand why the crate exists, what code families it owns, and where the main security boundaries live.
 
-- `quorum.rs`
-- `vote.rs`
-- `fork_choice.rs`
-- `rotation.rs`
-- `proposer.rs`
-- `seal.rs`
-- `state.rs`
-- `constitutional.rs`
-- `kernel.rs`
+## Main Code Areas
+- `state.rs`: block and vote admission, quorum observation, and finalization logic.
+- `kernel.rs`: event-driven transition execution, invariants, timeout handling, and pruning coordination.
+- `safety.rs`, `rotation.rs`, `round.rs`, and `fork_choice.rs`: safety policy, validator set rotation, round monotonicity, and branch selection.
+- `tests/hack_resilience.rs`, `tests/adversarial_consensus.rs`, and `tests/block_fuzz_latency.rs`: adversarial, deterministic fuzz-style, and consensus regression evidence.
 
-## Operational Notes
+## Security and Audit Focus
+This is a high-stakes component. Reviewers must prioritize quorum accounting, stale-vote rejection, equivocation handling, finality monotonicity, and deterministic recovery semantics.
 
-- API and behavior changes should be evaluated for backward impact.
-- Prefer explicit parameters over implicit defaults in critical paths.
-- Security-impacting changes in this crate should be accompanied by test/example updates.
+Reviewers should additionally confirm the following before promotion.
+- Interfaces remain deterministic and version-aligned with the workspace baseline.
+- Inputs are validated before affecting durable state or privileged behavior.
+- Tests cover both expected behavior and hostile or malformed scenarios.
+- Operational assumptions are mirrored in the corresponding `READ.md` and `VERSION.md` files.
 
-## Local Validation
+## Integration Notes
+This README is intentionally paired with a folder-specific `READ.md` and `VERSION.md`. The README explains the subsystem at a high level, the READ document explains the production audit expectations in more depth, and the VERSION document defines the mandatory release-discipline rules for future changes.
 
-```bash
-cargo check -p aoxcunity && cargo test -p aoxcunity
-```
-
-
-## AOXC-native Consensus Direction
-
-For an AOXC-specific consensus design that goes beyond standard BFT clones, see
-[`AOXC_COVENANT_CONSENSUS.md`](./AOXC_COVENANT_CONSENSUS.md).
-
-For the current implementation gap analysis and the deterministic-engine roadmap, see
-[`../../docs/AOXCUNITY_ENGINE_ROADMAP_TR.md`](../../docs/AOXCUNITY_ENGINE_ROADMAP_TR.md).
-
-That document proposes **AOXC Covenant Consensus (ACC)** built around:
-
-- deterministic kernel transitions,
-- legitimacy certificates,
-- continuity/timeout certificates,
-- finality via a composite **Covenant Seal** rather than a single generic QC.
-
-## Related Components
-
-- Top-level architecture: [`../../README.md`](../../README.md)
-- Crate catalog: [`../README.md`](../README.md)
-
-## Current Status Clarification
-
-`aoxcunity` already contains solid consensus primitives and finality-oriented building blocks,
-but `kernel.rs` currently exposes the transition contract more clearly than a fully centralized
-state-machine orchestrator. Until a single deterministic `ConsensusEvent -> TransitionResult`
-engine owns round/lock/vote/fork-choice/finality evolution end to end, this crate should be
-described as a **deterministic consensus scaffold** rather than a fully production-ready
-consensus subsystem.
+## Release Status
+Current subsystem baseline: `aoxc.v.0.1.0-testnet.1` / `0.1.0-testnet.1`.
