@@ -1,4 +1,4 @@
-# AOXC v0.1.1-akdeniz
+# AOXC v0.1.1-Akdeniz
 
 <p align="center">
   <img src="logos/aoxc_transparent.png" alt="AOXC logo" width="220" />
