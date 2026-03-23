@@ -95,6 +95,48 @@ impl Settings {
                     .to_string(),
             );
         }
+        self.validate_mainnet_guards()?;
+        Ok(())
+    }
+
+    fn validate_mainnet_guards(&self) -> Result<(), String> {
+        if !self.profile.eq_ignore_ascii_case("mainnet") {
+            return Ok(());
+        }
+
+        if !self.network.enforce_official_peers {
+            return Err(
+                "mainnet profile requires enforce_official_peers to remain enabled".to_string(),
+            );
+        }
+
+        if self.policy.allow_remote_peers {
+            return Err(
+                "mainnet profile cannot enable allow_remote_peers; peer admission must stay curated"
+                    .to_string(),
+            );
+        }
+
+        if !self.policy.require_key_material {
+            return Err(
+                "mainnet profile requires key material verification before startup".to_string(),
+            );
+        }
+
+        if !self.policy.require_genesis {
+            return Err("mainnet profile requires a committed genesis document".to_string());
+        }
+
+        if !self.telemetry.enable_metrics {
+            return Err("mainnet profile requires telemetry metrics to stay enabled".to_string());
+        }
+
+        if !self.logging.json {
+            return Err(
+                "mainnet profile requires structured JSON logging for auditability".to_string(),
+            );
+        }
+
         Ok(())
     }
 
@@ -129,5 +171,22 @@ mod tests {
         settings.policy.allow_remote_peers = true;
 
         assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_mainnet_without_structured_logging() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "mainnet".to_string();
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn validate_accepts_hardened_mainnet_profile() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "mainnet".to_string();
+        settings.logging.json = true;
+
+        assert!(settings.validate().is_ok());
     }
 }

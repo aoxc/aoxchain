@@ -34,24 +34,61 @@ pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
     let key_ok = key_summary.is_some();
     let genesis_ok = crate::cli::bootstrap::genesis_ready();
     let node_ok = lifecycle::load_state().is_ok();
+    let config_validation = settings.validate();
+    let config_ok = config_validation.is_ok();
+    let profile_is_mainnet = settings.profile.eq_ignore_ascii_case("mainnet");
+    let metrics_enabled = settings.telemetry.enable_metrics;
+    let structured_logging = settings.logging.json;
     #[derive(serde::Serialize)]
     struct Readiness {
         profile: String,
         config_present: bool,
+        config_valid: bool,
+        config_validation_error: Option<String>,
+        profile_is_mainnet: bool,
         key_material_present: bool,
         genesis_present: bool,
         node_state_present: bool,
         enforce_official_peers: bool,
+        telemetry_metrics_enabled: bool,
+        structured_logging_enabled: bool,
         key_operational_state: &'static str,
+        readiness_score: u8,
         verdict: &'static str,
     }
+
+    let readiness_score = [
+        config_ok,
+        profile_is_mainnet,
+        key_ok,
+        genesis_ok,
+        node_ok,
+        settings.network.enforce_official_peers,
+        metrics_enabled,
+        structured_logging,
+        key_summary
+            .as_ref()
+            .map(|summary| summary.operational_state == "active")
+            .unwrap_or(false),
+    ]
+    .into_iter()
+    .filter(|passed| *passed)
+    .count() as u8
+        * 100
+        / 9;
+
     let readiness = Readiness {
         profile: settings.profile,
         config_present: true,
+        config_valid: config_ok,
+        config_validation_error: config_validation.err(),
+        profile_is_mainnet,
         key_material_present: key_ok,
         genesis_present: genesis_ok,
         node_state_present: node_ok,
         enforce_official_peers: settings.network.enforce_official_peers,
+        telemetry_metrics_enabled: metrics_enabled,
+        structured_logging_enabled: structured_logging,
         key_operational_state: key_summary
             .as_ref()
             .map(|summary| match summary.operational_state.as_str() {
@@ -62,10 +99,15 @@ pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
                 _ => "unknown",
             })
             .unwrap_or("missing"),
-        verdict: if key_ok
+        readiness_score,
+        verdict: if config_ok
+            && profile_is_mainnet
+            && key_ok
             && genesis_ok
             && node_ok
             && settings.network.enforce_official_peers
+            && metrics_enabled
+            && structured_logging
             && key_summary
                 .as_ref()
                 .map(|summary| summary.operational_state == "active")
