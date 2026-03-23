@@ -306,7 +306,7 @@ impl GenesisConfig {
     /// - runtime-only fields (`validators`, `genesis_seal`) remain excluded;
     /// - accounts are canonically ordered by address before hashing;
     /// - the serialized hash input is stable across insertion-order differences.
-    pub fn state_hash(&self) -> Result<String, String> {
+    pub fn try_state_hash(&self) -> Result<String, String> {
         #[derive(Serialize)]
         struct CanonicalGenesisConfig<'a> {
             chain_num: u32,
@@ -337,6 +337,16 @@ impl GenesisConfig {
 
         let digest = hasher.finalize();
         Ok(hex::encode(digest))
+    }
+
+    /// Computes the deterministic genesis state hash.
+    ///
+    /// This compatibility wrapper preserves the historic infallible API for
+    /// callers that have already validated the configuration.
+    #[must_use]
+    pub fn state_hash(&self) -> String {
+        self.try_state_hash()
+            .expect("GENESIS_HASH: validated genesis config must serialize canonically")
     }
 
     /// Computes a lightweight deterministic fingerprint for quick identity checks.
@@ -411,12 +421,12 @@ pub struct GenesisBlock {
 
 impl GenesisBlock {
     /// Creates a genesis block from configuration with explicit error handling.
-    pub fn new(config: GenesisConfig) -> Result<Self, String> {
+    pub fn try_new(config: GenesisConfig) -> Result<Self, String> {
         config.validate()?;
 
         let timestamp = u64::try_from(chrono::Utc::now().timestamp())
             .map_err(|_| "GENESIS_BLOCK: timestamp must be non-negative".to_string())?;
-        let state_hash = config.state_hash()?;
+        let state_hash = config.try_state_hash()?;
 
         Ok(Self {
             chain_id: config.chain_id.clone(),
@@ -424,6 +434,15 @@ impl GenesisBlock {
             config,
             state_hash,
         })
+    }
+
+    /// Creates a genesis block from configuration.
+    ///
+    /// This constructor preserves the current infallible API contract.
+    /// Invalid configuration is treated as a bootstrap invariant violation.
+    #[must_use]
+    pub fn new(config: GenesisConfig) -> Self {
+        Self::try_new(config).expect("GENESIS_BLOCK: invalid genesis configuration")
     }
 
     /// Creates a default genesis block.
@@ -550,6 +569,15 @@ mod tests {
         cfg.chain_id.clear();
 
         let err = super::GenesisBlock::new(cfg).expect_err("invalid config must be rejected");
+        assert!(err.starts_with("GENESIS:"));
+    }
+
+    #[test]
+    fn try_new_rejects_invalid_genesis_config_without_panicking() {
+        let mut cfg = GenesisConfig::new();
+        cfg.chain_id.clear();
+
+        let err = super::GenesisBlock::try_new(cfg).expect_err("invalid config must be rejected");
         assert!(err.starts_with("GENESIS:"));
     }
 }

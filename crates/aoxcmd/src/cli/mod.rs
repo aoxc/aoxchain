@@ -45,7 +45,6 @@ pub fn run_cli() -> Result<(), AppError> {
         "load-benchmark" => ops::cmd_load_benchmark(&args[2..]),
         "mainnet-readiness" => ops::cmd_mainnet_readiness(&args[2..]),
         "key-bootstrap" => bootstrap::cmd_key_bootstrap(&args[2..]),
-        "keys-export-identity" => bootstrap::cmd_keys_export_identity(&args[2..]),
         "keys-inspect" => bootstrap::cmd_keys_inspect(&args[2..]),
         "keys-show-fingerprint" => bootstrap::cmd_keys_show_fingerprint(&args[2..]),
         "keys-verify" => bootstrap::cmd_keys_verify(&args[2..]),
