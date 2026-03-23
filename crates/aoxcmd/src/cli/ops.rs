@@ -601,8 +601,6 @@ fn has_production_closure_artifacts(dir: &Path) -> bool {
         "soak-plan.json",
         "telemetry-snapshot.json",
         "aoxhub-rollout.json",
-        "security-drill.json",
-        "desktop-wallet-compat.json",
         "alert-rules.md",
     ]
     .iter()
@@ -931,9 +929,9 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 mod tests {
     use super::{
         compare_aoxhub_network_profiles, compare_embedded_network_profiles,
-        evaluate_mainnet_readiness, has_desktop_wallet_compat_artifact, has_matching_artifact,
-        has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
-        locate_repo_artifact_dir, parse_network_profile, ports_are_shifted_consistently,
+        evaluate_mainnet_readiness, has_matching_artifact, has_production_closure_artifacts,
+        has_release_evidence, locate_repo_artifact_dir, parse_network_profile,
+        ports_are_shifted_consistently,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -979,8 +977,6 @@ mod tests {
             "soak-plan.json",
             "telemetry-snapshot.json",
             "aoxhub-rollout.json",
-            "security-drill.json",
-            "desktop-wallet-compat.json",
             "alert-rules.md",
         ] {
             touch(&dir.join(file));
