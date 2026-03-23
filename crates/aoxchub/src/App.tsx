@@ -24,6 +24,14 @@ type LaunchBlocker = {
   title: string
   detail: string
   command: string
+  detail: string
+}
+
+type TelemetrySurface = {
+  title: string
+  status: 'ready' | 'blocked'
+  target: string
+  detail: string
 }
 
 type FileStatus = {
@@ -238,6 +246,8 @@ function statusLabel(status: Track['status'] | NodeStatus | WalletState | Report
       return 'Blocked'
     default:
       return 'In progress'
+    default:
+      return 'Blocked'
   }
 }
 
