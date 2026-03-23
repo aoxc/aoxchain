@@ -1,0 +1,9 @@
+{
+  "status": "baseline",
+  "surfaces": ["mainnet", "testnet", "aoxhub"],
+  "requirements": [
+    "hub api parity against mainnet/testnet baselines",
+    "bridge and rpc health verified before promotion",
+    "operator rollback contact and ownership recorded"
+  ]
+}

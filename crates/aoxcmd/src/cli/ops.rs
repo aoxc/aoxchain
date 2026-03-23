@@ -136,6 +136,7 @@ fn evaluate_mainnet_readiness(
     let release_dir = locate_repo_artifact_dir("release-evidence");
     let closure_dir = locate_repo_artifact_dir("network-production-closure");
     let baseline_parity = compare_embedded_network_profiles().ok();
+    let aoxhub_parity = compare_aoxhub_network_profiles().ok();
     let key_state = key_operational_state.unwrap_or("missing");
 
     let checks = vec![
@@ -215,6 +216,26 @@ fn evaluate_mainnet_readiness(
                 })
                 .unwrap_or_else(|| {
                     "Unable to compare embedded mainnet/testnet baseline files".to_string()
+                }),
+        ),
+        readiness_check(
+            "aoxhub-baseline-parity",
+            "release",
+            aoxhub_parity.as_ref().is_some_and(|report| report.passed),
+            5,
+            aoxhub_parity
+                .map(|report| {
+                    if report.passed {
+                        "AOXHub mainnet/testnet baselines are aligned with the same security and port model".to_string()
+                    } else {
+                        format!(
+                            "AOXHub mainnet/testnet drift detected: {}",
+                            report.drift.join("; ")
+                        )
+                    }
+                })
+                .unwrap_or_else(|| {
+                    "Unable to compare embedded AOXHub baseline files".to_string()
                 }),
         ),
         readiness_check(
@@ -360,6 +381,9 @@ fn remediation_plan(checks: &[ReadinessCheck]) -> Vec<String> {
             "profile-baseline-parity" => {
                 "Run `aoxc profile-baseline --enforce` and align embedded mainnet/testnet configs before promotion."
             }
+            "aoxhub-baseline-parity" => {
+                "Align `configs/aoxhub-mainnet.toml` and `configs/aoxhub-testnet.toml` so AOXHub rollout controls match promotion policy."
+            }
             "release-evidence" => {
                 "Regenerate release evidence under `artifacts/release-evidence/` before promotion."
             }
@@ -403,6 +427,7 @@ fn has_production_closure_artifacts(dir: &Path) -> bool {
         "runtime-status.json",
         "soak-plan.json",
         "telemetry-snapshot.json",
+        "aoxhub-rollout.json",
         "alert-rules.md",
     ]
     .iter()
@@ -421,8 +446,24 @@ fn has_matching_artifact(dir: &Path, prefix: &str, suffix: &str) -> bool {
 
 fn compare_embedded_network_profiles() -> Result<ProfileBaselineReport, AppError> {
     let repo_root = locate_repo_root();
-    let mainnet_path = repo_root.join("configs").join("mainnet.toml");
-    let testnet_path = repo_root.join("configs").join("testnet.toml");
+    compare_network_profile_pair(
+        repo_root.join("configs").join("mainnet.toml"),
+        repo_root.join("configs").join("testnet.toml"),
+    )
+}
+
+fn compare_aoxhub_network_profiles() -> Result<ProfileBaselineReport, AppError> {
+    let repo_root = locate_repo_root();
+    compare_network_profile_pair(
+        repo_root.join("configs").join("aoxhub-mainnet.toml"),
+        repo_root.join("configs").join("aoxhub-testnet.toml"),
+    )
+}
+
+fn compare_network_profile_pair(
+    mainnet_path: PathBuf,
+    testnet_path: PathBuf,
+) -> Result<ProfileBaselineReport, AppError> {
     let mainnet = parse_network_profile(&mainnet_path)?;
     let testnet = parse_network_profile(&testnet_path)?;
 
@@ -673,9 +714,10 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        compare_embedded_network_profiles, evaluate_mainnet_readiness, has_matching_artifact,
-        has_production_closure_artifacts, has_release_evidence, locate_repo_artifact_dir,
-        parse_network_profile, ports_are_shifted_consistently,
+        compare_aoxhub_network_profiles, compare_embedded_network_profiles,
+        evaluate_mainnet_readiness, has_matching_artifact, has_production_closure_artifacts,
+        has_release_evidence, locate_repo_artifact_dir, parse_network_profile,
+        ports_are_shifted_consistently,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -720,6 +762,7 @@ mod tests {
             "runtime-status.json",
             "soak-plan.json",
             "telemetry-snapshot.json",
+            "aoxhub-rollout.json",
             "alert-rules.md",
         ] {
             touch(&dir.join(file));
@@ -770,6 +813,14 @@ mod tests {
     fn embedded_profiles_share_expected_baseline_controls() {
         let report = compare_embedded_network_profiles()
             .expect("embedded network baseline comparison should load");
+
+        assert!(report.passed, "baseline drift: {:?}", report.drift);
+    }
+
+    #[test]
+    fn aoxhub_profiles_share_expected_baseline_controls() {
+        let report = compare_aoxhub_network_profiles()
+            .expect("embedded AOXHub baseline comparison should load");
 
         assert!(report.passed, "baseline drift: {:?}", report.drift);
     }

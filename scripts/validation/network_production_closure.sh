@@ -109,6 +109,18 @@ JSON
 }
 JSON
 
+  cat > "${ARTIFACT_DIR}/aoxhub-rollout.json" <<JSON
+{
+  "status": "planned",
+  "surfaces": ["mainnet", "testnet", "aoxhub"],
+  "requirements": [
+    "hub api parity against mainnet/testnet baselines",
+    "bridge and rpc health verified before promotion",
+    "operator rollback contact and ownership recorded"
+  ]
+}
+JSON
+
   cat > "${ALERT_FILE}" <<'RULES'
 # AOXC Alert Rules
 
