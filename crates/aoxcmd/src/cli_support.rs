@@ -64,6 +64,7 @@ Bootstrap:
   config-init [--profile <validator|testnet|mainnet>] [--bind-host <host>] [--json-logs]
   config-validate | config-print
   production-bootstrap --password <value> [--profile <testnet|mainnet>] [--name <validator>] [--bind-host <host>]
+  dual-profile-bootstrap --password <value> [--output-dir <path>] [--name-prefix <validator>]
 
 Node and economy:
   node-bootstrap | produce-once | node-run | node-health
@@ -74,7 +75,7 @@ Validation and audit:
   load-benchmark | storage-smoke | network-smoke | real-network
   diagnostics-doctor | diagnostics-bundle
   interop-readiness | interop-gate | production-audit
-  mainnet-readiness [--enforce]
+  mainnet-readiness [--enforce] [--write-report <path>]
 
 Global flags:
   --home <path>        Override AOXC home directory.

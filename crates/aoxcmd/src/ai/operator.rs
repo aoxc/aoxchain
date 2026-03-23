@@ -234,6 +234,12 @@ fn denied_trace(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     fn request() -> OperatorAssistRequest {
         OperatorAssistRequest {
@@ -245,7 +251,9 @@ mod tests {
 
     #[test]
     fn diagnostics_artifact_is_non_canonical_and_non_executing() {
-        std::env::remove_var("AOXC_AI_DISABLE");
+        unsafe {
+            std::env::remove_var("AOXC_AI_DISABLE");
+        }
         let sink = MemoryAuditSink::default();
         let adapter = OperatorPlaneAiAdapter::with_sink(sink.clone());
 
@@ -264,7 +272,10 @@ mod tests {
 
     #[test]
     fn disabled_ai_produces_explicit_denied_audit_evidence() {
-        std::env::set_var("AOXC_AI_DISABLE", "1");
+        let _guard = env_lock().lock().expect("env mutex must lock");
+        unsafe {
+            std::env::set_var("AOXC_AI_DISABLE", "1");
+        }
         let sink = MemoryAuditSink::default();
         let adapter = OperatorPlaneAiAdapter::with_sink(sink.clone());
 
@@ -278,12 +289,17 @@ mod tests {
         );
         assert_eq!(outcome.trace.output_class, "no_artifact");
 
-        std::env::remove_var("AOXC_AI_DISABLE");
+        unsafe {
+            std::env::remove_var("AOXC_AI_DISABLE");
+        }
     }
 
     #[test]
     fn diagnostics_summary_preserves_native_verdict_text() {
-        std::env::remove_var("AOXC_AI_DISABLE");
+        let _guard = env_lock().lock().expect("env mutex must lock");
+        unsafe {
+            std::env::remove_var("AOXC_AI_DISABLE");
+        }
         let adapter = OperatorPlaneAiAdapter::default();
 
         let outcome = adapter.diagnostics_assistance(request());
@@ -296,7 +312,10 @@ mod tests {
 
     #[test]
     fn runbook_preparation_requires_operator_approval_and_is_non_executing() {
-        std::env::remove_var("AOXC_AI_DISABLE");
+        let _guard = env_lock().lock().expect("env mutex must lock");
+        unsafe {
+            std::env::remove_var("AOXC_AI_DISABLE");
+        }
         let adapter = OperatorPlaneAiAdapter::default();
 
         let outcome = adapter.runbook_preparation(request());
@@ -308,7 +327,10 @@ mod tests {
 
     #[test]
     fn disabled_runbook_preparation_produces_denied_trace() {
-        std::env::set_var("AOXC_AI_DISABLE", "1");
+        let _guard = env_lock().lock().expect("env mutex must lock");
+        unsafe {
+            std::env::set_var("AOXC_AI_DISABLE", "1");
+        }
         let adapter = OperatorPlaneAiAdapter::default();
 
         let outcome = adapter.runbook_preparation(request());
@@ -319,6 +341,8 @@ mod tests {
             InvocationDisposition::Denied
         );
 
-        std::env::remove_var("AOXC_AI_DISABLE");
+        unsafe {
+            std::env::remove_var("AOXC_AI_DISABLE");
+        }
     }
 }

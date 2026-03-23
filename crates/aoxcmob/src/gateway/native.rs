@@ -287,6 +287,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::security::signer::verify_json_payload;
+    use crate::session::protocol::SessionSigningPayload;
     use crate::transport::mock::MockRelayTransport;
     use crate::types::{TaskKind, WitnessDecision};
 
@@ -333,6 +335,99 @@ mod tests {
             profile_a.public_key_fingerprint,
             profile_b.public_key_fingerprint
         );
+    }
+
+    #[tokio::test]
+    async fn open_session_emits_verifiable_signed_envelope() {
+        let config = MobileConfig::default();
+        let transport = MockRelayTransport::new(config.chain_id.clone());
+        let gateway =
+            NativeGateway::new(config.clone(), transport, crate::InMemorySecureStore::new())
+                .expect("gateway creation must succeed");
+        let profile = gateway
+            .provision_from_master_seed(
+                sample_seed(),
+                HdPath::new(1, 100, 1, 0).expect("path must be valid"),
+                DevicePlatform::Desktop,
+                "guardian-desktop",
+            )
+            .expect("device provisioning must succeed");
+
+        let session = gateway
+            .open_session()
+            .await
+            .expect("session open must succeed");
+        let envelope = gateway
+            .transport
+            .last_session_envelope()
+            .expect("mock transport should retain envelope")
+            .expect("session envelope should be stored");
+
+        let payload = SessionSigningPayload {
+            challenge_id: envelope.challenge_id.clone(),
+            relay_nonce: envelope.relay_nonce.clone(),
+            device_id: envelope.device_id.clone(),
+            app_id: envelope.app_id.clone(),
+            chain_id: envelope.chain_id.clone(),
+            client_nonce: envelope.client_nonce,
+            client_timestamp_epoch_secs: envelope.client_timestamp_epoch_secs,
+            public_key_hex: envelope.public_key_hex.clone(),
+        };
+
+        let signing_key = gateway
+            .store
+            .load_signing_key()
+            .expect("signing key should load");
+        verify_json_payload(
+            &signing_key.verifying_key(),
+            &payload,
+            &envelope.signature_hex,
+        )
+        .expect("session envelope signature should verify");
+        assert_eq!(session.profile.device_id, profile.device_id);
+        assert_eq!(session.permit.device_id, profile.device_id);
+    }
+
+    #[tokio::test]
+    async fn witness_submission_emits_verifiable_signed_receipt() {
+        let config = MobileConfig::default();
+        let transport = MockRelayTransport::new(config.chain_id.clone());
+        let gateway = NativeGateway::new(config, transport, crate::InMemorySecureStore::new())
+            .expect("gateway creation must succeed");
+        gateway
+            .provision_from_master_seed(
+                sample_seed(),
+                HdPath::new(1, 100, 1, 0).expect("path must be valid"),
+                DevicePlatform::Android,
+                "guardian-android",
+            )
+            .expect("device provisioning must succeed");
+
+        let session = gateway
+            .open_session()
+            .await
+            .expect("session open must succeed");
+        gateway
+            .submit_witness_decision(&session.permit, "TASK-VERIFY", WitnessDecision::Approve)
+            .await
+            .expect("task submission must succeed");
+
+        let signed = gateway
+            .transport
+            .last_receipt()
+            .expect("mock transport should retain receipt")
+            .expect("signed receipt should be stored");
+        let signing_key = gateway
+            .store
+            .load_signing_key()
+            .expect("signing key should load");
+        verify_json_payload(
+            &signing_key.verifying_key(),
+            &signed.receipt,
+            &signed.signature_hex,
+        )
+        .expect("signed task receipt should verify");
+        assert_eq!(signed.receipt.task_id, "TASK-VERIFY");
     }
 
     #[tokio::test]

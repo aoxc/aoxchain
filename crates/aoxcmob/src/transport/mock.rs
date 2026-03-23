@@ -16,6 +16,7 @@ pub struct MockRelayTransport {
     sequence: AtomicU64,
     tasks: Mutex<Vec<TaskDescriptor>>,
     sessions: Mutex<HashMap<String, String>>,
+    last_session_envelope: Mutex<Option<SessionEnvelope>>,
     last_receipt: Mutex<Option<SignedTaskReceipt>>,
 }
 
@@ -27,6 +28,7 @@ impl MockRelayTransport {
             sequence: AtomicU64::new(1),
             tasks: Mutex::new(Vec::new()),
             sessions: Mutex::new(HashMap::new()),
+            last_session_envelope: Mutex::new(None),
             last_receipt: Mutex::new(None),
         }
     }
@@ -38,6 +40,14 @@ impl MockRelayTransport {
             .map_err(|_| MobError::Transport("mock task store lock poisoned".to_string()))?;
         guard.push(task);
         Ok(())
+    }
+
+    pub fn last_session_envelope(&self) -> Result<Option<SessionEnvelope>, MobError> {
+        let guard = self
+            .last_session_envelope
+            .lock()
+            .map_err(|_| MobError::Transport("mock envelope store lock poisoned".to_string()))?;
+        Ok(guard.clone())
     }
 
     pub fn last_receipt(&self) -> Result<Option<SignedTaskReceipt>, MobError> {
@@ -88,6 +98,13 @@ impl AoxcMobileTransport for MockRelayTransport {
             return Err(MobError::Transport(
                 "signature_hex must not be empty".to_string(),
             ));
+        }
+
+        {
+            let mut last_envelope = self.last_session_envelope.lock().map_err(|_| {
+                MobError::Transport("mock envelope store lock poisoned".to_string())
+            })?;
+            *last_envelope = Some(envelope.clone());
         }
 
         let now = now_epoch_secs()?;
