@@ -193,6 +193,10 @@ pub fn cmd_full_surface_readiness(args: &[String]) -> Result<(), AppError> {
     );
     let full = evaluate_full_surface_readiness(&settings, &mainnet_readiness);
 
+    if let Some(path) = arg_value(args, "--write-report") {
+        write_full_surface_markdown_report(Path::new(&path), &full)?;
+    }
+
     if has_flag(args, "--enforce") && full.overall_status != "candidate" {
         return Err(AppError::new(
             ErrorCode::PolicyGateFailed,
@@ -1060,14 +1064,16 @@ fn full_surface_markdown_report(readiness: &FullSurfaceReadiness) -> String {
 
     out.push_str("## Surface summary\n\n");
     for surface in &readiness.surfaces {
+        let passed_checks = surface.checks.iter().filter(|check| check.passed).count();
+        let total_checks = surface.checks.len();
         out.push_str(&format!(
             "- **{}** / owner `{}` — status `{}` — score **{}%** ({}/{})\n",
             surface.surface,
             surface.owner,
             surface.status,
             surface.score,
-            surface.passed_checks,
-            surface.total_checks
+            passed_checks,
+            total_checks
         ));
     }
 
@@ -1091,6 +1097,8 @@ fn full_surface_markdown_report(readiness: &FullSurfaceReadiness) -> String {
 
     out.push_str("\n## Surface details\n\n");
     for surface in &readiness.surfaces {
+        let passed_checks = surface.checks.iter().filter(|check| check.passed).count();
+        let total_checks = surface.checks.len();
         out.push_str(&format!(
             "### {} ({})\n\n- Owner: `{}`\n- Status: `{}`\n- Score: **{}%** ({}/{})\n",
             surface.surface,
@@ -1098,8 +1106,8 @@ fn full_surface_markdown_report(readiness: &FullSurfaceReadiness) -> String {
             surface.owner,
             surface.status,
             surface.score,
-            surface.passed_checks,
-            surface.total_checks
+            passed_checks,
+            total_checks
         ));
 
         out.push_str("- Evidence:\n");
@@ -1117,9 +1125,13 @@ fn full_surface_markdown_report(readiness: &FullSurfaceReadiness) -> String {
             ));
         }
 
-        out.push_str("- Remediation:\n");
-        for item in &surface.remediation {
-            out.push_str(&format!("  - {}\n", item));
+        out.push_str("- Next actions:\n");
+        if surface.blockers.is_empty() {
+            out.push_str("  - Keep evidence current and preserve candidate posture.\n");
+        } else {
+            for blocker in &surface.blockers {
+                out.push_str(&format!("  - Close blocker: {}\n", blocker));
+            }
         }
 
         if !surface.blockers.is_empty() {
@@ -1587,7 +1599,7 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 mod tests {
     use super::{
         build_surface, compare_aoxhub_network_profiles, compare_embedded_network_profiles,
-        evaluate_full_surface_readiness, evaluate_mainnet_readiness,
+        evaluate_full_surface_readiness, evaluate_mainnet_readiness, full_surface_markdown_report,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
         locate_repo_artifact_dir, parse_network_profile, ports_are_shifted_consistently,
@@ -1802,6 +1814,24 @@ mod tests {
             .surfaces
             .iter()
             .any(|surface| surface.surface == "telemetry"));
+    }
+
+    #[test]
+    fn full_surface_markdown_report_includes_release_and_surface_summary() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "mainnet".to_string();
+        settings.logging.json = true;
+        settings.network.bind_host = "0.0.0.0".to_string();
+        settings.telemetry.enable_metrics = true;
+
+        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+        let full = evaluate_full_surface_readiness(&settings, &readiness);
+        let report = full_surface_markdown_report(&full);
+
+        assert!(report.contains("# AOXC Full-Surface Readiness Report"));
+        assert!(report.contains("Release line: `aoxc.v.0.1.1-akdeniz`"));
+        assert!(report.contains("## Surface summary"));
+        assert!(report.contains("**mainnet** / owner `protocol-release`"));
     }
 
     #[test]
