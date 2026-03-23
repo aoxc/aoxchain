@@ -1,32 +1,48 @@
-# AOX Chain Workspace - Audit Roadmap
+# AOX Chain Audit Companion
 
-**System Version Baseline:** `aoxc.v.0.0.0-alpha.1`
+Extended audit narrative that explains governance, assurance boundaries, verification workflows, and release expectations.
 
-Root governance, release, and audit boundary for the entire AOX Chain system.
+## Executive Summary
+This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
 
-## Production Intent
-This document defines the mandatory roadmap for advancing the covered workspace area toward a 99.99% production-grade security and reliability posture. It must be updated whenever a release, binary, interface, or operational assumption changes.
+## Architectural Overview
+The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
 
-## Nine-Point Roadmap
-1. Establish immutable release governance with the alpha baseline, signed change approval, and traceable artifact lineage.
-2. Enforce deterministic build and binary generation so every release candidate can be reproduced from the tagged source tree.
-3. Require zero-panic production paths, explicit error modeling, and bounded resource handling before feature promotion.
-4. Expand security verification with unit, integration, fuzz, adversarial, and formal-method evidence where logic is consensus- or finance-critical.
-5. Harden configuration, secrets, and operator workflows so deployment variance cannot silently weaken security posture.
-6. Introduce strict semantic version discipline covering manifests, binaries, release notes, and compatibility declarations.
-7. Maintain audit-ready documentation updates for every change, including what changed, why it changed, and which version absorbed the change.
-8. Gate release promotion on lint, test, reproducibility, supply-chain review, and incident-response preparedness evidence.
-9. Advance from alpha readiness to production readiness only after 99.99% service-quality objectives are backed by measurable validation data.
+## Security Objectives
+The primary security objectives are listed below.
+- Preserve deterministic behavior for the same input set.
+- Reject malformed, stale, or conflicting inputs before state mutation.
+- Maintain bounded resource usage to reduce denial-of-service exposure.
+- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
 
-## Versioning Policy
-- Canonical documentation label: `aoxc.v.0.0.0-alpha.1`.
-- Cargo-compatible semantic version baseline: `0.0.0-alpha.1`.
-- Every release-impacting change must update the relevant READ.md entry, manifest version, and release evidence together.
-- Binary artifacts, deployment bundles, and audit records must reference the same release identifier without ambiguity.
+## Audit Scope
+The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
 
-## Change Ledger
-- `aoxc.v.0.0.0-alpha.1`: initialized audit roadmap, introduced strict alpha version baseline, and reserved this folder for continuous release tracking.
-- Future entries must describe the exact implementation delta, affected artifacts, and verification evidence added in that version.
+## Verification Strategy
+Recommended verification activities include the following layers.
+1. Unit tests for validation rules, edge cases, and deterministic behavior.
+2. Integration tests for cross-module flows and operational hand-offs.
+3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
+4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
+5. Formatting, lint, and documentation checks before merge approval.
 
-## Mandatory Update Rule
-Whenever a new file, feature, control, or operational procedure is added under this directory, append the change to this ledger with the new version number and a concise audit explanation before release approval.
+## Operational Guidance
+Production use should remain aligned with controlled change management.
+- Update documentation whenever interfaces, invariants, or deployment assumptions change.
+- Preserve traceability between source code, tests, release artifacts, and audit evidence.
+- Record environment limitations when verification cannot be completed exactly as planned.
+- Treat incident response readiness as part of engineering quality, not a post-release activity.
+
+## Security Audit Log
+The following audit statements should be reviewed on each significant change.
+- Inputs are validated before they can influence durable or consensus-sensitive state.
+- Error propagation remains explicit and avoids hidden control-flow shortcuts.
+- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
+- Test coverage includes both expected behavior and hostile or malformed scenarios.
+- Release evidence includes the commands used and the outcome observed in CI or local execution.
+
+## Audit Checklist
+- [ ] Confirm deterministic behavior for identical inputs.
+- [ ] Confirm malformed and conflicting inputs are rejected.
+- [ ] Confirm verification evidence is attached to the release record.
+- [ ] Confirm documentation reflects current operational assumptions.
