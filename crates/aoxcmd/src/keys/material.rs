@@ -1,98 +1,202 @@
 use crate::error::{AppError, ErrorCode};
 use aoxcore::identity::{
-    hd_path::HdPath,
+    certificate::Certificate,
+    key_bundle::{CryptoProfile, NodeKeyBundleV1},
     key_engine::KeyEngine,
     keyfile::{encrypt_key_to_envelope, KeyfileEnvelope},
+    passport::Passport,
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Sha3_256};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyMaterial {
-    pub version: u8,
-    pub name: String,
-    pub profile: String,
-    pub created_at: String,
-    pub hd_path: String,
-    pub key_algorithm: String,
-    pub custody_model: String,
-    pub fingerprint: String,
-    pub public_key: String,
-    pub encrypted_private_key: String,
+    pub bundle: NodeKeyBundleV1,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeyMaterialSummary {
+    pub bundle_fingerprint: String,
+    pub previous_bundle_fingerprint: Option<String>,
+    pub rotation_counter: u64,
+    pub crypto_profile: String,
+    pub operational_state: String,
+    pub engine_fingerprint: String,
+    pub consensus_public_key: String,
+    pub transport_public_key: String,
+    pub operator_public_key: String,
+    pub role_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportedIdentityArtifacts {
+    pub certificate: Certificate,
+    pub passport: Passport,
 }
 
 impl KeyMaterial {
     pub fn generate(name: &str, profile: &str, password: &str) -> Result<Self, AppError> {
         let created_at = Utc::now().to_rfc3339();
         let engine = KeyEngine::new(None);
-        let hd_path = derive_hd_path(profile).map_err(|error| {
-            AppError::with_source(
-                ErrorCode::KeyMaterialInvalid,
-                "Failed to construct canonical HD path for operator key",
-                error,
-            )
-        })?;
-        let derived_key = engine.derive_key_material(&hd_path).map_err(|error| {
-            AppError::with_source(
-                ErrorCode::KeyMaterialInvalid,
-                "Failed to derive operator key material",
-                error,
-            )
-        })?;
-        let encrypted_private_key = serialize_encrypted_master_seed(engine.master_seed(), password)
-            .map_err(|error| {
+        let encrypted_root_seed =
+            encrypt_key_to_envelope(engine.master_seed(), password).map_err(|error| {
                 AppError::with_source(
                     ErrorCode::KeyMaterialInvalid,
                     "Failed to protect operator key material",
                     error,
                 )
             })?;
-
-        let mut public_hasher = Sha3_256::new();
-        public_hasher.update(name.as_bytes());
-        public_hasher.update(profile.as_bytes());
-        public_hasher.update(created_at.as_bytes());
-        public_hasher.update(derived_key);
-        let public_key = hex::encode_upper(public_hasher.finalize());
-
-        let mut fp_hasher = Sha3_256::new();
-        fp_hasher.update(public_key.as_bytes());
-        let fingerprint_full = hex::encode(fp_hasher.finalize());
-
-        Ok(Self {
-            version: 2,
-            name: name.to_string(),
-            profile: profile.to_string(),
+        let bundle = NodeKeyBundleV1::generate(
+            name,
+            profile,
             created_at,
-            hd_path: hd_path.to_string_path(),
-            key_algorithm: "AOXC-KeyEngine-Seeded".to_string(),
-            custody_model: "encrypted-master-seed-envelope".to_string(),
-            fingerprint: fingerprint_full[..16].to_string(),
-            public_key,
-            encrypted_private_key,
+            infer_crypto_profile(profile),
+            &engine,
+            encrypted_root_seed,
+        )
+        .map_err(|error| {
+            AppError::with_source(
+                ErrorCode::KeyMaterialInvalid,
+                "Failed to build canonical node key bundle",
+                error,
+            )
+        })?;
+
+        Ok(Self { bundle })
+    }
+
+    pub fn rotate_from_existing(
+        previous: &KeyMaterial,
+        name: &str,
+        profile: &str,
+        password: &str,
+    ) -> Result<Self, AppError> {
+        let created_at = Utc::now().to_rfc3339();
+        let engine = KeyEngine::new(None);
+        let encrypted_root_seed =
+            encrypt_key_to_envelope(engine.master_seed(), password).map_err(|error| {
+                AppError::with_source(
+                    ErrorCode::KeyMaterialInvalid,
+                    "Failed to protect rotated operator key material",
+                    error,
+                )
+            })?;
+        let bundle = NodeKeyBundleV1::generate_successor(
+            &previous.bundle,
+            name,
+            profile,
+            created_at,
+            infer_crypto_profile(profile),
+            &engine,
+            encrypted_root_seed,
+        )
+        .map_err(|error| {
+            AppError::with_source(
+                ErrorCode::KeyMaterialInvalid,
+                "Failed to build rotated node key bundle",
+                error,
+            )
+        })?;
+
+        Ok(Self { bundle })
+    }
+
+    pub fn fingerprint(&self) -> &str {
+        &self.bundle.bundle_fingerprint
+    }
+
+    pub fn encrypted_root_seed(&self) -> &KeyfileEnvelope {
+        &self.bundle.encrypted_root_seed
+    }
+
+    pub fn consensus_public_key_hex(&self) -> Result<&str, AppError> {
+        self.bundle
+            .public_key_hex_for_role(aoxcore::identity::key_bundle::NodeKeyRole::Consensus)
+            .map_err(|error| {
+                AppError::with_source(
+                    ErrorCode::KeyMaterialInvalid,
+                    "Failed to read canonical consensus public key from key bundle",
+                    error,
+                )
+            })
+    }
+
+    pub fn summary(&self) -> Result<KeyMaterialSummary, AppError> {
+        let role_key = |role| {
+            self.bundle
+                .public_key_hex_for_role(role)
+                .map(|value| value.to_string())
+                .map_err(|error| {
+                    AppError::with_source(
+                        ErrorCode::KeyMaterialInvalid,
+                        "Failed to build key material summary from bundle",
+                        error,
+                    )
+                })
+        };
+
+        Ok(KeyMaterialSummary {
+            bundle_fingerprint: self.bundle.bundle_fingerprint.clone(),
+            previous_bundle_fingerprint: self.bundle.previous_bundle_fingerprint.clone(),
+            rotation_counter: self.bundle.rotation_counter,
+            crypto_profile: self.bundle.crypto_profile.to_string(),
+            operational_state: self.bundle.operational_state.to_string(),
+            engine_fingerprint: self.bundle.engine_fingerprint.clone(),
+            consensus_public_key: role_key(aoxcore::identity::key_bundle::NodeKeyRole::Consensus)?,
+            transport_public_key: role_key(aoxcore::identity::key_bundle::NodeKeyRole::Transport)?,
+            operator_public_key: role_key(aoxcore::identity::key_bundle::NodeKeyRole::Operator)?,
+            role_count: self.bundle.keys.len(),
+        })
+    }
+
+    pub fn export_validator_identity(
+        &self,
+        chain: &str,
+        actor_id: &str,
+        zone: &str,
+        issued_at: u64,
+        expires_at: u64,
+    ) -> Result<ExportedIdentityArtifacts, AppError> {
+        let certificate = self
+            .bundle
+            .project_consensus_certificate(chain, actor_id, zone, issued_at, expires_at)
+            .map_err(|error| {
+                AppError::with_source(
+                    ErrorCode::KeyMaterialInvalid,
+                    "Failed to project validator certificate from key bundle",
+                    error,
+                )
+            })?;
+
+        let certificate_json = serde_json::to_string_pretty(&certificate).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::OutputEncodingFailed,
+                "Failed to encode projected validator certificate",
+                error,
+            )
+        })?;
+
+        let passport = self.bundle.project_validator_passport(
+            actor_id,
+            zone,
+            certificate_json,
+            issued_at,
+            expires_at,
+        );
+
+        Ok(ExportedIdentityArtifacts {
+            certificate,
+            passport,
         })
     }
 }
 
-fn derive_hd_path(profile: &str) -> Result<HdPath, aoxcore::identity::hd_path::HdPathError> {
-    let chain = match profile.trim().to_ascii_lowercase().as_str() {
-        "mainnet" => 1,
-        "testnet" => 1001,
-        "validator" => 2001,
-        _ => 2626,
-    };
-    HdPath::new(chain, 1, 1, 0)
-}
-
-fn serialize_encrypted_master_seed(
-    master_seed: &[u8],
-    password: &str,
-) -> Result<String, aoxcore::identity::keyfile::KeyfileError> {
-    let envelope = encrypt_key_to_envelope(master_seed, password)?;
-    serde_json::to_string_pretty(&envelope).map_err(|error| {
-        aoxcore::identity::keyfile::KeyfileError::SerializationFailed(error.to_string())
-    })
+fn infer_crypto_profile(profile: &str) -> CryptoProfile {
+    match profile.trim().to_ascii_lowercase().as_str() {
+        "mainnet" => CryptoProfile::HybridEd25519Dilithium3,
+        "testnet" | "validator" => CryptoProfile::ClassicEd25519,
+        _ => CryptoProfile::HybridEd25519Dilithium3,
+    }
 }
 
 pub fn validate_key_envelope(serialized: &str) -> Result<KeyfileEnvelope, AppError> {
@@ -110,14 +214,45 @@ mod tests {
     use super::{validate_key_envelope, KeyMaterial};
 
     #[test]
-    fn generated_material_uses_encrypted_seed_envelope() {
+    fn generated_material_uses_canonical_node_key_bundle() {
         let material = KeyMaterial::generate("validator-01", "testnet", "Test#2026!")
             .expect("key generation should succeed");
 
-        assert_eq!(material.version, 2);
-        assert_eq!(material.key_algorithm, "AOXC-KeyEngine-Seeded");
-        assert_eq!(material.custody_model, "encrypted-master-seed-envelope");
-        assert!(material.hd_path.starts_with("m/44/2626/"));
-        assert!(validate_key_envelope(&material.encrypted_private_key).is_ok());
+        assert_eq!(material.bundle.version, 1);
+        assert_eq!(material.bundle.keys.len(), 6);
+        assert_eq!(
+            material.bundle.custody_model,
+            "encrypted-root-seed-envelope"
+        );
+        assert!(material.bundle.keys[0].hd_path.starts_with("m/44/2626/"));
+
+        let serialized = serde_json::to_string_pretty(material.encrypted_root_seed())
+            .expect("envelope serialization should succeed");
+        assert!(validate_key_envelope(&serialized).is_ok());
+        assert_eq!(
+            material.summary().expect("summary should build").role_count,
+            6
+        );
+        assert_eq!(
+            material
+                .summary()
+                .expect("summary should build")
+                .operational_state,
+            aoxcore::identity::key_bundle::NodeKeyOperationalState::Active.to_string()
+        );
+        let exported = material
+            .export_validator_identity("AOXC-TEST", "actor-1", "eu", 100, 200)
+            .expect("identity export should succeed");
+        assert_eq!(exported.certificate.role, "validator");
+        assert_eq!(exported.passport.actor_id, "actor-1");
+
+        let rotated =
+            KeyMaterial::rotate_from_existing(&material, "validator-01", "validator", "Test#2027!")
+                .expect("rotation should succeed");
+        assert_eq!(rotated.bundle.rotation_counter, 1);
+        assert_eq!(
+            rotated.bundle.previous_bundle_fingerprint.as_deref(),
+            Some(material.bundle.bundle_fingerprint.as_str())
+        );
     }
 }
