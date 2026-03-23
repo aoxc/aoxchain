@@ -127,8 +127,7 @@ impl GenesisLoader {
     /// Compatibility behavior is preserved:
     /// - treasury is funded;
     /// - the canonical treasury account is inserted into the genesis accounts list.
-    #[must_use]
-    pub fn load_default() -> GenesisBlock {
+    pub fn load_default() -> Result<GenesisBlock, GenesisError> {
         let mut config = GenesisConfig::new();
 
         config.treasury = DEFAULT_TREASURY;
@@ -155,7 +154,7 @@ impl GenesisLoader {
                 Self::load(path_ref)
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                let genesis = Self::load_default();
+                let genesis = Self::load_default()?;
                 Self::save(&genesis.config, path_ref)?;
                 Ok(genesis)
             }
