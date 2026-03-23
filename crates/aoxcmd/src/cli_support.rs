@@ -76,7 +76,7 @@ Validation and audit:
   diagnostics-doctor | diagnostics-bundle
   interop-readiness | interop-gate | production-audit
   mainnet-readiness [--enforce] [--write-report <path>]
-  full-surface-readiness [--enforce]
+  full-surface-readiness [--enforce] [--write-report <path>]
 
 Global flags:
   --home <path>        Override AOXC home directory.
