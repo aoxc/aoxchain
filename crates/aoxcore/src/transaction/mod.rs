@@ -278,8 +278,10 @@ impl Transaction {
         Ok(message)
     }
 
-    pub fn signing_message(&self) -> Result<Vec<u8>, TransactionError> {
+    #[must_use]
+    pub fn signing_message(&self) -> Vec<u8> {
         self.try_signing_message()
+            .expect("TX_SIGNING: validated transaction payload exceeded canonical encoding limits")
     }
 
     /// Verifies the transaction signature against the canonical signing payload.
@@ -315,8 +317,10 @@ impl Transaction {
     }
 
     /// Returns the canonical unsigned intent identifier.
-    pub fn intent_id(&self) -> Result<[u8; 32], TransactionError> {
+    #[must_use]
+    pub fn intent_id(&self) -> [u8; 32] {
         self.try_intent_id()
+            .expect("TX_ID: validated transaction intent exceeded canonical encoding limits")
     }
 
     /// Returns the canonical signed transaction identifier.
@@ -325,8 +329,10 @@ impl Transaction {
     }
 
     /// Returns the canonical signed transaction identifier.
-    pub fn tx_id(&self) -> Result<[u8; 32], TransactionError> {
+    #[must_use]
+    pub fn tx_id(&self) -> [u8; 32] {
         self.try_tx_id()
+            .expect("TX_ID: validated signed transaction exceeded canonical encoding limits")
     }
 
     /// Converts this transaction into a block-domain task.
