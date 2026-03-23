@@ -14,6 +14,7 @@ pub use hash::{
     hash_header, hash_internal_node, hash_task, hash_task_leaf, try_hash_task, try_hash_task_leaf,
 };
 
+use crate::identity::key_bundle::NodeKeyBundleV1;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -373,7 +374,7 @@ impl Block {
         }
 
         if self.header.producer == ZERO_HASH {
-            return Err(BlockError::InvalidPreviousHash);
+            return Err(BlockError::InvalidProducer);
         }
 
         Ok(())
@@ -616,7 +617,43 @@ mod tests {
             tasks: Vec::new(),
         };
 
-        assert_eq!(block.validate(), Err(BlockError::InvalidPreviousHash));
+        assert_eq!(block.validate(), Err(BlockError::InvalidProducer));
+    }
+
+    #[test]
+    fn block_validate_with_key_bundle_accepts_matching_consensus_producer() {
+        use crate::identity::{
+            key_bundle::{CryptoProfile, NodeKeyBundleV1, NodeKeyRole},
+            key_engine::{KeyEngine, MASTER_SEED_LEN},
+            keyfile::encrypt_key_to_envelope,
+        };
+
+        let engine = KeyEngine::from_seed([0x66; MASTER_SEED_LEN]);
+        let envelope =
+            encrypt_key_to_envelope(engine.master_seed(), "Test#2026!").expect("must encrypt");
+        let bundle = NodeKeyBundleV1::generate(
+            "validator-01",
+            "validator",
+            "2026-01-01T00:00:00Z".to_string(),
+            CryptoProfile::HybridEd25519Dilithium3,
+            &engine,
+            envelope,
+        )
+        .expect("bundle generation must succeed");
+        let producer = bundle
+            .public_key_bytes_for_role(NodeKeyRole::Consensus)
+            .expect("consensus key must decode");
+        let task = Task::new(
+            bytes32(1),
+            Capability::UserSigned,
+            TargetOutpost::AovmNative,
+            vec![1, 2, 3],
+        )
+        .expect("task must build");
+        let block = Block::new_active(1, ZERO_HASH, bytes32(9), producer, vec![task])
+            .expect("block must build");
+
+        assert!(block.validate_with_key_bundle(&bundle).is_ok());
     }
 
     #[test]

@@ -4,7 +4,9 @@ use crate::{
     config::loader::{init_default, load, load_or_init},
     data_home::{ensure_layout, read_file, resolve_home, write_file},
     error::{AppError, ErrorCode},
-    keys::manager::{bootstrap_operator_key, operator_fingerprint, verify_operator_key},
+    keys::manager::{
+        bootstrap_operator_key, consensus_public_key_hex, operator_fingerprint, verify_operator_key,
+    },
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -133,7 +135,7 @@ pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
         .unwrap_or_else(|| "1000000000000".to_string())
         .parse::<u64>()
         .map_err(|_| AppError::new(ErrorCode::UsageInvalidArguments, "Invalid --treasury value"))?;
-    let validator_key = operator_fingerprint().unwrap_or_else(|_| "unbootstrapped".to_string());
+    let validator_key = consensus_public_key_hex().unwrap_or_else(|_| "unbootstrapped".to_string());
 
     let genesis = GenesisDocument {
         network_name: "AOXC Local Genesis".to_string(),

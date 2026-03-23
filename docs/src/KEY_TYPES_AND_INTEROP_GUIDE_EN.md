@@ -19,9 +19,20 @@ This document summarizes production-focused key handling and cross-chain compati
 
 ### 1.3 Node Key Artifacts (`aoxcmd key-bootstrap`)
 Generated artifacts:
-- `node.key` (encrypted secret + identity bundle)
+- `node.key` (encrypted root seed + canonical node key bundle)
 - `node.cert.json` (signed certificate)
 - `node.passport.json` (runtime identity passport)
+
+The canonical node key bundle now carries role-separated entries for:
+
+- identity
+- consensus
+- transport
+- operator
+- recovery
+- PQ attestation
+
+`genesis-init` should bind validator entries to the bundle's canonical consensus public key rather than to a loose operator fingerprint.
 
 On Unix-like systems, AOXChain persists these artifacts with restrictive file mode (`0600`).
 
