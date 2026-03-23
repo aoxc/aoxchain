@@ -43,15 +43,36 @@ pub fn bootstrap_state() -> Result<NodeState, AppError> {
 #[cfg(test)]
 mod tests {
     use super::{bootstrap_state, load_state, persist_state, state_path};
-    use crate::{node::state::NodeState, test_support::TestHome};
+    use crate::node::state::NodeState;
+    use std::{
+        env, fs,
+        path::PathBuf,
+        sync::{Mutex, OnceLock},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn unique_test_home(label: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        env::temp_dir().join(format!("aoxcmd-{label}-{nanos}"))
+    }
 
     #[test]
     fn bootstrap_state_persists_default_node_state() {
-        let home = TestHome::new("bootstrap-state");
+        let _guard = env_lock().lock().expect("test env mutex must lock");
+        let home = unique_test_home("bootstrap-state");
+        env::set_var("AOXC_HOME", &home);
 
         let bootstrapped = bootstrap_state().expect("bootstrap should persist node state");
         let reloaded = load_state().expect("bootstrapped state should load");
-        let expected_path = home.path().join("runtime").join("node_state.json");
+        let expected_path = home.join("runtime").join("node_state.json");
 
         assert_eq!(
             state_path().expect("state path should resolve"),
@@ -60,11 +81,16 @@ mod tests {
         assert!(bootstrapped.initialized);
         assert_eq!(reloaded.consensus.last_message_kind, "bootstrap");
         assert_eq!(reloaded.current_height, 0);
+
+        let _ = fs::remove_dir_all(&home);
+        env::remove_var("AOXC_HOME");
     }
 
     #[test]
     fn persist_state_round_trips_custom_consensus_snapshot() {
-        let _home = TestHome::new("persist-state");
+        let _guard = env_lock().lock().expect("test env mutex must lock");
+        let home = unique_test_home("persist-state");
+        env::set_var("AOXC_HOME", &home);
 
         let mut state = NodeState::bootstrap();
         state.current_height = 9;
@@ -81,5 +107,8 @@ mod tests {
         assert_eq!(reloaded.last_tx, "smoke");
         assert_eq!(reloaded.consensus.last_round, 4);
         assert_eq!(reloaded.consensus.last_message_kind, "block_proposal");
+
+        let _ = fs::remove_dir_all(&home);
+        env::remove_var("AOXC_HOME");
     }
 }
