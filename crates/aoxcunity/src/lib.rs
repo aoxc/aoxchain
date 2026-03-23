@@ -13,6 +13,7 @@ pub mod seal;
 pub mod state;
 pub mod store;
 pub mod validator;
+pub mod version;
 pub mod vote;
 pub mod vote_pool;
 
@@ -44,6 +45,10 @@ pub use store::{
     RecoveryState, SnapshotStore, recover_state,
 };
 pub use validator::{Validator, ValidatorId, ValidatorRole};
+pub use version::{
+    AOXC_CERTIFICATE_FORMAT_LINE, AOXC_COVENANT_KERNEL_LINE, AOXC_COVENANT_KERNEL_NAME,
+    AOXC_VOTE_FORMAT_LINE, KernelIdentity, kernel_identity,
+};
 
 pub use vote::{SignedVote, Vote, VoteAuthenticationError, VoteKind};
 pub use vote_pool::VotePool;
