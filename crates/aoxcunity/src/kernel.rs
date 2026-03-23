@@ -853,12 +853,15 @@ mod tests {
         let _ = engine.apply_event(ConsensusEvent::AdmitBlock(genesis));
         let _ = engine.apply_event(ConsensusEvent::AdmitBlock(block_a.clone()));
         engine.state.blocks.insert(block_b.hash, block_b.clone());
-        engine.state.fork_choice.insert_block(crate::fork_choice::BlockMeta {
-            hash: block_b.hash,
-            parent: block_b.header.parent_hash,
-            height: block_b.header.height,
-            seal: None,
-        });
+        engine
+            .state
+            .fork_choice
+            .insert_block(crate::fork_choice::BlockMeta {
+                hash: block_b.hash,
+                parent: block_b.header.parent_hash,
+                height: block_b.header.height,
+                seal: None,
+            });
 
         let vote = |block_hash| {
             ConsensusEvent::AdmitTimeoutVote(VerifiedTimeoutVote {

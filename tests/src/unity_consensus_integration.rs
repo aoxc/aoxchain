@@ -1,6 +1,5 @@
 use std::{
-    env,
-    fs,
+    env, fs,
     path::PathBuf,
     sync::{Mutex, OnceLock},
     time::{SystemTime, UNIX_EPOCH},
@@ -13,7 +12,10 @@ use aoxcmd::{
 };
 use aoxcnet::{
     config::{ExternalDomainKind, NetworkConfig},
-    gossip::{consensus_gossip::GossipEngine, peer::{NodeCertificate, Peer, PeerRole}},
+    gossip::{
+        consensus_gossip::GossipEngine,
+        peer::{NodeCertificate, Peer, PeerRole},
+    },
 };
 use aoxcunity::{
     AuthenticatedVote, BlockBody, ConsensusMessage, ConsensusState, LaneCommitment,
@@ -34,9 +36,8 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
     }
 
     let test_result = (|| {
-        let key_material =
-            bootstrap_operator_key("validator-01", "testnet", "Test#2026!")
-                .expect("operator key bootstrap should succeed");
+        let key_material = bootstrap_operator_key("validator-01", "testnet", "Test#2026!")
+            .expect("operator key bootstrap should succeed");
         let key_summary = key_material
             .summary()
             .expect("operator key summary should stay derivable");
@@ -44,8 +45,8 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
         let bootstrapped = bootstrap_state().expect("node state bootstrap should succeed");
         assert_eq!(bootstrapped.consensus.network_id, 2626);
 
-        let produced = produce_once("integration-lifecycle")
-            .expect("single block production should succeed");
+        let produced =
+            produce_once("integration-lifecycle").expect("single block production should succeed");
         assert_eq!(produced.current_height, 1);
         assert_eq!(produced.produced_blocks, 1);
         assert_eq!(produced.consensus.last_message_kind, "block_proposal");
@@ -70,11 +71,7 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
         let validators = validator_keys
             .iter()
             .map(|key: &SigningKey| {
-                Validator::new(
-                    key.verifying_key().to_bytes(),
-                    1,
-                    ValidatorRole::Validator,
-                )
+                Validator::new(key.verifying_key().to_bytes(), 1, ValidatorRole::Validator)
             })
             .collect::<Vec<_>>();
 
@@ -127,7 +124,10 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
                 },
             )
             .expect("proposal should broadcast");
-        assert_eq!(proposal_envelope.payload.canonical_bytes().first(), Some(&0));
+        assert_eq!(
+            proposal_envelope.payload.canonical_bytes().first(),
+            Some(&0)
+        );
 
         for signing_key in validator_keys.iter().take(2) {
             let vote = Vote {
@@ -183,7 +183,10 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
             )
             .expect("finalize should broadcast");
 
-        assert_eq!(finalize_envelope.payload.canonical_bytes().first(), Some(&2));
+        assert_eq!(
+            finalize_envelope.payload.canonical_bytes().first(),
+            Some(&2)
+        );
         assert!(gossip.receive().is_some());
         assert!(gossip.receive().is_some());
         assert!(gossip.receive().is_some());
