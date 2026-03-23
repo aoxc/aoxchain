@@ -77,6 +77,30 @@ pub fn read_file(path: &Path) -> Result<String, AppError> {
     })
 }
 
+pub fn file_permissions_are_hardened(path: &Path) -> Result<bool, AppError> {
+    let metadata = fs::metadata(path).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to read metadata for {}", path.display()),
+            e,
+        )
+    })?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mode = metadata.permissions().mode() & 0o777;
+        return Ok(mode & 0o077 == 0);
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        Ok(true)
+    }
+}
+
 fn harden_file_permissions(path: &Path) -> Result<(), AppError> {
     #[cfg(unix)]
     {
@@ -91,4 +115,24 @@ fn harden_file_permissions(path: &Path) -> Result<(), AppError> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{file_permissions_are_hardened, write_file};
+    use crate::test_support::TestHome;
+
+    #[test]
+    fn write_file_hardens_sensitive_file_permissions() {
+        let home = TestHome::new("permission-hardening");
+        let path = home.path().join("config").join("settings.json");
+
+        write_file(&path, "{\"profile\":\"mainnet\"}")
+            .expect("sensitive file write should succeed");
+
+        assert!(
+            file_permissions_are_hardened(&path).expect("metadata should be readable"),
+            "written files must be hardened for production operator environments"
+        );
+    }
 }
