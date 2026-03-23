@@ -61,7 +61,9 @@ Describe:
 Bootstrap:
   key-bootstrap | keys-inspect | keys-show-fingerprint | keys-verify [--password <value>]
   genesis-init | genesis-validate | genesis-inspect | genesis-hash
-  config-init | config-validate | config-print
+  config-init [--profile <validator|testnet|mainnet>] [--bind-host <host>] [--json-logs]
+  config-validate | config-print
+  production-bootstrap --password <value> [--profile <testnet|mainnet>] [--name <validator>] [--bind-host <host>]
 
 Node and economy:
   node-bootstrap | produce-once | node-run | node-health
