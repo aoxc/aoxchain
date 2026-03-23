@@ -2,7 +2,6 @@ use serde::Serialize;
 use std::{
     fs,
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 type AppResult<T> = Result<T, String>;
@@ -10,15 +9,6 @@ type AppResult<T> = Result<T, String>;
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReadinessTrack {
-    name: String,
-    percent: u8,
-    summary: String,
-    status: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AreaProgress {
     name: String,
     percent: u8,
     summary: String,
@@ -49,11 +39,7 @@ struct LaunchSnapshot {
     overall_percent: u8,
     profile: String,
     summary: String,
-    last_refreshed_at: u64,
     tracks: Vec<ReadinessTrack>,
-    area_progress: Vec<AreaProgress>,
-    recommended_focus: Vec<String>,
-    remediation_plan: Vec<String>,
     blockers: Vec<LaunchBlocker>,
     files: Vec<FileStatus>,
 }
@@ -75,9 +61,6 @@ fn load_launch_snapshot() -> AppResult<LaunchSnapshot> {
     let mainnet_percent = capture_percent(&report, "- **mainnet**:")?;
 
     let blockers = capture_blockers(&report);
-    let area_progress = capture_area_progress(&report);
-    let recommended_focus = capture_bullets(&report, "## Recommended next focus");
-    let remediation_plan = capture_bullets(&report, "## Remediation plan");
     let summary = if blockers.is_empty() {
         "No blockers listed in AOXC_PROGRESS_REPORT.md".to_string()
     } else {
@@ -93,7 +76,6 @@ fn load_launch_snapshot() -> AppResult<LaunchSnapshot> {
         overall_percent,
         profile,
         summary,
-        last_refreshed_at: current_unix_timestamp()?,
         tracks: vec![
             ReadinessTrack {
                 name: "Mainnet readiness".into(),
@@ -115,9 +97,6 @@ fn load_launch_snapshot() -> AppResult<LaunchSnapshot> {
                 status: status_from_percent(overall_percent).into(),
             },
         ],
-        area_progress,
-        recommended_focus,
-        remediation_plan,
         blockers,
         files: vec![
             file_status(&repo_root, "Progress report", "AOXC_PROGRESS_REPORT.md"),
@@ -146,13 +125,6 @@ fn repo_root() -> AppResult<PathBuf> {
         .ok_or_else(|| "failed to resolve repository root".to_string())
 }
 
-fn current_unix_timestamp() -> AppResult<u64> {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .map_err(|err| format!("failed to read system time: {err}"))
-}
-
 fn capture_value(report: &str, prefix: &str) -> AppResult<String> {
     report
         .lines()
@@ -179,43 +151,12 @@ fn capture_percent(report: &str, prefix: &str) -> AppResult<u8> {
         .ok_or_else(|| format!("failed to parse percentage from line: {line}"))
 }
 
-fn capture_area_progress(report: &str) -> Vec<AreaProgress> {
-    capture_bullets(report, "## Area progress")
-        .into_iter()
-        .filter_map(|line| {
-            let raw_name = line
-                .split("**")
-                .nth(1)
-                .map(str::trim)
-                .filter(|name| !name.is_empty())?;
-            let percent = line
-                .split("**")
-                .next_back()
-                .and_then(|tail| tail.split('%').next())
-                .and_then(|value| value.trim().parse::<u8>().ok())?;
-            let summary = line
-                .split('—')
-                .nth(1)
-                .map(str::trim)
-                .unwrap_or("in-progress")
-                .to_string();
-
-            Some(AreaProgress {
-                name: raw_name.to_string(),
-                percent,
-                summary,
-                status: status_from_percent(percent).into(),
-            })
-        })
-        .collect()
-}
-
-fn capture_bullets(report: &str, heading: &str) -> Vec<String> {
+fn capture_blockers(report: &str) -> Vec<LaunchBlocker> {
     let mut in_section = false;
-    let mut entries = Vec::new();
+    let mut blockers = Vec::new();
 
     for line in report.lines() {
-        if line.trim() == heading {
+        if line.trim() == "## Remaining blockers" {
             in_section = true;
             continue;
         }
@@ -228,34 +169,23 @@ fn capture_bullets(report: &str, heading: &str) -> Vec<String> {
             continue;
         }
 
-        if let Some(entry) = line.strip_prefix("- ") {
-            let trimmed = entry.trim();
-            if !trimmed.is_empty() {
-                entries.push(trimmed.to_string());
-            }
+        let Some(rest) = line.strip_prefix("- ") else {
+            continue;
+        };
+        let mut parts = rest.splitn(2, ':');
+        let key = parts.next().unwrap_or_default().trim();
+        let detail = parts.next().unwrap_or_default().trim();
+        if key.is_empty() || detail.is_empty() {
+            continue;
         }
+        blockers.push(LaunchBlocker {
+            title: humanize_key(key),
+            detail: detail.to_string(),
+            command: remediation_for(key).to_string(),
+        });
     }
 
-    entries
-}
-
-fn capture_blockers(report: &str) -> Vec<LaunchBlocker> {
-    capture_bullets(report, "## Remaining blockers")
-        .into_iter()
-        .filter_map(|entry| {
-            let mut parts = entry.splitn(2, ':');
-            let key = parts.next().unwrap_or_default().trim();
-            let detail = parts.next().unwrap_or_default().trim();
-            if key.is_empty() || detail.is_empty() {
-                return None;
-            }
-            Some(LaunchBlocker {
-                title: humanize_key(key),
-                detail: detail.to_string(),
-                command: remediation_for(key).to_string(),
-            })
-        })
-        .collect()
+    blockers
 }
 
 fn humanize_key(key: &str) -> String {
