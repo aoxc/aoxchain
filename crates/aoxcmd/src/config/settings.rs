@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
@@ -104,6 +105,10 @@ impl Settings {
             return Ok(());
         }
 
+        if !Path::new(&self.home_dir).is_absolute() {
+            return Err("mainnet profile requires an absolute home_dir".to_string());
+        }
+
         if !self.network.enforce_official_peers {
             return Err(
                 "mainnet profile requires enforce_official_peers to remain enabled".to_string(),
@@ -134,6 +139,26 @@ impl Settings {
         if !self.logging.json {
             return Err(
                 "mainnet profile requires structured JSON logging for auditability".to_string(),
+            );
+        }
+
+        if matches!(
+            self.logging.level.trim().to_ascii_lowercase().as_str(),
+            "debug" | "trace"
+        ) {
+            return Err(
+                "mainnet profile cannot use debug or trace logging because it expands attack surface and log volume"
+                    .to_string(),
+            );
+        }
+
+        if matches!(
+            self.network.bind_host.trim(),
+            "127.0.0.1" | "::1" | "localhost"
+        ) {
+            return Err(
+                "mainnet profile requires a non-loopback bind_host so the node is reachable by the production network"
+                    .to_string(),
             );
         }
 
@@ -186,7 +211,38 @@ mod tests {
         let mut settings = Settings::default_for("/tmp/aoxc".to_string());
         settings.profile = "mainnet".to_string();
         settings.logging.json = true;
+        settings.network.bind_host = "0.0.0.0".to_string();
 
         assert!(settings.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_mainnet_with_relative_home_dir() {
+        let mut settings = Settings::default_for("relative/aoxc".to_string());
+        settings.profile = "mainnet".to_string();
+        settings.logging.json = true;
+        settings.network.bind_host = "0.0.0.0".to_string();
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_mainnet_with_debug_logging() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "mainnet".to_string();
+        settings.logging.json = true;
+        settings.logging.level = "debug".to_string();
+        settings.network.bind_host = "0.0.0.0".to_string();
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_mainnet_with_loopback_bind_host() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "mainnet".to_string();
+        settings.logging.json = true;
+
+        assert!(settings.validate().is_err());
     }
 }

@@ -1,7 +1,7 @@
 use crate::{
     cli_support::{emit_serialized, has_flag, output_format},
     config::loader::load_or_init,
-    data_home::{read_file, resolve_home, write_file},
+    data_home::{file_permissions_are_hardened, read_file, resolve_home, write_file},
     error::{AppError, ErrorCode},
     keys::manager::verify_operator_key,
     node::lifecycle::load_state,
@@ -252,6 +252,20 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
         detail: "Telemetry metrics export is enabled".to_string(),
     });
 
+    let settings_path = home.join("config").join("settings.json");
+    checks.push(permission_check(
+        "settings-file-permissions",
+        &settings_path,
+    )?);
+
+    let operator_key_path = home.join("keys").join("operator_key.json");
+    checks.push(permission_check(
+        "operator-key-permissions",
+        &operator_key_path,
+    )?);
+
+    checks.push(permission_check("genesis-file-permissions", &genesis_path)?);
+
     let verdict = native_verdict(&checks);
 
     let failed_checks = checks
@@ -294,6 +308,22 @@ fn build_report(_redact: bool) -> Result<AuditReport, AppError> {
     })
 }
 
+fn permission_check(name: &'static str, path: &PathBuf) -> Result<Check, AppError> {
+    if !path.exists() {
+        return Ok(Check {
+            name,
+            passed: false,
+            detail: format!("Required sensitive file is missing at {}", path.display()),
+        });
+    }
+
+    Ok(Check {
+        name,
+        passed: file_permissions_are_hardened(path)?,
+        detail: format!("Verified sensitive file permissions for {}", path.display()),
+    })
+}
+
 /// Computes the authoritative native verdict for a set of checks.
 ///
 /// # Security Invariant
@@ -311,6 +341,7 @@ fn native_verdict(checks: &[Check]) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{data_home::write_file, test_support::TestHome};
 
     /// Verifies that the native verdict returns `pass` when every check passes.
     ///
@@ -368,5 +399,30 @@ mod tests {
         std::env::remove_var("AOXC_AI_DISABLE");
 
         assert_eq!(native_verdict(&checks), "fail");
+    }
+
+    #[test]
+    fn permission_check_requires_existing_hardened_sensitive_files() {
+        let home = TestHome::new("permission-check");
+        let target = home.path().join("keys").join("operator_key.json");
+        write_file(&target, "{\"test\":true}").expect("fixture file should be written");
+
+        let check =
+            permission_check("operator-key-permissions", &target).expect("check should succeed");
+
+        assert!(check.passed);
+        assert!(check.detail.contains("Verified sensitive file permissions"));
+    }
+
+    #[test]
+    fn permission_check_fails_when_sensitive_file_is_missing() {
+        let home = TestHome::new("permission-check-missing");
+        let target = home.path().join("keys").join("operator_key.json");
+
+        let check =
+            permission_check("operator-key-permissions", &target).expect("check should succeed");
+
+        assert!(!check.passed);
+        assert!(check.detail.contains("missing"));
     }
 }
