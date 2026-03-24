@@ -1,6 +1,5 @@
 use super::{Block, BlockError, BlockType};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 /// Stable event types emitted by block validation workflows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -42,100 +41,10 @@ pub struct BlockValidationReport {
     pub events: Vec<ValidationEvent>,
 }
 
-/// Global AOXC block-domain error codes for operator dashboards and support workflows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum GlobalErrorCode {
-    AoxcBlk0001,
-    AoxcBlk0002,
-    AoxcBlk0003,
-    AoxcBlk0004,
-    AoxcBlk0005,
-    AoxcBlk0006,
-    AoxcBlk0007,
-    AoxcBlk0008,
-    AoxcBlk0009,
-    AoxcBlk0010,
-    AoxcBlk0011,
-    AoxcBlk0012,
-    AoxcBlk0013,
-    AoxcBlk0014,
-    AoxcBlk0015,
-    AoxcBlk0016,
-    AoxcBlk0017,
-    AoxcBlk0018,
-    AoxcBlk0019,
-    AoxcBlk0020,
-}
-
-impl GlobalErrorCode {
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::AoxcBlk0001 => "AOXC-BLK-0001",
-            Self::AoxcBlk0002 => "AOXC-BLK-0002",
-            Self::AoxcBlk0003 => "AOXC-BLK-0003",
-            Self::AoxcBlk0004 => "AOXC-BLK-0004",
-            Self::AoxcBlk0005 => "AOXC-BLK-0005",
-            Self::AoxcBlk0006 => "AOXC-BLK-0006",
-            Self::AoxcBlk0007 => "AOXC-BLK-0007",
-            Self::AoxcBlk0008 => "AOXC-BLK-0008",
-            Self::AoxcBlk0009 => "AOXC-BLK-0009",
-            Self::AoxcBlk0010 => "AOXC-BLK-0010",
-            Self::AoxcBlk0011 => "AOXC-BLK-0011",
-            Self::AoxcBlk0012 => "AOXC-BLK-0012",
-            Self::AoxcBlk0013 => "AOXC-BLK-0013",
-            Self::AoxcBlk0014 => "AOXC-BLK-0014",
-            Self::AoxcBlk0015 => "AOXC-BLK-0015",
-            Self::AoxcBlk0016 => "AOXC-BLK-0016",
-            Self::AoxcBlk0017 => "AOXC-BLK-0017",
-            Self::AoxcBlk0018 => "AOXC-BLK-0018",
-            Self::AoxcBlk0019 => "AOXC-BLK-0019",
-            Self::AoxcBlk0020 => "AOXC-BLK-0020",
-        }
-    }
-}
-
-/// Canonical proof/evidence metadata for a validation run.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ValidationEvidence {
-    pub schema_version: String,
-    pub ruleset_version: String,
-    pub header_hash_hex: String,
-    pub report_hash_hex: String,
-}
-
-/// Full envelope: machine report + proof metadata + human-friendly text.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ValidationEnvelope {
-    pub report: BlockValidationReport,
-    pub evidence: ValidationEvidence,
-    pub cli_summary: String,
-}
-
 impl BlockValidationReport {
     /// Returns a stable pretty JSON document for desktop/CLI rendering.
     pub fn to_pretty_json(&self) -> Result<String, BlockError> {
         serde_json::to_string_pretty(self).map_err(|_| BlockError::SerializationFailed)
-    }
-
-    /// Human-first text output for non-technical CLI and desktop logs.
-    #[must_use]
-    pub fn to_human_text(&self) -> String {
-        let status = if self.accepted { "KABUL" } else { "RED" };
-        let code = self.primary_error_code.as_deref().unwrap_or("YOK");
-        let mut out = format!(
-            "Durum: {status}\nBlok: #{}\nTür: {:?}\nGörev: {}\nToplam Payload: {} bayt\nAna Hata: {code}\n",
-            self.block_height, self.block_type, self.task_count, self.total_payload_bytes
-        );
-
-        for event in &self.events {
-            out.push_str(&format!(
-                "\n[{:?}] {} - {}\n{}\nAksiyon: {}\n",
-                event.event_type, event.code, event.title, event.message, event.action
-            ));
-        }
-
-        out
     }
 }
 
@@ -279,32 +188,6 @@ pub fn describe_block_error(err: BlockError) -> ErrorDescriptor {
     }
 }
 
-/// Maps internal `BlockError` values to globally stable AOXC error codes.
-#[must_use]
-pub const fn global_error_code(err: BlockError) -> GlobalErrorCode {
-    match err {
-        BlockError::InvalidSystemTime => GlobalErrorCode::AoxcBlk0001,
-        BlockError::ActiveBlockRequiresTasks => GlobalErrorCode::AoxcBlk0002,
-        BlockError::HeartbeatBlockMustNotContainTasks => GlobalErrorCode::AoxcBlk0003,
-        BlockError::EpochPruneBlockMustNotContainTasks => GlobalErrorCode::AoxcBlk0004,
-        BlockError::HeartbeatBlockMustUseZeroStateRoot => GlobalErrorCode::AoxcBlk0005,
-        BlockError::EmptyTaskPayload => GlobalErrorCode::AoxcBlk0006,
-        BlockError::TaskPayloadTooLarge { .. } => GlobalErrorCode::AoxcBlk0007,
-        BlockError::TooManyTasks { .. } => GlobalErrorCode::AoxcBlk0008,
-        BlockError::TotalPayloadTooLarge { .. } => GlobalErrorCode::AoxcBlk0009,
-        BlockError::LengthOverflow => GlobalErrorCode::AoxcBlk0010,
-        BlockError::InvalidBlockHeight => GlobalErrorCode::AoxcBlk0011,
-        BlockError::InvalidPreviousHash => GlobalErrorCode::AoxcBlk0012,
-        BlockError::DuplicateTaskId => GlobalErrorCode::AoxcBlk0013,
-        BlockError::InvalidTimestamp => GlobalErrorCode::AoxcBlk0014,
-        BlockError::InvalidProducer => GlobalErrorCode::AoxcBlk0015,
-        BlockError::InvalidStateRoot => GlobalErrorCode::AoxcBlk0016,
-        BlockError::InvalidTaskRoot => GlobalErrorCode::AoxcBlk0017,
-        BlockError::HashingFailed => GlobalErrorCode::AoxcBlk0019,
-        BlockError::SerializationFailed => GlobalErrorCode::AoxcBlk0020,
-    }
-}
-
 /// Produces a full, user-friendly report for block validation outcomes.
 #[must_use]
 pub fn build_block_validation_report(block: &Block) -> BlockValidationReport {
@@ -331,11 +214,10 @@ pub fn build_block_validation_report(block: &Block) -> BlockValidationReport {
         }
         Err(err) => {
             let desc = describe_block_error(err);
-            let global_code = global_error_code(err);
             primary_error_code = Some(desc.code.to_string());
             events.push(ValidationEvent {
                 event_type: ValidationEventType::Error,
-                code: format!("{} ({})", desc.code, global_code.as_str()),
+                code: desc.code.to_string(),
                 title: desc.title.to_string(),
                 message: format!(
                     "{} Olası neden: {}",
@@ -355,27 +237,6 @@ pub fn build_block_validation_report(block: &Block) -> BlockValidationReport {
         primary_error_code,
         events,
     }
-}
-
-/// Produces full validation evidence for CLI/desktop integrations.
-pub fn build_validation_envelope(block: &Block) -> Result<ValidationEnvelope, BlockError> {
-    let report = build_block_validation_report(block);
-    let report_json = serde_json::to_vec(&report).map_err(|_| BlockError::SerializationFailed)?;
-    let report_hash_hex = format!("{:x}", Sha256::digest(report_json));
-    let header_hash_hex = hex::encode(block.header_hash());
-
-    let evidence = ValidationEvidence {
-        schema_version: "aoxc.block.validation.v1".to_string(),
-        ruleset_version: "aoxc.block.ruleset.v1".to_string(),
-        header_hash_hex,
-        report_hash_hex,
-    };
-
-    Ok(ValidationEnvelope {
-        cli_summary: report.to_human_text(),
-        report,
-        evidence,
-    })
 }
 
 #[cfg(test)]
@@ -421,26 +282,5 @@ mod tests {
             .expect("json serialization must succeed");
         assert!(json.contains("BLOCK_VALIDATION_ACCEPTED"));
         assert!(json.contains("\"accepted\": true"));
-    }
-
-    #[test]
-    fn envelope_contains_global_proof_fields_and_human_summary() {
-        let task = Task::new(
-            bytes32(11),
-            Capability::UserSigned,
-            TargetOutpost::AovmNative,
-            vec![9, 9, 9],
-        )
-        .expect("task should build");
-
-        let block =
-            Block::new_active_with_timestamp(3, 100, ZERO_HASH, bytes32(7), bytes32(6), vec![task])
-                .expect("block should build");
-
-        let envelope = build_validation_envelope(&block).expect("envelope must build");
-        assert_eq!(envelope.evidence.schema_version, "aoxc.block.validation.v1");
-        assert!(!envelope.evidence.header_hash_hex.is_empty());
-        assert!(!envelope.evidence.report_hash_hex.is_empty());
-        assert!(envelope.cli_summary.contains("Durum: KABUL"));
     }
 }

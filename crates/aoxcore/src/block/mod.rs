@@ -19,9 +19,8 @@ pub use hash::{
     hash_header, hash_internal_node, hash_task, hash_task_leaf, try_hash_task, try_hash_task_leaf,
 };
 pub use report::{
-    BlockValidationReport, ErrorDescriptor, GlobalErrorCode, ValidationEnvelope, ValidationEvent,
-    ValidationEventType, build_block_validation_report, build_validation_envelope,
-    describe_block_error, global_error_code,
+    BlockValidationReport, ErrorDescriptor, ValidationEvent, ValidationEventType,
+    build_block_validation_report, describe_block_error,
 };
 
 use serde::{Deserialize, Serialize};
@@ -506,11 +505,6 @@ impl Block {
     #[must_use]
     pub fn validate_with_report(&self) -> BlockValidationReport {
         build_block_validation_report(self)
-    }
-
-    /// Validates the block and returns report + cryptographic evidence fields.
-    pub fn validate_with_evidence(&self) -> Result<ValidationEnvelope, BlockError> {
-        build_validation_envelope(self)
     }
 
     /// Returns `true` if the block contains duplicate task identifiers.
