@@ -6,6 +6,13 @@ use thiserror::Error;
 /// This value is committed into the block header hash in order to preserve
 /// protocol-domain separation across future block format revisions.
 pub const BLOCK_VERSION_V1: u32 = 1;
+pub const CAPABILITY_EXECUTION: u64 = 1 << 0;
+pub const CAPABILITY_IDENTITY: u64 = 1 << 1;
+pub const CAPABILITY_SETTLEMENT: u64 = 1 << 2;
+pub const CAPABILITY_AI_ATTESTATION: u64 = 1 << 3;
+pub const CAPABILITY_PQ_ROTATION: u64 = 1 << 4;
+pub const CAPABILITY_CONSTITUTIONAL: u64 = 1 << 5;
+pub const CAPABILITY_TIME_SEAL: u64 = 1 << 6;
 
 /// Canonical AOXC block.
 ///
@@ -298,4 +305,19 @@ pub enum BlockBuildError {
 
     #[error("section count exceeds supported u64 range")]
     SectionCountOverflow,
+
+    #[error("time seal section has invalid range: valid_from must be <= valid_until")]
+    InvalidTimeSealRange,
+
+    #[error("block timestamp is outside the declared time seal validity window")]
+    TimestampOutsideTimeSealWindow,
+
+    #[error("ai section must provide a non-zero policy hash")]
+    AiSectionMissingPolicyHash,
+
+    #[error("ai section replay nonce must be greater than zero")]
+    AiSectionZeroReplayNonce,
+
+    #[error("post-quantum section must provide a non-zero signature_policy_id")]
+    PostQuantumMissingSignaturePolicy,
 }
