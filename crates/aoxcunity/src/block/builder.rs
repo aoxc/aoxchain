@@ -7,6 +7,7 @@ use crate::block::semantic::{
 };
 use crate::block::types::{
     BLOCK_VERSION_V1, Block, BlockBody, BlockBuildError, BlockHeader, BlockSection,
+    PostQuantumSection, TimeSealSection,
 };
 
 /// Deterministic block construction utility.
@@ -111,6 +112,55 @@ fn canonicalize_body(body: &mut BlockBody) -> Result<(), BlockBuildError> {
     }
 
     body.sections.sort_by_key(canonical_section_sort_key);
+    Ok(())
+}
+
+fn validate_section_semantics(timestamp: u64, body: &BlockBody) -> Result<(), BlockBuildError> {
+    let mut time_seal: Option<&TimeSealSection> = None;
+    let mut pq_section: Option<&PostQuantumSection> = None;
+    let mut ai_section_present = false;
+    let mut ai_policy_hash = [0u8; 32];
+    let mut ai_replay_nonce = 0u64;
+
+    for section in &body.sections {
+        match section {
+            BlockSection::TimeSeal(section) => time_seal = Some(section),
+            BlockSection::PostQuantum(section) => pq_section = Some(section),
+            BlockSection::Ai(section) => {
+                ai_section_present = true;
+                ai_policy_hash = section.policy_hash;
+                ai_replay_nonce = section.replay_nonce;
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(section) = time_seal {
+        if section.valid_from > section.valid_until {
+            return Err(BlockBuildError::InvalidTimeSealRange);
+        }
+
+        if timestamp < section.valid_from || timestamp > section.valid_until {
+            return Err(BlockBuildError::TimestampOutsideTimeSealWindow);
+        }
+    }
+
+    if ai_section_present {
+        if ai_policy_hash == [0u8; 32] {
+            return Err(BlockBuildError::AiSectionMissingPolicyHash);
+        }
+
+        if ai_replay_nonce == 0 {
+            return Err(BlockBuildError::AiSectionZeroReplayNonce);
+        }
+    }
+
+    if let Some(section) = pq_section
+        && section.signature_policy_id == 0
+    {
+        return Err(BlockBuildError::PostQuantumMissingSignaturePolicy);
+    }
+
     Ok(())
 }
 
