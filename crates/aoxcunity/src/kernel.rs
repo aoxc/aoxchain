@@ -177,6 +177,7 @@ struct TimeoutConflictKey {
 pub struct ConsensusEngine {
     pub state: ConsensusState,
     pub network_id: u32,
+    pub signature_scheme: u16,
     pub lock_state: LockState,
     pub current_epoch: u64,
     pub current_height: u64,
@@ -191,14 +192,24 @@ pub struct ConsensusEngine {
 impl ConsensusEngine {
     #[must_use]
     pub fn new(state: ConsensusState) -> Self {
-        Self::with_network_id(state, 2626)
+        Self::with_crypto_profile(state, 2626, 1)
     }
 
     #[must_use]
     pub fn with_network_id(state: ConsensusState, network_id: u32) -> Self {
+        Self::with_crypto_profile(state, network_id, 1)
+    }
+
+    #[must_use]
+    pub fn with_crypto_profile(
+        state: ConsensusState,
+        network_id: u32,
+        signature_scheme: u16,
+    ) -> Self {
         Self {
             state,
             network_id,
+            signature_scheme,
             lock_state: LockState::default(),
             current_epoch: 0,
             current_height: 0,
@@ -493,10 +504,10 @@ impl ConsensusEngine {
 
     fn vote_authentication_context(&self) -> VoteAuthenticationContext {
         VoteAuthenticationContext {
-            network_id: 2626,
+            network_id: self.network_id,
             epoch: self.current_epoch,
             validator_set_root: self.state.rotation.validator_set_hash(),
-            signature_scheme: 1,
+            signature_scheme: self.signature_scheme,
         }
     }
 }
@@ -806,6 +817,57 @@ mod tests {
             result.accepted_effects,
             vec![KernelEffect::BlockFinalized(block.hash)]
         );
+    }
+
+    #[test]
+    fn custom_crypto_profile_is_used_for_execution_certificate_context() {
+        let rotation =
+            ValidatorRotation::new(vec![validator(1, 4), validator(2, 3), validator(3, 3)])
+                .unwrap();
+        let quorum = QuorumThreshold::new(2, 3).unwrap();
+        let state = crate::state::ConsensusState::new(rotation, quorum);
+        let mut engine = ConsensusEngine::with_crypto_profile(state, 4040, 42);
+
+        let genesis = make_block([0u8; 32], 0, [1u8; 32], 0);
+        let block = make_block(genesis.hash, 1, [2u8; 32], 1);
+        let _ = engine.apply_event(ConsensusEvent::AdmitBlock(genesis));
+        let _ = engine.apply_event(ConsensusEvent::AdmitBlock(block.clone()));
+
+        for voter in [1u8, 2u8, 3u8] {
+            let _ = engine.apply_event(ConsensusEvent::AdmitVerifiedVote(VerifiedVote {
+                authenticated_vote: VerifiedAuthenticatedVote {
+                    vote: Vote {
+                        voter: [voter; 32],
+                        block_hash: block.hash,
+                        height: block.header.height,
+                        round: 1,
+                        kind: VoteKind::Commit,
+                    },
+                    context: VoteAuthenticationContext {
+                        network_id: 4040,
+                        epoch: 0,
+                        validator_set_root: engine.state.rotation.validator_set_hash(),
+                        signature_scheme: 42,
+                    },
+                },
+                verification_tag: [voter; 32],
+            }));
+        }
+
+        let result = engine.apply_event(ConsensusEvent::EvaluateFinality {
+            block_hash: block.hash,
+        });
+        let execution = result
+            .emitted_certificates
+            .iter()
+            .find_map(|certificate| match certificate {
+                KernelCertificate::Execution(certificate) => Some(certificate),
+                _ => None,
+            })
+            .expect("execution certificate should be emitted");
+
+        assert_eq!(execution.network_id, 4040);
+        assert_eq!(execution.signature_scheme, 42);
     }
 
     #[test]
