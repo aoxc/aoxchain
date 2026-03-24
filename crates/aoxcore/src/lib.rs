@@ -1,5 +1,6 @@
 // core/src/lib.rs
 
+pub mod asset;
 pub mod block;
 pub mod contract;
 pub mod genesis; // Exported for node visibility
