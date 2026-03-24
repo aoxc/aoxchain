@@ -57,13 +57,6 @@ pub struct BlockHeader {
     pub crypto_epoch: u64,
 }
 
-impl BlockHeader {
-    /// Returns true when the given capability flag is present.
-    pub fn has_capability(&self, capability: u64) -> bool {
-        self.capability_flags & capability != 0
-    }
-}
-
 /// Canonical block body.
 ///
 /// The body is section-based in order to support protocol growth without
