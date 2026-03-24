@@ -194,3 +194,89 @@ uygundur:
 
 Amaç “ağır dependency doldurmak” değil; production-grade işletim ve test
 kabiliyetini kontrollü şekilde artırmaktır.
+
+## 8. Mevcutu silelim mi? (Net öneri)
+
+Kısa cevap: **hayır, mevcut `aoxcunity` bütünüyle silinmemeli**.
+
+Neden:
+
+- modül ayrışması (`quorum`, `rotation`, `vote_pool`, `fork_choice`, `safety`) zaten
+  güçlü bir çekirdek oluşturuyor,
+- tam silme, bugünkü deterministik davranış bilgisini ve test yatırımını kaybettirir,
+- en güvenli yol “rewrite” değil, **orchestrator-merkezli kontrollü refactor** yaklaşımıdır.
+
+Önerilen karar modeli:
+
+1. “Primitive katman” korunur.
+2. Üstüne yeni `ConsensusEngine` katmanı eklenir.
+3. Eski akışlar adapter üzerinden yeni orchestrator'a taşınır.
+4. Her taşımada replay + invariant testleri zorunlu çalıştırılır.
+
+Bu yaklaşım hem hız hem güvenlik hem de release yönetimi için en düşük riskli yoldur.
+
+## 9. Diğer zincirlerden farklılaşma için ileri seviye tasarım fikirleri
+
+### 9.1 Constitutional Finality profili
+
+AOXC'nin farkı yalnızca “hız” olmamalı; **policy-aware finality** olmalıdır.
+Her finalize kararında yalnızca quorum değil, constitutional/policy kanıtı da
+bağlanmalıdır.
+
+Örnek:
+
+- `finality_root` içine sadece block certification değil,
+- governance/policy extension root'ları da dahil edilir,
+- böylece “hangi koşulla finalize oldu?” sorusu zincir üstünden audit edilebilir.
+
+### 9.2 Multi-lane execution ile consensus ayrımı
+
+`aoxcvm` çok-lane vizyonu, consensus tarafında lane-agnostic kalmalıdır:
+
+- consensus yalnızca lane commitment'larını doğrular,
+- lane içi execution semantiği ayrı adapter katmanında kalır,
+- bu ayrım performans optimizasyonunu consensus güvenliğinden bağımsız yapmayı sağlar.
+
+### 9.3 Evidence-first güvenlik
+
+Equivocation, invalid certificate, replay saldırısı gibi olaylar sadece reject
+edilmemeli; **kanıt nesnesine** dönüştürülmelidir.
+
+Öneri:
+
+- evidence üretimi default açık,
+- evidence retention penceresi epoch bazlı,
+- slash/exclusion kararları için makina-okunur evidence export.
+
+## 10. Quantum'a dönük yol haritası (gerçekçi ve uygulanabilir)
+
+Post-quantum hazırlık “hemen algoritma değiştir” değil, **crypto-agility** ile
+başlamalıdır.
+
+### 10.1 Faz Q1 — Crypto-agility (hemen)
+
+- İmza doğrulama için trait tabanlı bir `SignatureScheme` arabirimi.
+- Block header'a `sig_scheme_id` / `cert_scheme_id` alanları.
+- Testlerde birden fazla şema ile aynı consensus akışını koşabilme.
+
+### 10.2 Faz Q2 — Hibrit sertifika dönemi (testnet)
+
+- Klasik + PQ hibrit imza (ör. çift imza) denemeleri testnet'te.
+- Quorum certificate boyutu ve doğrulama maliyeti için benchmark zorunluluğu.
+- Ağ bant genişliği ve storage etkisi için açık SLO eşiği.
+
+### 10.3 Faz Q3 — Geçiş yönetişimi (mainnet öncesi)
+
+- Zincir üstü activation epoch kararı,
+- minimum node sürümü ve rollback politikası,
+- “hybrid fail-open/fail-closed” davranışının önceden ilanı.
+
+### 10.4 Teknik prensip
+
+AOXC için doğru strateji:
+
+- bugünden tam PQ'ya geçmek değil,
+- bugünden **PQ geçişine hazır consensus sözleşmesi** inşa etmektir.
+
+Bu yaklaşım hem performans riskini yönetir hem de gelecekte zorunlu olabilecek
+kriptografik geçişleri kontrollü ve denetlenebilir hale getirir.
