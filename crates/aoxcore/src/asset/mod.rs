@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,14 +83,6 @@ pub enum AssetRegistryError {
     MissingFixedSupply,
     #[error("mint disabled model must use protocol-only authority")]
     InvalidMintAuthorityForMintDisabled,
-    #[error("asset id already exists in registry")]
-    DuplicateAssetId,
-    #[error("asset symbol already exists in registry")]
-    SymbolCollision,
-    #[error("asset not found")]
-    NotFound,
-    #[error("invalid registry state transition")]
-    InvalidRegistryTransition,
 }
 
 impl AssetRegistryEntry {
@@ -150,90 +141,6 @@ fn validate_symbol(value: &str) -> Result<(), AssetRegistryError> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct AssetRegistry {
-    entries: HashMap<[u8; 32], AssetRegistryEntry>,
-    symbol_index: HashMap<String, [u8; 32]>,
-}
-
-impl AssetRegistry {
-    pub fn propose(&mut self, mut entry: AssetRegistryEntry) -> Result<(), AssetRegistryError> {
-        entry.validate()?;
-        entry.status = RegistryStatus::Proposed;
-
-        if self.entries.contains_key(&entry.asset_id) {
-            return Err(AssetRegistryError::DuplicateAssetId);
-        }
-        if self.symbol_index.contains_key(&entry.symbol) {
-            return Err(AssetRegistryError::SymbolCollision);
-        }
-
-        self.symbol_index
-            .insert(entry.symbol.clone(), entry.asset_id);
-        self.entries.insert(entry.asset_id, entry);
-        Ok(())
-    }
-
-    pub fn register(&mut self, asset_id: [u8; 32]) -> Result<(), AssetRegistryError> {
-        self.transition(asset_id, RegistryStatus::Registered)
-    }
-
-    pub fn activate(&mut self, asset_id: [u8; 32]) -> Result<(), AssetRegistryError> {
-        self.transition(asset_id, RegistryStatus::Active)
-    }
-
-    pub fn freeze(&mut self, asset_id: [u8; 32]) -> Result<(), AssetRegistryError> {
-        self.transition(asset_id, RegistryStatus::Frozen)
-    }
-
-    pub fn deprecate(&mut self, asset_id: [u8; 32]) -> Result<(), AssetRegistryError> {
-        self.transition(asset_id, RegistryStatus::Deprecated)
-    }
-
-    pub fn revoke(&mut self, asset_id: [u8; 32]) -> Result<(), AssetRegistryError> {
-        self.transition(asset_id, RegistryStatus::Revoked)
-    }
-
-    #[must_use]
-    pub fn get(&self, asset_id: &[u8; 32]) -> Option<&AssetRegistryEntry> {
-        self.entries.get(asset_id)
-    }
-
-    fn transition(
-        &mut self,
-        asset_id: [u8; 32],
-        next: RegistryStatus,
-    ) -> Result<(), AssetRegistryError> {
-        let entry = self
-            .entries
-            .get_mut(&asset_id)
-            .ok_or(AssetRegistryError::NotFound)?;
-
-        if !is_valid_transition(entry.status, next) {
-            return Err(AssetRegistryError::InvalidRegistryTransition);
-        }
-
-        entry.status = next;
-        Ok(())
-    }
-}
-
-fn is_valid_transition(current: RegistryStatus, next: RegistryStatus) -> bool {
-    match (current, next) {
-        (RegistryStatus::Proposed, RegistryStatus::Registered)
-        | (RegistryStatus::Registered, RegistryStatus::Active)
-        | (RegistryStatus::Active, RegistryStatus::Frozen)
-        | (RegistryStatus::Active, RegistryStatus::Deprecated)
-        | (RegistryStatus::Frozen, RegistryStatus::Active)
-        | (RegistryStatus::Frozen, RegistryStatus::Deprecated)
-        | (RegistryStatus::Deprecated, RegistryStatus::Revoked)
-        | (RegistryStatus::Active, RegistryStatus::Revoked)
-        | (RegistryStatus::Frozen, RegistryStatus::Revoked) => true,
-        _ if current == next => true,
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,36 +190,5 @@ mod tests {
             entry.validate().unwrap_err(),
             AssetRegistryError::MissingFixedSupply
         );
-    }
-
-    #[test]
-    fn registry_enforces_symbol_uniqueness_and_lifecycle() {
-        let mut registry = AssetRegistry::default();
-        let entry = sample();
-        let id = entry.asset_id;
-
-        registry.propose(entry.clone()).unwrap();
-        registry.register(id).unwrap();
-        registry.activate(id).unwrap();
-        registry.freeze(id).unwrap();
-        registry.activate(id).unwrap();
-        registry.deprecate(id).unwrap();
-        registry.revoke(id).unwrap();
-
-        let mut collision = entry;
-        collision.asset_id = [9u8; 32];
-        let err = registry.propose(collision).unwrap_err();
-        assert_eq!(err, AssetRegistryError::SymbolCollision);
-    }
-
-    #[test]
-    fn invalid_transition_is_rejected() {
-        let mut registry = AssetRegistry::default();
-        let entry = sample();
-        let id = entry.asset_id;
-
-        registry.propose(entry).unwrap();
-        let err = registry.activate(id).unwrap_err();
-        assert_eq!(err, AssetRegistryError::InvalidRegistryTransition);
     }
 }

@@ -20,7 +20,6 @@
 - [Deep Technical Analysis](./TEKNIK_DERIN_ANALIZ_TR.md)
 - [Unity Engine Roadmap](./AOXCUNITY_ENGINE_ROADMAP_TR.md)
 - [CMB v1 Constitutional Meta Block Taslağı](./CMB_V1_CONSTITUTIONAL_BLOCK_TR.md)
-- [CMB v1 Final Semantic Audit (TR)](./CMB_V1_FINAL_SEMANTIC_AUDIT_TR.md)
 
 ## 🛠️ Operational Runbooks
 - [Real Chain Runbook](./REAL_CHAIN_RUNBOOK_TR.md)

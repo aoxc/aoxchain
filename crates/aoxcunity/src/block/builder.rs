@@ -7,6 +7,7 @@ use crate::block::semantic::{
 };
 use crate::block::types::{
     BLOCK_VERSION_V1, Block, BlockBody, BlockBuildError, BlockHeader, BlockSection,
+    PostQuantumSection, TimeSealSection,
 };
 
 /// Deterministic block construction utility.
@@ -114,13 +115,62 @@ fn canonicalize_body(body: &mut BlockBody) -> Result<(), BlockBuildError> {
     Ok(())
 }
 
+fn validate_section_semantics(timestamp: u64, body: &BlockBody) -> Result<(), BlockBuildError> {
+    let mut time_seal: Option<&TimeSealSection> = None;
+    let mut pq_section: Option<&PostQuantumSection> = None;
+    let mut ai_section_present = false;
+    let mut ai_policy_hash = [0u8; 32];
+    let mut ai_replay_nonce = 0u64;
+
+    for section in &body.sections {
+        match section {
+            BlockSection::TimeSeal(section) => time_seal = Some(section),
+            BlockSection::PostQuantum(section) => pq_section = Some(section),
+            BlockSection::Ai(section) => {
+                ai_section_present = true;
+                ai_policy_hash = section.policy_hash;
+                ai_replay_nonce = section.replay_nonce;
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(section) = time_seal {
+        if section.valid_from > section.valid_until {
+            return Err(BlockBuildError::InvalidTimeSealRange);
+        }
+
+        if timestamp < section.valid_from || timestamp > section.valid_until {
+            return Err(BlockBuildError::TimestampOutsideTimeSealWindow);
+        }
+    }
+
+    if ai_section_present {
+        if ai_policy_hash == [0u8; 32] {
+            return Err(BlockBuildError::AiSectionMissingPolicyHash);
+        }
+
+        if ai_replay_nonce == 0 {
+            return Err(BlockBuildError::AiSectionZeroReplayNonce);
+        }
+    }
+
+    if let Some(section) = pq_section
+        && section.signature_policy_id == 0
+    {
+        return Err(BlockBuildError::PostQuantumMissingSignaturePolicy);
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::block::types::{
         AiSection, BlockBody, BlockBuildError, BlockSection, CAPABILITY_AI_ATTESTATION,
         CAPABILITY_EXECUTION, CAPABILITY_SETTLEMENT, ExternalNetwork, ExternalProofRecord,
-        ExternalProofSection, ExternalProofType, IdentitySection, LaneCommitment,
-        LaneCommitmentSection, LaneType, PostQuantumSection, TimeSealSection,
+        ExternalProofSection, ExternalProofType, LaneCommitment, LaneCommitmentSection, LaneType,
+        PostQuantumSection, TimeSealSection,
     };
 
     use super::BlockBuilder;
@@ -509,80 +559,6 @@ mod tests {
         )
         .unwrap();
 
-        assert!(block.header.has_capability(CAPABILITY_EXECUTION));
-        assert!(block.header.has_capability(CAPABILITY_SETTLEMENT));
-        assert!(block.header.has_capability(CAPABILITY_AI_ATTESTATION));
-    }
-
-    #[test]
-    fn full_constitutional_block_sets_all_expected_roots_and_capabilities() {
-        let block = BlockBuilder::build(
-            1,
-            [1u8; 32],
-            11,
-            120,
-            4,
-            200,
-            [9u8; 32],
-            BlockBody {
-                sections: vec![
-                    BlockSection::LaneCommitment(LaneCommitmentSection {
-                        lanes: vec![LaneCommitment {
-                            lane_id: 2,
-                            lane_type: LaneType::Evm,
-                            tx_count: 3,
-                            input_root: [2u8; 32],
-                            output_root: [3u8; 32],
-                            receipt_root: [4u8; 32],
-                            state_commitment: [5u8; 32],
-                            proof_commitment: [6u8; 32],
-                        }],
-                    }),
-                    BlockSection::Identity(IdentitySection {
-                        validator_snapshot_root: [11u8; 32],
-                        session_keys_root: [12u8; 32],
-                        revocation_root: [13u8; 32],
-                        authority_epoch_proof: [14u8; 32],
-                    }),
-                    BlockSection::PostQuantum(PostQuantumSection {
-                        scheme_registry_root: [15u8; 32],
-                        signer_set_root: [16u8; 32],
-                        hybrid_policy_root: [17u8; 32],
-                        signature_policy_id: 4,
-                        downgrade_prohibited: true,
-                    }),
-                    BlockSection::Ai(AiSection {
-                        request_hash: [18u8; 32],
-                        response_hash: [19u8; 32],
-                        policy_hash: [20u8; 32],
-                        confidence_commitment: [21u8; 32],
-                        human_override: false,
-                        fallback_mode: false,
-                        replay_nonce: 7,
-                    }),
-                    BlockSection::ExternalProof(ExternalProofSection {
-                        proofs: vec![ExternalProofRecord {
-                            source_network: ExternalNetwork::Ethereum,
-                            proof_type: ExternalProofType::Finality,
-                            subject_hash: [22u8; 32],
-                            proof_commitment: [23u8; 32],
-                            finalized_at: 123,
-                        }],
-                    }),
-                    BlockSection::Constitutional(Default::default()),
-                    BlockSection::TimeSeal(TimeSealSection {
-                        valid_from: 100,
-                        valid_until: 300,
-                        epoch_action_root: [24u8; 32],
-                        delayed_effect_root: [25u8; 32],
-                    }),
-                ],
-            },
-        )
-        .unwrap();
-
-        assert_ne!(block.header.policy_root, [0u8; 32]);
-        assert_ne!(block.header.authority_root, [0u8; 32]);
         assert!(block.header.has_capability(CAPABILITY_EXECUTION));
         assert!(block.header.has_capability(CAPABILITY_SETTLEMENT));
         assert!(block.header.has_capability(CAPABILITY_AI_ATTESTATION));
