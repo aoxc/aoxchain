@@ -59,9 +59,18 @@ impl BlockBuilder {
             timestamp,
             proposer,
             body_root: roots.body_root,
+            finality_root: roots.finality_root,
             authority_root: roots.authority_root,
             lane_root: roots.lane_root,
             proof_root: roots.proof_root,
+            identity_root: roots.identity_root,
+            ai_root: roots.ai_root,
+            pq_root: roots.pq_root,
+            external_settlement_root: roots.external_settlement_root,
+            policy_root: roots.policy_root,
+            time_seal_root: roots.time_seal_root,
+            capability_flags: roots.capability_flags,
+            crypto_epoch: era,
         };
 
         let hash = compute_block_hash(&header);
@@ -79,8 +88,17 @@ fn canonicalize_body(body: &mut BlockBody) -> Result<(), BlockBuildError> {
         }
 
         match section {
+            BlockSection::Execution(execution_section) => execution_section.lanes.sort(),
             BlockSection::LaneCommitment(lane_section) => lane_section.lanes.sort(),
             BlockSection::ExternalProof(proof_section) => proof_section.proofs.sort(),
+            BlockSection::ExternalSettlement(settlement_section) => {
+                settlement_section.settlements.sort()
+            }
+            BlockSection::Identity(_)
+            | BlockSection::PostQuantum(_)
+            | BlockSection::Ai(_)
+            | BlockSection::Constitutional(_)
+            | BlockSection::TimeSeal(_) => {}
         }
     }
 

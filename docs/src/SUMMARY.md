@@ -19,6 +19,7 @@
 - [Real Versioning & Release Roadmap](./AOXC_REAL_VERSIONING_AND_RELEASE_ROADMAP_TR.md)
 - [Deep Technical Analysis](./TEKNIK_DERIN_ANALIZ_TR.md)
 - [Unity Engine Roadmap](./AOXCUNITY_ENGINE_ROADMAP_TR.md)
+- [CMB v1 Constitutional Meta Block Taslağı](./CMB_V1_CONSTITUTIONAL_BLOCK_TR.md)
 
 ## 🛠️ Operational Runbooks
 - [Real Chain Runbook](./REAL_CHAIN_RUNBOOK_TR.md)
