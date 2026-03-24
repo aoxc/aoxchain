@@ -46,3 +46,15 @@ The following audit statements should be reviewed on each significant change.
 - [ ] Confirm malformed and conflicting inputs are rejected.
 - [ ] Confirm verification evidence is attached to the release record.
 - [ ] Confirm documentation reflects current operational assumptions.
+
+## Global Language and Localization Policy
+- Default operator language is English for global interoperability.
+- Block validation reporting supports locale-aware output via `ReportLocale`.
+- CLI/Desktop integrations should use:
+  - `Block::validate_with_report()` for default English output.
+  - `Block::validate_with_report_locale(locale)` for translated report text.
+  - `Block::validate_with_evidence_locale(locale)` for translated report + proof envelope.
+- For custom/global language layers without kernel edits, implement `ReportLanguagePack` and call:
+  - `build_block_validation_report_with_pack(...)`
+  - `build_validation_envelope_with_pack(...)`
+- To add a built-in language, extend `ReportLocale` and the localized mappings in `crates/aoxcore/src/block/report.rs`.
