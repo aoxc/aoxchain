@@ -14,15 +14,6 @@ pub const CAPABILITY_PQ_ROTATION: u64 = 1 << 4;
 pub const CAPABILITY_CONSTITUTIONAL: u64 = 1 << 5;
 pub const CAPABILITY_TIME_SEAL: u64 = 1 << 6;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[repr(u32)]
-pub enum SignaturePolicy {
-    ClassicalOnly = 1,
-    Hybrid = 2,
-    PqPreferred = 3,
-    PqMandatory = 4,
-}
-
 /// Canonical AOXC block.
 ///
 /// Security and design notes:
@@ -64,13 +55,6 @@ pub struct BlockHeader {
     pub time_seal_root: [u8; 32],
     pub capability_flags: u64,
     pub crypto_epoch: u64,
-}
-
-impl BlockHeader {
-    /// Returns true when the given capability flag is present.
-    pub fn has_capability(&self, capability: u64) -> bool {
-        self.capability_flags & capability != 0
-    }
 }
 
 /// Canonical block body.
@@ -336,22 +320,4 @@ pub enum BlockBuildError {
 
     #[error("post-quantum section must provide a non-zero signature_policy_id")]
     PostQuantumMissingSignaturePolicy,
-
-    #[error("post-quantum section signature_policy_id is not in supported range [1..=4]")]
-    PostQuantumInvalidSignaturePolicy,
-
-    #[error("crypto epoch requires pq-mandatory signature policy")]
-    CryptoEpochRequiresPqMandatory,
-
-    #[error("pq-mandatory policy requires downgrade protection")]
-    PqMandatoryRequiresDowngradeProtection,
-
-    #[error("capability flags are inconsistent with body section presence")]
-    CapabilitySectionMismatch,
-
-    #[error("policy_root is not bound to policy-carrying sections")]
-    PolicyRootBindingMismatch,
-
-    #[error("authority_root is not bound to authority-carrying sections")]
-    AuthorityRootBindingMismatch,
 }

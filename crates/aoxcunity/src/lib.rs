@@ -22,8 +22,7 @@ pub use block::{
     ConstitutionalSection, ExecutionLaneRecord, ExecutionSection, ExternalNetwork,
     ExternalProofRecord, ExternalProofSection, ExternalProofType, ExternalSettlementRecord,
     ExternalSettlementSection, IdentitySection, LaneCommitment, LaneCommitmentSection, LaneType,
-    PQ_MANDATORY_START_EPOCH, PostQuantumSection, SignaturePolicy, TimeSealSection,
-    enforce_signature_policy_migration, resolve_signature_policy,
+    PostQuantumSection, TimeSealSection,
 };
 pub use constitutional::{
     ConstitutionalSeal, ContinuityCertificate, ExecutionCertificate, LegitimacyCertificate,

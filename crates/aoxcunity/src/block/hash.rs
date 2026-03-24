@@ -1,9 +1,7 @@
 use sha2::{Digest, Sha256};
 
 use crate::block::types::{
-    AiSection, BlockBody, BlockHeader, BlockSection, CAPABILITY_AI_ATTESTATION,
-    CAPABILITY_CONSTITUTIONAL, CAPABILITY_EXECUTION, CAPABILITY_IDENTITY, CAPABILITY_PQ_ROTATION,
-    CAPABILITY_SETTLEMENT, CAPABILITY_TIME_SEAL, ConstitutionalSection, ExecutionLaneRecord,
+    AiSection, BlockBody, BlockHeader, BlockSection, ConstitutionalSection, ExecutionLaneRecord,
     ExternalNetwork, ExternalProofType, IdentitySection, LaneCommitment, LaneType,
     PostQuantumSection, TimeSealSection,
 };
@@ -89,44 +87,41 @@ pub fn compute_body_roots(body: &BlockBody) -> BodyRoots {
         match section {
             BlockSection::Execution(_) => {
                 lane_hasher.update(section_hash);
-                capability_flags |= CAPABILITY_EXECUTION;
+                capability_flags |= 1 << 0;
             }
             BlockSection::LaneCommitment(_) => {
                 lane_hasher.update(section_hash);
-                capability_flags |= CAPABILITY_EXECUTION;
+                capability_flags |= 1 << 0;
             }
             BlockSection::ExternalProof(_) => {
                 proof_hasher.update(section_hash);
-                capability_flags |= CAPABILITY_SETTLEMENT;
+                capability_flags |= 1 << 2;
             }
             BlockSection::Identity(_) => {
-                authority_hasher.update(section_hash);
                 identity_hasher.update(section_hash);
-                capability_flags |= CAPABILITY_IDENTITY;
+                capability_flags |= 1 << 1;
             }
             BlockSection::PostQuantum(_) => {
-                policy_hasher.update(section_hash);
                 pq_hasher.update(section_hash);
-                capability_flags |= CAPABILITY_PQ_ROTATION;
+                capability_flags |= 1 << 4;
             }
             BlockSection::Ai(_) => {
                 ai_hasher.update(section_hash);
                 policy_hasher.update(section_hash);
-                capability_flags |= CAPABILITY_AI_ATTESTATION;
+                capability_flags |= 1 << 3;
             }
             BlockSection::ExternalSettlement(_) => {
                 external_settlement_hasher.update(section_hash);
-                capability_flags |= CAPABILITY_SETTLEMENT;
+                capability_flags |= 1 << 2;
             }
             BlockSection::Constitutional(_) => {
-                authority_hasher.update(section_hash);
                 finality_hasher.update(section_hash);
                 policy_hasher.update(section_hash);
-                capability_flags |= CAPABILITY_CONSTITUTIONAL;
+                capability_flags |= 1 << 5;
             }
             BlockSection::TimeSeal(_) => {
                 time_seal_hasher.update(section_hash);
-                capability_flags |= CAPABILITY_TIME_SEAL;
+                capability_flags |= 1 << 6;
             }
         }
     }

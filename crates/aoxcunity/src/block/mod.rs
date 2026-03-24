@@ -1,6 +1,5 @@
 pub mod builder;
 pub mod hash;
-pub mod policy_registry;
 pub mod semantic;
 pub mod types;
 
@@ -13,5 +12,5 @@ pub use types::{
     ExecutionLaneRecord, ExecutionSection, ExternalNetwork, ExternalProofRecord,
     ExternalProofSection, ExternalProofType, ExternalSettlementRecord, ExternalSettlementSection,
     IdentitySection, LaneCommitment, LaneCommitmentSection, LaneType, PostQuantumSection,
-    SignaturePolicy, TimeSealSection,
+    TimeSealSection,
 };
