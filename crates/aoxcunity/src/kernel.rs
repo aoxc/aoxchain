@@ -39,6 +39,7 @@ pub struct VerifiedTimeoutVote {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum ConsensusEvent {
     AdmitBlock(Block),
     AdmitVerifiedVote(VerifiedVote),
