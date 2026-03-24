@@ -18,9 +18,12 @@ pub mod vote;
 pub mod vote_pool;
 
 pub use block::{
-    Block, BlockBody, BlockBuildError, BlockBuilder, BlockHeader, BlockSection, ExternalNetwork,
-    ExternalProofRecord, ExternalProofSection, ExternalProofType, LaneCommitment,
-    LaneCommitmentSection, LaneType,
+    AiSection, Block, BlockBody, BlockBuildError, BlockBuilder, BlockHeader, BlockSection,
+    ConstitutionalSection, ExecutionLaneRecord, ExecutionSection, ExternalNetwork,
+    ExternalProofRecord, ExternalProofSection, ExternalProofType, ExternalSettlementRecord,
+    ExternalSettlementSection, IdentitySection, LaneCommitment, LaneCommitmentSection, LaneType,
+    PQ_MANDATORY_START_EPOCH, PostQuantumSection, SignaturePolicy, TimeSealSection,
+    enforce_signature_policy_migration, resolve_signature_policy,
 };
 pub use constitutional::{
     ConstitutionalSeal, ContinuityCertificate, ExecutionCertificate, LegitimacyCertificate,
