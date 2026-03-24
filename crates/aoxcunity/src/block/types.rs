@@ -6,6 +6,13 @@ use thiserror::Error;
 /// This value is committed into the block header hash in order to preserve
 /// protocol-domain separation across future block format revisions.
 pub const BLOCK_VERSION_V1: u32 = 1;
+pub const CAPABILITY_EXECUTION: u64 = 1 << 0;
+pub const CAPABILITY_IDENTITY: u64 = 1 << 1;
+pub const CAPABILITY_SETTLEMENT: u64 = 1 << 2;
+pub const CAPABILITY_AI_ATTESTATION: u64 = 1 << 3;
+pub const CAPABILITY_PQ_ROTATION: u64 = 1 << 4;
+pub const CAPABILITY_CONSTITUTIONAL: u64 = 1 << 5;
+pub const CAPABILITY_TIME_SEAL: u64 = 1 << 6;
 
 /// Canonical AOXC block.
 ///
@@ -36,9 +43,25 @@ pub struct BlockHeader {
     pub timestamp: u64,
     pub proposer: [u8; 32],
     pub body_root: [u8; 32],
+    pub finality_root: [u8; 32],
     pub authority_root: [u8; 32],
     pub lane_root: [u8; 32],
     pub proof_root: [u8; 32],
+    pub identity_root: [u8; 32],
+    pub ai_root: [u8; 32],
+    pub pq_root: [u8; 32],
+    pub external_settlement_root: [u8; 32],
+    pub policy_root: [u8; 32],
+    pub time_seal_root: [u8; 32],
+    pub capability_flags: u64,
+    pub crypto_epoch: u64,
+}
+
+impl BlockHeader {
+    /// Returns true when the given capability flag is present.
+    pub fn has_capability(&self, capability: u64) -> bool {
+        self.capability_flags & capability != 0
+    }
 }
 
 /// Canonical block body.
@@ -58,17 +81,39 @@ pub struct BlockBody {
 /// duplication or ordering.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockSection {
+    Execution(ExecutionSection),
     LaneCommitment(LaneCommitmentSection),
     ExternalProof(ExternalProofSection),
+    Identity(IdentitySection),
+    PostQuantum(PostQuantumSection),
+    Ai(AiSection),
+    ExternalSettlement(ExternalSettlementSection),
+    Constitutional(ConstitutionalSection),
+    TimeSeal(TimeSealSection),
 }
 
 impl BlockSection {
     pub fn discriminant(&self) -> u8 {
         match self {
-            Self::LaneCommitment(_) => 0,
-            Self::ExternalProof(_) => 1,
+            Self::Execution(_) => 0,
+            Self::LaneCommitment(_) => 1,
+            Self::ExternalProof(_) => 2,
+            Self::Identity(_) => 3,
+            Self::PostQuantum(_) => 4,
+            Self::Ai(_) => 5,
+            Self::ExternalSettlement(_) => 6,
+            Self::Constitutional(_) => 7,
+            Self::TimeSeal(_) => 8,
         }
     }
+}
+
+/// Execution section.
+///
+/// Captures lane-oriented execution summaries as deterministic commitments.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ExecutionSection {
+    pub lanes: Vec<ExecutionLaneRecord>,
 }
 
 /// Lane commitment section.
@@ -88,6 +133,86 @@ pub struct LaneCommitmentSection {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct ExternalProofSection {
     pub proofs: Vec<ExternalProofRecord>,
+}
+
+/// Identity section.
+///
+/// Carries authority and identity commitments without embedding key material.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct IdentitySection {
+    pub validator_snapshot_root: [u8; 32],
+    pub session_keys_root: [u8; 32],
+    pub revocation_root: [u8; 32],
+    pub authority_epoch_proof: [u8; 32],
+}
+
+/// Post-quantum section.
+///
+/// Carries signature-policy commitments for crypto migration epochs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct PostQuantumSection {
+    pub scheme_registry_root: [u8; 32],
+    pub signer_set_root: [u8; 32],
+    pub hybrid_policy_root: [u8; 32],
+    pub signature_policy_id: u32,
+    pub downgrade_prohibited: bool,
+}
+
+/// AI attestation section.
+///
+/// Stores attestable decision commitments, not full prompts/responses.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct AiSection {
+    pub request_hash: [u8; 32],
+    pub response_hash: [u8; 32],
+    pub policy_hash: [u8; 32],
+    pub confidence_commitment: [u8; 32],
+    pub human_override: bool,
+    pub fallback_mode: bool,
+    pub replay_nonce: u64,
+}
+
+/// External settlement section.
+///
+/// Captures settled cross-network outcomes and admission proofs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ExternalSettlementSection {
+    pub settlements: Vec<ExternalSettlementRecord>,
+}
+
+/// Constitutional section.
+///
+/// Carries constitutional certificates as fixed commitments.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ConstitutionalSection {
+    pub legitimacy_certificate_hash: [u8; 32],
+    pub continuity_certificate_hash: [u8; 32],
+    pub execution_certificate_hash: [u8; 32],
+    pub constitutional_seal_hash: [u8; 32],
+}
+
+/// Time seal section.
+///
+/// Defines block validity envelope and delayed-effect commitments.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct TimeSealSection {
+    pub valid_from: u64,
+    pub valid_until: u64,
+    pub epoch_action_root: [u8; 32],
+    pub delayed_effect_root: [u8; 32],
+}
+
+/// Execution lane record for the execution section.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+pub struct ExecutionLaneRecord {
+    pub lane_id: u32,
+    pub lane_type: LaneType,
+    pub tx_count: u32,
+    pub gas_commitment: [u8; 32],
+    pub fee_commitment: [u8; 32],
+    pub input_root: [u8; 32],
+    pub output_root: [u8; 32],
+    pub receipt_root: [u8; 32],
 }
 
 /// Lane-level commitment record.
@@ -135,6 +260,16 @@ pub struct ExternalProofRecord {
     pub finalized_at: u64,
 }
 
+/// External settlement record admitted into a block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+pub struct ExternalSettlementRecord {
+    pub source_network: ExternalNetwork,
+    pub checkpoint_hash: [u8; 32],
+    pub settlement_commitment: [u8; 32],
+    pub admission_proof_commitment: [u8; 32],
+    pub finalized_at: u64,
+}
+
 /// Supported external network families.
 ///
 /// This list can grow without changing the core block model.
@@ -177,4 +312,19 @@ pub enum BlockBuildError {
 
     #[error("section count exceeds supported u64 range")]
     SectionCountOverflow,
+
+    #[error("time seal section has invalid range: valid_from must be <= valid_until")]
+    InvalidTimeSealRange,
+
+    #[error("block timestamp is outside the declared time seal validity window")]
+    TimestampOutsideTimeSealWindow,
+
+    #[error("ai section must provide a non-zero policy hash")]
+    AiSectionMissingPolicyHash,
+
+    #[error("ai section replay nonce must be greater than zero")]
+    AiSectionZeroReplayNonce,
+
+    #[error("post-quantum section must provide a non-zero signature_policy_id")]
+    PostQuantumMissingSignaturePolicy,
 }

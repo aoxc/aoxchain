@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::block::hash::{canonical_section_sort_key, compute_block_hash, compute_body_roots};
+use crate::block::semantic::validate_block_semantics;
 use crate::block::types::{
     BLOCK_VERSION_V1, Block, BlockBody, BlockBuildError, BlockHeader, BlockSection,
 };
@@ -46,6 +47,7 @@ impl BlockBuilder {
             .map_err(|_| BlockBuildError::SectionCountOverflow)?;
 
         canonicalize_body(&mut body)?;
+        validate_block_semantics(timestamp, &body)?;
 
         let roots = compute_body_roots(&body);
 
@@ -59,9 +61,18 @@ impl BlockBuilder {
             timestamp,
             proposer,
             body_root: roots.body_root,
+            finality_root: roots.finality_root,
             authority_root: roots.authority_root,
             lane_root: roots.lane_root,
             proof_root: roots.proof_root,
+            identity_root: roots.identity_root,
+            ai_root: roots.ai_root,
+            pq_root: roots.pq_root,
+            external_settlement_root: roots.external_settlement_root,
+            policy_root: roots.policy_root,
+            time_seal_root: roots.time_seal_root,
+            capability_flags: roots.capability_flags,
+            crypto_epoch: era,
         };
 
         let hash = compute_block_hash(&header);
@@ -79,8 +90,17 @@ fn canonicalize_body(body: &mut BlockBody) -> Result<(), BlockBuildError> {
         }
 
         match section {
+            BlockSection::Execution(execution_section) => execution_section.lanes.sort(),
             BlockSection::LaneCommitment(lane_section) => lane_section.lanes.sort(),
             BlockSection::ExternalProof(proof_section) => proof_section.proofs.sort(),
+            BlockSection::ExternalSettlement(settlement_section) => {
+                settlement_section.settlements.sort()
+            }
+            BlockSection::Identity(_)
+            | BlockSection::PostQuantum(_)
+            | BlockSection::Ai(_)
+            | BlockSection::Constitutional(_)
+            | BlockSection::TimeSeal(_) => {}
         }
     }
 
@@ -91,8 +111,10 @@ fn canonicalize_body(body: &mut BlockBody) -> Result<(), BlockBuildError> {
 #[cfg(test)]
 mod tests {
     use crate::block::types::{
-        BlockBody, BlockBuildError, BlockSection, ExternalNetwork, ExternalProofRecord,
+        AiSection, BlockBody, BlockBuildError, BlockSection, CAPABILITY_AI_ATTESTATION,
+        CAPABILITY_EXECUTION, CAPABILITY_SETTLEMENT, ExternalNetwork, ExternalProofRecord,
         ExternalProofSection, ExternalProofType, LaneCommitment, LaneCommitmentSection, LaneType,
+        PostQuantumSection, TimeSealSection,
     };
 
     use super::BlockBuilder;
@@ -303,5 +325,133 @@ mod tests {
 
         let err = BlockBuilder::build(1, [0u8; 32], 0, 0, 0, 1, [7u8; 32], body).unwrap_err();
         assert_eq!(err, BlockBuildError::DuplicateSectionType);
+    }
+
+    #[test]
+    fn validates_time_seal_window() {
+        let error = BlockBuilder::build(
+            1,
+            [0u8; 32],
+            1,
+            1,
+            1,
+            100,
+            [1u8; 32],
+            BlockBody {
+                sections: vec![BlockSection::TimeSeal(TimeSealSection {
+                    valid_from: 200,
+                    valid_until: 300,
+                    epoch_action_root: [1u8; 32],
+                    delayed_effect_root: [2u8; 32],
+                })],
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error, BlockBuildError::TimestampOutsideTimeSealWindow);
+    }
+
+    #[test]
+    fn validates_ai_policy_and_nonce() {
+        let error = BlockBuilder::build(
+            1,
+            [0u8; 32],
+            1,
+            1,
+            1,
+            100,
+            [1u8; 32],
+            BlockBody {
+                sections: vec![BlockSection::Ai(AiSection {
+                    request_hash: [1u8; 32],
+                    response_hash: [2u8; 32],
+                    policy_hash: [0u8; 32],
+                    confidence_commitment: [3u8; 32],
+                    human_override: false,
+                    fallback_mode: false,
+                    replay_nonce: 0,
+                })],
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error, BlockBuildError::AiSectionMissingPolicyHash);
+    }
+
+    #[test]
+    fn validates_post_quantum_signature_policy_id() {
+        let error = BlockBuilder::build(
+            1,
+            [0u8; 32],
+            1,
+            1,
+            1,
+            100,
+            [1u8; 32],
+            BlockBody {
+                sections: vec![BlockSection::PostQuantum(PostQuantumSection {
+                    scheme_registry_root: [1u8; 32],
+                    signer_set_root: [2u8; 32],
+                    hybrid_policy_root: [3u8; 32],
+                    signature_policy_id: 0,
+                    downgrade_prohibited: true,
+                })],
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error, BlockBuildError::PostQuantumMissingSignaturePolicy);
+    }
+
+    #[test]
+    fn header_capabilities_are_exposed_via_helper() {
+        let block = BlockBuilder::build(
+            1,
+            [0u8; 32],
+            3,
+            2,
+            1,
+            100,
+            [1u8; 32],
+            BlockBody {
+                sections: vec![
+                    BlockSection::LaneCommitment(LaneCommitmentSection {
+                        lanes: vec![LaneCommitment {
+                            lane_id: 1,
+                            lane_type: LaneType::Native,
+                            tx_count: 1,
+                            input_root: [1u8; 32],
+                            output_root: [2u8; 32],
+                            receipt_root: [3u8; 32],
+                            state_commitment: [4u8; 32],
+                            proof_commitment: [5u8; 32],
+                        }],
+                    }),
+                    BlockSection::ExternalProof(ExternalProofSection {
+                        proofs: vec![ExternalProofRecord {
+                            source_network: ExternalNetwork::Ethereum,
+                            proof_type: ExternalProofType::Finality,
+                            subject_hash: [6u8; 32],
+                            proof_commitment: [7u8; 32],
+                            finalized_at: 99,
+                        }],
+                    }),
+                    BlockSection::Ai(AiSection {
+                        request_hash: [10u8; 32],
+                        response_hash: [11u8; 32],
+                        policy_hash: [12u8; 32],
+                        confidence_commitment: [13u8; 32],
+                        human_override: false,
+                        fallback_mode: false,
+                        replay_nonce: 1,
+                    }),
+                ],
+            },
+        )
+        .unwrap();
+
+        assert!(block.header.has_capability(CAPABILITY_EXECUTION));
+        assert!(block.header.has_capability(CAPABILITY_SETTLEMENT));
+        assert!(block.header.has_capability(CAPABILITY_AI_ATTESTATION));
     }
 }
