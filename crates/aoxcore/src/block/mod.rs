@@ -28,6 +28,9 @@ pub const MAX_TASKS_PER_BLOCK: usize = 1_024;
 /// Maximum payload size allowed for a single task in bytes.
 pub const MAX_TASK_PAYLOAD_BYTES: usize = 64 * 1024;
 
+/// Maximum aggregate payload size allowed in a single active block.
+pub const MAX_BLOCK_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
+
 /// Canonical zero state root used by heartbeat blocks.
 pub const ZERO_STATE_ROOT: [u8; 32] = [0u8; 32];
 
@@ -360,8 +363,26 @@ impl Block {
                     return Err(BlockError::ActiveBlockRequiresTasks);
                 }
 
+                let mut seen_ids: HashSet<[u8; 32]> = HashSet::with_capacity(self.tasks.len());
+                let mut total_payload = 0usize;
+
                 for task in &self.tasks {
                     task.validate()?;
+
+                    if !seen_ids.insert(task.task_id) {
+                        return Err(BlockError::DuplicateTaskId);
+                    }
+
+                    total_payload = total_payload
+                        .checked_add(task.payload_len())
+                        .ok_or(BlockError::LengthOverflow)?;
+                }
+
+                if total_payload > MAX_BLOCK_PAYLOAD_BYTES {
+                    return Err(BlockError::TotalPayloadTooLarge {
+                        size: total_payload,
+                        max: MAX_BLOCK_PAYLOAD_BYTES,
+                    });
                 }
             }
             BlockType::Heartbeat => {
@@ -729,17 +750,45 @@ mod tests {
     fn duplicate_task_id_detection_works() {
         let task = valid_task();
 
-        let block = Block::new_active_with_timestamp(
+        let result = Block::new_active_with_timestamp(
             1,
             100,
             bytes32(10),
             bytes32(20),
             bytes32(30),
             vec![task.clone(), task],
-        )
-        .expect("block construction should still succeed under current compatibility policy");
+        );
 
-        assert!(block.has_duplicate_task_ids());
+        assert_eq!(result, Err(BlockError::DuplicateTaskId));
+    }
+
+    #[test]
+    fn active_block_with_excessive_total_payload_is_rejected() {
+        let payload = vec![7u8; MAX_TASK_PAYLOAD_BYTES];
+        let mut tasks = Vec::new();
+
+        for i in 0..65u8 {
+            tasks.push(
+                Task::new(
+                    bytes32(i),
+                    Capability::UserSigned,
+                    TargetOutpost::AovmNative,
+                    payload.clone(),
+                )
+                .expect("task must construct"),
+            );
+        }
+
+        let result =
+            Block::new_active_with_timestamp(1, 100, bytes32(10), bytes32(20), bytes32(30), tasks);
+
+        assert_eq!(
+            result,
+            Err(BlockError::TotalPayloadTooLarge {
+                size: 65 * MAX_TASK_PAYLOAD_BYTES,
+                max: MAX_BLOCK_PAYLOAD_BYTES,
+            })
+        );
     }
 
     #[test]
