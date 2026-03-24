@@ -51,6 +51,7 @@ impl BlockBuilder {
         validate_section_semantics(timestamp, &body)?;
 
         let roots = compute_body_roots(&body);
+        validate_capability_section_alignment(&body, roots.capability_flags)?;
 
         let header = BlockHeader {
             version: BLOCK_VERSION_V1,
