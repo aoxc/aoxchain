@@ -54,7 +54,4 @@ The following audit statements should be reviewed on each significant change.
   - `Block::validate_with_report()` for default English output.
   - `Block::validate_with_report_locale(locale)` for translated report text.
   - `Block::validate_with_evidence_locale(locale)` for translated report + proof envelope.
-- For custom/global language layers without kernel edits, implement `ReportLanguagePack` and call:
-  - `build_block_validation_report_with_pack(...)`
-  - `build_validation_envelope_with_pack(...)`
-- To add a built-in language, extend `ReportLocale` and the localized mappings in `crates/aoxcore/src/block/report.rs`.
+- To add a new language, extend localized strings in `crates/aoxcore/src/block/report.rs` by following the `localized(locale, en, tr)` pattern and adding a new `ReportLocale` variant.

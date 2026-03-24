@@ -19,12 +19,8 @@ pub use hash::{
     hash_header, hash_internal_node, hash_task, hash_task_leaf, try_hash_task, try_hash_task_leaf,
 };
 pub use report::{
-    BlockValidationReport, DefaultReportLanguagePack, ErrorDescriptor, GlobalErrorCode,
-    ReportLanguagePack, ReportLocale, ValidationEnvelope, ValidationEvent, ValidationEventType,
-    build_block_validation_report, build_block_validation_report_with_locale,
-    build_block_validation_report_with_pack, build_validation_envelope,
-    build_validation_envelope_with_locale, build_validation_envelope_with_pack,
-    describe_block_error, describe_block_error_with_locale, global_error_code,
+    BlockValidationReport, ErrorDescriptor, ValidationEvent, ValidationEventType,
+    build_block_validation_report, describe_block_error,
 };
 
 use serde::{Deserialize, Serialize};
@@ -509,25 +505,6 @@ impl Block {
     #[must_use]
     pub fn validate_with_report(&self) -> BlockValidationReport {
         build_block_validation_report(self)
-    }
-
-    /// Localized report variant (English default + easy i18n extensions).
-    #[must_use]
-    pub fn validate_with_report_locale(&self, locale: ReportLocale) -> BlockValidationReport {
-        build_block_validation_report_with_locale(self, locale)
-    }
-
-    /// Validates the block and returns report + cryptographic evidence fields.
-    pub fn validate_with_evidence(&self) -> Result<ValidationEnvelope, BlockError> {
-        build_validation_envelope(self)
-    }
-
-    /// Localized evidence variant for CLI/Desktop integrations.
-    pub fn validate_with_evidence_locale(
-        &self,
-        locale: ReportLocale,
-    ) -> Result<ValidationEnvelope, BlockError> {
-        build_validation_envelope_with_locale(self, locale)
     }
 
     /// Returns `true` if the block contains duplicate task identifiers.
