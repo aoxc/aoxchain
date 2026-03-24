@@ -8,6 +8,7 @@
 pub mod assembly;
 pub mod error;
 pub mod hash;
+pub mod report;
 
 pub use assembly::{
     AssemblyError, AssemblyLane, AssemblyLaneCommitment, CanonicalBlockAssemblyPlan,
@@ -16,6 +17,10 @@ pub use error::BlockError;
 pub use hash::{
     HASH_FORMAT_VERSION, HASH_SIZE, ZERO_HASH, calculate_task_root, compute_hash, empty_task_root,
     hash_header, hash_internal_node, hash_task, hash_task_leaf, try_hash_task, try_hash_task_leaf,
+};
+pub use report::{
+    BlockValidationReport, ErrorDescriptor, ValidationEvent, ValidationEventType,
+    build_block_validation_report, describe_block_error,
 };
 
 use serde::{Deserialize, Serialize};
@@ -494,6 +499,12 @@ impl Block {
     /// Returns the canonical task-root commitment.
     pub fn try_task_root(&self) -> Result<[u8; 32], BlockError> {
         self.task_root()
+    }
+
+    /// Validates the block and returns a serializable, operator-friendly report.
+    #[must_use]
+    pub fn validate_with_report(&self) -> BlockValidationReport {
+        build_block_validation_report(self)
     }
 
     /// Returns `true` if the block contains duplicate task identifiers.
