@@ -4,7 +4,9 @@ pub mod types;
 
 pub use builder::BlockBuilder;
 pub use types::{
-    Block, BlockBody, BlockBuildError, BlockHeader, BlockSection, ExternalNetwork,
-    ExternalProofRecord, ExternalProofSection, ExternalProofType, LaneCommitment,
-    LaneCommitmentSection, LaneType,
+    AiSection, Block, BlockBody, BlockBuildError, BlockHeader, BlockSection, ConstitutionalSection,
+    ExecutionLaneRecord, ExecutionSection, ExternalNetwork, ExternalProofRecord,
+    ExternalProofSection, ExternalProofType, ExternalSettlementRecord, ExternalSettlementSection,
+    IdentitySection, LaneCommitment, LaneCommitmentSection, LaneType, PostQuantumSection,
+    TimeSealSection,
 };
