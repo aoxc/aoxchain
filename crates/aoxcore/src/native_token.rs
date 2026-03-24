@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::asset::SupplyModel;
 use crate::receipts::{Event, HASH_SIZE, Receipt};
 
 /// Native AOXC token symbol.
@@ -16,6 +17,7 @@ pub const EVENT_NATIVE_MINT: u16 = 0x1002;
 pub const ERROR_CODE_SUPPLY_OVERFLOW: u16 = 0x2001;
 pub const ERROR_CODE_BALANCE_OVERFLOW: u16 = 0x2002;
 pub const ERROR_CODE_INSUFFICIENT_BALANCE: u16 = 0x2003;
+pub const ERROR_CODE_MINT_DISABLED: u16 = 0x2004;
 
 /// Domain errors for the native token ledger.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +25,7 @@ pub enum NativeTokenError {
     SupplyOverflow,
     BalanceOverflow,
     InsufficientBalance,
+    MintDisabledPolicy,
 }
 
 impl std::fmt::Display for NativeTokenError {
@@ -31,6 +34,7 @@ impl std::fmt::Display for NativeTokenError {
             Self::SupplyOverflow => write!(f, "native token supply overflow"),
             Self::BalanceOverflow => write!(f, "native token balance overflow"),
             Self::InsufficientBalance => write!(f, "insufficient native token balance"),
+            Self::MintDisabledPolicy => write!(f, "native token mint disabled by supply policy"),
         }
     }
 }
@@ -42,7 +46,7 @@ impl std::error::Error for NativeTokenError {}
 pub struct NativeTokenPolicy {
     pub symbol: String,
     pub decimals: u8,
-    pub mintable: bool,
+    pub supply_model: SupplyModel,
 }
 
 impl Default for NativeTokenPolicy {
@@ -50,8 +54,20 @@ impl Default for NativeTokenPolicy {
         Self {
             symbol: NATIVE_TOKEN_SYMBOL.to_string(),
             decimals: 18,
-            mintable: true,
+            supply_model: SupplyModel::GovernedEmission,
         }
+    }
+}
+
+impl NativeTokenPolicy {
+    #[must_use]
+    pub const fn allows_mint(&self) -> bool {
+        matches!(
+            self.supply_model,
+            SupplyModel::GovernedEmission
+                | SupplyModel::ProgrammaticEmission
+                | SupplyModel::TreasuryAuthorizedEmission
+        )
     }
 }
 
@@ -79,6 +95,10 @@ impl NativeTokenLedger {
     }
 
     pub fn mint(&mut self, to: [u8; 32], amount: u128) -> Result<(), NativeTokenError> {
+        if !self.policy.allows_mint() {
+            return Err(NativeTokenError::MintDisabledPolicy);
+        }
+
         self.total_supply = self
             .total_supply
             .checked_add(amount)
@@ -151,6 +171,7 @@ impl NativeTokenLedger {
             NativeTokenError::SupplyOverflow => ERROR_CODE_SUPPLY_OVERFLOW,
             NativeTokenError::BalanceOverflow => ERROR_CODE_BALANCE_OVERFLOW,
             NativeTokenError::InsufficientBalance => ERROR_CODE_INSUFFICIENT_BALANCE,
+            NativeTokenError::MintDisabledPolicy => ERROR_CODE_MINT_DISABLED,
         };
         Receipt::failure(tx_hash, 0, error_code)
     }
@@ -222,5 +243,16 @@ mod tests {
             error_receipt.error_code,
             Some(ERROR_CODE_INSUFFICIENT_BALANCE)
         );
+    }
+
+    #[test]
+    fn mint_is_rejected_when_supply_model_disables_mint() {
+        let mut ledger = NativeTokenLedger::new(NativeTokenPolicy {
+            supply_model: SupplyModel::MintDisabled,
+            ..NativeTokenPolicy::default()
+        });
+
+        let err = ledger.mint(addr(1), 10).unwrap_err();
+        assert_eq!(err, NativeTokenError::MintDisabledPolicy);
     }
 }
