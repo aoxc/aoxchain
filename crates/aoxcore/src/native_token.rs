@@ -69,11 +69,6 @@ impl NativeTokenPolicy {
                 | SupplyModel::TreasuryAuthorizedEmission
         )
     }
-
-    #[must_use]
-    pub fn is_canonical_native(&self) -> bool {
-        self.symbol == NATIVE_TOKEN_SYMBOL && self.decimals == 18
-    }
 }
 
 /// Minimal in-memory native token ledger.
@@ -259,11 +254,5 @@ mod tests {
 
         let err = ledger.mint(addr(1), 10).unwrap_err();
         assert_eq!(err, NativeTokenError::MintDisabledPolicy);
-    }
-
-    #[test]
-    fn default_policy_is_canonical_native() {
-        let policy = NativeTokenPolicy::default();
-        assert!(policy.is_canonical_native());
     }
 }

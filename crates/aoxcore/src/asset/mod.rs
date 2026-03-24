@@ -1,15 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use thiserror::Error;
-
-use crate::receipts::{Event, HASH_SIZE, Receipt};
-
-pub const EVENT_ASSET_PROPOSED: u16 = 0x3001;
-pub const EVENT_ASSET_REGISTERED: u16 = 0x3002;
-pub const EVENT_ASSET_ACTIVATED: u16 = 0x3003;
-pub const EVENT_ASSET_FROZEN: u16 = 0x3004;
-pub const EVENT_ASSET_DEPRECATED: u16 = 0x3005;
-pub const EVENT_ASSET_REVOKED: u16 = 0x3006;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssetClass {
@@ -56,25 +46,6 @@ pub enum RiskGrade {
     Critical,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CertificateKind {
-    Admission,
-    Activation,
-    Freeze,
-    Deprecation,
-    Revocation,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RegistryCertificate {
-    pub kind: CertificateKind,
-    pub epoch: u64,
-    pub policy_hash: [u8; 32],
-    pub signer_set_root: [u8; 32],
-    pub signature_commitment: [u8; 32],
-    pub quorum_weight_bps: u16,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssetRegistryEntry {
     pub asset_id: [u8; 32],
@@ -112,24 +83,6 @@ pub enum AssetRegistryError {
     MissingFixedSupply,
     #[error("mint disabled model must use protocol-only authority")]
     InvalidMintAuthorityForMintDisabled,
-    #[error("asset id already exists in registry")]
-    DuplicateAssetId,
-    #[error("asset symbol already exists in registry")]
-    SymbolCollision,
-    #[error("asset not found")]
-    NotFound,
-    #[error("invalid registry state transition")]
-    InvalidRegistryTransition,
-    #[error("registry certificate policy hash does not match asset policy hash")]
-    CertificatePolicyMismatch,
-    #[error("registry certificate signer set root is missing")]
-    MissingCertificateSignerSet,
-    #[error("registry certificate signature commitment is missing")]
-    MissingCertificateSignature,
-    #[error("registry certificate quorum is below required threshold")]
-    InsufficientCertificateQuorum,
-    #[error("registry certificate kind does not match operation")]
-    CertificateKindMismatch,
 }
 
 impl AssetRegistryEntry {
@@ -188,215 +141,6 @@ fn validate_symbol(value: &str) -> Result<(), AssetRegistryError> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct AssetRegistry {
-    entries: HashMap<[u8; 32], AssetRegistryEntry>,
-    symbol_index: HashMap<String, [u8; 32]>,
-}
-
-impl AssetRegistry {
-    pub fn propose(&mut self, mut entry: AssetRegistryEntry) -> Result<(), AssetRegistryError> {
-        entry.validate()?;
-        entry.status = RegistryStatus::Proposed;
-
-        if self.entries.contains_key(&entry.asset_id) {
-            return Err(AssetRegistryError::DuplicateAssetId);
-        }
-        if self.symbol_index.contains_key(&entry.symbol) {
-            return Err(AssetRegistryError::SymbolCollision);
-        }
-
-        self.symbol_index
-            .insert(entry.symbol.clone(), entry.asset_id);
-        self.entries.insert(entry.asset_id, entry);
-        Ok(())
-    }
-
-    pub fn propose_with_receipt(
-        &mut self,
-        tx_hash: [u8; HASH_SIZE],
-        entry: AssetRegistryEntry,
-    ) -> Result<Receipt, AssetRegistryError> {
-        let id = entry.asset_id;
-        self.propose(entry)?;
-        Ok(success_receipt(tx_hash, EVENT_ASSET_PROPOSED, id))
-    }
-
-    pub fn register(
-        &mut self,
-        asset_id: [u8; 32],
-        cert: &RegistryCertificate,
-    ) -> Result<(), AssetRegistryError> {
-        self.transition(asset_id, RegistryStatus::Registered, cert)
-    }
-
-    pub fn register_with_receipt(
-        &mut self,
-        tx_hash: [u8; HASH_SIZE],
-        asset_id: [u8; 32],
-        cert: &RegistryCertificate,
-    ) -> Result<Receipt, AssetRegistryError> {
-        self.register(asset_id, cert)?;
-        Ok(success_receipt(tx_hash, EVENT_ASSET_REGISTERED, asset_id))
-    }
-
-    pub fn activate(
-        &mut self,
-        asset_id: [u8; 32],
-        cert: &RegistryCertificate,
-    ) -> Result<(), AssetRegistryError> {
-        self.transition(asset_id, RegistryStatus::Active, cert)
-    }
-
-    pub fn activate_with_receipt(
-        &mut self,
-        tx_hash: [u8; HASH_SIZE],
-        asset_id: [u8; 32],
-        cert: &RegistryCertificate,
-    ) -> Result<Receipt, AssetRegistryError> {
-        self.activate(asset_id, cert)?;
-        Ok(success_receipt(tx_hash, EVENT_ASSET_ACTIVATED, asset_id))
-    }
-
-    pub fn freeze(
-        &mut self,
-        asset_id: [u8; 32],
-        cert: &RegistryCertificate,
-    ) -> Result<(), AssetRegistryError> {
-        self.transition(asset_id, RegistryStatus::Frozen, cert)
-    }
-
-    pub fn freeze_with_receipt(
-        &mut self,
-        tx_hash: [u8; HASH_SIZE],
-        asset_id: [u8; 32],
-        cert: &RegistryCertificate,
-    ) -> Result<Receipt, AssetRegistryError> {
-        self.freeze(asset_id, cert)?;
-        Ok(success_receipt(tx_hash, EVENT_ASSET_FROZEN, asset_id))
-    }
-
-    pub fn deprecate(
-        &mut self,
-        asset_id: [u8; 32],
-        cert: &RegistryCertificate,
-    ) -> Result<(), AssetRegistryError> {
-        self.transition(asset_id, RegistryStatus::Deprecated, cert)
-    }
-
-    pub fn deprecate_with_receipt(
-        &mut self,
-        tx_hash: [u8; HASH_SIZE],
-        asset_id: [u8; 32],
-        cert: &RegistryCertificate,
-    ) -> Result<Receipt, AssetRegistryError> {
-        self.deprecate(asset_id, cert)?;
-        Ok(success_receipt(tx_hash, EVENT_ASSET_DEPRECATED, asset_id))
-    }
-
-    pub fn revoke(
-        &mut self,
-        asset_id: [u8; 32],
-        cert: &RegistryCertificate,
-    ) -> Result<(), AssetRegistryError> {
-        self.transition(asset_id, RegistryStatus::Revoked, cert)
-    }
-
-    pub fn revoke_with_receipt(
-        &mut self,
-        tx_hash: [u8; HASH_SIZE],
-        asset_id: [u8; 32],
-        cert: &RegistryCertificate,
-    ) -> Result<Receipt, AssetRegistryError> {
-        self.revoke(asset_id, cert)?;
-        Ok(success_receipt(tx_hash, EVENT_ASSET_REVOKED, asset_id))
-    }
-
-    #[must_use]
-    pub fn get(&self, asset_id: &[u8; 32]) -> Option<&AssetRegistryEntry> {
-        self.entries.get(asset_id)
-    }
-
-    fn transition(
-        &mut self,
-        asset_id: [u8; 32],
-        next: RegistryStatus,
-        cert: &RegistryCertificate,
-    ) -> Result<(), AssetRegistryError> {
-        let entry = self
-            .entries
-            .get_mut(&asset_id)
-            .ok_or(AssetRegistryError::NotFound)?;
-
-        validate_certificate(entry, next, cert)?;
-
-        if !is_valid_transition(entry.status, next) {
-            return Err(AssetRegistryError::InvalidRegistryTransition);
-        }
-
-        entry.status = next;
-        Ok(())
-    }
-}
-
-fn is_valid_transition(current: RegistryStatus, next: RegistryStatus) -> bool {
-    match (current, next) {
-        (RegistryStatus::Proposed, RegistryStatus::Registered)
-        | (RegistryStatus::Registered, RegistryStatus::Active)
-        | (RegistryStatus::Active, RegistryStatus::Frozen)
-        | (RegistryStatus::Active, RegistryStatus::Deprecated)
-        | (RegistryStatus::Frozen, RegistryStatus::Active)
-        | (RegistryStatus::Frozen, RegistryStatus::Deprecated)
-        | (RegistryStatus::Deprecated, RegistryStatus::Revoked)
-        | (RegistryStatus::Active, RegistryStatus::Revoked)
-        | (RegistryStatus::Frozen, RegistryStatus::Revoked) => true,
-        _ if current == next => true,
-        _ => false,
-    }
-}
-
-fn success_receipt(tx_hash: [u8; HASH_SIZE], event_type: u16, asset_id: [u8; 32]) -> Receipt {
-    let mut receipt = Receipt::success(tx_hash, 0);
-    receipt.push_event(Event {
-        event_type,
-        data: asset_id.to_vec(),
-    });
-    receipt
-}
-
-fn validate_certificate(
-    entry: &AssetRegistryEntry,
-    next: RegistryStatus,
-    cert: &RegistryCertificate,
-) -> Result<(), AssetRegistryError> {
-    let expected_kind = match next {
-        RegistryStatus::Registered => CertificateKind::Admission,
-        RegistryStatus::Active => CertificateKind::Activation,
-        RegistryStatus::Frozen => CertificateKind::Freeze,
-        RegistryStatus::Deprecated => CertificateKind::Deprecation,
-        RegistryStatus::Revoked => CertificateKind::Revocation,
-        RegistryStatus::Proposed => return Err(AssetRegistryError::CertificateKindMismatch),
-    };
-
-    if cert.kind != expected_kind {
-        return Err(AssetRegistryError::CertificateKindMismatch);
-    }
-    if cert.policy_hash != entry.policy_hash {
-        return Err(AssetRegistryError::CertificatePolicyMismatch);
-    }
-    if cert.signer_set_root == [0u8; 32] {
-        return Err(AssetRegistryError::MissingCertificateSignerSet);
-    }
-    if cert.signature_commitment == [0u8; 32] {
-        return Err(AssetRegistryError::MissingCertificateSignature);
-    }
-    if cert.quorum_weight_bps < 6700 {
-        return Err(AssetRegistryError::InsufficientCertificateQuorum);
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -418,17 +162,6 @@ mod tests {
             risk_grade: RiskGrade::Medium,
             status: RegistryStatus::Registered,
             created_at_epoch: 1,
-        }
-    }
-
-    fn cert(kind: CertificateKind, policy_hash: [u8; 32]) -> RegistryCertificate {
-        RegistryCertificate {
-            kind,
-            epoch: 1,
-            policy_hash,
-            signer_set_root: [8u8; 32],
-            signature_commitment: [9u8; 32],
-            quorum_weight_bps: 7000,
         }
     }
 
@@ -457,88 +190,5 @@ mod tests {
             entry.validate().unwrap_err(),
             AssetRegistryError::MissingFixedSupply
         );
-    }
-
-    #[test]
-    fn registry_enforces_symbol_uniqueness_and_lifecycle() {
-        let mut registry = AssetRegistry::default();
-        let entry = sample();
-        let id = entry.asset_id;
-        let policy_hash = entry.policy_hash;
-
-        registry.propose(entry.clone()).unwrap();
-        registry
-            .register(id, &cert(CertificateKind::Admission, policy_hash))
-            .unwrap();
-        registry
-            .activate(id, &cert(CertificateKind::Activation, policy_hash))
-            .unwrap();
-        registry
-            .freeze(id, &cert(CertificateKind::Freeze, policy_hash))
-            .unwrap();
-        registry
-            .activate(id, &cert(CertificateKind::Activation, policy_hash))
-            .unwrap();
-        registry
-            .deprecate(id, &cert(CertificateKind::Deprecation, policy_hash))
-            .unwrap();
-        registry
-            .revoke(id, &cert(CertificateKind::Revocation, policy_hash))
-            .unwrap();
-
-        let mut collision = entry;
-        collision.asset_id = [9u8; 32];
-        let err = registry.propose(collision).unwrap_err();
-        assert_eq!(err, AssetRegistryError::SymbolCollision);
-    }
-
-    #[test]
-    fn invalid_transition_is_rejected() {
-        let mut registry = AssetRegistry::default();
-        let entry = sample();
-        let id = entry.asset_id;
-        let policy_hash = entry.policy_hash;
-
-        registry.propose(entry).unwrap();
-        let err = registry
-            .activate(id, &cert(CertificateKind::Activation, policy_hash))
-            .unwrap_err();
-        assert_eq!(err, AssetRegistryError::InvalidRegistryTransition);
-    }
-
-    #[test]
-    fn invalid_certificate_quorum_is_rejected() {
-        let mut registry = AssetRegistry::default();
-        let entry = sample();
-        let id = entry.asset_id;
-        let policy_hash = entry.policy_hash;
-        registry.propose(entry).unwrap();
-
-        let mut weak = cert(CertificateKind::Admission, policy_hash);
-        weak.quorum_weight_bps = 5100;
-        let err = registry.register(id, &weak).unwrap_err();
-        assert_eq!(err, AssetRegistryError::InsufficientCertificateQuorum);
-    }
-
-    #[test]
-    fn registry_emits_lifecycle_receipts() {
-        let mut registry = AssetRegistry::default();
-        let entry = sample();
-        let id = entry.asset_id;
-        let policy_hash = entry.policy_hash;
-
-        let proposed = registry
-            .propose_with_receipt([1u8; HASH_SIZE], entry)
-            .unwrap();
-        assert_eq!(proposed.events[0].event_type, EVENT_ASSET_PROPOSED);
-
-        let registered = registry
-            .register_with_receipt(
-                [2u8; HASH_SIZE],
-                id,
-                &cert(CertificateKind::Admission, policy_hash),
-            )
-            .unwrap();
-        assert_eq!(registered.events[0].event_type, EVENT_ASSET_REGISTERED);
     }
 }
