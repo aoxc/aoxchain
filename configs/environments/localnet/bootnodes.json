@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "environment": "localnet",
+  "identity": {
+    "chain_name": "AOXC LOCALNET ATLAS",
+    "network_class": "localnet",
+    "network_serial": "2626-900",
+    "chain_id": 2626900001,
+    "network_id": "aoxc-localnet-2626-900"
+  },
+  "bootnodes": [
+    {
+      "node_id": "aoxc-boot-localnet-atlas-001",
+      "display_name": "AOXC Localnet Atlas Bootnode 001",
+      "transport_key_algorithm": "ed25519",
+      "transport_public_key_encoding": "hex",
+      "transport_public_key": "aoxc_transport_pk_localnet_atlas_001_pending_real_value",
+      "transport_key_fingerprint": "aoxc_transport_fp_localnet_atlas_001_pending_real_value",
+      "address": "REPLACE_WITH_REAL_BOOTNODE_ADDRESS",
+      "transport": "tcp",
+      "status": "active"
+    },
+    {
+      "node_id": "aoxc-boot-localnet-boreal-001",
+      "display_name": "AOXC Localnet Boreal Bootnode 001",
+      "transport_key_algorithm": "ed25519",
+      "transport_public_key_encoding": "hex",
+      "transport_public_key": "aoxc_transport_pk_localnet_boreal_001_pending_real_value",
+      "transport_key_fingerprint": "aoxc_transport_fp_localnet_boreal_001_pending_real_value",
+      "address": "REPLACE_WITH_REAL_BOOTNODE_ADDRESS",
+      "transport": "tcp",
+      "status": "active"
+    },
+    {
+      "node_id": "aoxc-boot-localnet-cypher-001",
+      "display_name": "AOXC Localnet Cypher Bootnode 001",
+      "transport_key_algorithm": "ed25519",
+      "transport_public_key_encoding": "hex",
+      "transport_public_key": "aoxc_transport_pk_localnet_cypher_001_pending_real_value",
+      "transport_key_fingerprint": "aoxc_transport_fp_localnet_cypher_001_pending_real_value",
+      "address": "REPLACE_WITH_REAL_BOOTNODE_ADDRESS",
+      "transport": "tcp",
+      "status": "active"
+    },
+    {
+      "node_id": "aoxc-boot-localnet-delta-001",
+      "display_name": "AOXC Localnet Delta Bootnode 001",
+      "transport_key_algorithm": "ed25519",
+      "transport_public_key_encoding": "hex",
+      "transport_public_key": "aoxc_transport_pk_localnet_delta_001_pending_real_value",
+      "transport_key_fingerprint": "aoxc_transport_fp_localnet_delta_001_pending_real_value",
+      "address": "REPLACE_WITH_REAL_BOOTNODE_ADDRESS",
+      "transport": "tcp",
+      "status": "active"
+    },
+    {
+      "node_id": "aoxc-boot-localnet-ember-001",
+      "display_name": "AOXC Localnet Ember Bootnode 001",
+      "transport_key_algorithm": "ed25519",
+      "transport_public_key_encoding": "hex",
+      "transport_public_key": "aoxc_transport_pk_localnet_ember_001_pending_real_value",
+      "transport_key_fingerprint": "aoxc_transport_fp_localnet_ember_001_pending_real_value",
+      "address": "REPLACE_WITH_REAL_BOOTNODE_ADDRESS",
+      "transport": "tcp",
+      "status": "active"
+    }
+  ]
+}
