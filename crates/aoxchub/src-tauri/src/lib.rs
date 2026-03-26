@@ -310,8 +310,9 @@ fn load_control_center_snapshot() -> AppResult<ControlCenterSnapshot> {
             ReadinessTrack {
                 name: "Testnet readiness".to_string(),
                 percent: testnet_percent,
-                summary: "Testnet should close non-mainnet blockers and sustain AOXHub/core parity."
-                    .to_string(),
+                summary:
+                    "Testnet should close non-mainnet blockers and sustain AOXHub/core parity."
+                        .to_string(),
                 status: status_from_percent(testnet_percent).to_string(),
             },
             ReadinessTrack {
@@ -1637,10 +1638,10 @@ fn is_safe_token(input: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        capture_area_progress, capture_manifest_package_name, config_value, desktop_percent,
-        list_entry_count, parse_area_progress, parse_percent_from_line, risk_level_for,
-        workspace_members, CommandExecutionRequest, DesktopAction, EnvironmentKind, NodeControl,
-        ReportAsset, RiskLevel,
+        CommandExecutionRequest, DesktopAction, EnvironmentKind, NodeControl, ReportAsset,
+        RiskLevel, capture_area_progress, capture_manifest_package_name, config_value,
+        desktop_percent, list_entry_count, parse_area_progress, parse_percent_from_line,
+        risk_level_for, workspace_members,
     };
 
     #[test]

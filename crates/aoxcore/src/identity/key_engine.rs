@@ -1,5 +1,5 @@
 use rand::RngExt;
-use sha3::{Digest, Sha3_512};
+use sha3::{Digest, Sha3_256, Sha3_512};
 use std::fmt;
 
 use super::hd_path::HdPath;
@@ -10,11 +10,20 @@ const AOXC_KEY_DOMAIN: &[u8] = b"AOXC-KEY-DERIVATION-V1";
 /// Domain separator used for key-engine fingerprint derivation.
 const AOXC_KEY_FINGERPRINT_DOMAIN: &[u8] = b"AOXC-KEY-ENGINE-FINGERPRINT-V1";
 
+/// Domain separator used for role-scoped seed derivation.
+const AOXC_ROLE_SEED_DOMAIN: &[u8] = b"AOXC-ROLE-SEED-V1";
+
 /// Canonical master-seed size in bytes.
 pub const MASTER_SEED_LEN: usize = 64;
 
 /// Canonical derived entropy size in bytes.
 pub const DERIVED_ENTROPY_LEN: usize = 64;
+
+/// Canonical role-seed length in bytes.
+///
+/// This helper output is intended for downstream algorithms that prefer
+/// compact deterministic seed material.
+pub const ROLE_SEED_LEN: usize = 32;
 
 /// Canonical coin type used by AOXC HD derivation.
 ///
@@ -32,6 +41,9 @@ pub enum KeyEngineError {
 
     /// The derived entropy length was not equal to the canonical output size.
     InvalidEntropyLength,
+
+    /// The supplied role label was operationally invalid.
+    EmptyRoleLabel,
 }
 
 impl KeyEngineError {
@@ -41,6 +53,7 @@ impl KeyEngineError {
         match self {
             Self::InvalidPath => "KEY_ENGINE_INVALID_PATH",
             Self::InvalidEntropyLength => "KEY_ENGINE_INVALID_ENTROPY_LENGTH",
+            Self::EmptyRoleLabel => "KEY_ENGINE_EMPTY_ROLE_LABEL",
         }
     }
 }
@@ -56,6 +69,9 @@ impl fmt::Display for KeyEngineError {
                     f,
                     "key derivation failed: derived entropy length is invalid"
                 )
+            }
+            Self::EmptyRoleLabel => {
+                write!(f, "key derivation failed: role label must not be empty")
             }
         }
     }
@@ -199,6 +215,20 @@ impl KeyEngine {
         self.try_derive_entropy(path)
     }
 
+    /// Derives compact role-scoped seed material from an existing canonical
+    /// path-scoped entropy output.
+    ///
+    /// This helper is intended for downstream algorithms that prefer a compact
+    /// deterministic 32-byte seed rather than a 64-byte entropy surface.
+    pub fn derive_role_seed(
+        &self,
+        path: &HdPath,
+        role_label: &str,
+    ) -> Result<[u8; ROLE_SEED_LEN], KeyEngineError> {
+        let material = self.derive_key_material(path)?;
+        derive_role_seed_from_material(&material, role_label)
+    }
+
     /// Derives a stable engine fingerprint from the master seed.
     ///
     /// This helper is suitable for diagnostics and audit references, but is not
@@ -218,11 +248,34 @@ impl KeyEngine {
     }
 }
 
+/// Derives a compact role-scoped 32-byte seed from AOXC key material.
+pub fn derive_role_seed_from_material(
+    material: &[u8; DERIVED_ENTROPY_LEN],
+    role_label: &str,
+) -> Result<[u8; ROLE_SEED_LEN], KeyEngineError> {
+    if role_label.trim().is_empty() {
+        return Err(KeyEngineError::EmptyRoleLabel);
+    }
+
+    let mut hasher = Sha3_256::new();
+    hasher.update(AOXC_ROLE_SEED_DOMAIN);
+    hasher.update([0x00]);
+    hasher.update(role_label.as_bytes());
+    hasher.update([0x00]);
+    hasher.update(material);
+
+    let digest = hasher.finalize();
+
+    let mut out = [0u8; ROLE_SEED_LEN];
+    out.copy_from_slice(&digest[..ROLE_SEED_LEN]);
+
+    Ok(out)
+}
+
 /// Validates an HD path before entropy derivation.
 ///
 /// Current policy:
 /// - the path must not be the all-zero vector;
-/// - the path must not use the AOXC reserved purpose value as a regular field;
 /// - zero values are individually allowed except for the fully ambiguous all-zero case.
 fn validate_hd_path(path: &HdPath) -> Result<(), KeyEngineError> {
     if path.chain == 0 && path.role == 0 && path.zone == 0 && path.index == 0 {
@@ -356,5 +409,35 @@ mod tests {
             .expect("entropy derivation must succeed");
 
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn role_seed_derivation_is_deterministic() {
+        let engine = KeyEngine::from_seed(sample_seed());
+        let path = sample_path();
+
+        let a = engine
+            .derive_role_seed(&path, "consensus")
+            .expect("role seed derivation must succeed");
+        let b = engine
+            .derive_role_seed(&path, "consensus")
+            .expect("role seed derivation must succeed");
+
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn role_seed_derivation_changes_by_label() {
+        let engine = KeyEngine::from_seed(sample_seed());
+        let path = sample_path();
+
+        let a = engine
+            .derive_role_seed(&path, "consensus")
+            .expect("role seed derivation must succeed");
+        let b = engine
+            .derive_role_seed(&path, "transport")
+            .expect("role seed derivation must succeed");
+
+        assert_ne!(a, b);
     }
 }

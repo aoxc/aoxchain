@@ -15,15 +15,8 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use super::config::{
-    AOXCANDSeal,
-    AOXC_FAMILY_ID,
-    ChainIdentity,
-    GenesisAccount,
-    GenesisConfig,
-    GenesisConfigError,
-    NetworkClass,
-    SettlementLink,
-    Validator,
+    AOXC_FAMILY_ID, AOXCANDSeal, ChainIdentity, GenesisAccount, GenesisConfig, GenesisConfigError,
+    NetworkClass, SettlementLink, Validator,
 };
 
 /// Canonical treasury account identifier used by the default genesis builder.
@@ -121,8 +114,8 @@ impl GenesisLoader {
             )));
         }
 
-        let config: GenesisConfig =
-            serde_json::from_str(&data).map_err(|error| GenesisError::ParseError(error.to_string()))?;
+        let config: GenesisConfig = serde_json::from_str(&data)
+            .map_err(|error| GenesisError::ParseError(error.to_string()))?;
 
         config.validate()?;
         Ok(config)
@@ -360,7 +353,8 @@ mod tests {
 
     #[test]
     fn load_default_testnet_builds_aoxc_testnet_identity() {
-        let config = GenesisLoader::load_default_testnet().expect("default testnet genesis must build");
+        let config =
+            GenesisLoader::load_default_testnet().expect("default testnet genesis must build");
 
         assert_eq!(config.identity.family_id, AOXC_FAMILY_ID);
         assert_eq!(config.identity.chain_id, 2626010001);
