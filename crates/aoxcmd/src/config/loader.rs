@@ -8,7 +8,7 @@ use std::path::PathBuf;
 /// Returns the canonical AOXC CLI settings path.
 ///
 /// The loader intentionally stores the effective CLI settings document under:
-/// `<home>/config/settings.json`
+/// `<home>/config/settings.json`.
 ///
 /// This location is treated as the operator-facing runtime settings surface
 /// and is validated before persistence and after loading.
@@ -113,43 +113,112 @@ pub fn persist(settings: &Settings) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        fs,
+        path::PathBuf,
+        sync::{Mutex, OnceLock},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn unique_home(label: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+
+        std::env::temp_dir().join(format!("aoxcmd-loader-{label}-{nanos}"))
+    }
+
+    fn with_test_home<T>(label: &str, test: impl FnOnce() -> T) -> T {
+        let _guard = test_lock()
+            .lock()
+            .expect("loader test mutex should not be poisoned");
+
+        let home = unique_home(label);
+        fs::create_dir_all(&home).expect("test home directory should be created");
+
+        let previous_home = std::env::var_os("AOXC_HOME");
+        std::env::set_var("AOXC_HOME", &home);
+
+        let result = test();
+
+        match previous_home {
+            Some(value) => std::env::set_var("AOXC_HOME", value),
+            None => std::env::remove_var("AOXC_HOME"),
+        }
+
+        let _ = fs::remove_dir_all(&home);
+        result
+    }
 
     #[test]
     fn settings_path_points_to_config_settings_json() {
-        let path = settings_path().expect("settings path must resolve");
-        let rendered = path.display().to_string();
+        with_test_home("settings-path", || {
+            let path = settings_path().expect("settings path must resolve");
+            let rendered = path.display().to_string();
 
-        assert!(rendered.ends_with("config/settings.json"));
+            assert!(rendered.ends_with("config/settings.json"));
+        });
     }
 
     #[test]
     fn init_default_creates_validation_profile_settings() {
-        let settings = init_default().expect("default settings initialization must succeed");
-        assert_eq!(settings.profile, "validation");
+        with_test_home("init-default", || {
+            let settings = init_default().expect("default settings initialization must succeed");
+            assert_eq!(settings.profile, "validation");
+        });
     }
 
     #[test]
     fn init_for_profile_accepts_validation_alias() {
-        let settings = init_for_profile("validator")
-            .expect("legacy validator alias initialization must succeed");
-        assert_eq!(settings.profile, "validation");
+        with_test_home("init-validator-alias", || {
+            let settings = init_for_profile("validator")
+                .expect("legacy validator alias initialization must succeed");
+            assert_eq!(settings.profile, "validation");
+        });
     }
 
     #[test]
     fn persist_roundtrip_preserves_settings() {
-        let original = Settings::default_for("/tmp/aoxc-loader".to_string());
+        with_test_home("persist-roundtrip", || {
+            let home = resolve_home().expect("test home should resolve");
+            let original = Settings::default_for(home.display().to_string());
 
-        persist(&original).expect("settings persistence must succeed");
-        let loaded = load().expect("settings load must succeed");
+            persist(&original).expect("settings persistence must succeed");
+            let loaded = load().expect("settings load must succeed");
 
-        assert_eq!(original, loaded);
+            assert_eq!(original, loaded);
+        });
     }
 
     #[test]
     fn load_or_init_for_profile_initializes_requested_profile_when_missing() {
-        let settings =
-            load_or_init_for_profile("devnet").expect("profile-aware load or init must succeed");
+        with_test_home("load-or-init-devnet", || {
+            let settings = load_or_init_for_profile("devnet")
+                .expect("profile-aware load or init must succeed");
 
-        assert_eq!(settings.profile, "devnet");
+            assert_eq!(settings.profile, "devnet");
+        });
+    }
+
+    #[test]
+    fn load_or_init_for_profile_returns_existing_settings_without_overwriting_profile() {
+        with_test_home("load-existing-profile", || {
+            let home = resolve_home().expect("test home should resolve");
+            let existing = Settings::default_for_profile(home.display().to_string(), "testnet")
+                .expect("test fixture settings must be created");
+
+            persist(&existing).expect("existing settings fixture must persist");
+
+            let loaded = load_or_init_for_profile("devnet")
+                .expect("existing configuration should load successfully");
+
+            assert_eq!(loaded.profile, "testnet");
+        });
     }
 }

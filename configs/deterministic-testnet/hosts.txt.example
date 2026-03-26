@@ -1,0 +1,7 @@
+# AOXC distributed deterministic testnet hosts template
+# One hostname or IP per line.
+# Replace placeholders before executing scripts/validation/multi_host_validation.sh
+
+validator-1.example.net
+validator-2.example.net
+validator-3.example.net
