@@ -168,7 +168,8 @@ impl ChainIdentity {
         class_instance_ordinal: u32,
         chain_name: impl Into<String>,
     ) -> Result<Self, GenesisConfigError> {
-        if governance_serial_ordinal == 0 || governance_serial_ordinal > MAX_NETWORK_SERIAL_ORDINAL {
+        if governance_serial_ordinal == 0 || governance_serial_ordinal > MAX_NETWORK_SERIAL_ORDINAL
+        {
             return Err(GenesisConfigError::InvalidNetworkSerialOrdinal {
                 value: governance_serial_ordinal,
             });
@@ -301,7 +302,9 @@ impl GenesisConfig {
     }
 
     /// Returns a canonical public mainnet identity helper.
-    pub fn mainnet_identity(chain_name: impl Into<String>) -> Result<ChainIdentity, GenesisConfigError> {
+    pub fn mainnet_identity(
+        chain_name: impl Into<String>,
+    ) -> Result<ChainIdentity, GenesisConfigError> {
         ChainIdentity::new(
             AOXC_FAMILY_ID,
             NetworkClass::PublicMainnet,
@@ -312,7 +315,9 @@ impl GenesisConfig {
     }
 
     /// Returns a canonical public testnet identity helper.
-    pub fn testnet_identity(chain_name: impl Into<String>) -> Result<ChainIdentity, GenesisConfigError> {
+    pub fn testnet_identity(
+        chain_name: impl Into<String>,
+    ) -> Result<ChainIdentity, GenesisConfigError> {
         ChainIdentity::new(
             AOXC_FAMILY_ID,
             NetworkClass::PublicTestnet,
@@ -508,12 +513,27 @@ pub enum GenesisConfigError {
     EmptyValidators,
     EmptyAccounts,
     MalformedNetworkSerial,
-    InvalidNetworkSerialOrdinal { value: u16 },
-    InvalidClassInstanceOrdinal { value: u32 },
-    InvalidDerivedChainIdOrdinal { value: u64 },
-    NetworkSerialFamilyMismatch { expected: u32, actual: u32 },
-    NetworkIdMismatch { expected: String, actual: String },
-    ChainIdPrefixMismatch { expected_prefix: u64, actual_prefix: u64 },
+    InvalidNetworkSerialOrdinal {
+        value: u16,
+    },
+    InvalidClassInstanceOrdinal {
+        value: u32,
+    },
+    InvalidDerivedChainIdOrdinal {
+        value: u64,
+    },
+    NetworkSerialFamilyMismatch {
+        expected: u32,
+        actual: u32,
+    },
+    NetworkIdMismatch {
+        expected: String,
+        actual: String,
+    },
+    ChainIdPrefixMismatch {
+        expected_prefix: u64,
+        actual_prefix: u64,
+    },
 }
 
 impl fmt::Display for GenesisConfigError {
@@ -528,15 +548,15 @@ impl fmt::Display for GenesisConfigError {
             Self::InvalidBlockTime => {
                 f.write_str("genesis configuration validation failed: block_time must be non-zero")
             }
-            Self::EmptyValidators => {
-                f.write_str("genesis configuration validation failed: validator set must not be empty")
-            }
-            Self::EmptyAccounts => {
-                f.write_str("genesis configuration validation failed: account set must not be empty")
-            }
-            Self::MalformedNetworkSerial => {
-                f.write_str("genesis configuration validation failed: network_serial format is invalid")
-            }
+            Self::EmptyValidators => f.write_str(
+                "genesis configuration validation failed: validator set must not be empty",
+            ),
+            Self::EmptyAccounts => f.write_str(
+                "genesis configuration validation failed: account set must not be empty",
+            ),
+            Self::MalformedNetworkSerial => f.write_str(
+                "genesis configuration validation failed: network_serial format is invalid",
+            ),
             Self::InvalidNetworkSerialOrdinal { value } => {
                 write!(
                     f,
