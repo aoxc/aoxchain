@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "certificate_kind": "aoxc-environment-certificate",
+  "environment": "localnet",
+  "identity": {
+    "chain_name": "AOXC LOCALNET ATLAS",
+    "network_class": "localnet",
+    "network_serial": "2626-900",
+    "chain_id": 2626900001,
+    "network_id": "aoxc-localnet-2626-900"
+  },
+  "certificate": {
+    "status": "active",
+    "issuer": "AOXC Local Development Authority",
+    "subject": "AOXC LOCALNET ATLAS Environment Bundle",
+    "certificate_serial": "AOXC-CERT-LOCALNET-2626-900",
+    "issued_at": "REPLACE_WITH_UTC_TIMESTAMP",
+    "expires_at": null,
+    "fingerprint_sha256": "REPLACE_WITH_REAL_CERTIFICATE_FINGERPRINT",
+    "signature_algorithm": "ed25519",
+    "signature": "REPLACE_WITH_REAL_SIGNATURE"
+  },
+  "bundle_binding": {
+    "manifest_file": "manifest.v1.json",
+    "genesis_file": "genesis.v1.json",
+    "genesis_hash_file": "genesis.v1.sha256",
+    "accounts_file": "accounts.json",
+    "validators_file": "validators.json",
+    "bootnodes_file": "bootnodes.json",
+    "profile_file": "profile.toml",
+    "release_policy_file": "release-policy.toml"
+  },
+  "metadata": {
+    "description": "Canonical AOXC deterministic local multi-node environment certificate.",
+    "status": "active"
+  }
+}

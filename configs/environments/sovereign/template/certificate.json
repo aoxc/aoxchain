@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "certificate_kind": "aoxc-environment-certificate",
+  "environment": "sovereign-template",
+  "identity": {
+    "chain_name": "AOXC SOVEREIGN PRIVATE TEMPLATE",
+    "network_class": "sovereign_private",
+    "network_serial": "2626-150",
+    "chain_id": 2626100001,
+    "network_id": "aoxc-sovereign-private-2626-150"
+  },
+  "certificate": {
+    "status": "template",
+    "issuer": "AOXC Release Authority",
+    "subject": "AOXC Sovereign Private Template Bundle",
+    "certificate_serial": "AOXC-CERT-SOVEREIGN-TEMPLATE-2626-150",
+    "issued_at": "REPLACE_WITH_UTC_TIMESTAMP",
+    "expires_at": null,
+    "fingerprint_sha256": "REPLACE_WITH_TEMPLATE_CERTIFICATE_FINGERPRINT",
+    "signature_algorithm": "ed25519",
+    "signature": "REPLACE_WITH_TEMPLATE_SIGNATURE"
+  },
+  "bundle_binding": {
+    "manifest_file": "manifest.v1.json",
+    "genesis_file": "genesis.v1.json",
+    "genesis_hash_file": "genesis.v1.sha256",
+    "validators_file": "validators.json",
+    "bootnodes_file": "bootnodes.json",
+    "profile_file": "profile.toml",
+    "release_policy_file": "release-policy.toml"
+  },
+  "metadata": {
+    "description": "Canonical AOXC sovereign private template certificate.",
+    "status": "template"
+  }
+}
