@@ -1,0 +1,32 @@
+# AOXC Release Policy - Devnet
+
+[policy]
+schema_version = 1
+environment = "devnet"
+display_name = "AOXC KIVILCIM"
+release_tier = "development"
+status = "active"
+
+[identity]
+family_id = 2626
+network_serial = "2626-003"
+chain_id = 2626020001
+network_id = "aoxc-devnet-2626-003"
+
+[gates]
+require_fmt = true
+require_clippy = false
+require_tests = true
+require_manifest_validation = true
+require_genesis_hash_validation = true
+require_registry_consistency = true
+require_release_evidence = false
+require_signed_artifacts = false
+require_certificate_presence = true
+
+[promotion]
+allow_release = false
+allow_unsigned_release = true
+allow_manifest_identity_override = false
+allow_chain_id_override = false
+allow_network_id_override = false
