@@ -450,15 +450,22 @@ pub fn cmd_config_init(args: &[String]) -> Result<(), AppError> {
     let bind_host = arg_value(args, "--bind-host");
     let json_logs = has_flag(args, "--json-logs");
 
-    let settings = if profile == EnvironmentProfile::Validation && bind_host.is_none() && !json_logs
-    {
-        init_default()?
-    } else {
-        let settings = build_profile_settings(home.display().to_string(), profile, bind_host)?;
-        persist(&settings)?;
-        settings
-    };
+    let mut settings =
+        if profile == EnvironmentProfile::Validation && bind_host.is_none() && !json_logs {
+            init_default()?
+        } else {
+            build_profile_settings(home.display().to_string(), profile, bind_host)?
+        };
 
+    if json_logs {
+        settings.logging.json = true;
+    }
+
+    settings
+        .validate()
+        .map_err(|e| AppError::new(ErrorCode::ConfigInvalid, e))?;
+
+    persist(&settings)?;
     emit_serialized(&settings, output_format(args))
 }
 
