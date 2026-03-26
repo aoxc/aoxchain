@@ -1,44 +1,104 @@
-# Configurations - Audit Roadmap
+# AOXC Configuration System
 
-**System Version Baseline:** `aoxc.v.0.1.1-akdeniz`
+This directory contains the canonical configuration, identity, and release-control surfaces for AOXC environments.
 
-Network configuration assurance, identity governance, and release gating roadmap.
+The structure is intentionally designed for a **single-binary, multi-network** operating model. In this model, the node binary remains environment-agnostic, while network identity is derived from registry policy, environment manifests, and genesis bundles.
 
-## Production Intent
-This document defines the mandatory roadmap for advancing the covered workspace area toward a 99.99% production-grade security and reliability posture. It must be updated whenever a release, binary, interface, environment manifest, registry rule, or operational assumption changes.
+## Directory Roles
 
-## Nine-Point Roadmap
-1. Establish immutable release governance with the Akdeniz release baseline, signed change approval, and traceable artifact lineage.
-2. Enforce deterministic build and binary generation so every release candidate can be reproduced from the tagged source tree.
-3. Require zero-panic production paths, explicit error modeling, and bounded resource handling before feature promotion.
-4. Expand security verification with unit, integration, fuzz, adversarial, and formal-method evidence where logic is consensus- or finance-critical.
-5. Harden configuration, secrets, and operator workflows so deployment variance cannot silently weaken security posture.
-6. Introduce strict semantic version discipline covering manifests, registries, binaries, release notes, and compatibility declarations.
-7. Maintain audit-ready documentation updates for every change, including what changed, why it changed, and which version absorbed the change.
-8. Gate release promotion on lint, test, reproducibility, supply-chain review, incident-response preparedness, and configuration integrity evidence.
-9. Advance from the Akdeniz readiness baseline to production readiness only after 99.99% service-quality objectives are backed by measurable validation data.
+### `registry/`
+This directory is the authority layer for network identity and binary compatibility policy.
 
-## Versioning Policy
-- Canonical documentation label: `aoxc.v.0.1.1-akdeniz`.
-- Cargo-compatible semantic version baseline: `0.1.1-akdeniz`.
-- Every release-impacting change must update the relevant `READ.md` entry, manifest version, registry evidence, and release evidence together.
-- Binary artifacts, deployment bundles, manifests, registry records, and audit records must reference the same release identifier without ambiguity.
-- Network identity changes, manifest schema changes, registry policy changes, and binary compatibility changes are release-impacting changes and must not be introduced silently.
+It defines:
+- canonical AOXC family identity rules,
+- `chain_id` derivation policy,
+- `network_serial` policy,
+- `network_id` naming policy,
+- binary compatibility requirements,
+- cross-environment governance constraints.
 
-## Identity and Configuration Policy
-- AOXC operates under a single-binary, multi-network model.
-- Network identity must be derived from environment manifests and genesis bundles rather than compile-time constants.
-- Canonical identity governance is anchored in the registry and compatibility policy files under `configs/registry/`.
-- Environment manifests under `configs/environments/` are mandatory release artifacts and must remain consistent with registry policy.
-- The canonical public mainnet identity for this baseline is `AOXC AKDENIZ`.
+The files under `registry/` must be treated as long-lived policy artifacts. They are not routine deployment toggles.
 
-## Change Ledger
-- `aoxc.v.0.1.1-akdeniz`: initialized audit roadmap, introduced strict Akdeniz release baseline, and reserved this folder for continuous release tracking.
-- `aoxc.v.0.1.1-akdeniz`: added dedicated hub environment baselines so hub rollout parity can be audited alongside core network promotion.
-- `aoxc.v.0.1.1-akdeniz`: introduced canonical network registry and binary compatibility policy files under `configs/registry/`.
-- `aoxc.v.0.1.1-akdeniz`: introduced environment manifests for mainnet, testnet, validation, localnet, and sovereign template bundles under `configs/environments/`.
-- `aoxc.v.0.1.1-akdeniz`: formalized the single-binary, multi-network operating model for AOXC public and sovereign deployments.
-- `aoxc.v.0.1.1-akdeniz`: established the canonical public mainnet identity as `AOXC AKDENIZ`.
+### `environments/`
+This directory contains environment-scoped network bundles.
 
-## Mandatory Update Rule
-Whenever a new file, feature, control, environment manifest, registry rule, compatibility declaration, or operational procedure is added or changed under this directory, append the change to this ledger with the active version number and a concise audit explanation before release approval.
+Each environment directory defines the canonical files required to bootstrap and validate a specific AOXC network line, including:
+- manifest,
+- genesis,
+- genesis hash,
+- validators,
+- bootnodes,
+- profile,
+- release policy,
+- certificate material.
+
+### `aoxhub/`
+This directory contains application-facing environment mapping files used by the AOXC hub and control-plane surfaces.
+
+These files must remain consistent with the authoritative records under `registry/` and `environments/`.
+
+## Identity Model
+
+AOXC identity is governed through the following layered model:
+
+1. `registry/network-registry.toml` defines canonical identity rules.
+2. `registry/binary-compatibility.toml` defines which binaries may operate on which environment bundles.
+3. `environments/*/manifest.v1.json` defines the canonical identity of each environment.
+4. `environments/*/genesis.v1.json` defines the genesis configuration/state input.
+5. `genesis.v1.sha256` binds the manifest to a specific genesis artifact.
+
+## Canonical Public Baseline
+
+For the current baseline:
+
+- Public mainnet name: `AOXC AKDENIZ`
+- Public testnet name: `AOXC PUSULA`
+- Validation network name: `AOXC MIZAN`
+- Local deterministic operator network name: `AOXC LOCALNET ATLAS`
+
+## Stability Model
+
+### Long-lived policy files
+These files should change rarely and only with explicit governance and release evidence:
+
+- `registry/network-registry.toml`
+- `registry/binary-compatibility.toml`
+- `environments/*/manifest.v1.json`
+
+### Controlled configuration files
+These files may change when the environment policy evolves:
+
+- `environments/*/profile.toml`
+- `environments/*/release-policy.toml`
+- `aoxhub/*.toml`
+
+### Operational data files
+These files may change as validators, bootnodes, certificates, or finalized genesis inputs evolve:
+
+- `environments/*/validators.json`
+- `environments/*/bootnodes.json`
+- `environments/*/certificate.json`
+- `environments/*/genesis.v1.sha256`
+- in some cases `environments/*/genesis.v1.json`
+
+### Local-only or fixture-oriented files
+These files are not governance anchors and must not be treated as canonical registry inputs:
+
+- `environments/localnet/homes/**`
+- `environments/localnet/**/test-node-seed.hex`
+- local launch helper artifacts
+
+## Release Rule
+
+Any release-impacting change to:
+- registry policy,
+- binary compatibility policy,
+- environment manifest identity,
+- genesis identity assumptions,
+- release policy files,
+
+must be reflected in the relevant audit and release documentation before promotion.
+
+## Security Rule
+
+Private, sensitive, or non-public identity material must not be committed unless it is explicitly intended as deterministic public fixture data and clearly documented as such.
