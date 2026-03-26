@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "environment": "testnet",
+  "identity": {
+    "chain_name": "AOXC PUSULA",
+    "network_class": "public_testnet",
+    "network_serial": "2626-002",
+    "chain_id": 2626010001,
+    "network_id": "aoxc-testnet-2626-002"
+  },
+  "bootnodes": [
+    {
+      "node_id": "aoxc-boot-testnet-001",
+      "display_name": "AOXC Testnet Bootnode 001",
+      "transport_key_algorithm": "ed25519",
+      "transport_public_key_encoding": "hex",
+      "transport_public_key": "aoxc_transport_pk_testnet_001_pending_real_value",
+      "transport_key_fingerprint": "aoxc_transport_fp_testnet_001_pending_real_value",
+      "address": "REPLACE_WITH_REAL_BOOTNODE_ADDRESS",
+      "transport": "tcp",
+      "status": "active"
+    }
+  ]
+}
