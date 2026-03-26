@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "certificate_kind": "aoxc-environment-certificate",
-  "environment": "testnet",
+  "environment": "devnet",
   "identity": {
-    "chain_name": "AOXC PUSULA",
-    "network_class": "public_testnet",
-    "network_serial": "2626-002",
-    "chain_id": 2626010001,
-    "network_id": "aoxc-testnet-2626-002"
+    "chain_name": "AOXC KIVILCIM",
+    "network_class": "devnet",
+    "network_serial": "2626-003",
+    "chain_id": 2626020001,
+    "network_id": "aoxc-devnet-2626-003"
   },
   "certificate": {
     "status": "active",
     "issuer": "AOXC Release Authority",
-    "subject": "AOXC PUSULA Environment Bundle",
-    "certificate_serial": "AOXC-CERT-TESTNET-2626-002",
+    "subject": "AOXC KIVILCIM Environment Bundle",
+    "certificate_serial": "AOXC-CERT-DEVNET-2626-003",
     "issued_at": "REPLACE_WITH_UTC_TIMESTAMP",
     "expires_at": "REPLACE_WITH_UTC_TIMESTAMP_OR_NULL",
     "fingerprint_sha256": "REPLACE_WITH_REAL_CERTIFICATE_FINGERPRINT",
@@ -30,7 +30,7 @@
     "release_policy_file": "release-policy.toml"
   },
   "metadata": {
-    "description": "Canonical AOXC public testnet environment certificate.",
+    "description": "Canonical AOXC development environment certificate.",
     "status": "active"
   }
 }
