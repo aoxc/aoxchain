@@ -100,9 +100,13 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
                 let remediation_plan = request.failed_checks;
 
                 let summary = if failed_issue_count == 0 {
-                    format!("Native diagnostics verdict is '{verdict}'. No failed checks were reported. AI output remains advisory.")
+                    format!(
+                        "Native diagnostics verdict is '{verdict}'. No failed checks were reported. AI output remains advisory."
+                    )
                 } else {
-                    format!("Native diagnostics verdict is '{verdict}'. {failed_issue_count} failed checks were summarized for operator review. AI output remains advisory.")
+                    format!(
+                        "Native diagnostics verdict is '{verdict}'. {failed_issue_count} failed checks were summarized for operator review. AI output remains advisory."
+                    )
                 };
 
                 OperatorAssistOutcome {
@@ -168,9 +172,15 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
                             .to_string(),
                     ]
                 } else {
-                    request.failed_checks.iter().map(|check| {
-                        format!("Review native failure '{check}' and prepare a human-approved remediation step before execution.")
-                    }).collect()
+                    request
+                        .failed_checks
+                        .iter()
+                        .map(|check| {
+                            format!(
+                                "Review native failure '{check}' and prepare a human-approved remediation step before execution."
+                            )
+                        })
+                        .collect()
                 };
 
                 let summary = format!(
@@ -241,6 +251,18 @@ mod tests {
         LOCK.get_or_init(|| Mutex::new(()))
     }
 
+    fn clear_ai_disable_flag() {
+        unsafe {
+            std::env::remove_var("AOXC_AI_DISABLE");
+        }
+    }
+
+    fn set_ai_disable_flag() {
+        unsafe {
+            std::env::set_var("AOXC_AI_DISABLE", "1");
+        }
+    }
+
     fn request() -> OperatorAssistRequest {
         OperatorAssistRequest {
             topic: "diagnostics_explanation",
@@ -251,9 +273,9 @@ mod tests {
 
     #[test]
     fn diagnostics_artifact_is_non_canonical_and_non_executing() {
-        unsafe {
-            std::env::remove_var("AOXC_AI_DISABLE");
-        }
+        let _guard = env_lock().lock().expect("env mutex must lock");
+        clear_ai_disable_flag();
+
         let sink = MemoryAuditSink::default();
         let adapter = OperatorPlaneAiAdapter::with_sink(sink.clone());
 
@@ -273,9 +295,8 @@ mod tests {
     #[test]
     fn disabled_ai_produces_explicit_denied_audit_evidence() {
         let _guard = env_lock().lock().expect("env mutex must lock");
-        unsafe {
-            std::env::set_var("AOXC_AI_DISABLE", "1");
-        }
+        set_ai_disable_flag();
+
         let sink = MemoryAuditSink::default();
         let adapter = OperatorPlaneAiAdapter::with_sink(sink.clone());
 
@@ -289,17 +310,14 @@ mod tests {
         );
         assert_eq!(outcome.trace.output_class, "no_artifact");
 
-        unsafe {
-            std::env::remove_var("AOXC_AI_DISABLE");
-        }
+        clear_ai_disable_flag();
     }
 
     #[test]
     fn diagnostics_summary_preserves_native_verdict_text() {
         let _guard = env_lock().lock().expect("env mutex must lock");
-        unsafe {
-            std::env::remove_var("AOXC_AI_DISABLE");
-        }
+        clear_ai_disable_flag();
+
         let adapter = OperatorPlaneAiAdapter::default();
 
         let outcome = adapter.diagnostics_assistance(request());
@@ -313,9 +331,8 @@ mod tests {
     #[test]
     fn runbook_preparation_requires_operator_approval_and_is_non_executing() {
         let _guard = env_lock().lock().expect("env mutex must lock");
-        unsafe {
-            std::env::remove_var("AOXC_AI_DISABLE");
-        }
+        clear_ai_disable_flag();
+
         let adapter = OperatorPlaneAiAdapter::default();
 
         let outcome = adapter.runbook_preparation(request());
@@ -323,26 +340,32 @@ mod tests {
 
         assert!(outcome.available);
         assert!(artifact.requires_operator_approval);
+        assert!(!artifact.canonical);
+        assert!(!artifact.executed);
+        assert_eq!(artifact.mode, "guarded_preparation");
+        assert_eq!(
+            artifact.audit.final_disposition,
+            InvocationDisposition::Allowed
+        );
     }
 
     #[test]
     fn disabled_runbook_preparation_produces_denied_trace() {
         let _guard = env_lock().lock().expect("env mutex must lock");
-        unsafe {
-            std::env::set_var("AOXC_AI_DISABLE", "1");
-        }
+        set_ai_disable_flag();
+
         let adapter = OperatorPlaneAiAdapter::default();
 
         let outcome = adapter.runbook_preparation(request());
 
         assert!(!outcome.available);
+        assert!(outcome.artifact.is_none());
         assert_eq!(
             outcome.trace.final_disposition,
             InvocationDisposition::Denied
         );
+        assert_eq!(outcome.trace.output_class, "no_artifact");
 
-        unsafe {
-            std::env::remove_var("AOXC_AI_DISABLE");
-        }
+        clear_ai_disable_flag();
     }
 }
