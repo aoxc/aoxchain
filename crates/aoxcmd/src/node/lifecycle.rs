@@ -1,60 +1,30 @@
 use crate::{
-    data_home::{read_file, resolve_home, write_file},
     error::{AppError, ErrorCode},
     keys::manager::inspect_operator_key,
     node::state::NodeState,
+    storage::{
+        json_runtime::{runtime_state_json_path, JsonRuntimeStateStore},
+        RuntimeStateStore,
+    },
 };
 use std::path::PathBuf;
 
-/// Returns the canonical runtime node-state path.
-///
-/// The node-state document is persisted under:
-/// `<home>/runtime/node_state.json`
 pub fn state_path() -> Result<PathBuf, AppError> {
-    Ok(resolve_home()?.join("runtime").join("node_state.json"))
+    runtime_state_json_path()
 }
 
-/// Loads and validates the persisted node-state document.
+fn runtime_store() -> impl RuntimeStateStore {
+    JsonRuntimeStateStore
+}
+
 pub fn load_state() -> Result<NodeState, AppError> {
-    let path = state_path()?;
-    let raw = read_file(&path).map_err(|_| {
-        AppError::new(
-            ErrorCode::NodeStateInvalid,
-            format!("Node state file is missing at {}", path.display()),
-        )
-    })?;
-
-    let state: NodeState = serde_json::from_str(&raw).map_err(|e| {
-        AppError::with_source(ErrorCode::NodeStateInvalid, "Failed to parse node state", e)
-    })?;
-
-    state
-        .validate()
-        .map_err(|e| AppError::new(ErrorCode::NodeStateInvalid, e))?;
-
-    Ok(state)
+    runtime_store().load_state()
 }
 
-/// Persists the node-state document.
 pub fn persist_state(state: &NodeState) -> Result<(), AppError> {
-    let path = state_path()?;
-    let content = serde_json::to_string_pretty(state).map_err(|e| {
-        AppError::with_source(
-            ErrorCode::OutputEncodingFailed,
-            "Failed to encode node state",
-            e,
-        )
-    })?;
-    write_file(&path, &content)
+    runtime_store().persist_state(state)
 }
 
-/// Builds the canonical bootstrap node-state and enriches it with
-/// operator key material when available.
-///
-/// This function intentionally tolerates the absence of operator key material.
-/// Bootstrap must remain possible before key bootstrap in certain local flows.
-/// When key material exists, the runtime node-state is enriched so that
-/// runtime-status and persisted node-state surfaces remain operationally useful.
 pub fn bootstrap_state() -> Result<NodeState, AppError> {
     let mut state = NodeState::bootstrap();
 

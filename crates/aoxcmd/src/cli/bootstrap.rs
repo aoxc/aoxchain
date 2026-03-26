@@ -32,7 +32,6 @@ use std::{
     collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
-    sync::{Mutex, OnceLock},
 };
 
 /// Canonical AOXC environment identity description used by bootstrap flows.
@@ -495,26 +494,7 @@ pub fn cmd_config_print(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&printable, output_format(args))
 }
 
-static BOOTSTRAP_ROOT_OVERRIDE: OnceLock<Mutex<Option<PathBuf>>> = OnceLock::new();
-
-fn bootstrap_root_override() -> &'static Mutex<Option<PathBuf>> {
-    BOOTSTRAP_ROOT_OVERRIDE.get_or_init(|| Mutex::new(None))
-}
-
-#[cfg(test)]
-pub(crate) fn set_bootstrap_root_override(value: Option<PathBuf>) {
-    if let Ok(mut slot) = bootstrap_root_override().lock() {
-        *slot = value;
-    }
-}
-
 fn bootstrap_root() -> PathBuf {
-    if let Ok(guard) = bootstrap_root_override().lock() {
-        if let Some(path) = guard.clone() {
-            return path;
-        }
-    }
-
     env::temp_dir().join("aoxc-bootstrap")
 }
 

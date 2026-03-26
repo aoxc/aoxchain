@@ -12,6 +12,7 @@ pub mod logging;
 pub mod node;
 pub mod runtime;
 pub mod services;
+pub mod storage;
 pub mod telemetry;
 
 #[cfg(test)]
