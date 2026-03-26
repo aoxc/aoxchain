@@ -1,22 +1,52 @@
 {
-  "chain_id": "aox-mainnet-1",
-  "genesis_time": 1735689600,
-  "params": {
-    "block_time_secs": 6,
-    "max_gas_per_block": 30000000,
-    "epoch_length": 43200
+  "schema_version": 1,
+  "genesis_kind": "aoxc-genesis-config",
+  "environment": "mainnet",
+  "family_name": "AOXC",
+  "family_code": "aoxc",
+  "identity": {
+    "family_id": 2626,
+    "chain_name": "AOXC AKDENIZ",
+    "network_class": "public_mainnet",
+    "network_serial": "2626-001",
+    "chain_id": 2626000001,
+    "network_id": "aoxc-mainnet-2626-001"
   },
-  "validators": [
-    {
-      "name": "validator-1",
-      "address": "aoxval1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqp6m9k",
-      "power": 100
+  "consensus": {
+    "engine": "aoxcunity",
+    "mode": "bft",
+    "genesis_epoch": 0,
+    "block_time_ms": 3000,
+    "validator_quorum_policy": "strict-majority"
+  },
+  "economics": {
+    "native_symbol": "AOXC",
+    "native_decimals": 18,
+    "initial_treasury": {
+      "account_id": "AOXC_TREASURY_GENESIS",
+      "amount": "1000000000"
     }
-  ],
-  "alloc": [
-    {
-      "address": "aox1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk99j9m",
-      "balance": "1000000000000000000"
-    }
-  ]
+  },
+  "state": {
+    "accounts": [
+      {
+        "account_id": "AOXC_TREASURY_GENESIS",
+        "balance": "1000000000",
+        "role": "treasury"
+      }
+    ]
+  },
+  "bindings": {
+    "validators_file": "validators.json",
+    "bootnodes_file": "bootnodes.json",
+    "certificate_file": "certificate.json"
+  },
+  "integrity": {
+    "hash_algorithm": "sha256",
+    "deterministic_serialization_required": true
+  },
+  "metadata": {
+    "description": "Canonical AOXC public mainnet genesis configuration.",
+    "status": "active"
+  }
 }
