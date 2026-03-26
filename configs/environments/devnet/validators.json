@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "environment": "validation",
+  "environment": "devnet",
   "identity": {
-    "chain_name": "AOXC MIZAN",
-    "network_serial": "2626-004",
-    "chain_id": 2626030001,
-    "network_id": "aoxc-validation-2626-004"
+    "chain_name": "AOXC KIVILCIM",
+    "network_serial": "2626-003",
+    "chain_id": 2626020001,
+    "network_id": "aoxc-devnet-2626-003"
   },
   "validators": [
     {
-      "validator_id": "aoxc-val-validation-001",
-      "display_name": "AOXC Validation Validator 001",
+      "validator_id": "aoxc-val-devnet-001",
+      "display_name": "AOXC Devnet Validator 001",
       "role": "validator",
       "consensus_public_key": "REPLACE_WITH_REAL_CONSENSUS_PUBLIC_KEY",
       "network_public_key": "REPLACE_WITH_REAL_NETWORK_PUBLIC_KEY",

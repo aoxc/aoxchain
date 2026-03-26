@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "environment": "localnet",
+  "identity": {
+    "chain_name": "AOXC LOCALNET ATLAS",
+    "network_serial": "2626-900",
+    "chain_id": 2626900001,
+    "network_id": "aoxc-localnet-2626-900"
+  },
+  "validators": [
+    {
+      "validator_id": "aoxc-val-localnet-atlas",
+      "display_name": "AOXC Localnet Atlas",
+      "role": "validator",
+      "consensus_public_key": "REPLACE_WITH_LOCALNET_CONSENSUS_PUBLIC_KEY",
+      "network_public_key": "REPLACE_WITH_LOCALNET_NETWORK_PUBLIC_KEY",
+      "weight": 1,
+      "status": "active"
+    },
+    {
+      "validator_id": "aoxc-val-localnet-boreal",
+      "display_name": "AOXC Localnet Boreal",
+      "role": "validator",
+      "consensus_public_key": "REPLACE_WITH_LOCALNET_CONSENSUS_PUBLIC_KEY",
+      "network_public_key": "REPLACE_WITH_LOCALNET_NETWORK_PUBLIC_KEY",
+      "weight": 1,
+      "status": "active"
+    },
+    {
+      "validator_id": "aoxc-val-localnet-cypher",
+      "display_name": "AOXC Localnet Cypher",
+      "role": "validator",
+      "consensus_public_key": "REPLACE_WITH_LOCALNET_CONSENSUS_PUBLIC_KEY",
+      "network_public_key": "REPLACE_WITH_LOCALNET_NETWORK_PUBLIC_KEY",
+      "weight": 1,
+      "status": "active"
+    },
+    {
+      "validator_id": "aoxc-val-localnet-delta",
+      "display_name": "AOXC Localnet Delta",
+      "role": "validator",
+      "consensus_public_key": "REPLACE_WITH_LOCALNET_CONSENSUS_PUBLIC_KEY",
+      "network_public_key": "REPLACE_WITH_LOCALNET_NETWORK_PUBLIC_KEY",
+      "weight": 1,
+      "status": "active"
+    },
+    {
+      "validator_id": "aoxc-val-localnet-ember",
+      "display_name": "AOXC Localnet Ember",
+      "role": "validator",
+      "consensus_public_key": "REPLACE_WITH_LOCALNET_CONSENSUS_PUBLIC_KEY",
+      "network_public_key": "REPLACE_WITH_LOCALNET_NETWORK_PUBLIC_KEY",
+      "weight": 1,
+      "status": "active"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "environment": "sovereign-template",
+  "identity": {
+    "chain_name": "AOXC SOVEREIGN PRIVATE TEMPLATE",
+    "network_serial": "2626-150",
+    "chain_id": 2626100001,
+    "network_id": "aoxc-sovereign-private-2626-150"
+  },
+  "validators": [
+    {
+      "validator_id": "aoxc-val-sovereign-template-001",
+      "display_name": "AOXC Sovereign Template Validator 001",
+      "role": "validator",
+      "consensus_public_key": "REPLACE_WITH_REAL_CONSENSUS_PUBLIC_KEY",
+      "network_public_key": "REPLACE_WITH_REAL_NETWORK_PUBLIC_KEY",
+      "weight": 1,
+      "status": "template"
+    }
+  ]
+}

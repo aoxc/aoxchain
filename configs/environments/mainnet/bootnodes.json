@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "environment": "mainnet",
+  "identity": {
+    "chain_name": "AOXC AKDENIZ",
+    "network_serial": "2626-001",
+    "chain_id": 2626000001,
+    "network_id": "aoxc-mainnet-2626-001"
+  },
+  "bootnodes": [
+    {
+      "node_id": "aoxc-boot-mainnet-001",
+      "display_name": "AOXC Mainnet Bootnode 001",
+      "address": "REPLACE_WITH_REAL_BOOTNODE_ADDRESS",
+      "transport": "tcp",
+      "status": "active"
+    }
+  ]
+}

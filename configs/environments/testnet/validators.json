@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "environment": "testnet",
+  "identity": {
+    "chain_name": "AOXC PUSULA",
+    "network_serial": "2626-002",
+    "chain_id": 2626010001,
+    "network_id": "aoxc-testnet-2626-002"
+  },
+  "validators": [
+    {
+      "validator_id": "aoxc-val-testnet-001",
+      "display_name": "AOXC Testnet Validator 001",
+      "role": "validator",
+      "consensus_public_key": "REPLACE_WITH_REAL_CONSENSUS_PUBLIC_KEY",
+      "network_public_key": "REPLACE_WITH_REAL_NETWORK_PUBLIC_KEY",
+      "weight": 1,
+      "status": "active"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "environment": "mainnet",
+  "identity": {
+    "chain_name": "AOXC AKDENIZ",
+    "network_serial": "2626-001",
+    "chain_id": 2626000001,
+    "network_id": "aoxc-mainnet-2626-001"
+  },
+  "validators": [
+    {
+      "validator_id": "aoxc-val-mainnet-001",
+      "display_name": "AOXC Mainnet Validator 001",
+      "role": "validator",
+      "consensus_public_key": "REPLACE_WITH_REAL_CONSENSUS_PUBLIC_KEY",
+      "network_public_key": "REPLACE_WITH_REAL_NETWORK_PUBLIC_KEY",
+      "weight": 1,
+      "status": "active"
+    }
+  ]
+}
