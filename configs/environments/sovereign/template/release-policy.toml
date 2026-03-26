@@ -1,0 +1,32 @@
+# AOXC Release Policy - Sovereign Template
+
+[policy]
+schema_version = 1
+environment = "sovereign-template"
+display_name = "AOXC SOVEREIGN PRIVATE TEMPLATE"
+release_tier = "template"
+status = "template"
+
+[identity]
+family_id = 2626
+network_serial = "2626-150"
+chain_id = 2626100001
+network_id = "aoxc-sovereign-private-2626-150"
+
+[gates]
+require_fmt = true
+require_clippy = true
+require_tests = true
+require_manifest_validation = true
+require_genesis_hash_validation = true
+require_registry_consistency = true
+require_release_evidence = true
+require_signed_artifacts = true
+require_certificate_presence = true
+
+[promotion]
+allow_release = false
+allow_unsigned_release = false
+allow_manifest_identity_override = false
+allow_chain_id_override = false
+allow_network_id_override = false

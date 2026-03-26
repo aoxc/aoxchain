@@ -1,8 +1,36 @@
-chain_id = "aox-mainnet-1"
-listen_addr = "0.0.0.0:26656"
-rpc_addr = "0.0.0.0:8545"
-peers = [
-  "seed-1.aoxchain.org:26656",
-  "seed-2.aoxchain.org:26656",
-]
-security_mode = "audit_strict"
+# AOXC Environment Profile - Mainnet
+
+[profile]
+schema_version = 1
+environment = "mainnet"
+display_name = "AOXC AKDENIZ"
+network_class = "public_mainnet"
+profile_type = "production"
+status = "active"
+
+[identity]
+family_id = 2626
+network_serial = "2626-001"
+chain_id = 2626000001
+network_id = "aoxc-mainnet-2626-001"
+
+[execution]
+single_binary_multi_network = true
+compile_time_network_binding_forbidden = true
+deterministic_genesis_required = true
+manifest_validation_required = true
+
+[operations]
+allow_public_access = true
+allow_operator_launch = true
+allow_local_multi_node_mode = false
+require_release_evidence = true
+require_signed_artifacts = true
+
+[security]
+require_certificate_file = true
+require_validators_file = true
+require_bootnodes_file = true
+require_genesis_hash_verification = true
+reject_identity_mismatch = true
+reject_missing_bundle_components = true

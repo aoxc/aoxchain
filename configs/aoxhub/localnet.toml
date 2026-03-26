@@ -1,1 +1,49 @@
+# AOXC Hub Environment Mapping - Localnet
+#
+# This file defines how AOXC Hub resolves and launches the deterministic
+# AOXC local multi-node operator environment bundle.
+
+[hub]
+schema_version = 1
+application = "aoxhub"
 environment = "localnet"
+display_name = "AOXC LOCALNET ATLAS"
+status = "active"
+
+[identity]
+family_id = 2626
+chain_name = "AOXC LOCALNET ATLAS"
+network_class = "localnet"
+network_serial = "2626-900"
+chain_id = 2626900001
+network_id = "aoxc-localnet-2626-900"
+
+[paths]
+environment_root = "configs/environments/localnet"
+manifest = "configs/environments/localnet/manifest.v1.json"
+genesis = "configs/environments/localnet/genesis.v1.json"
+genesis_hash = "configs/environments/localnet/genesis.v1.sha256"
+accounts = "configs/environments/localnet/accounts.json"
+validators = "configs/environments/localnet/validators.json"
+bootnodes = "configs/environments/localnet/bootnodes.json"
+profile = "configs/environments/localnet/profile.toml"
+release_policy = "configs/environments/localnet/release-policy.toml"
+certificate = "configs/environments/localnet/certificate.json"
+hosts = "configs/environments/localnet/hosts.txt.example"
+nodes_directory = "configs/environments/localnet/nodes"
+homes_directory = "configs/environments/localnet/homes"
+launch_script = "configs/environments/localnet/launch-localnet.sh"
+
+[runtime]
+single_binary_multi_network = true
+environment_identity_from_manifest = true
+compile_time_network_binding_forbidden = true
+hub_must_validate_identity_before_launch = true
+hub_must_validate_genesis_hash_before_launch = true
+hub_must_reject_missing_bundle_files = true
+hub_supports_multi_node_local_orchestration = true
+
+[ui]
+badge = "LOCALNET"
+theme_hint = "development"
+operator_visibility = "local"
