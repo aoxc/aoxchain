@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
   "genesis_kind": "aoxc-genesis-config",
-  "environment": "validation",
+  "environment": "devnet",
   "family_name": "AOXC",
   "family_code": "aoxc",
   "identity": {
     "family_id": 2626,
-    "chain_name": "AOXC MIZAN",
-    "network_class": "validation",
-    "network_serial": "2626-004",
-    "chain_id": 2626030001,
-    "network_id": "aoxc-validation-2626-004"
+    "chain_name": "AOXC KIVILCIM",
+    "network_class": "devnet",
+    "network_serial": "2626-003",
+    "chain_id": 2626020001,
+    "network_id": "aoxc-devnet-2626-003"
   },
   "consensus": {
     "engine": "aoxcunity",
@@ -46,7 +46,7 @@
     "deterministic_serialization_required": true
   },
   "metadata": {
-    "description": "Canonical AOXC validation genesis configuration.",
+    "description": "Canonical AOXC development genesis configuration.",
     "status": "active"
   }
 }
