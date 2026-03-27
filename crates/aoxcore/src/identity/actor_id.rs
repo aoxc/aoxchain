@@ -38,7 +38,10 @@
 //! It does not by itself prove cryptographic ownership of the referenced key.
 //! Signature validation and certificate binding must be enforced elsewhere.
 
-use sha3::{Digest, Sha3_256};
+use sha3::{
+    Digest, Sha3_256, Shake256,
+    digest::{ExtendableOutput, XofReader},
+};
 use std::fmt;
 
 /// Canonical AOXC actor identifier prefix.
@@ -53,6 +56,12 @@ const ACTOR_ID_DOMAIN: &[u8] = b"AOXC/IDENTITY/ACTOR_ID/V1";
 /// Canonical actor-id checksum domain separator.
 const ACTOR_ID_CHECKSUM_DOMAIN: &[u8] = b"AOXC/IDENTITY/ACTOR_ID/CHECKSUM/V1";
 
+/// AOXC chain context byte namespace.
+///
+/// This value hard-binds derivation to AOXC chain semantics and prevents
+/// accidental reuse inside sibling protocols.
+const AOXC_CHAIN_CONTEXT: &[u8] = b"AOXC/CHAIN/MAINNET";
+
 /// Canonical role width.
 pub const ROLE_LEN: usize = 3;
 
@@ -61,10 +70,9 @@ pub const ZONE_LEN: usize = 2;
 
 /// Number of digest bytes used for the visible serial portion.
 ///
-/// 8 bytes => 16 uppercase hexadecimal characters.
-/// This is significantly safer than short 32-bit visible serials for
-/// production-scale registries.
-pub const SERIAL_BYTES: usize = 8;
+/// 12 bytes => 24 uppercase hexadecimal characters.
+/// This expands the visible actor-id namespace while preserving readability.
+pub const SERIAL_BYTES: usize = 12;
 
 /// Number of checksum symbols appended to the actor identifier.
 pub const CHECKSUM_LEN: usize = 2;
@@ -397,18 +405,46 @@ fn normalize_component(value: &str, len: usize) -> Option<String> {
 /// The resulting digest is truncated to `SERIAL_BYTES` and rendered as
 /// uppercase hexadecimal.
 fn derive_serial(pubkey: &[u8], role: &str, zone: &str) -> String {
-    let mut hasher = Sha3_256::new();
+    // Quantum-aware hybrid sponge:
+    // 1) Fixed-output SHA3-256 for compatibility and deterministic stability.
+    // 2) SHAKE256 XOF stream for expanded entropy extraction and future-proofing.
+    // 3) XOR fusion to bind both digests into a single serial material.
+    let mut sha3 = Sha3_256::new();
+    sha3.update(ACTOR_ID_DOMAIN);
+    sha3.update([0x00]);
+    sha3.update(AOXC_CHAIN_CONTEXT);
+    sha3.update([0x00]);
+    sha3.update(role.as_bytes());
+    sha3.update([0x00]);
+    sha3.update(zone.as_bytes());
+    sha3.update([0x00]);
+    sha3.update([(pubkey.len() & 0xFF) as u8]);
+    sha3.update([0x00]);
+    sha3.update(pubkey);
+    let sha3_digest = sha3.finalize();
 
-    hasher.update(ACTOR_ID_DOMAIN);
-    hasher.update([0x00]);
-    hasher.update(role.as_bytes());
-    hasher.update([0x00]);
-    hasher.update(zone.as_bytes());
-    hasher.update([0x00]);
-    hasher.update(pubkey);
+    let mut shake = Shake256::default();
+    sha3::digest::Update::update(&mut shake, ACTOR_ID_DOMAIN);
+    sha3::digest::Update::update(&mut shake, &[0x00]);
+    sha3::digest::Update::update(&mut shake, AOXC_CHAIN_CONTEXT);
+    sha3::digest::Update::update(&mut shake, &[0x00]);
+    sha3::digest::Update::update(&mut shake, role.as_bytes());
+    sha3::digest::Update::update(&mut shake, &[0x00]);
+    sha3::digest::Update::update(&mut shake, zone.as_bytes());
+    sha3::digest::Update::update(&mut shake, &[0x00]);
+    sha3::digest::Update::update(&mut shake, &[(pubkey.len() & 0xFF) as u8]);
+    sha3::digest::Update::update(&mut shake, &[0x00]);
+    sha3::digest::Update::update(&mut shake, pubkey);
 
-    let hash = hasher.finalize();
-    hex::encode_upper(&hash[..SERIAL_BYTES])
+    let mut xof = shake.finalize_xof();
+    let mut shake_out = vec![0_u8; SERIAL_BYTES];
+    xof.read(&mut shake_out);
+
+    let fused = (0..SERIAL_BYTES)
+        .map(|idx| shake_out[idx] ^ sha3_digest[idx % sha3_digest.len()])
+        .collect::<Vec<u8>>();
+
+    hex::encode_upper(fused)
 }
 
 /// Derives the compact checksum for a canonical actor identifier.
@@ -423,20 +459,23 @@ fn derive_serial(pubkey: &[u8], role: &str, zone: &str) -> String {
 /// The resulting checksum is encoded using a restricted alphabet for improved
 /// operator readability.
 fn derive_checksum(role: &str, zone: &str, serial: &str) -> String {
-    let mut hasher = Sha3_256::new();
+    let mut shake = Shake256::default();
+    sha3::digest::Update::update(&mut shake, ACTOR_ID_CHECKSUM_DOMAIN);
+    sha3::digest::Update::update(&mut shake, &[0x00]);
+    sha3::digest::Update::update(&mut shake, AOXC_CHAIN_CONTEXT);
+    sha3::digest::Update::update(&mut shake, &[0x00]);
+    sha3::digest::Update::update(&mut shake, AOXC_PREFIX.as_bytes());
+    sha3::digest::Update::update(&mut shake, &[0x00]);
+    sha3::digest::Update::update(&mut shake, role.as_bytes());
+    sha3::digest::Update::update(&mut shake, &[0x00]);
+    sha3::digest::Update::update(&mut shake, zone.as_bytes());
+    sha3::digest::Update::update(&mut shake, &[0x00]);
+    sha3::digest::Update::update(&mut shake, serial.as_bytes());
 
-    hasher.update(ACTOR_ID_CHECKSUM_DOMAIN);
-    hasher.update([0x00]);
-    hasher.update(AOXC_PREFIX.as_bytes());
-    hasher.update([0x00]);
-    hasher.update(role.as_bytes());
-    hasher.update([0x00]);
-    hasher.update(zone.as_bytes());
-    hasher.update([0x00]);
-    hasher.update(serial.as_bytes());
-
-    let digest = hasher.finalize();
-    encode_checksum(&digest[..CHECKSUM_LEN])
+    let mut xof = shake.finalize_xof();
+    let mut checksum_bytes = [0_u8; CHECKSUM_LEN];
+    xof.read(&mut checksum_bytes);
+    encode_checksum(&checksum_bytes)
 }
 
 /// Encodes raw checksum bytes into a compact operator-friendly alphabet.
