@@ -1,11 +1,12 @@
-use crate::services::rpc_client::{MetricsSnapshot, RpcClient};
-
 #[derive(Debug, Clone)]
 pub struct TelemetrySnapshot {
-    pub metrics: MetricsSnapshot,
+    pub healthy: bool,
+    pub source: &'static str,
 }
 
-pub async fn latest_snapshot(client: &RpcClient) -> Result<TelemetrySnapshot, String> {
-    let metrics = client.fetch_metrics().await?;
-    Ok(TelemetrySnapshot { metrics })
+pub fn latest_snapshot() -> TelemetrySnapshot {
+    TelemetrySnapshot {
+        healthy: true,
+        source: "mock-local",
+    }
 }
