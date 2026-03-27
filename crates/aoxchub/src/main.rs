@@ -40,6 +40,14 @@ struct OperationPreset {
     detail: &'static str,
 }
 
+#[derive(Clone, Copy)]
+struct ChainCapability {
+    title: &'static str,
+    scope: &'static str,
+    slos: &'static str,
+    fallback: &'static str,
+}
+
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
@@ -148,6 +156,45 @@ const OPERATION_PRESETS: [OperationPreset; 6] = [
     },
 ];
 
+const CHAIN_CAPABILITIES: [ChainCapability; 6] = [
+    ChainCapability {
+        title: "Transfer + Fee Estimation",
+        scope: "Native coin transfer, fee simulation, nonce protection",
+        slos: "P95 submission < 900ms",
+        fallback: "CLI fallback: aoxc tx transfer --safe-mode",
+    },
+    ChainCapability {
+        title: "Staking + Validator Delegation",
+        scope: "Stake, unstake, reward query, validator health snapshot",
+        slos: "P95 action ack < 1200ms",
+        fallback: "CLI fallback: aoxc staking rebalance",
+    },
+    ChainCapability {
+        title: "Bridge Dispatch",
+        scope: "Source lock + destination proof checkpoint",
+        slos: "Proof finality window monitored every 20s",
+        fallback: "CLI fallback: aoxc bridge relay --proof",
+    },
+    ChainCapability {
+        title: "Governance Voting",
+        scope: "Proposal inspect, vote cast, tally monitor",
+        slos: "Vote ack < 2 blocks",
+        fallback: "CLI fallback: aoxc gov vote --broadcast",
+    },
+    ChainCapability {
+        title: "Contract Invoke",
+        scope: "ABI call builder, dry-run, signed execution",
+        slos: "Preflight simulation success target > 99%",
+        fallback: "CLI fallback: aoxc contract call --simulate-first",
+    },
+    ChainCapability {
+        title: "Treasury + Multisig",
+        scope: "Policy-aware approval lanes, signer quorum checks",
+        slos: "Quorum verification in < 600ms",
+        fallback: "CLI fallback: aoxc treasury multisig --strict",
+    },
+];
+
 fn main() {
     dioxus::launch(App);
 }
@@ -187,6 +234,14 @@ fn Home() -> Element {
     let mut operator_note = use_signal(String::new);
     let mut operation_result = use_signal(String::new);
     let mut op_history = use_signal(Vec::<String>::new);
+    let success_count = op_history()
+        .iter()
+        .filter(|entry| entry.starts_with("[OK]"))
+        .count();
+    let error_count = op_history()
+        .iter()
+        .filter(|entry| entry.starts_with("[ERR]"))
+        .count();
 
     rsx! {
         section { class: "hero",
@@ -254,6 +309,21 @@ fn Home() -> Element {
                         p { "Chain ID: {lane.chain_id}" }
                         p { "Senkronizasyon: {lane.sync}" }
                         p { "Politika: {lane.policy}" }
+                    }
+                }
+            }
+        }
+
+        section { class: "grid-section",
+            h2 { "Ultra Premium Zincir Yetenek Matrisi" }
+            p { class: "section-note", "Web + mobile + desktop yüzeylerinin ortak işlem kabiliyetleri ve SLO hedefleri." }
+            div { class: "card-grid",
+                for capability in CHAIN_CAPABILITIES {
+                    article { class: "card",
+                        h3 { "{capability.title}" }
+                        p { "Kapsam: {capability.scope}" }
+                        p { "SLO: {capability.slos}" }
+                        code { "{capability.fallback}" }
                     }
                 }
             }
@@ -390,6 +460,17 @@ async fn run_operation_server(
     action: String,
     note: String,
 ) -> Result<String, ServerFnError> {
+    let is_known_network = ["devnet", "testnet", "mainnet"]
+        .iter()
+        .any(|known| known == &network.as_str());
+    let is_known_action = OPERATION_PRESETS
+        .iter()
+        .any(|preset| preset.action == action.as_str());
+    if !is_known_network || !is_known_action {
+        return Ok(format!(
+            "[ERR] network={network} action={action} reason=\"unsupported preset or network\" source=ui"
+        ));
+    }
     let normalized_note = if note.trim().is_empty() {
         "not yok".to_string()
     } else {
