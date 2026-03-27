@@ -1,100 +1,71 @@
-# AOXC v0.1.1-Akdeniz
+# AOXC v0.1.1-Akdeniz — System-Aligned Full Baseline
 
 <p align="center">
   <img src="logos/aoxc_transparent.png" alt="AOXC logo" width="220" />
 </p>
 
 <p align="center">
-  <strong>AOXChain Rust workspace for sovereign core, consensus, networking, RPC, operator tooling, and production-oriented runbooks.</strong>
+  <strong>AOXChain Rust workspace for sovereign core, consensus, networking, RPC, operator tooling, AOXCVM multi-lane execution, and AOXHub desktop operations.</strong>
 </p>
 
 ---
 
-## 1. What this repository is
+## 1) Repository goal ("%100 hedef" interpretation)
 
-AOXC is a multi-crate Rust workspace that organizes the chain into clearly separated layers:
+This repository is organized to deliver a **system-compatible, deterministic, and audit-ready chain stack**.
+For this baseline, "%100" means:
 
-- **`aoxcore`**: identity, genesis, mempool, receipts, transactions, and canonical block primitives.
-- **`aoxcunity`**: consensus kernel, quorum logic, validator rotation, vote handling, and finality rules.
-- **`aoxcnet`**: peer discovery, gossip, transport, sync, and resilience surfaces.
-- **`aoxcrpc`**: HTTP, gRPC, and WebSocket access layers.
-- **`aoxcmd`**: operator-facing bootstrap, runtime, diagnostics, and CLI workflows.
-- **`aoxcvm`**: multi-lane execution compatibility for native, EVM, WASM, and external lanes.
-
-The repository also includes deterministic testnet fixtures, operations scripts, architecture documentation, and release/readiness material under `configs/`, `scripts/`, and `docs/`.
+1. All critical surfaces (core, consensus, net, rpc, cmd, vm, desktop) are documented from one place.
+2. Operator workflows are explicit and reproducible.
+3. Release identity is coherent across Cargo + docs + runbooks.
+4. Known gaps are listed transparently (not hidden).
 
 ---
 
-## 2. Recommended release naming
+## 2) Layer model
 
-I recommend using the following release convention:
-
-- **Marketing / operator label:** `AOXC v0.1.1-akdeniz`
-- **Cargo / package version:** `0.1.1-akdeniz`
-- **Documentation baseline label:** `aoxc.v.0.1.1-akdeniz`
-
-Why this naming works:
-
-1. `0.1.1` is still honest about maturity.
-2. `akdeniz` gives the release line an identity without pretending the system is already final-mainnet.
-3. It avoids being stuck forever in vague `alpha` wording, which the repository’s own versioning roadmap argues against.
+| Layer | Main crate/app | Responsibility |
+|---|---|---|
+| Chain core | `aoxcore` | identity, genesis, tx/block primitives, receipts, mempool |
+| Consensus | `aoxcunity` | quorum, proposer logic, finality and vote flow |
+| Network | `aoxcnet` | peer communication, gossip, sync boundaries |
+| API ingress | `aoxcrpc` | HTTP / gRPC / WebSocket service surface |
+| Operator plane | `aoxcmd` | bootstrap, db lifecycle, diagnostics, runtime CLI |
+| Execution plane | `aoxcvm` | lane-oriented execution compatibility (native/EVM/WASM/etc.) |
+| Desktop control | `aoxchub` | Tauri/React operator dashboard and control UX |
 
 ---
 
-## 3. Current workspace structure
+## 3) AOXCVM + Desktop separation (clear boundaries)
 
-### Core crates
+### AOXCVM (`crates/aoxcvm`)
 
-| Crate | Role |
-|---|---|
-| `crates/aoxcore` | chain domain model, identity, genesis, mempool, receipts |
-| `crates/aoxcunity` | consensus, fork choice, quorum, proposer logic |
-| `crates/aoxcnet` | networking, gossip, sync, transport |
-| `crates/aoxcrpc` | API ingress surfaces |
-| `crates/aoxcmd` | node lifecycle and operator command plane |
-| `crates/aoxcvm` | execution lane compatibility |
+- Protocol-adjacent execution compatibility layer.
+- Must remain deterministic in consensus-sensitive flows.
+- Focus: execution routing, validation guards, lane isolation.
 
-### Supporting crates
+### AOXHub Desktop (`crates/aoxchub`)
 
-| Crate | Role |
-|---|---|
-| `aoxcdata` | storage and state persistence |
-| `aoxcontract` | contract metadata and validation |
-| `aoxconfig` | chain and contract config models |
-| `aoxckit` | keyforge/operator utility commands |
-| `aoxcsdk` | SDK-facing helper APIs |
-| `aoxcai` | policy/AI extension interfaces |
-| `aoxcenergy`, `aoxclibs`, `aoxcexec`, `aoxcmob`, `aoxchal` | supporting runtime, utility, and integration surfaces |
+- Human operator interface layer.
+- Not consensus-critical by itself.
+- Focus: visibility, orchestration UX, command dispatch, reporting.
+
+### Why this separation is important
+
+- VM changes can affect chain behavior/security.
+- Desktop changes primarily affect operator productivity/observability.
+- Release gating should treat these with different criticality levels.
 
 ---
 
-## 4. Production goals for the Akdeniz baseline
-
-The `v0.1.1-akdeniz` line should mean:
-
-- deterministic workspace behavior is preserved,
-- node bootstrap and operator workflows are testable,
-- key custody and lifecycle surfaces have explicit verification paths,
-- documentation is rich enough for operators, reviewers, and contributors,
-- release-readiness claims are tied to evidence, not only aspirations.
-
-This repository already contains the foundation for that through:
-
-- release/readiness planning in `docs/src/`,
-- deterministic environment bundles in `configs/environments/`,
-- operator scripts in `scripts/`,
-- integration coverage in `tests/`.
-
----
-
-## 5. Quick start
+## 4) Quick start
 
 ### Requirements
 
-- Rust toolchain with `cargo`
-- `git`
-- Linux or macOS recommended
-- enough disk space for target artifacts and local fixtures
+- Rust + Cargo
+- Git
+- Linux/macOS recommended
+- Optional Node.js toolchain for desktop (`aoxchub`)
 
 ### Clone
 
@@ -103,14 +74,14 @@ git clone <your-repo-url> aoxchain
 cd aoxchain
 ```
 
-### Format and test
+### Core checks
 
 ```bash
 cargo fmt --all
 cargo test -p aoxcmd
 ```
 
-### Explore the operator CLI
+### CLI surface
 
 ```bash
 cargo run -p aoxcmd --bin aoxc -- --help
@@ -118,131 +89,88 @@ cargo run -p aoxcmd --bin aoxc -- --help
 
 ---
 
-## 6. Operator bootstrap flow
-
-Typical local operator flow:
+## 5) Operator bootstrap flow
 
 ```bash
-# 1) create or inspect the data home
+# 1) local runtime home
 export AOXC_HOME="$PWD/.aoxc-local"
 
-# 2) bootstrap operator key material
+# 2) key bootstrap
 cargo run -p aoxcmd --bin aoxc -- bootstrap key \
   --name validator-01 \
   --profile testnet \
   --password 'Test#2026!'
 
-# 3) bootstrap runtime state
+# 3) node bootstrap
 cargo run -p aoxcmd --bin aoxc -- bootstrap node
 
-# 4) produce a deterministic sample block
+# 4) produce deterministic sample block
 cargo run -p aoxcmd --bin aoxc -- produce-once --tx demo-tx
 ```
 
-If the exact CLI surface changes, the canonical source of truth is `crates/aoxcmd/src/cli/`.
-
 ---
 
-## 7. Real-chain local DB lifecycle (CLI)
-
-AOXC operator plane now includes a practical data-store lifecycle via CLI:
+## 6) Local DB lifecycle (real operator flow)
 
 ```bash
-# initialize DB under $AOXC_HOME/runtime/db
 cargo run -p aoxcmd --bin aoxc -- db-init --backend sqlite
-
-# ingest a canonical block envelope from JSON
-cargo run -p aoxcmd --bin aoxc -- db-put-block \
-  --block-file ./sample-block.json \
-  --backend sqlite
-
-# query by height / hash
+cargo run -p aoxcmd --bin aoxc -- db-put-block --block-file ./sample-block.json --backend sqlite
 cargo run -p aoxcmd --bin aoxc -- db-get-height --height 1 --backend sqlite
 cargo run -p aoxcmd --bin aoxc -- db-get-hash --hash <hex64> --backend sqlite
-
-# compact index and inspect status
 cargo run -p aoxcmd --bin aoxc -- db-compact --backend sqlite
 cargo run -p aoxcmd --bin aoxc -- db-status --backend sqlite
 ```
 
-Use `--backend redb` when you want the alternate index backend profile.
+---
+
+## 7) AOXCVM execution readiness checklist
+
+- deterministic lane routing documented,
+- gas/fuel/accounting strategy documented,
+- malformed payload rejection test coverage,
+- replay consistency across lanes,
+- operator-facing runbook references updated.
+
+See also: `crates/aoxcvm/README.md` and `crates/aoxcvm/READ.md`.
 
 ---
 
-## 8. Deterministic testnet and local validation
+## 8) AOXHub desktop readiness checklist
 
-Useful entry points:
+- critical operator actions mapped to underlying CLI commands,
+- clear separation between "view" and "mutating" actions,
+- launch readiness / blockers panel maintained,
+- incident/export audit artifacts preserved.
 
-- `configs/environments/localnet/`
-- `configs/environments/testnet/`
-- `configs/environments/localnet/launch-localnet.sh`
-- `scripts/run-local.sh`
-- `scripts/validation/multi_host_validation.sh`
-
-Suggested validation order:
-
-1. local single-node bootstrap,
-2. deterministic testnet fixture launch,
-3. targeted crate tests,
-4. multi-node and cross-host validation,
-5. readiness evidence update.
+See also: `crates/aoxchub/README.md`.
 
 ---
 
-## 9. Documentation map
-
-Start here:
-
-- `docs/src/READ.md` — documentation entry and release baseline
-- `docs/src/SUMMARY.md` — mdBook navigation
-- `docs/src/AKDENIZ_RELEASE_BASELINE.md` — Akdeniz release definition
-- `docs/src/MAINNET_READINESS_CHECKLIST.md` — readiness expectations
-- `docs/src/REAL_NETWORK_VALIDATION_RUNBOOK_TR.md` — real-network validation
-- `docs/src/AOXC_REAL_VERSIONING_AND_RELEASE_ROADMAP_TR.md` — versioning policy
-
----
-
-## 10. Quality gates
-
-Recommended minimum release gates:
+## 9) Quality gates (recommended for release)
 
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings
 cargo test --workspace --exclude aoxchub --all-targets
-# desktop surface (requires Linux desktop system dependencies):
+# desktop gate (needs system desktop deps):
 cargo check -p aoxchub --all-targets
 ```
 
-For this change set, the focused verification path remained:
+---
 
-```bash
-cargo fmt --all
-cargo test -p aoxcmd
-```
+## 10) Documentation map
+
+- `READ.md` (root audit companion)
+- `docs/src/READ.md`
+- `docs/src/AKDENIZ_RELEASE_BASELINE.md`
+- `docs/src/MAINNET_READINESS_CHECKLIST.md`
+- `docs/src/REAL_NETWORK_VALIDATION_RUNBOOK_TR.md`
+- `docs/src/AOXC_REAL_VERSIONING_AND_RELEASE_ROADMAP_TR.md`
 
 ---
 
-## 11. Release evidence expectations
+## 11) Known reality
 
-Every named release should capture:
+AOXC has strong architectural decomposition and broad documentation; however, production-hardening remains an ongoing effort in multi-host validation, sync/recovery proofs, and workspace-wide release evidence completeness.
 
-- exact commit SHA,
-- exact commands executed,
-- test outcomes,
-- documentation changes,
-- known limitations and blockers,
-- artifact and provenance policy status.
-
----
-
-## 12. Known reality
-
-This repository has strong architecture and documentation breadth, but some production-readiness areas still require additional closure, especially:
-
-- real cross-host validation,
-- state sync / recovery proof,
-- broader workspace-wide release gates,
-- full integration maturity across all crates.
-
-The goal of the Akdeniz line is to make the release surface coherent and evidence-driven, not to hide remaining work.
+This baseline intentionally documents both strengths and gaps so the release process remains evidence-driven.

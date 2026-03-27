@@ -1,43 +1,73 @@
-# AOXC Audit Companion — v0.1.1-akdeniz
+# AOXC Audit Companion — v0.1.1-akdeniz (System Compatibility Update)
 
-This file is the audit-oriented companion to the main `README.md`.
+This file is the audit-oriented companion to the root `README.md`.
 
-## Release identity
+## 1) Release identity
 
 - **Release label:** `AOXC v0.1.1-akdeniz`
-- **Cargo version baseline:** `0.1.1-akdeniz`
+- **Cargo baseline:** `0.1.1-akdeniz`
 - **Documentation baseline:** `aoxc.v.0.1.1-akdeniz`
 
-## Audit intent
+## 2) What changed in this document update
 
-This repository should be reviewed as a deterministic, multi-crate blockchain workspace with explicit trust boundaries:
+This update aligns the root guidance with a single "full target" interpretation:
+
+- unified scope across core/consensus/net/rpc/cmd/vm/desktop,
+- explicit AOXCVM vs AOXHub responsibility separation,
+- deterministic operator lifecycle emphasis,
+- transparent statement of remaining readiness gaps.
+
+## 3) Audit intent
+
+The repository should be reviewed as a deterministic multi-crate chain workspace with explicit trust boundaries for:
 
 - cryptographic identity and custody,
-- consensus correctness and finality,
-- operator tooling and runtime persistence,
+- consensus correctness/finality,
+- runtime persistence and DB lifecycle,
 - network transport and observability,
-- release discipline and evidence retention.
+- execution-lane safety,
+- desktop/operator control-plane hygiene,
+- release evidence traceability.
 
-## What “Akdeniz” should mean
+## 4) "%100 hedef" audit interpretation
 
-The `akdeniz` baseline should signal a named release train with:
+For this baseline, "%100" means full documentation consistency and release discipline, **not** a claim that all future production risks are already eliminated.
 
-1. coherent versioning across workspace metadata and docs,
-2. traceable tests for operator/node bootstrap flows,
-3. explicit runbooks for operational validation,
-4. documented remaining blockers rather than hidden assumptions.
+A compliant release should show:
 
-## Required release evidence
+1. consistent version identity,
+2. reproducible commands and outcomes,
+3. documented limitations,
+4. crate-level responsibility clarity,
+5. operator-usable runbooks.
 
-- commands executed,
-- tests passed or skipped,
-- documentation updated,
-- known limitations recorded,
+## 5) AOXCVM and Desktop governance split
+
+### AOXCVM (`crates/aoxcvm`)
+
+- consensus-adjacent execution compatibility layer,
+- deterministic execution constraints required,
+- stronger validation + replay guarantees expected.
+
+### AOXHub Desktop (`crates/aoxchub`)
+
+- operator UX and orchestration layer,
+- should remain auditable and explicit in command mapping,
+- should not silently bypass CLI/runtime controls.
+
+## 6) Required release evidence
+
+- executed command list,
+- test/check outcomes (pass/fail/limited),
+- updated docs list,
+- known limitation registry,
 - commit SHA linked to release notes.
 
-## Primary references
+## 7) Primary references
 
 - `README.md`
+- `crates/aoxcvm/README.md`
+- `crates/aoxchub/README.md`
 - `docs/src/AKDENIZ_RELEASE_BASELINE.md`
 - `docs/src/MAINNET_READINESS_CHECKLIST.md`
 - `docs/src/REAL_NETWORK_VALIDATION_RUNBOOK_TR.md`
