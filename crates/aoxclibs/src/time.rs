@@ -2,6 +2,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::types::LibError;
 
+use crate::types::LibError;
+
 pub fn current_unix_timestamp() -> Result<u64, LibError> {
     unix_timestamp_from_system_time(SystemTime::now())
 }
@@ -24,6 +26,8 @@ pub fn unix_timestamp_millis_from_system_time(time: SystemTime) -> Result<u128, 
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
 
     #[test]
