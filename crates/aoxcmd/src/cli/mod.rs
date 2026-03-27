@@ -6,6 +6,7 @@ use std::env;
 
 pub(crate) mod audit;
 pub(crate) mod bootstrap;
+pub(crate) mod db;
 pub(crate) mod describe;
 pub(crate) mod ops;
 
@@ -66,6 +67,12 @@ pub fn run_cli() -> Result<(), AppError> {
         "network-smoke" => ops::cmd_network_smoke(&args[2..]),
         "real-network" => ops::cmd_real_network(&args[2..]),
         "storage-smoke" => ops::cmd_storage_smoke(&args[2..]),
+        "db-init" => db::cmd_db_init(&args[2..]),
+        "db-status" => db::cmd_db_status(&args[2..]),
+        "db-put-block" => db::cmd_db_put_block(&args[2..]),
+        "db-get-height" => db::cmd_db_get_height(&args[2..]),
+        "db-get-hash" => db::cmd_db_get_hash(&args[2..]),
+        "db-compact" => db::cmd_db_compact(&args[2..]),
         "economy-init" => ops::cmd_economy_init(&args[2..]),
         "treasury-transfer" => ops::cmd_treasury_transfer(&args[2..]),
         "stake-delegate" => ops::cmd_stake_delegate(&args[2..]),
