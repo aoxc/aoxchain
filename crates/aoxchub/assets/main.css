@@ -198,8 +198,7 @@ a {
 }
 
 .ops-field select,
-.ops-field textarea,
-.ops-field input {
+.ops-field textarea {
     border-radius: 10px;
     border: 1px solid var(--panel-border);
     background: #0c1322;
@@ -264,49 +263,6 @@ a {
     gap: 6px;
     color: #d7e4ff;
     font-size: 0.86rem;
-}
-
-.history-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.82rem;
-}
-
-.history-table th,
-.history-table td {
-    border-bottom: 1px solid #273a5a;
-    text-align: left;
-    padding: 8px 6px;
-    vertical-align: top;
-}
-
-.history-table th {
-    color: #9db4e0;
-    font-weight: 600;
-}
-
-.history-table td {
-    color: #d7e4ff;
-}
-
-.cell-ok {
-    color: #75e6b2 !important;
-    font-weight: 700;
-}
-
-.cell-error {
-    color: #ff8f8f !important;
-    font-weight: 700;
-}
-
-.error-banner {
-    margin: 0;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid #823d4b;
-    background: rgba(72, 24, 38, 0.6);
-    color: #ffc3ce;
-    font-weight: 600;
 }
 
 .echo-box p {
@@ -389,12 +345,6 @@ a {
 
     .ops-form-grid {
         grid-template-columns: 1fr;
-    }
-
-    .history-table {
-        display: block;
-        overflow-x: auto;
-        white-space: nowrap;
     }
 
     .pager {
