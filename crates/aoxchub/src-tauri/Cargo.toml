@@ -40,6 +40,10 @@ aoxconfig = { path = "../../aoxconfig" }
 tokio = { workspace = true }
 log = "0.4"
 tracing = { workspace = true }
+glib = "0.22.3"
+glib-sys = "0.22.3"
+gio = "0.22.2"
+gio-sys = "0.22.0"
 
 [features]
 # Enables the custom protocol required by packaged desktop builds.
