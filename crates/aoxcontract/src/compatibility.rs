@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 use crate::{CompatibilityError, ContractError, Validate, VmTarget};
 
@@ -63,6 +64,22 @@ impl Validate for Compatibility {
         }
         if self.supported_schema_versions.is_empty() {
             return Err(CompatibilityError::EmptySupportedSchemaVersions.into());
+        }
+        if self.supported_runtime_families.is_empty() {
+            return Err(CompatibilityError::EmptySupportedRuntimeFamilies.into());
+        }
+        if self.supported_network_classes.is_empty() {
+            return Err(CompatibilityError::EmptySupportedNetworkClasses.into());
+        }
+        let unique: BTreeSet<u32> = self.supported_schema_versions.iter().copied().collect();
+        if unique.len() != self.supported_schema_versions.len() {
+            return Err(CompatibilityError::DuplicateSupportedSchemaVersions.into());
+        }
+        if !self
+            .supported_schema_versions
+            .contains(&self.minimum_schema_version)
+        {
+            return Err(CompatibilityError::MinimumSchemaVersionNotSupported.into());
         }
         Ok(())
     }

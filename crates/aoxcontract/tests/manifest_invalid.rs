@@ -89,3 +89,25 @@ fn compatibility_mismatch_is_rejected() {
         ContractError::Compatibility(CompatibilityError::CompatibilityMismatch)
     ));
 }
+
+#[test]
+fn empty_entrypoints_are_rejected() {
+    let mut manifest = common::sample_manifest();
+    manifest.entrypoints.clear();
+    let err = manifest.validate().unwrap_err();
+    assert!(matches!(
+        err,
+        ContractError::Manifest(ManifestValidationError::EmptyEntrypoints)
+    ));
+}
+
+#[test]
+fn integrity_metadata_mismatch_is_rejected() {
+    let mut manifest = common::sample_manifest();
+    manifest.integrity.artifact_size = manifest.artifact.artifact_size + 1;
+    let err = manifest.validate().unwrap_err();
+    assert!(matches!(
+        err,
+        ContractError::Manifest(ManifestValidationError::IntegrityMetadataMismatch)
+    ));
+}
