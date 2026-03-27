@@ -143,7 +143,33 @@ If the exact CLI surface changes, the canonical source of truth is `crates/aoxcm
 
 ---
 
-## 7. Deterministic testnet and local validation
+## 7. Real-chain local DB lifecycle (CLI)
+
+AOXC operator plane now includes a practical data-store lifecycle via CLI:
+
+```bash
+# initialize DB under $AOXC_HOME/runtime/db
+cargo run -p aoxcmd --bin aoxc -- db-init --backend sqlite
+
+# ingest a canonical block envelope from JSON
+cargo run -p aoxcmd --bin aoxc -- db-put-block \
+  --block-file ./sample-block.json \
+  --backend sqlite
+
+# query by height / hash
+cargo run -p aoxcmd --bin aoxc -- db-get-height --height 1 --backend sqlite
+cargo run -p aoxcmd --bin aoxc -- db-get-hash --hash <hex64> --backend sqlite
+
+# compact index and inspect status
+cargo run -p aoxcmd --bin aoxc -- db-compact --backend sqlite
+cargo run -p aoxcmd --bin aoxc -- db-status --backend sqlite
+```
+
+Use `--backend redb` when you want the alternate index backend profile.
+
+---
+
+## 8. Deterministic testnet and local validation
 
 Useful entry points:
 
@@ -163,7 +189,7 @@ Suggested validation order:
 
 ---
 
-## 8. Documentation map
+## 9. Documentation map
 
 Start here:
 
@@ -176,7 +202,7 @@ Start here:
 
 ---
 
-## 9. Quality gates
+## 10. Quality gates
 
 Recommended minimum release gates:
 
@@ -197,7 +223,7 @@ cargo test -p aoxcmd
 
 ---
 
-## 10. Release evidence expectations
+## 11. Release evidence expectations
 
 Every named release should capture:
 
@@ -210,7 +236,7 @@ Every named release should capture:
 
 ---
 
-## 11. Known reality
+## 12. Known reality
 
 This repository has strong architecture and documentation breadth, but some production-readiness areas still require additional closure, especially:
 
