@@ -28,6 +28,7 @@ This document defines the mandatory roadmap for advancing the covered workspace 
 - `aoxc.v.0.1.1-akdeniz`: initialized audit roadmap, introduced strict Akdeniz release baseline, and reserved this folder for continuous release tracking.
 - Future entries must describe the exact implementation delta, affected artifacts, and verification evidence added in that version.
 - `aoxc.v.0.1.1-akdeniz`: extended `validation/network_production_closure.sh` to emit `aoxhub-rollout.json`, binding AOXHub rollout evidence into the operational closure bundle.
+- `aoxc.v.0.1.1-akdeniz`: added `generate_desktop_ops_report.sh` to produce a markdown desktop operations report with devnet/testnet/mainnet lane commands, wallet address formation commands, and CLI evidence checklist output.
 
 ## Mandatory Update Rule
 Whenever a new file, feature, control, or operational procedure is added under this directory, append the change to this ledger with the new version number and a concise audit explanation before release approval.

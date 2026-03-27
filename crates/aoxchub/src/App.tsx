@@ -19,6 +19,7 @@ type SectionKey =
   | 'overview'
   | 'mission-control'
   | 'security'
+  | 'network-modes'
   | 'nodes'
   | 'wallets'
   | 'runtime'
@@ -196,6 +197,48 @@ type ExplorerSignal = {
   value: string
   detail: string
   status: 'ready' | 'in-progress' | 'blocked'
+}
+
+type RuntimeSurface = {
+  title: string
+  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
+  ramMb: number
+  target: string
+  detail: string
+  command: string
+}
+
+type ContractSurface = {
+  name: string
+  lane: string
+  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
+  address: string
+  vm: string
+  detail: string
+  command: string
+}
+
+type ExplorerSurface = {
+  name: string
+  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
+  endpoint: string
+  detail: string
+  command: string
+}
+
+type NetworkMode = {
+  lane: 'devnet' | 'testnet' | 'mainnet'
+  chainId: string
+  rpc: string
+  p2p: string
+  bootstrap: string
+  status: 'ready' | 'in-progress' | 'blocked'
+}
+
+type CliLane = {
+  title: string
+  focus: string
+  commands: CommandPreset[]
 }
 
 const fallbackSnapshot: LaunchSnapshot = {
@@ -429,6 +472,7 @@ const navigation: { key: SectionKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'mission-control', label: 'Mission control' },
   { key: 'security', label: 'Security' },
+  { key: 'network-modes', label: 'Dev/Test/Mainnet' },
   { key: 'nodes', label: 'Nodes' },
   { key: 'wallets', label: 'Wallets' },
   { key: 'runtime', label: 'Runtime' },
@@ -643,6 +687,65 @@ function App() {
     )
   }, [normalizedQuery, snapshot.wallets])
 
+  const filteredRuntime = useMemo(() => {
+    const runtime = snapshot.runtimeSurfaces ?? []
+    if (!normalizedQuery) return runtime
+    return runtime.filter((surface) =>
+      [surface.title, surface.target, surface.detail, surface.command].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.runtimeSurfaces])
+
+  const filteredContracts = useMemo(() => {
+    const contracts = snapshot.contracts ?? []
+    if (!normalizedQuery) return contracts
+    return contracts.filter((contract) =>
+      [contract.name, contract.lane, contract.vm, contract.address, contract.detail, contract.command]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.contracts])
+
+  const filteredExplorer = useMemo(() => {
+    const explorer = snapshot.explorer ?? []
+    if (!normalizedQuery) return explorer
+    return explorer.filter((surface) =>
+      [surface.name, surface.endpoint, surface.detail, surface.command].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.explorer])
+
+  const networkModes = useMemo<NetworkMode[]>(() => {
+    const leadNode = snapshot.nodes[0]
+    const followerNode = snapshot.nodes[1]
+    const observerNode = snapshot.nodes[2]
+    return [
+      {
+        lane: 'devnet',
+        chainId: 'aoxc-devnet-local',
+        rpc: observerNode?.rpcAddr ?? '127.0.0.1:9545',
+        p2p: observerNode?.listenAddr ?? '127.0.0.1:39003',
+        bootstrap: 'cargo run -q -p aoxcmd -- devnet-up --profile local-dev',
+        status: observerNode?.status === 'offline' ? 'blocked' : 'in-progress',
+      },
+      {
+        lane: 'testnet',
+        chainId: leadNode?.chainId ?? 'aoxc-testnet',
+        rpc: leadNode?.rpcAddr ?? '127.0.0.1:8545',
+        p2p: leadNode?.listenAddr ?? '127.0.0.1:39001',
+        bootstrap: 'configs/deterministic-testnet/launch-testnet.sh',
+        status: leadNode?.status === 'online' ? 'ready' : 'in-progress',
+      },
+      {
+        lane: 'mainnet',
+        chainId: 'aoxc-mainnet-candidate',
+        rpc: followerNode?.rpcAddr ?? '127.0.0.1:8546',
+        p2p: followerNode?.listenAddr ?? '127.0.0.1:39002',
+        bootstrap: 'cargo run -q -p aoxcmd -- production-audit --format json',
+        status: snapshot.blockers.length === 0 ? 'ready' : 'in-progress',
+      },
+    ]
+  }, [snapshot.blockers.length, snapshot.nodes])
+
   const transferScenarios = useMemo<TransferScenario[]>(() => {
     const operatorWallet = snapshot.wallets[0]
     const treasuryWallet = snapshot.wallets.find((wallet) => wallet.title.toLowerCase().includes('treasury'))
@@ -712,6 +815,81 @@ function App() {
       },
     ]
   }, [snapshot.nodes])
+
+  const cliLanes = useMemo<CliLane[]>(
+    () => [
+      {
+        title: 'Node & network CLI',
+        focus: 'devnet/testnet/mainnet cluster boot and diagnostics',
+        commands: [
+          ...snapshot.commands,
+          {
+            title: 'Run single validator',
+            command: 'cargo run -q -p aoxcmd -- node-run --home configs/mainnet-validator --rounds 12',
+            intent: 'Validator node command pathını bağımsız doğrular.',
+          },
+          {
+            title: 'Chain compatibility matrix',
+            command: 'cargo run -q -p aoxcmd -- compat-matrix --format json',
+            intent: 'Node + VM lane uyumluluk raporunu üretir.',
+          },
+        ],
+      },
+      {
+        title: 'Wallet & authority CLI',
+        focus: 'wallet address generation, transfer, staking, emergency recovery',
+        commands: [
+          {
+            title: 'Generate operator wallet address',
+            command: 'cargo run -q -p aoxcmd -- wallet new-address --profile mainnet --lane operator',
+            intent: 'Yeni operatör adresi üretir ve lane metadata kaydeder.',
+          },
+          {
+            title: 'Generate treasury wallet address',
+            command: 'cargo run -q -p aoxcmd -- wallet new-address --profile mainnet --lane treasury',
+            intent: 'Treasury lane için yeni ödeme adresi üretir.',
+          },
+          {
+            title: 'Inspect wallet safety',
+            command: 'cargo run -q -p aoxcmd -- wallet inspect --profile mainnet --verbose',
+            intent: 'Signer, policy ve risk durumunu raporlar.',
+          },
+          ...transferScenarios.map((scenario) => ({
+            title: scenario.title,
+            command: scenario.command,
+            intent: `${scenario.from} → ${scenario.to}`,
+          })),
+          ...stakeScenarios.map((scenario) => ({
+            title: scenario.title,
+            command: scenario.command,
+            intent: scenario.strategy,
+          })),
+        ],
+      },
+      {
+        title: 'Reporting & evidence CLI',
+        focus: 'audit/report export and operational closure bundle',
+        commands: [
+          {
+            title: 'Desktop ops report (new script)',
+            command: 'scripts/generate_desktop_ops_report.sh',
+            intent: 'Desktop/UI odaklı günlük operasyon raporu oluşturur.',
+          },
+          {
+            title: 'Network production closure',
+            command: 'scripts/validation/network_production_closure.sh',
+            intent: 'Mainnet kapanış kanıtlarını paketler.',
+          },
+          {
+            title: 'Release evidence generator',
+            command: 'scripts/release/generate_release_evidence.sh',
+            intent: 'Release artifact ve audit kanıtlarını üretir.',
+          },
+        ],
+      },
+    ],
+    [snapshot.commands, stakeScenarios, transferScenarios],
+  )
 
   const explorerSignals = useMemo<ExplorerSignal[]>(() => {
     const healthyExplorer = snapshot.explorer.filter((item) => item.status === 'ready').length
@@ -947,6 +1125,80 @@ function App() {
                 </div>
                 <strong className="percent">{area.percent}%</strong>
                 <p>{area.detail}</p>
+              </article>
+            ))}
+          </div>
+        </article>
+      </section>
+    )
+  }
+
+  function renderNetworkModes() {
+    return (
+      <section className="dashboard-grid two-col">
+        <article className="panel-surface section-card">
+          <div className="section-heading">
+            <h2>Environment matrix</h2>
+            <p>Devnet, testnet ve mainnet lane'leri tek menüde profesyonel şekilde yönetilir.</p>
+          </div>
+          <div className="stack-list">
+            {networkModes.map((mode) => (
+              <article className="info-card compact" key={mode.lane}>
+                <div className="card-topline">
+                  <h3>{mode.lane.toUpperCase()}</h3>
+                  <span className={`status-pill ${mode.status}`}>{statusLabel(mode.status)}</span>
+                </div>
+                <dl className="detail-grid">
+                  <div><dt>Chain ID</dt><dd>{mode.chainId}</dd></div>
+                  <div><dt>RPC</dt><dd>{mode.rpc}</dd></div>
+                  <div><dt>P2P</dt><dd>{mode.p2p}</dd></div>
+                </dl>
+                <code>{mode.bootstrap}</code>
+                <div className="action-row">
+                  <button type="button" onClick={() => queueCommand(`${mode.lane} bootstrap`, mode.bootstrap, 'network')}>
+                    Queue
+                  </button>
+                  <button type="button" onClick={() => copyCommand(mode.bootstrap)}>
+                    Copy
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel-surface section-card">
+          <div className="section-heading">
+            <h2>Full CLI command center</h2>
+            <p>Tüm önemli CLI komutları UI içinde gruplu, aranabilir ve kuyruklanabilir şekilde listelenir.</p>
+          </div>
+          <div className="stack-list cli-catalog">
+            {cliLanes.map((lane) => (
+              <article className="info-card compact cli-lane-card" key={lane.title}>
+                <div className="card-topline">
+                  <div>
+                    <h3>{lane.title}</h3>
+                    <p className="muted">{lane.focus}</p>
+                  </div>
+                  <span className="status-pill ready">{lane.commands.length} cmds</span>
+                </div>
+                <div className="stack-list">
+                  {lane.commands.map((command) => (
+                    <article className="info-card compact command-inline" key={`${lane.title}-${command.title}-${command.command}`}>
+                      <strong>{command.title}</strong>
+                      <p>{command.intent}</p>
+                      <code>{command.command}</code>
+                      <div className="action-row">
+                        <button type="button" onClick={() => queueCommand(command.title, command.command, 'cli-center')}>
+                          Queue
+                        </button>
+                        <button type="button" onClick={() => copyCommand(command.command)}>
+                          Copy
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
               </article>
             ))}
           </div>
@@ -1396,6 +1648,8 @@ function App() {
         return renderMissionControl()
       case 'security':
         return renderSecurity()
+      case 'network-modes':
+        return renderNetworkModes()
       case 'nodes':
         return renderNodes()
       case 'wallets':

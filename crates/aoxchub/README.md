@@ -10,6 +10,7 @@ Provide a clear, auditable desktop experience for node operators without weakeni
 
 - launch readiness and blocker visibility,
 - cluster and node status monitoring,
+- devnet/testnet/mainnet lane matrix and full CLI command catalog,
 - wallet/treasury/recovery visibility,
 - report export and operational evidence presentation,
 - command queue surfaces mapped to backend controls.
