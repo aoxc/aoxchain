@@ -69,7 +69,6 @@ pub fn run_cli() -> Result<(), AppError> {
         "storage-smoke" => ops::cmd_storage_smoke(&args[2..]),
         "db-init" => db::cmd_db_init(&args[2..]),
         "db-status" => db::cmd_db_status(&args[2..]),
-        "db-build-block" => db::cmd_db_build_block(&args[2..]),
         "db-put-block" => db::cmd_db_put_block(&args[2..]),
         "db-get-height" => db::cmd_db_get_height(&args[2..]),
         "db-get-hash" => db::cmd_db_get_hash(&args[2..]),

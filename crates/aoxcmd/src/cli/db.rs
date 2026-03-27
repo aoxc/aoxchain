@@ -5,9 +5,7 @@ use crate::{
 };
 use aoxcdata::{BlockEnvelope, HybridDataStore, IndexBackend};
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 use std::{fs, path::PathBuf};
-const BLOCK_HASH_DOMAIN: &[u8] = b"AOXC_BLOCK_V1";
 
 fn parse_backend(args: &[String]) -> Result<IndexBackend, AppError> {
     match arg_value(args, "--backend")
@@ -65,53 +63,6 @@ fn parse_required_arg(args: &[String], flag: &str) -> Result<String, AppError> {
             ErrorCode::UsageInvalidArguments,
             format!("Missing required {flag} value"),
         )
-    })
-}
-
-fn validate_hex_hash(value: &str, field: &str) -> Result<(), AppError> {
-    if value.len() != 64 {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            format!("{field} must be 64 hexadecimal characters"),
-        ));
-    }
-    if !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            format!("{field} must contain only hexadecimal characters"),
-        ));
-    }
-    Ok(())
-}
-
-fn build_block_envelope(
-    height: u64,
-    parent_hash_hex: String,
-    payload: Vec<u8>,
-) -> Result<BlockEnvelope, AppError> {
-    validate_hex_hash(&parent_hash_hex, "--parent-hash")?;
-
-    let parent_hash_bytes = hex::decode(&parent_hash_hex).map_err(|err| {
-        AppError::with_source(
-            ErrorCode::UsageInvalidArguments,
-            "Failed to decode --parent-hash",
-            err,
-        )
-    })?;
-
-    let mut hasher = Sha256::new();
-    hasher.update(BLOCK_HASH_DOMAIN);
-    hasher.update(height.to_le_bytes());
-    hasher.update(parent_hash_bytes);
-    hasher.update((payload.len() as u64).to_le_bytes());
-    hasher.update(&payload);
-    let block_hash_hex = hex::encode(hasher.finalize());
-
-    Ok(BlockEnvelope {
-        height,
-        block_hash_hex,
-        parent_hash_hex,
-        payload,
     })
 }
 
@@ -179,32 +130,6 @@ pub fn cmd_db_put_block(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&meta, output_format(args))
 }
 
-pub fn cmd_db_build_block(args: &[String]) -> Result<(), AppError> {
-    let height = parse_u64_arg(args, "--height")?;
-    let parent_hash_hex =
-        arg_value(args, "--parent-hash").unwrap_or_else(|| "00".repeat(32).to_string());
-
-    let payload = if let Some(payload_file) = arg_value(args, "--payload-file") {
-        fs::read(&payload_file).map_err(|err| {
-            AppError::with_source(
-                ErrorCode::FilesystemIoFailed,
-                format!("Failed to read payload file {payload_file}"),
-                err,
-            )
-        })?
-    } else if let Some(payload) = arg_value(args, "--payload") {
-        payload.into_bytes()
-    } else {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Missing payload input: use --payload or --payload-file",
-        ));
-    };
-
-    let envelope = build_block_envelope(height, parent_hash_hex, payload)?;
-    emit_serialized(&envelope, output_format(args))
-}
-
 pub fn cmd_db_get_height(args: &[String]) -> Result<(), AppError> {
     let backend = parse_backend(args)?;
     let height = parse_u64_arg(args, "--height")?;
@@ -267,10 +192,7 @@ fn count_ipfs_objects(root: &std::path::Path) -> Result<usize, AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        build_block_envelope, cmd_db_build_block, cmd_db_get_hash, cmd_db_get_height, cmd_db_init,
-        cmd_db_put_block, parse_backend,
-    };
+    use super::{cmd_db_get_hash, cmd_db_get_height, cmd_db_init, cmd_db_put_block, parse_backend};
     use crate::test_support::TestHome;
     use sha2::{Digest, Sha256};
     use std::fs;
@@ -319,30 +241,5 @@ mod tests {
             .expect("db get by height should succeed");
         cmd_db_get_hash(&["--hash".to_string(), block_hash])
             .expect("db get by hash should succeed");
-    }
-
-    #[test]
-    fn build_block_envelope_is_valid_and_deterministic() {
-        let payload = b"hello-db".to_vec();
-        let parent_hash = "11".repeat(32);
-
-        let a = build_block_envelope(7, parent_hash.clone(), payload.clone())
-            .expect("first envelope should build");
-        let b =
-            build_block_envelope(7, parent_hash, payload).expect("second envelope should build");
-
-        a.validate().expect("envelope should validate");
-        assert_eq!(a, b, "same inputs must produce deterministic envelope");
-    }
-
-    #[test]
-    fn db_build_block_command_accepts_inline_payload() {
-        cmd_db_build_block(&[
-            "--height".to_string(),
-            "1".to_string(),
-            "--payload".to_string(),
-            "demo".to_string(),
-        ])
-        .expect("db build block should succeed");
     }
 }

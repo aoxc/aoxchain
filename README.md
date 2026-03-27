@@ -151,12 +151,6 @@ AOXC operator plane now includes a practical data-store lifecycle via CLI:
 # initialize DB under $AOXC_HOME/runtime/db
 cargo run -p aoxcmd --bin aoxc -- db-init --backend sqlite
 
-# build canonical block envelope JSON from raw payload
-cargo run -p aoxcmd --bin aoxc -- db-build-block \
-  --height 1 \
-  --payload '{"tx":"demo"}' \
-  --format json > ./sample-block.json
-
 # ingest a canonical block envelope from JSON
 cargo run -p aoxcmd --bin aoxc -- db-put-block \
   --block-file ./sample-block.json \
@@ -172,9 +166,6 @@ cargo run -p aoxcmd --bin aoxc -- db-status --backend sqlite
 ```
 
 Use `--backend redb` when you want the alternate index backend profile.
-
-Desktop control center (AOXHub) can run the same flow using desktop actions:
-`dbInit`, `dbStatus`, `dbBuildBlock`, `dbPutBlock`, `dbGetHeight`, `dbGetHash`, `dbCompact`.
 
 ---
 

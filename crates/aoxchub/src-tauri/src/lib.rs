@@ -191,9 +191,6 @@ struct ActionOptions {
     block_file: Option<String>,
     height: Option<u64>,
     hash: Option<String>,
-    payload: Option<String>,
-    payload_file: Option<String>,
-    parent_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -243,7 +240,6 @@ enum DesktopAction {
     RealNetworkValidation,
     DbInit,
     DbStatus,
-    DbBuildBlock,
     DbPutBlock,
     DbGetHeight,
     DbGetHash,
@@ -786,47 +782,6 @@ fn build_action_spec(repo_root: &Path, request: &CommandExecutionRequest) -> App
                 artifact_hints: vec![("Runtime DB root".to_string(), format!("{home}/runtime/db"))],
             }
         }
-        DesktopAction::DbBuildBlock => {
-            let height = options.height.ok_or_else(|| {
-                "dbBuildBlock action requires options.height (u64 block height)".to_string()
-            })?;
-            let parent_hash = options
-                .parent_hash
-                .clone()
-                .unwrap_or_else(|| "00".repeat(32));
-            let mut args = vec![
-                "db-build-block".to_string(),
-                "--height".to_string(),
-                height.to_string(),
-                "--parent-hash".to_string(),
-                parent_hash,
-            ];
-
-            if let Some(payload) = options.payload.clone() {
-                args.push("--payload".to_string());
-                args.push(payload);
-            } else if let Some(payload_file) = options.payload_file.clone() {
-                args.push("--payload-file".to_string());
-                args.push(payload_file);
-            } else {
-                return Err(
-                    "dbBuildBlock action requires options.payload or options.payloadFile"
-                        .to_string(),
-                );
-            }
-
-            args.push("--format".to_string());
-            args.push(format.clone());
-
-            ActionSpec {
-                program: "cargo".to_string(),
-                rendered_command: render_cargo_command(&args),
-                args,
-                script_path: None,
-                env_vars,
-                artifact_hints: vec![("Runtime DB root".to_string(), format!("{home}/runtime/db"))],
-            }
-        }
         DesktopAction::DbPutBlock => {
             let backend = options
                 .backend
@@ -1078,10 +1033,6 @@ fn next_steps_for(
             "If object/index counts drift, run db-compact.".to_string(),
             "Use db-get-height/hash to verify deterministic retrieval.".to_string(),
         ],
-        DesktopAction::DbBuildBlock => vec![
-            "Persist the generated envelope with db-put-block.".to_string(),
-            "Verify retrieval through db-get-height and db-get-hash.".to_string(),
-        ],
         DesktopAction::DbPutBlock => vec![
             "Use db-get-height and db-get-hash to verify the inserted block.".to_string(),
             "Compact the index periodically for long-running nodes.".to_string(),
@@ -1118,7 +1069,6 @@ fn risk_level_for(action: DesktopAction) -> RiskLevel {
         | DesktopAction::NetworkSmoke
         | DesktopAction::DbInit
         | DesktopAction::DbStatus
-        | DesktopAction::DbBuildBlock
         | DesktopAction::DbPutBlock
         | DesktopAction::DbGetHeight
         | DesktopAction::DbGetHash
@@ -1477,12 +1427,6 @@ fn command_presets() -> Vec<CommandPreset> {
             title: "Check runtime DB status".to_string(),
             command: "cargo run -q -p aoxcmd -- db-status --backend sqlite --format json".to_string(),
             intent: "Inspect CAS/index surfaces and object count from desktop.".to_string(),
-            risk_level: RiskLevel::Low,
-        },
-        CommandPreset {
-            title: "Build canonical block envelope".to_string(),
-            command: "cargo run -q -p aoxcmd -- db-build-block --height 1 --payload '{\"tx\":\"demo\"}' --format json".to_string(),
-            intent: "Generate deterministic block envelope JSON before db-put-block ingestion.".to_string(),
             risk_level: RiskLevel::Low,
         },
     ]
