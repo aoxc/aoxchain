@@ -1,56 +1,118 @@
-# AOXChain Audit Companion
+# AOXC — Advanced Omnichain Execution Core
 
-This file is the audit-oriented companion to `README.md` and the root architecture/security/state model documents.
+> Status: **Experimental / Under Active Construction**  
+> License: **MIT**  
+> Version Track: **v0.01 foundation rebuild**
 
-## 1) Audit scope statement
+AOXC is a modular, Rust-first blockchain platform targeting deterministic multi-lane execution, constitutional consensus safety, and production-ready operator workflows.
 
-The repository should be reviewed as a modular chain stack with explicit boundaries:
+---
 
-- kernel authority,
-- deterministic runtime authority,
-- system service availability surfaces,
-- operator control-plane surfaces,
-- ecosystem/peripheral surfaces.
+## 1) What We Are Building
 
-## 2) Current-state honesty summary
+AOXC aims to become a **high-assurance execution chain** with the following pillars:
 
-- **Currently implemented:** clear multi-crate decomposition across core, consensus, runtime, networking, RPC, persistence, operator CLI/UI, and integration crates.
-- **Partially implemented:** uniform end-to-end evidence packaging for replay determinism, partition recovery, and control-plane mutating-action audit trails.
-- **Target state:** release-time policy checks that prevent boundary violations and require reproducible evidence bundles for tier-0 through tier-3 changes.
+- Deterministic execution across multiple virtual machine lanes.
+- Consensus safety with explicit finality and fork-handling guarantees.
+- Strong observability and operational readiness (metrics, logs, health, runbooks).
+- Cross-platform developer and operator experience (Linux/macOS/Windows + Docker).
 
-## 3) Audit-critical boundary assertions
+## 2) Strategic Product Thesis
 
-1. `aoxcore` + `aoxcunity` define kernel authority.
-2. `aoxcexec` + `aoxcvm` (with `aoxcenergy`) define deterministic runtime authority surfaces.
-3. `aoxcmd` remains the authoritative operational shell.
-4. `aoxchub` remains operator UX and is not protocol authority.
-5. AI/advisory surfaces (`aoxcai`) remain outside deterministic consensus authority.
+AOXC is not "just another chain".
+Its differentiation target is:
 
-## 4) Required evidence classes per release candidate
+1. **Deterministic multi-VM settlement**
+2. **Constitutional consensus governance model**
+3. **Operator-first reliability posture**
 
-- exact command list executed,
-- pass/fail/limited outcomes,
-- changed-files inventory,
-- boundary-impact statement (which tier/domain changed),
-- known gaps and risk acceptance notes.
+## 3) Monorepo Topology
 
-## 5) Baseline command set (workspace verification)
+High-level modules:
+
+- `crates/aoxcore`: transaction, block, identity, state domain logic
+- `crates/aoxcunity`: consensus engine and safety/finality primitives
+- `crates/aoxcvm`: multi-lane execution runtime (EVM/Move/WASM/Cardano compatibility lanes)
+- `crates/aoxcnet`: networking, discovery, transport, resilience harness
+- `crates/aoxcrpc`: RPC/HTTP/gRPC/websocket surfaces
+- `crates/aoxcmd`: node/app bootstrap and operations entrypoints
+- `tests`: integration and production-readiness style validation
+
+## 4) Platform Compatibility (Required Baseline)
+
+AOXC foundation is being written to run in all major environments:
+
+- **Linux** (Ubuntu, Debian, Fedora)
+- **macOS** (Apple Silicon + Intel)
+- **Windows** (PowerShell, Git Bash, WSL2)
+- **Docker** (local developer runtime and CI parity)
+
+### 4.1 Rust Toolchain
+
+- Rust stable (recommended via rustup)
+- Cargo workspace support
+
+### 4.2 Optional Tooling
+
+- Docker / Docker Compose
+- `make` (or PowerShell scripts on Windows)
+
+## 5) Quick Start (Cross-Platform)
+
+### 5.1 Clone + Build
+
+```bash
+git clone <repo-url> aoxchain
+cd aoxchain
+cargo build --workspace
+```
+
+### 5.2 Run Core Validation
 
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings
 cargo test --workspace --exclude aoxchub --all-targets
+```
+
+### 5.3 Desktop Surface Validation
+
+```bash
 cargo check -p aoxchub --all-targets
 ```
 
-## 6) Reference set
+## 6) Docker-First Development
 
-- `docs/ARCHITECTURE.md`
-- `docs/SECURITY_MODEL.md`
-- `docs/EXECUTION_MODEL.md`
-- `docs/STATE_MODEL.md`
-- `docs/RELEASE_TIERS.md`
-- `docs/SYSTEM_INVARIANTS.md`
-- `docs/LICENSING.md`
-- `docs/TRADEMARK_POLICY.md`
-- `README.md`
+> Goal: ensure every critical command can run in a clean, reproducible container.
+
+Planned baseline:
+
+- Standardized dev image with Rust toolchain + common build dependencies.
+- One-command workspace validation in container.
+- Future: deterministic integration environment with multi-node local network.
+
+## 7) Engineering Rules (Non-Negotiable)
+
+1. Determinism before performance optimization.
+2. Reproducible build/test in local + CI + container.
+3. No merge without format/lint/tests passing.
+4. Security-critical changes require threat notes and test evidence.
+5. Public interfaces require compatibility notes.
+
+## 8) Current Maturity Statement
+
+This repository is experimental.
+Breaking changes, refactors, and protocol reshaping are expected until stabilization gates are formally passed.
+
+## 9) Primary Planning Document
+
+See the root roadmap and execution checklist:
+
+- [`ROADMAP.md`](./ROADMAP.md)
+
+This file is the authoritative track for foundation, infrastructure, and release-readiness milestones.
+
+## 10) License
+
+MIT License.
+All contributors must preserve license headers and respect third-party dependency obligations.

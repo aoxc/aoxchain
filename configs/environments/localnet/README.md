@@ -1,53 +1,33 @@
-# AOXC Localnet Environment
+# README.md
 
-This directory contains the deterministic local multi-node AOXC environment bundle.
+> Module Documentation Status: **Active / Full Draft**  
+> License: **MIT**  
+> Repository: **AOXC**
 
-## Canonical Identity
+This directory follows the root documentation contract.
+Before editing implementation details here, read:
 
-- Chain name: `AOXC LOCALNET ATLAS`
-- Environment: `localnet`
-- Network class: `localnet`
-- Network serial: `2626-900`
-- Chain ID: `2626900001`
-- Network ID: `aoxc-localnet-2626-900`
+1. [`README.md` at repo root](../../../README.md)
+2. [`READ.md` at repo root](../../../READ.md)
+3. [`ROADMAP.md` at repo root](../../../ROADMAP.md)
 
-## Purpose
+## Local Scope
 
-This environment supports:
-- local multi-node testing,
-- deterministic operator workflows,
-- launch validation,
-- hub and CLI integration checks.
+This folder contains implementation and/or configuration surfaces that contribute to AOXC foundation goals:
 
-## Authoritative Files
+- deterministic behavior
+- cross-platform operability
+- Docker-compatible workflows
+- release-readiness observability
 
-### Stable identity anchor
-- `manifest.v1.json`
+## Local Contributor Checklist
 
-### Genesis anchor
-- `genesis.v1.json`
-- `genesis.v1.sha256`
+- [ ] Confirm commands/build steps are reproducible.
+- [ ] Keep changes aligned with roadmap phase.
+- [ ] Add/update tests for behavior changes.
+- [ ] Keep docs synchronized with root standards.
+- [ ] Preserve MIT headers and experimental status notes as needed.
 
-### Operational network data
-- `accounts.json`
-- `validators.json`
-- `bootnodes.json`
-- `certificate.json`
+## Notes
 
-### Policy controls
-- `profile.toml`
-- `release-policy.toml`
-
-### Local orchestration surfaces
-- `nodes/`
-- `homes/`
-- `launch-localnet.sh`
-- `hosts.txt.example`
-
-## Rule
-
-The localnet bundle must remain consistent with:
-- `configs/registry/network-registry.toml`
-- `configs/registry/binary-compatibility.toml`
-
-Node-specific local files under `homes/` are not registry authority artifacts and must not be treated as canonical policy inputs.
+If this module needs deep specialized docs, keep them here, but do not conflict with root roadmap and quality gates.

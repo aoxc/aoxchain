@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 //! AOXC canonical genesis configuration model.
 //!
 //! This module defines the forward-compatible genesis identity surface for AOXC.

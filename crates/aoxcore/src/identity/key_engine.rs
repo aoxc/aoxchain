@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use rand::RngExt;
 use sha3::{Digest, Sha3_256, Sha3_512};
 use std::fmt;

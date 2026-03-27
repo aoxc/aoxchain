@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::config::RpcConfig;
 use crate::error::RpcError;
 use crate::grpc::services::{query_service::QueryService, tx_submission::TxSubmissionService};

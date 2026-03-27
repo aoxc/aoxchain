@@ -1,42 +1,33 @@
-# AOXC Validation Environment
+# README.md
 
-This directory contains the canonical validation environment bundle for AOXC.
+> Module Documentation Status: **Active / Full Draft**  
+> License: **MIT**  
+> Repository: **AOXC**
 
-## Canonical Identity
+This directory follows the root documentation contract.
+Before editing implementation details here, read:
 
-- Chain name: `AOXC MIZAN`
-- Environment: `validation`
-- Network class: `validation`
-- Network serial: `2626-004`
-- Chain ID: `2626030001`
-- Network ID: `aoxc-validation-2626-004`
+1. [`README.md` at repo root](../../../README.md)
+2. [`READ.md` at repo root](../../../READ.md)
+3. [`ROADMAP.md` at repo root](../../../ROADMAP.md)
 
-## Purpose
+## Local Scope
 
-This environment exists to support pre-production verification, reproducibility checks, and controlled promotion readiness exercises.
+This folder contains implementation and/or configuration surfaces that contribute to AOXC foundation goals:
 
-## Authoritative Files
+- deterministic behavior
+- cross-platform operability
+- Docker-compatible workflows
+- release-readiness observability
 
-### Stable identity anchor
-- `manifest.v1.json`
+## Local Contributor Checklist
 
-### Genesis anchor
-- `genesis.v1.json`
-- `genesis.v1.sha256`
+- [ ] Confirm commands/build steps are reproducible.
+- [ ] Keep changes aligned with roadmap phase.
+- [ ] Add/update tests for behavior changes.
+- [ ] Keep docs synchronized with root standards.
+- [ ] Preserve MIT headers and experimental status notes as needed.
 
-### Operational network data
-- `validators.json`
-- `bootnodes.json`
-- `certificate.json`
+## Notes
 
-### Policy controls
-- `profile.toml`
-- `release-policy.toml`
-
-## Rule
-
-The validation bundle must remain consistent with:
-- `configs/registry/network-registry.toml`
-- `configs/registry/binary-compatibility.toml`
-
-This environment must be suitable for measurable release-readiness validation.
+If this module needs deep specialized docs, keep them here, but do not conflict with root roadmap and quality gates.

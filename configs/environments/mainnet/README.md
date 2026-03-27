@@ -1,38 +1,33 @@
-# AOXC Mainnet Environment
+# README.md
 
-This directory contains the canonical public mainnet environment bundle for AOXC.
+> Module Documentation Status: **Active / Full Draft**  
+> License: **MIT**  
+> Repository: **AOXC**
 
-## Canonical Identity
+This directory follows the root documentation contract.
+Before editing implementation details here, read:
 
-- Chain name: `AOXC AKDENIZ`
-- Environment: `mainnet`
-- Network class: `public_mainnet`
-- Network serial: `2626-001`
-- Chain ID: `2626000001`
-- Network ID: `aoxc-mainnet-2626-001`
+1. [`README.md` at repo root](../../../README.md)
+2. [`READ.md` at repo root](../../../READ.md)
+3. [`ROADMAP.md` at repo root](../../../ROADMAP.md)
 
-## Authoritative Files
+## Local Scope
 
-### Stable identity anchor
-- `manifest.v1.json`
+This folder contains implementation and/or configuration surfaces that contribute to AOXC foundation goals:
 
-### Genesis anchor
-- `genesis.v1.json`
-- `genesis.v1.sha256`
+- deterministic behavior
+- cross-platform operability
+- Docker-compatible workflows
+- release-readiness observability
 
-### Operational network data
-- `validators.json`
-- `bootnodes.json`
-- `certificate.json`
+## Local Contributor Checklist
 
-### Policy controls
-- `profile.toml`
-- `release-policy.toml`
+- [ ] Confirm commands/build steps are reproducible.
+- [ ] Keep changes aligned with roadmap phase.
+- [ ] Add/update tests for behavior changes.
+- [ ] Keep docs synchronized with root standards.
+- [ ] Preserve MIT headers and experimental status notes as needed.
 
-## Rule
+## Notes
 
-The mainnet bundle must remain consistent with:
-- `configs/registry/network-registry.toml`
-- `configs/registry/binary-compatibility.toml`
-
-Identity mismatches across these files must be treated as release blockers.
+If this module needs deep specialized docs, keep them here, but do not conflict with root roadmap and quality gates.

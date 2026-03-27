@@ -1,32 +1,33 @@
-# AOXCONFIG - Audit Roadmap
+# READ.md
 
-**System Version Baseline:** `aoxc.v.0.1.1-akdeniz`
+> Module Documentation Status: **Active / Full Draft**  
+> License: **MIT**  
+> Repository: **AOXC**
 
-Typed configuration control and release safety roadmap.
+This directory follows the root documentation contract.
+Before editing implementation details here, read:
 
-## Production Intent
-This document defines the mandatory roadmap for advancing the covered workspace area toward a 99.99% production-grade security and reliability posture. It must be updated whenever a release, binary, interface, or operational assumption changes.
+1. [`README.md` at repo root](../../README.md)
+2. [`READ.md` at repo root](../../READ.md)
+3. [`ROADMAP.md` at repo root](../../ROADMAP.md)
 
-## Nine-Point Roadmap
-1. Establish immutable release governance with the Akdeniz release baseline, signed change approval, and traceable artifact lineage.
-2. Enforce deterministic build and binary generation so every release candidate can be reproduced from the tagged source tree.
-3. Require zero-panic production paths, explicit error modeling, and bounded resource handling before feature promotion.
-4. Expand security verification with unit, integration, fuzz, adversarial, and formal-method evidence where logic is consensus- or finance-critical.
-5. Harden configuration, secrets, and operator workflows so deployment variance cannot silently weaken security posture.
-6. Introduce strict semantic version discipline covering manifests, binaries, release notes, and compatibility declarations.
-7. Maintain audit-ready documentation updates for every change, including what changed, why it changed, and which version absorbed the change.
-8. Gate release promotion on lint, test, reproducibility, supply-chain review, and incident-response preparedness evidence.
-9. Advance from the Akdeniz readiness baseline to production readiness only after 99.99% service-quality objectives are backed by measurable validation data.
+## Local Scope
 
-## Versioning Policy
-- Canonical documentation label: `aoxc.v.0.1.1-akdeniz`.
-- Cargo-compatible semantic version baseline: `0.1.1-akdeniz`.
-- Every release-impacting change must update the relevant READ.md entry, manifest version, and release evidence together.
-- Binary artifacts, deployment bundles, and audit records must reference the same release identifier without ambiguity.
+This folder contains implementation and/or configuration surfaces that contribute to AOXC foundation goals:
 
-## Change Ledger
-- `aoxc.v.0.1.1-akdeniz`: initialized audit roadmap, introduced strict Akdeniz release baseline, and reserved this folder for continuous release tracking.
-- Future entries must describe the exact implementation delta, affected artifacts, and verification evidence added in that version.
+- deterministic behavior
+- cross-platform operability
+- Docker-compatible workflows
+- release-readiness observability
 
-## Mandatory Update Rule
-Whenever a new file, feature, control, or operational procedure is added under this directory, append the change to this ledger with the new version number and a concise audit explanation before release approval.
+## Local Contributor Checklist
+
+- [ ] Confirm commands/build steps are reproducible.
+- [ ] Keep changes aligned with roadmap phase.
+- [ ] Add/update tests for behavior changes.
+- [ ] Keep docs synchronized with root standards.
+- [ ] Preserve MIT headers and experimental status notes as needed.
+
+## Notes
+
+If this module needs deep specialized docs, keep them here, but do not conflict with root roadmap and quality gates.

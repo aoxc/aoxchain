@@ -1,42 +1,33 @@
-# AOXC Sovereign Template Environment
+# README.md
 
-This directory contains the canonical sovereign private network template bundle for AOXC.
+> Module Documentation Status: **Active / Full Draft**  
+> License: **MIT**  
+> Repository: **AOXC**
 
-## Canonical Template Identity
+This directory follows the root documentation contract.
+Before editing implementation details here, read:
 
-- Chain name: `AOXC SOVEREIGN PRIVATE TEMPLATE`
-- Environment: `sovereign-template`
-- Network class: `sovereign_private`
-- Network serial: `2626-150`
-- Chain ID: `2626100001`
-- Network ID: `aoxc-sovereign-private-2626-150`
+1. [`README.md` at repo root](../../../../README.md)
+2. [`READ.md` at repo root](../../../../READ.md)
+3. [`ROADMAP.md` at repo root](../../../../ROADMAP.md)
 
-## Purpose
+## Local Scope
 
-This template exists to support future sovereign AOXC private network deployments using the same binary and identity policy model as the public AOXC family.
+This folder contains implementation and/or configuration surfaces that contribute to AOXC foundation goals:
 
-## Authoritative Files
+- deterministic behavior
+- cross-platform operability
+- Docker-compatible workflows
+- release-readiness observability
 
-### Stable identity anchor
-- `manifest.v1.json`
+## Local Contributor Checklist
 
-### Genesis anchor
-- `genesis.v1.json`
-- `genesis.v1.sha256`
+- [ ] Confirm commands/build steps are reproducible.
+- [ ] Keep changes aligned with roadmap phase.
+- [ ] Add/update tests for behavior changes.
+- [ ] Keep docs synchronized with root standards.
+- [ ] Preserve MIT headers and experimental status notes as needed.
 
-### Operational network data
-- `validators.json`
-- `bootnodes.json`
-- `certificate.json`
+## Notes
 
-### Policy controls
-- `profile.toml`
-- `release-policy.toml`
-
-## Rule
-
-This template must remain consistent with:
-- `configs/registry/network-registry.toml`
-- `configs/registry/binary-compatibility.toml`
-
-Template reuse for real deployments must regenerate environment identity rather than copying template identity unchanged.
+If this module needs deep specialized docs, keep them here, but do not conflict with root roadmap and quality gates.

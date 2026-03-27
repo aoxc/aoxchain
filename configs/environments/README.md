@@ -1,69 +1,33 @@
-# AOXC Environment Bundles
+# README.md
 
-This directory contains the canonical environment bundles for AOXC.
+> Module Documentation Status: **Active / Full Draft**  
+> License: **MIT**  
+> Repository: **AOXC**
 
-Each environment bundle defines the files required to identify, validate, and operate a specific AOXC network line.
+This directory follows the root documentation contract.
+Before editing implementation details here, read:
 
-## Environment Classes
+1. [`README.md` at repo root](../../README.md)
+2. [`READ.md` at repo root](../../READ.md)
+3. [`ROADMAP.md` at repo root](../../ROADMAP.md)
 
-The current AOXC environment structure includes:
+## Local Scope
 
-- `mainnet/`
-- `testnet/`
-- `validation/`
-- `localnet/`
-- `sovereign/template/`
+This folder contains implementation and/or configuration surfaces that contribute to AOXC foundation goals:
 
-## Bundle Model
+- deterministic behavior
+- cross-platform operability
+- Docker-compatible workflows
+- release-readiness observability
 
-Each canonical AOXC environment bundle is expected to contain:
+## Local Contributor Checklist
 
-- `manifest.v1.json`
-- `genesis.v1.json`
-- `genesis.v1.sha256`
-- `validators.json`
-- `bootnodes.json`
-- `profile.toml`
-- `release-policy.toml`
-- `certificate.json`
+- [ ] Confirm commands/build steps are reproducible.
+- [ ] Keep changes aligned with roadmap phase.
+- [ ] Add/update tests for behavior changes.
+- [ ] Keep docs synchronized with root standards.
+- [ ] Preserve MIT headers and experimental status notes as needed.
 
-Localnet additionally includes local orchestration and deterministic multi-node support files.
+## Notes
 
-## Authority Model
-
-The authoritative policy hierarchy is:
-
-1. `configs/registry/network-registry.toml`
-2. `configs/registry/binary-compatibility.toml`
-3. `configs/environments/*/manifest.v1.json`
-
-The remaining files inside each environment bundle must remain consistent with those layers.
-
-## Stability Expectations
-
-### Long-lived identity anchors
-- `manifest.v1.json`
-
-### Long-lived but revisable policy files
-- `profile.toml`
-- `release-policy.toml`
-
-### Operationally variable files
-- `validators.json`
-- `bootnodes.json`
-- `certificate.json`
-- `genesis.v1.sha256`
-- in some cases `genesis.v1.json`
-
-## Security Rule
-
-Environment bundles must not be partially updated in a way that breaks identity consistency.
-
-If any of the following drift apart:
-- `chain_id`
-- `network_id`
-- `network_serial`
-- manifest references
-- genesis hash bindings
-
-the environment must be treated as invalid until reconciled.
+If this module needs deep specialized docs, keep them here, but do not conflict with root roadmap and quality gates.

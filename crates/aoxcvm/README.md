@@ -1,50 +1,33 @@
-# AOXCVM
+# README.md
 
-Multi-lane virtual machine orchestration for native/system, EVM, WASM, and external execution lanes.
+> Module Documentation Status: **Active / Full Draft**  
+> License: **MIT**  
+> Repository: **AOXC**
 
-## Mission
+This directory follows the root documentation contract.
+Before editing implementation details here, read:
 
-AOXCVM is the execution compatibility layer for AOXChain. It is responsible for routing execution lanes while protecting deterministic behavior for consensus-sensitive flows.
+1. [`README.md` at repo root](../../README.md)
+2. [`READ.md` at repo root](../../READ.md)
+3. [`ROADMAP.md` at repo root](../../ROADMAP.md)
 
-## Scope
+## Local Scope
 
-- execution lane selection and guardrails,
-- envelope/payload pre-validation,
-- deterministic accounting and execution boundaries,
-- lane-level isolation strategy for fault containment.
+This folder contains implementation and/or configuration surfaces that contribute to AOXC foundation goals:
 
-## Non-goals
+- deterministic behavior
+- cross-platform operability
+- Docker-compatible workflows
+- release-readiness observability
 
-- AOXCVM is **not** the desktop operator UI layer.
-- AOXCVM should not own human workflow presentation concerns.
+## Local Contributor Checklist
 
-## Determinism contract
+- [ ] Confirm commands/build steps are reproducible.
+- [ ] Keep changes aligned with roadmap phase.
+- [ ] Add/update tests for behavior changes.
+- [ ] Keep docs synchronized with root standards.
+- [ ] Preserve MIT headers and experimental status notes as needed.
 
-For the same canonical input envelope and state root assumptions, AOXCVM must produce stable and explainable outcomes.
+## Notes
 
-Minimum expectations:
-
-1. reject malformed envelopes before mutation,
-2. preserve explicit error semantics,
-3. bound resource consumption per execution lane,
-4. keep replay outcomes consistent under documented constraints.
-
-## WASM strategy (recommended)
-
-- Primary candidate: deterministic `Wasmtime` profile with strict host-call policy.
-- Secondary candidate: controlled `WasmEdge` profile where deterministic wrappers are enforced.
-- Experimental lane: minimal internal deterministic executor for protocol test/fallback scenarios.
-
-## Security verification priorities
-
-- lane-gate validation unit tests,
-- malformed payload adversarial tests,
-- cross-lane replay consistency checks,
-- gas/fuel accounting regressions,
-- serialization/hash stability checks.
-
-## Operational references
-
-- Root baseline: `README.md`
-- Audit companion: `READ.md`
-- Crate roadmap: `crates/aoxcvm/READ.md`
+If this module needs deep specialized docs, keep them here, but do not conflict with root roadmap and quality gates.

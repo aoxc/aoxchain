@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::{error::AiError, manifest::ModelManifest, model::AiTask};
 use std::{collections::HashMap, fs, path::Path};
 

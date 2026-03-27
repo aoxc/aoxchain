@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 /// Minimal UTxO representation persisted by the Cardano-style lane.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Utxo {

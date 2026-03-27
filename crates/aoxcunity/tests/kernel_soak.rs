@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use aoxcunity::{
     Block, BlockBody, BlockBuilder, ConsensusEngine, ConsensusEvent, ConsensusState, KernelEffect,
     QuorumThreshold, Validator, ValidatorRole, ValidatorRotation, VerifiedAuthenticatedVote, Vote,

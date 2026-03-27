@@ -1,50 +1,33 @@
-# AOXC Registry Policy
+# README.md
 
-This directory contains the authoritative policy layer for AOXC network identity and binary compatibility.
+> Module Documentation Status: **Active / Full Draft**  
+> License: **MIT**  
+> Repository: **AOXC**
 
-These files are intended to be stable, governance-controlled, and audit-relevant.
+This directory follows the root documentation contract.
+Before editing implementation details here, read:
 
-## Files
+1. [`README.md` at repo root](../../README.md)
+2. [`READ.md` at repo root](../../READ.md)
+3. [`ROADMAP.md` at repo root](../../ROADMAP.md)
 
-### `network-registry.toml`
-Defines the canonical AOXC network identity model, including:
-- family identity,
-- `chain_id` derivation,
-- `network_serial` policy,
-- `network_id` policy,
-- canonical environment names,
-- reserved ranges,
-- governance constraints.
+## Local Scope
 
-This file is the root identity policy for all AOXC environment manifests.
+This folder contains implementation and/or configuration surfaces that contribute to AOXC foundation goals:
 
-### `binary-compatibility.toml`
-Defines the canonical binary compatibility and provenance expectations for AOXC node artifacts.
+- deterministic behavior
+- cross-platform operability
+- Docker-compatible workflows
+- release-readiness observability
 
-This includes:
-- single-binary multi-network expectations,
-- manifest compatibility requirements,
-- genesis compatibility requirements,
-- build and provenance expectations,
-- runtime rejection rules.
+## Local Contributor Checklist
 
-## Governance Expectations
+- [ ] Confirm commands/build steps are reproducible.
+- [ ] Keep changes aligned with roadmap phase.
+- [ ] Add/update tests for behavior changes.
+- [ ] Keep docs synchronized with root standards.
+- [ ] Preserve MIT headers and experimental status notes as needed.
 
-Changes to files in this directory must be treated as release-impacting changes.
+## Notes
 
-Such changes must not be introduced silently and must be accompanied by:
-- release evidence,
-- audit log updates,
-- manifest compatibility review,
-- operational review where applicable.
-
-## Stability Expectations
-
-These files should change rarely.
-
-Routine deployment operations should not require modifications here unless:
-- identity policy changes,
-- compatibility policy changes,
-- canonical naming changes,
-- new reserved ranges are introduced,
-- a new environment class becomes officially supported.
+If this module needs deep specialized docs, keep them here, but do not conflict with root roadmap and quality gates.

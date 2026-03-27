@@ -1,67 +1,118 @@
-# AOXChain (aoxc/aoxchain)
+# AOXC — Advanced Omnichain Execution Core
 
-AOXChain is a multi-crate Rust workspace organized as a sovereign modular chain stack.
+> Status: **Experimental / Under Active Construction**  
+> License: **MIT**  
+> Version Track: **v0.01 foundation rebuild**
 
-This README is architecture-first and evidence-oriented. It distinguishes current implementation from target-state intent.
+AOXC is a modular, Rust-first blockchain platform targeting deterministic multi-lane execution, constitutional consensus safety, and production-ready operator workflows.
 
-## Repository status (current-state honesty)
+---
 
-- **Currently implemented:** kernel/consensus crates, runtime crates, network/RPC/data services, CLI tooling, desktop operator surface, SDK/peripheral crates.
-- **Partially implemented:** complete cross-lane replay evidence, full partition/recovery evidence bundles, and uniform control-plane audit evidence packaging.
-- **Target state:** release gates that enforce deterministic replay, boundary-policy checks, and incident-grade evidence packaging across all critical tiers.
+## 1) What We Are Building
 
-No “100% complete” production claim is made in this document.
+AOXC aims to become a **high-assurance execution chain** with the following pillars:
 
-## Architecture map
+- Deterministic execution across multiple virtual machine lanes.
+- Consensus safety with explicit finality and fork-handling guarantees.
+- Strong observability and operational readiness (metrics, logs, health, runbooks).
+- Cross-platform developer and operator experience (Linux/macOS/Windows + Docker).
 
-| Domain | Primary crates/surfaces | Authority model |
-|---|---|---|
-| Kernel | `aoxcore`, `aoxcunity` | Consensus/state-transition authority (deterministic, release-blocking). |
-| Runtimes | `aoxcexec`, `aoxcvm`, `aoxcenergy` | Deterministic execution policy/orchestration; feeds kernel outcomes. |
-| System Services | `aoxcnet`, `aoxcrpc`, `aoxcdata`, `aoxconfig`, `aoxclibs`, `aoxchal` | Availability, ingress, persistence, config, shared infra. |
-| Operator Environment | `aoxcmd`, `aoxckit`, `aoxchub` | Human control plane; non-consensus authority. |
-| Applications / Peripheral | `aoxcsdk`, `aoxcontract`, `aoxcai`, `aoxcmob` | Ecosystem and integration surfaces outside kernel authority. |
+## 2) Strategic Product Thesis
 
-## Critical boundary rules
+AOXC is not "just another chain".
+Its differentiation target is:
 
-1. Kernel and deterministic runtime paths are consensus-sensitive.
-2. UI/control-plane surfaces are operator-only and must remain command-transparent.
-3. `aoxchub` is not protocol authority and must never become a hidden consensus path.
-4. Non-deterministic inputs (network/RPC/operator/AI) must be normalized before deterministic execution.
+1. **Deterministic multi-VM settlement**
+2. **Constitutional consensus governance model**
+3. **Operator-first reliability posture**
 
-## Release tier overview
+## 3) Monorepo Topology
 
-- **Tier 0 (Consensus Critical):** `aoxcore`, `aoxcunity`
-- **Tier 1 (Deterministic Runtime Critical):** `aoxcexec`, `aoxcvm`, `aoxcenergy`
-- **Tier 2 (Network/Availability/Persistence):** `aoxcnet`, `aoxcrpc`, `aoxcdata`, `aoxconfig`, `aoxclibs`, `aoxchal`
-- **Tier 3 (Operator/Control Plane):** `aoxcmd`, `aoxckit`, `aoxchub`
-- **Tier 4 (Application/Peripheral):** `aoxcsdk`, `aoxcontract`, `aoxcai`, `aoxcmob`
+High-level modules:
 
-See `docs/RELEASE_TIERS.md` for full rationale.
+- `crates/aoxcore`: transaction, block, identity, state domain logic
+- `crates/aoxcunity`: consensus engine and safety/finality primitives
+- `crates/aoxcvm`: multi-lane execution runtime (EVM/Move/WASM/Cardano compatibility lanes)
+- `crates/aoxcnet`: networking, discovery, transport, resilience harness
+- `crates/aoxcrpc`: RPC/HTTP/gRPC/websocket surfaces
+- `crates/aoxcmd`: node/app bootstrap and operations entrypoints
+- `tests`: integration and production-readiness style validation
 
-## Documentation index (root architecture set)
+## 4) Platform Compatibility (Required Baseline)
 
-- `docs/ARCHITECTURE.md`
-- `docs/SECURITY_MODEL.md`
-- `docs/EXECUTION_MODEL.md`
-- `docs/STATE_MODEL.md`
-- `docs/RELEASE_TIERS.md`
-- `docs/SYSTEM_INVARIANTS.md`
-- `docs/LICENSING.md`
-- `docs/TRADEMARK_POLICY.md`
-- `READ.md` (audit companion)
+AOXC foundation is being written to run in all major environments:
 
-## Minimal verification commands
+- **Linux** (Ubuntu, Debian, Fedora)
+- **macOS** (Apple Silicon + Intel)
+- **Windows** (PowerShell, Git Bash, WSL2)
+- **Docker** (local developer runtime and CI parity)
+
+### 4.1 Rust Toolchain
+
+- Rust stable (recommended via rustup)
+- Cargo workspace support
+
+### 4.2 Optional Tooling
+
+- Docker / Docker Compose
+- `make` (or PowerShell scripts on Windows)
+
+## 5) Quick Start (Cross-Platform)
+
+### 5.1 Clone + Build
+
+```bash
+git clone <repo-url> aoxchain
+cd aoxchain
+cargo build --workspace
+```
+
+### 5.2 Run Core Validation
 
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings
 cargo test --workspace --exclude aoxchub --all-targets
+```
+
+### 5.3 Desktop Surface Validation
+
+```bash
 cargo check -p aoxchub --all-targets
 ```
 
-## License
+## 6) Docker-First Development
 
-Repository code is licensed under **AGPL-3.0-only** (see `LICENSE` and `docs/LICENSING.md`).
+> Goal: ensure every critical command can run in a clean, reproducible container.
 
-Trademark and brand usage are governed separately by `docs/TRADEMARK_POLICY.md`.
+Planned baseline:
+
+- Standardized dev image with Rust toolchain + common build dependencies.
+- One-command workspace validation in container.
+- Future: deterministic integration environment with multi-node local network.
+
+## 7) Engineering Rules (Non-Negotiable)
+
+1. Determinism before performance optimization.
+2. Reproducible build/test in local + CI + container.
+3. No merge without format/lint/tests passing.
+4. Security-critical changes require threat notes and test evidence.
+5. Public interfaces require compatibility notes.
+
+## 8) Current Maturity Statement
+
+This repository is experimental.
+Breaking changes, refactors, and protocol reshaping are expected until stabilization gates are formally passed.
+
+## 9) Primary Planning Document
+
+See the root roadmap and execution checklist:
+
+- [`ROADMAP.md`](./ROADMAP.md)
+
+This file is the authoritative track for foundation, infrastructure, and release-readiness milestones.
+
+## 10) License
+
+MIT License.
+All contributors must preserve license headers and respect third-party dependency obligations.

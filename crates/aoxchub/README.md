@@ -1,42 +1,33 @@
-# AOXHub Desktop
+# README.md
 
-AOXHub Desktop is the Tauri/React operator control surface for AOXChain.
+> Module Documentation Status: **Active / Full Draft**  
+> License: **MIT**  
+> Repository: **AOXC**
 
-## Mission
+This directory follows the root documentation contract.
+Before editing implementation details here, read:
 
-Provide a clear, auditable desktop experience for node operators without weakening the underlying CLI/runtime security model.
+1. [`README.md` at repo root](../../README.md)
+2. [`READ.md` at repo root](../../READ.md)
+3. [`ROADMAP.md` at repo root](../../ROADMAP.md)
 
-## Scope
+## Local Scope
 
-- launch readiness and blocker visibility,
-- cluster and node status monitoring,
-- devnet/testnet/mainnet lane matrix and full CLI command catalog,
-- wallet/treasury/recovery visibility,
-- report export and operational evidence presentation,
-- command queue surfaces mapped to backend controls.
+This folder contains implementation and/or configuration surfaces that contribute to AOXC foundation goals:
 
-## Design boundary with AOXCVM
+- deterministic behavior
+- cross-platform operability
+- Docker-compatible workflows
+- release-readiness observability
 
-- `aoxcvm` is protocol-adjacent execution logic.
-- `aoxchub` is operator UX.
-- Desktop must orchestrate and display; it should not become a hidden consensus path.
+## Local Contributor Checklist
 
-## Operator safety expectations
+- [ ] Confirm commands/build steps are reproducible.
+- [ ] Keep changes aligned with roadmap phase.
+- [ ] Add/update tests for behavior changes.
+- [ ] Keep docs synchronized with root standards.
+- [ ] Preserve MIT headers and experimental status notes as needed.
 
-1. Destructive actions should be explicit and reviewable.
-2. Read-only vs mutating actions must be clearly separated.
-3. Command mapping to CLI/runtime should be transparent.
-4. Error feedback should be actionable for incident response.
+## Notes
 
-## Development
-
-```bash
-npm install
-npm run dev
-```
-
-## Build
-
-```bash
-npm run build
-```
+If this module needs deep specialized docs, keep them here, but do not conflict with root roadmap and quality gates.
