@@ -1,0 +1,38 @@
+version: aoxc-network-profiles-v2
+owner: protocol-release
+objective: >
+  Canonical production profile map for mainnet, testnet, and devnet model-driven
+  readiness and evidence governance.
+environments:
+  - id: mainnet
+    tier: production
+    security_posture: strict
+    required_evidence:
+      - artifacts/release-evidence/provenance-20260323T144016Z.json
+      - artifacts/release-evidence/compat-matrix-20260323T144016Z.json
+      - artifacts/network-production-closure/production-audit.json
+    verification_command: aoxc production-audit --format json
+    owner: protocol-release
+  - id: testnet
+    tier: pre-production
+    security_posture: strict
+    required_evidence:
+      - configs/environments/testnet/genesis.v1.json
+      - configs/environments/testnet/manifest.v1.json
+      - artifacts/network-production-closure/runtime-status.json
+    verification_command: scripts/validation/multi_host_validation.sh
+    owner: network-operations
+  - id: devnet
+    tier: engineering
+    security_posture: guarded
+    required_evidence:
+      - configs/environments/devnet/genesis.v1.json
+      - configs/environments/devnet/manifest.v1.json
+      - artifacts/network-production-closure/telemetry-snapshot.json
+    verification_command: scripts/validation/network_production_closure.sh --scenario soak
+    owner: engineering-platform
+release_gate:
+  require_mainnet: true
+  require_testnet: true
+  require_devnet: true
+  fail_on_missing_evidence: true

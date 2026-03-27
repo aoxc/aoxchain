@@ -1,41 +1,49 @@
-version: 1
+version: 2
 release_line: aoxc.v.0.1.1-akdeniz
 objective: >
   Canonical full-surface production readiness matrix covering mainnet, testnet,
-  AOXHub, wallet, and telemetry for a single release decision.
+  devnet, AOXHub, desktop wallet, and telemetry for one release decision.
 surfaces:
   - id: mainnet
     owner: protocol-release
     status: in_progress
     required_evidence:
-      - docs/src/MAINNET_READINESS_CHECKLIST.md
+      - configs/environments/mainnet/genesis.v1.json
       - artifacts/network-production-closure/production-audit.json
     verification_command: aoxc mainnet-readiness --format json
-    blocker: "Mainnet sign-off requires every checklist area to be green or exception-approved."
+    blocker: "Mainnet sign-off requires all checks green or exception-approved."
   - id: testnet
     owner: network-operations
     status: in_progress
     required_evidence:
-      - configs/deterministic-testnet/genesis.json
+      - configs/environments/testnet/genesis.v1.json
       - scripts/validation/multi_host_validation.sh
     verification_command: scripts/validation/multi_host_validation.sh
-    blocker: "Deterministic fixture exists, but multi-host validation evidence must remain current."
+    blocker: "Testnet soak and cross-host evidence must be current."
+  - id: devnet
+    owner: engineering-platform
+    status: in_progress
+    required_evidence:
+      - configs/environments/devnet/genesis.v1.json
+      - artifacts/network-production-closure/telemetry-snapshot.json
+    verification_command: scripts/validation/network_production_closure.sh --scenario soak
+    blocker: "Devnet regression and telemetry evidence must be current for release prep."
   - id: aoxhub
     owner: hub-platform
     status: in_progress
     required_evidence:
       - artifacts/network-production-closure/aoxhub-rollout.json
-      - docs/src/FRONTEND_RPC_API_INTEGRATION_TR.md
+      - artifacts/network-production-closure/runtime-status.json
     verification_command: scripts/validation/network_production_closure.sh --scenario soak
-    blocker: "Hub parity must stay aligned with mainnet/testnet routing and release baselines."
-  - id: wallet
+    blocker: "AOXHub routing parity must match release baselines."
+  - id: desktop-wallet
     owner: client-platform
     status: in_progress
     required_evidence:
       - artifacts/network-production-closure/desktop-wallet-compat.json
-      - docs/src/MAINNET_READINESS_CHECKLIST.md
+      - artifacts/release-evidence/compat-matrix-20260323T144016Z.json
     verification_command: aoxc production-audit --format json
-    blocker: "Wallet signing and environment-routing flows need explicit compatibility evidence for release sign-off."
+    blocker: "Desktop signing/routing compatibility evidence is mandatory."
   - id: telemetry
     owner: sre-observability
     status: in_progress
@@ -43,8 +51,7 @@ surfaces:
       - artifacts/network-production-closure/telemetry-snapshot.json
       - artifacts/network-production-closure/alert-rules.md
     verification_command: scripts/validation/network_production_closure.sh --scenario soak
-    blocker: "Alert coverage, readiness scoring, and retained telemetry evidence must be kept fresh per release."
+    blocker: "Alert coverage and readiness telemetry must be retained and fresh."
 next_actions:
-  - "Mark every surface ready/blocked with a dated evidence refresh."
-  - "Add owner-specific closure checks for the remaining 8 steps."
-  - "Do not promote a release when any surface lacks current evidence or an accountable owner."
+  - "Refresh evidence timestamps per surface and set ready/blocked state explicitly."
+  - "Do not promote release when any mandatory surface lacks current evidence."
