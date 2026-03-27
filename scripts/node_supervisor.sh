@@ -7,13 +7,32 @@ set -euo pipefail
 # AOXChain lightweight self-healing supervisor for non-container local deployments.
 # It restarts the producer loop when it exits unexpectedly.
 
-BIN_PATH="${BIN_PATH:-./bin/aoxc}"
+resolve_bin_path() {
+  if [[ -n "${BIN_PATH:-}" && -x "${BIN_PATH}" ]]; then
+    printf "%s" "${BIN_PATH}"
+    return 0
+  fi
+
+  if [[ -x "${HOME}/.aoxc/bin/aoxc" ]]; then
+    printf "%s" "${HOME}/.aoxc/bin/aoxc"
+    return 0
+  fi
+
+  if [[ -x "./bin/aoxc" ]]; then
+    printf "%s" "./bin/aoxc"
+    return 0
+  fi
+
+  return 1
+}
+
+BIN_PATH="$(resolve_bin_path || true)"
 MAX_RESTARTS="${MAX_RESTARTS:-20}"
 RESTART_DELAY_SECS="${RESTART_DELAY_SECS:-3}"
 
-if [[ ! -x "${BIN_PATH}" ]]; then
+if [[ -z "${BIN_PATH}" || ! -x "${BIN_PATH}" ]]; then
   echo "[error] binary is not executable: ${BIN_PATH}" >&2
-  echo "Build it with: make package-bin" >&2
+  echo "Build/install it with: make package-bin" >&2
   exit 2
 fi
 

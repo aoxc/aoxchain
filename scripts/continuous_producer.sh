@@ -4,15 +4,34 @@
 # This file is part of the AOXC pre-release codebase.
 set -euo pipefail
 
-BIN_PATH="${BIN_PATH:-./bin/aoxc}"
+resolve_bin_path() {
+  if [[ -n "${BIN_PATH:-}" && -x "${BIN_PATH}" ]]; then
+    printf "%s" "${BIN_PATH}"
+    return 0
+  fi
+
+  if [[ -x "${HOME}/.aoxc/bin/aoxc" ]]; then
+    printf "%s" "${HOME}/.aoxc/bin/aoxc"
+    return 0
+  fi
+
+  if [[ -x "./bin/aoxc" ]]; then
+    printf "%s" "./bin/aoxc"
+    return 0
+  fi
+
+  return 1
+}
+
+BIN_PATH="$(resolve_bin_path || true)"
 TX_PREFIX="${TX_PREFIX:-auto-tx}"
 SLEEP_SECS="${SLEEP_SECS:-2}"
 MAX_ROUNDS="${MAX_ROUNDS:-0}"
 LOG_FILE="${LOG_FILE:-./logs/continuous-producer.log}"
 
-if [[ ! -x "${BIN_PATH}" ]]; then
+if [[ -z "${BIN_PATH}" || ! -x "${BIN_PATH}" ]]; then
   echo "[error] binary is not executable: ${BIN_PATH}" >&2
-  echo "Build it with: make package-bin" >&2
+  echo "Build/install it with: make package-bin" >&2
   exit 2
 fi
 

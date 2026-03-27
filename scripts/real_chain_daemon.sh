@@ -4,7 +4,26 @@
 # This file is part of the AOXC pre-release codebase.
 set -euo pipefail
 
-BIN_PATH="${BIN_PATH:-./bin/aoxc}"
+resolve_bin_path() {
+  if [[ -n "${BIN_PATH:-}" && -x "${BIN_PATH}" ]]; then
+    printf "%s" "${BIN_PATH}"
+    return 0
+  fi
+
+  if [[ -x "${HOME}/.aoxc/bin/aoxc" ]]; then
+    printf "%s" "${HOME}/.aoxc/bin/aoxc"
+    return 0
+  fi
+
+  if [[ -x "./bin/aoxc" ]]; then
+    printf "%s" "./bin/aoxc"
+    return 0
+  fi
+
+  return 1
+}
+
+BIN_PATH="$(resolve_bin_path || true)"
 AOXC_HOME_DIR="${AOXC_HOME_DIR:-./.aoxc-real}"
 LOG_DIR="${LOG_DIR:-./logs/real-chain}"
 MAX_CYCLES="${MAX_CYCLES:-0}"   # 0 means infinite
@@ -14,9 +33,9 @@ NETWORK_ROUNDS="${NETWORK_ROUNDS:-5}"
 NETWORK_TIMEOUT_MS="${NETWORK_TIMEOUT_MS:-3000}"
 NETWORK_PAUSE_MS="${NETWORK_PAUSE_MS:-250}"
 
-if [[ ! -x "${BIN_PATH}" ]]; then
+if [[ -z "${BIN_PATH}" || ! -x "${BIN_PATH}" ]]; then
   echo "[real-chain][error] binary is not executable: ${BIN_PATH}" >&2
-  echo "[real-chain][hint] run: make package-bin" >&2
+  echo "[real-chain][hint] run: make package-bin (installs \$HOME/.aoxc/bin/aoxc)" >&2
   exit 2
 fi
 

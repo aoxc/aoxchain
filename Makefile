@@ -1,3 +1,7 @@
+AOXC_HOME ?= $(HOME)/.aoxc
+AOXC_BIN_DIR ?= $(AOXC_HOME)/bin
+AOXC_BIN_PATH ?= $(AOXC_BIN_DIR)/aoxc
+
 .PHONY: help build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local audit-install produce-loop real-chain-prep real-chain-run real-chain-run-once real-chain-health real-chain-tail version manifest policy dev-bootstrap
 help:
 	@printf "\nAOXChain developer targets\n\n"
@@ -11,7 +15,7 @@ help:
 	@printf "Build and release identity\n"
 	@printf "  make quality-release  - release-oriented quality gate\n"
 	@printf "  make build-release    - build the release AOXC CLI\n"
-	@printf "  make package-bin      - copy release binary into ./bin\n"
+	@printf "  make package-bin      - install release binary into $$HOME/.aoxc/bin (+ compat symlink ./bin/aoxc)\n"
 	@printf "  make version          - show AOXC build/version metadata\n"
 	@printf "  make manifest         - print build manifest and supply-chain policy\n"
 	@printf "  make policy           - print node connection policy\n\n"
@@ -39,10 +43,12 @@ build-release:
 	cargo build --release -p aoxcmd --bin aoxc
 
 package-bin: build-release
-	mkdir -p bin
-	cp target/release/aoxc bin/aoxc
-	chmod +x bin/aoxc
-	@echo "Packaged binary: ./bin/aoxc"
+	mkdir -p "$(AOXC_BIN_DIR)" bin
+	cp target/release/aoxc "$(AOXC_BIN_PATH)"
+	chmod +x "$(AOXC_BIN_PATH)"
+	ln -sf "$(AOXC_BIN_PATH)" bin/aoxc
+	@echo "Installed binary: $(AOXC_BIN_PATH)"
+	@echo "Compatibility symlink: ./bin/aoxc -> $(AOXC_BIN_PATH)"
 
 test:
 	cargo test --workspace
@@ -110,7 +116,7 @@ real-chain-run-once: real-chain-prep
 	MAX_CYCLES=1 AOXC_HOME_DIR=./.aoxc-real LOG_DIR=./logs/real-chain ./scripts/real_chain_daemon.sh
 
 real-chain-health: package-bin
-	./bin/aoxc network-smoke --timeout-ms 3000 --bind-host 127.0.0.1 --port 0 --payload AOXC_REAL_HEALTH
+	"$(AOXC_BIN_PATH)" network-smoke --timeout-ms 3000 --bind-host 127.0.0.1 --port 0 --payload AOXC_REAL_HEALTH
 
 real-chain-tail:
 	tail -n 120 -f logs/real-chain/runtime.log logs/real-chain/health.log

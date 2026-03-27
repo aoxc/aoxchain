@@ -1,164 +1,182 @@
-<<<<<<< HEAD
-# AOXC (Advanced Omnichain Execution Core)
+# AOXChain — Advanced Omnichain Execution Chain (Canonical Read)
 
-> Release Track: `v0.01-foundation`  
-> Status: `Experimental / Not Production Ready`  
-> License: `MIT`
+<p align="center">
+  <img src="./logos/aoxc.png" alt="AOXChain Logo" width="220" />
+</p>
 
-AOXC is a modular blockchain runtime and infrastructure workspace focused on deterministic execution, consensus safety, and operator-grade delivery discipline.
-
----
-
-## Executive Summary
-
-AOXC targets an advanced chain architecture built around:
-
-1. **Deterministic transaction processing** with explicit payload and signature discipline.
-2. **Consensus safety and finality controls** with measurable invariants.
-3. **Multi-runtime execution strategy** for heterogeneous workloads.
-4. **Operational excellence**: reproducible builds, observability, incident readiness.
-5. **Cross-platform parity**: Linux, macOS, Windows, and Docker-first workflows.
+> **KALICI UYARI / PERMANENT WARNING**  
+> Bu ürün **deneysel tasarım ve aktif geliştirme** aşamasındadır. Üretim ortamında (mainnet/kurumsal canlı trafik) kullanımdan önce bağımsız güvenlik denetimi, operasyonel drill, yedekleme/geri dönüş testleri ve hukuki/uyumluluk onayı zorunludur.
 
 ---
 
-## Repository Architecture
+## 1) Zincirin amacı
 
-- `crates/aoxcore` → transaction/block/state/identity domain primitives
-- `crates/aoxcunity` → consensus engine, finality, safety surfaces
-- `crates/aoxcvm` → execution runtime lanes and routing
-- `crates/aoxcnet` → networking, discovery, resilience tooling
-- `crates/aoxcrpc` → gRPC/HTTP/WebSocket API surfaces
-- `crates/aoxcmd` → node bootstrap and operations flow
-- `tests` → integration + readiness scenarios
-- `configs` → environment and network configuration
-- `scripts` → operational and release automation
+AOXChain’in amacı; deterministik çekirdek (kernel), çoklu VM yürütme (multi-lane execution), servis katmanı ve operatör düzlemini net sınırlarla ayırarak:
 
----
+- güvenli finalite,
+- tekrar üretilebilir yürütme (replay-stability),
+- ölçülebilir operasyon,
+- kurumsal denetlenebilirlik
 
-## Platform Compatibility Matrix
-
-| Platform | Supported | Notes |
-|---|---:|---|
-| Linux (Ubuntu/Debian/Fedora) | ✅ | Primary development target |
-| macOS (Intel/Apple Silicon) | ✅ | CI-compatible workflow |
-| Windows (PowerShell/WSL2) | ✅ | Use rustup + native shell guidance |
-| Docker | ✅ | Preferred for reproducible verification |
+sağlayan bir zincir standardı sunmaktır.
 
 ---
 
-## Prerequisites
+## 2) Zincirin farkı (value proposition)
 
-- Rust stable toolchain (`rustup` recommended)
-- Cargo workspace support
-- Git
-- Optional: Docker / Docker Compose
+AOXChain’i ayrıştıran temel özellikler:
+
+1. **Deterministik kernel yaklaşımı:** Kanonik durum değişimi yalnızca çekirdek kurallarla oluşur.  
+2. **Multi-VM lane modeli:** Native + EVM + WASM + uyumluluk lane’leri politikaya bağlı yürütülür.  
+3. **Operator-plane ayrımı:** CLI/desktop kontrol sağlar; konsensüs otoritesi olamaz.  
+4. **Release evidence disiplini:** build-manifest, sbom, provenance, audit artefaktlarıyla sürüm doğrulanır.  
+5. **Kurumsal çalışma modeli:** runbook, incident, quality gate ve rollback süreçleri dokümante edilir.
 
 ---
 
-## Quick Start
+## 3) Mimari içerik (repo haritası)
+
+- `crates/aoxcore` → blok/tx/state/receipt çekirdeği
+- `crates/aoxcunity` → konsensüs, quorum, finality, safety
+- `crates/aoxcexec` + `crates/aoxcvm` → VM lane orkestrasyonu ve yürütme
+- `crates/aoxcnet` → p2p/gossip/sync/discovery
+- `crates/aoxcrpc` → API/RPC yüzeyi
+- `crates/aoxcdata` → persistence/index/snapshot alanı
+- `crates/aoxcmd` → operasyon CLI
+- `crates/aoxchub` → desktop control-plane
+- `configs/` → ortam konfigürasyonları (localnet/devnet/testnet/mainnet)
+- `tests/` → entegrasyon ve readiness testleri
+
+---
+
+## 4) Neler yapabilir?
+
+AOXChain çalışma yüzeyi aşağıdaki kurumsal ihtiyaçları hedefler:
+
+- ağ ve node bootstrap akışları,
+- genesis üretim/doğrulama,
+- operator key yönetimi,
+- tek seferde blok üretim/doğrulama akışı,
+- sağlık ve smoke testleri,
+- release readiness ve evidence paketleme,
+- desktop wallet/launcher uyumluluk kontrolü.
+
+---
+
+## 5) Komut seti (temel kullanım)
+
+### 5.1 Geliştirici kalite akışı
 
 ```bash
-git clone <repo-url> aoxchain
-cd aoxchain
-cargo build --workspace
+make fmt
+make check
+make test
+make clippy
+make quality-quick
+make quality
 ```
 
-### Mandatory validation commands
+### 5.2 Sürüm ve kimlik doğrulama
 
 ```bash
-cargo fmt --all --check
-cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings
-cargo test --workspace --exclude aoxchub --all-targets
-cargo check -p aoxchub --all-targets
+make build-release
+make package-bin
+make version
+make manifest
+make policy
 ```
 
----
+`make package-bin` komutu release binary dosyasını varsayılan olarak `~/.aoxc/bin/aoxc` altına kurar ve geriye uyumluluk için `./bin/aoxc` sembolik linkini üretir.
 
-## Docker-First Workflow
+### 5.3 Yerel zincir / operasyon akışı
 
-Use Docker to guarantee deterministic build/test context across contributors and CI.
+```bash
+make dev-bootstrap
+make run-local
+make real-chain-run
+make real-chain-health
+make real-chain-tail
+```
 
-Recommended policy:
+### 5.4 CLI komut ailesi (aoxc)
 
-1. Validate every release candidate in a clean container.
-2. Store reproducible command runbooks for all mandatory gates.
-3. Keep host-specific assumptions out of scripts.
+```bash
+aoxc key-bootstrap --profile testnet --name validator-01 --password '<SECRET>'
+aoxc keys-inspect
+aoxc genesis-init --home .aoxc-local --chain-num 1001 --block-time 6 --treasury 1000000000000
+aoxc genesis-validate --home .aoxc-local
+aoxc node-bootstrap --home .aoxc-local
+aoxc produce-once --home .aoxc-local --tx 'hello-aoxc'
+aoxc node-health --home .aoxc-local
+aoxc network-smoke --timeout-ms 3000 --bind-host 127.0.0.1 --port 0 --payload AOXC_REAL_HEALTH
+```
 
----
-
-## Engineering Quality Contract
-
-No change is considered complete unless all are satisfied:
-
-- Determinism impact assessed.
-- Backward compatibility impact documented.
-- Tests added/updated where behavior changed.
-- Validation gates pass.
-- Operational implications documented.
-
----
-
-## Security and Readiness Expectations
-
-- Treat cryptography, consensus, and networking changes as high-risk.
-- Add threat notes for sensitive surfaces.
-- Prefer explicit invariants and fail-fast validation.
-- Maintain release evidence and rollback readiness.
+> Not: Komut setinin güncel kapsamı için `make help` ve `aoxc help` çıktıları esas alınır.
 
 ---
 
-## Primary Planning and Execution Documents
+## 6) Arayüz (desktop) ile etkileşim modeli
 
-- [`ROADMAP.md`](./ROADMAP.md) → phase plan, checklist gates, delivery milestones
-- [`READ.md`](./READ.md) → mirrored canonical entry document
+`aoxchub` zincirin **kontrol düzlemi**dir; protokol otoritesi değildir.
+
+Desktop etkileşim hedefleri:
+
+- ağ profili yönetimi (mainnet/testnet/devnet),
+- node sağlık görünürlüğü,
+- release-ready checklist takibi,
+- wallet uyumluluk ve yönlendirme kontrolü,
+- olay (incident) anında operatöre yönlendirici eylem akışı.
+
+Kurumsal tasarım ilkesi: UI yalnızca gözlemlenebilirlik + yönetişim + emniyetli operasyon sağlar; konsensüs kararını etkilemez.
+
+---
+
+## 7) Cüzdan / anahtar üretimi (operator-grade)
+
+AOXChain’de cüzdan/anahtar yaşam döngüsü, operatör anahtar disiplini üzerinden yürütülür:
+
+1. `key-bootstrap` ile operatör anahtar materyali oluşturulur.
+2. Anahtar materyali şifre korumalı zarf/envelope mantığıyla saklanır.
+3. `keys-inspect` / `keys-show-fingerprint` / `keys-verify` ile doğrulama yapılır.
+4. Node bootstrap sonrası imza ve üretim akışında bu materyal kullanılır.
+
+Önerilen kurumsal pratik:
+
+- güçlü parola politikası,
+- anahtar rotasyonu,
+- erişim ayrıştırması,
+- yedekleme + geri yükleme testinin düzenli yapılması,
+- üretim anahtarlarının HSM/kurumsal saklama modeline taşınması.
 
 ---
 
-## License
+## 8) Kimler için?
 
-MIT License.
-All contributed code and documentation must remain license-compliant, and third-party obligations must be tracked.
-=======
-# READ.md
-
-> Version: **v0.01**  
-> Status: **Experimental / Under Active Construction**  
-> License: **AOXC — MIT License**
-
-## Official Notice
-This page documents an **experimental AOXC codebase** currently under active development.
-All components are pre-release and may change without backward compatibility guarantees.
-
-## Roadmap Baseline (Restart from Zero)
-
-### Phase 0 — Program Reset (Week 1)
-- Re-establish scope, ownership, and delivery governance.
-- Freeze non-critical workstreams.
-- Define documentation and release quality gates.
-
-### Phase 1 — Engineering Stabilization (Weeks 2–4)
-- Make build/test reproducible in a single command path.
-- Enforce lint, formatting, and security scans in CI.
-- Prioritize and remediate top critical failures.
-
-### Phase 2 — Architectural Hardening (Weeks 5–8)
-- Clarify module boundaries and interface contracts.
-- Standardize configuration patterns.
-- Add observability baselines (logs, metrics, traces).
-
-### Phase 3 — Release Readiness (Weeks 9–12)
-- Apply semantic versioning and structured release notes.
-- Improve critical-path test coverage.
-- Introduce runbooks and incident response workflows.
-
-## License Position
-AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
-For legal finalization, maintainers should validate all third-party dependency obligations.
-
-## Development Maturity Statement
-This repository is **experimental** and **in progress**.
-Do not treat current behavior as production-grade or long-term stable.
+- Zincir çekirdeği geliştiren protokol ekipleri,
+- Kurumsal validator/operator ekipleri,
+- Çoklu VM üstünde uygulama geliştiren ekipler,
+- Denetlenebilir release süreci isteyen teknik yönetişim organizasyonları.
 
 ---
-**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.
->>>>>>> origin/develop
+
+## 9) Deneysel tasarım notu (kalıcı)
+
+**Bu repository’deki zincir tasarımı deneysel/evrimsel bir mühendislik programıdır.**
+
+Aşağıdaki riskleri kabul etmeden canlı kullanım yapılmamalıdır:
+
+- geriye dönük uyumluluk değişebilir,
+- konfigürasyon/komut davranışları sürümler arasında güncellenebilir,
+- performans ve dayanıklılık profili çevreye göre farklılık gösterebilir,
+- ek güvenlik kontrolleri olmadan kurumsal üretime alınmamalıdır.
+
+---
+
+## 10) Tek resmi roadmap ve referanslar
+
+- Tek yol haritası: [ROADMAP.md](./ROADMAP.md)
+- Portal: [README.md](./README.md)
+- Mimari referans: `docs/ARCHITECTURE.md`
+- Execution modeli: `docs/EXECUTION_MODEL.md`
+- Sistem invariantları: `docs/SYSTEM_INVARIANTS.md`
+- Lisans: [LICENSE](./LICENSE)
