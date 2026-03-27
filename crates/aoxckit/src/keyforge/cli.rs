@@ -148,7 +148,20 @@ pub struct RegistryCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum RegistrySubcommand {
-    Placeholder,
+    UpsertEntry {
+        #[arg(long)]
+        registry: String,
+        #[arg(long)]
+        actor_id: String,
+        #[arg(long, default_value = "active")]
+        status: String,
+        #[arg(long)]
+        reason: Option<String>,
+    },
+    List {
+        #[arg(long)]
+        registry: String,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -159,7 +172,14 @@ pub struct RevokeCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum RevokeSubcommand {
-    Placeholder,
+    Actor {
+        #[arg(long)]
+        registry: String,
+        #[arg(long)]
+        actor_id: String,
+        #[arg(long)]
+        reason: String,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -170,7 +190,14 @@ pub struct QuorumCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum QuorumSubcommand {
-    Placeholder,
+    Evaluate {
+        #[arg(long)]
+        total: u16,
+        #[arg(long)]
+        approvals: u16,
+        #[arg(long, default_value_t = 6667)]
+        threshold_bps: u16,
+    },
 }
 
 #[derive(Debug, Args)]
