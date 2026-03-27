@@ -73,6 +73,12 @@ Node and economy:
 
 Validation and audit:
   load-benchmark | storage-smoke | network-smoke | real-network
+  db-init [--backend <sqlite|redb>] | db-status [--backend <sqlite|redb>]
+  db-build-block --height <n> [--parent-hash <hex64>] (--payload <text> | --payload-file <path>)
+  db-put-block --block-file <path> [--backend <sqlite|redb>]
+  db-get-height --height <n> [--backend <sqlite|redb>]
+  db-get-hash --hash <hex64> [--backend <sqlite|redb>]
+  db-compact [--backend <sqlite|redb>]
   diagnostics-doctor | diagnostics-bundle
   interop-readiness | interop-gate | production-audit
   mainnet-readiness [--enforce] [--write-report <path>]

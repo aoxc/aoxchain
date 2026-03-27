@@ -267,6 +267,7 @@ name = "aoxcmd"
 version = "0.1.1-akdeniz"
 dependencies = [
  "aoxcai",
+ "aoxcdata",
  "aoxcore",
  "aoxcunity",
  "chrono",
