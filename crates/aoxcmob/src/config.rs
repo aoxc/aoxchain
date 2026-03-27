@@ -137,22 +137,29 @@ mod tests {
 
     #[test]
     fn relay_origin_requires_https() {
-        let mut config = MobileConfig::default();
-        config.relay_origin = "http://relay.aoxc.local".to_string();
+        let config = MobileConfig {
+            relay_origin: "http://relay.aoxc.local".to_string(),
+            ..MobileConfig::default()
+        };
         assert!(config.validate().is_err());
     }
 
     #[test]
     fn app_id_rejects_invalid_symbols() {
-        let mut config = MobileConfig::default();
-        config.app_id = "AOXC MOBILE".to_string();
+        let config = MobileConfig {
+            app_id: "AOXC MOBILE".to_string(),
+            ..MobileConfig::default()
+        };
         assert!(config.validate().is_err());
     }
 
     #[test]
     fn ack_timeout_must_not_exceed_session_ttl() {
-        let mut config = MobileConfig::default();
-        config.task_ack_timeout_secs = config.session_ttl_secs + 1;
+        let defaults = MobileConfig::default();
+        let config = MobileConfig {
+            task_ack_timeout_secs: defaults.session_ttl_secs + 1,
+            ..defaults
+        };
         assert!(config.validate().is_err());
     }
 }

@@ -3,7 +3,8 @@ use thiserror::Error;
 use aoxcontract::{
     ArtifactDigest, ArtifactFormat, ArtifactLocationKind, Compatibility, ContractArtifactRef,
     ContractCapability, ContractDescriptor, ContractError, ContractManifest, ContractMetadata,
-    ContractPolicy, ContractVersion, Entrypoint, Integrity, SourceTrustLevel, VmTarget,
+    ContractPolicy, ContractVersion, Entrypoint, Integrity, NetworkClass, RuntimeFamily,
+    SourceTrustLevel, VmTarget,
 };
 
 #[derive(Debug, Error)]
@@ -220,8 +221,12 @@ impl ContractManifestBuilder {
         let compatibility = Compatibility::new(
             self.minimum_schema_version,
             self.supported_schema_versions,
-            vec![],
-            vec![],
+            vec![runtime_family_for_vm(&vm_target)],
+            vec![
+                NetworkClass::Mainnet,
+                NetworkClass::Testnet,
+                NetworkClass::Devnet,
+            ],
             vec![],
             false,
         )?;
@@ -281,6 +286,14 @@ fn artifact_format_for_vm(vm_target: &VmTarget) -> ArtifactFormat {
     }
 }
 
+fn runtime_family_for_vm(vm_target: &VmTarget) -> RuntimeFamily {
+    match vm_target {
+        VmTarget::Evm => RuntimeFamily::Evm,
+        VmTarget::Wasm => RuntimeFamily::Wasm,
+        VmTarget::SuiLike | VmTarget::Custom(_) => RuntimeFamily::AoxVm,
+    }
+}
+
 fn default_metadata_for_name(name: &str) -> ContractMetadata {
     ContractMetadata {
         display_name: name.to_string(),
@@ -327,6 +340,18 @@ mod tests {
         assert_eq!(manifest.name, "hello");
         assert_eq!(manifest.metadata.display_name, "hello");
         assert_eq!(manifest.schema_version, 1);
+        assert_eq!(
+            manifest.compatibility.supported_runtime_families,
+            vec![aoxcontract::RuntimeFamily::Wasm]
+        );
+        assert_eq!(
+            manifest.compatibility.supported_network_classes,
+            vec![
+                aoxcontract::NetworkClass::Mainnet,
+                aoxcontract::NetworkClass::Testnet,
+                aoxcontract::NetworkClass::Devnet
+            ]
+        );
     }
 
     #[test]
