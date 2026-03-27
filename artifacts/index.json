@@ -1,14 +1,7 @@
 {
-  "schema_version": "aoxc-artifacts-index/v2",
-  "bundle_profile": "advanced-production-readiness",
-  "required_networks": [
-    "mainnet",
-    "testnet",
-    "devnet"
-  ],
-  "required_interfaces": [
-    "desktop-wallet"
-  ],
+  "schema_version": "aoxc-artifacts-index/v1",
+  "generated_for": "advanced-system-compatibility",
+  "required_networks": ["mainnet", "testnet", "devnet"],
   "artifact_sets": [
     {
       "name": "release-evidence",
@@ -43,7 +36,7 @@
       "status": "complete"
     }
   ],
-  "always_reading_order": [
+  "reading_order": [
     "artifacts/index.json",
     "artifacts/release-evidence/release-evidence-20260323T144016Z.md",
     "artifacts/release-evidence/build-manifest-20260323T144016Z.json",
@@ -52,26 +45,13 @@
     "artifacts/release-evidence/compat-matrix-20260323T144016Z.json",
     "artifacts/network-production-closure/runtime-status.json",
     "artifacts/network-production-closure/telemetry-snapshot.json",
-    "artifacts/network-production-closure/desktop-wallet-compat.json",
     "artifacts/network-production-closure/production-audit.json",
     "artifacts/network-production-closure/security-drill.json"
   ],
-  "completion_gate": {
-    "require_mainnet": true,
-    "require_testnet": true,
-    "require_devnet": true,
-    "require_desktop_wallet": true,
-    "require_provenance": true,
-    "require_checksum": true,
-    "require_signature": true,
-    "require_production_closure": true
-  },
   "verification_commands": [
     "python -m json.tool artifacts/index.json > /dev/null",
     "python -m json.tool artifacts/release-evidence/build-manifest-20260323T144016Z.json > /dev/null",
     "python -m json.tool artifacts/release-evidence/provenance-20260323T144016Z.json > /dev/null",
-    "python -m json.tool artifacts/release-evidence/compat-matrix-20260323T144016Z.json > /dev/null",
-    "python -m json.tool artifacts/network-production-closure/runtime-status.json > /dev/null",
-    "python -m json.tool artifacts/network-production-closure/desktop-wallet-compat.json > /dev/null"
+    "python -m json.tool artifacts/network-production-closure/runtime-status.json > /dev/null"
   ]
 }

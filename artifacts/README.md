@@ -1,97 +1,56 @@
-# AOXC Artifacts — Advanced Production Readiness Bundle
+# AOXC Artifacts — Production Readiness Bundle (v1)
 
-This directory is the canonical, machine-auditable evidence bundle for AOXC releases.
-It is designed for **always-on operational reading** and full compatibility validation across:
+Bu klasör, AOXC sisteminin **mainnet/testnet/devnet + production closure** süreçleri için
+kanıt (evidence), denetim (audit), uyumluluk (compatibility) ve operasyonel kapanış
+çıktılarını tek noktada toplar.
 
-- **Mainnet**
-- **Testnet**
-- **Devnet**
-- **Desktop interface / wallet rollout**
+## Hedef
 
----
+- CI/CD, release engineering, güvenlik ve SRE ekiplerinin aynı dosya ağacını kullanması.
+- "Eksiksiz okuma" için standart bir giriş belgesi sağlanması.
+- Her release artefact setinin doğrulanabilir ve izlenebilir olması.
 
-## 1) Purpose
-
-The `artifacts/` bundle provides one source of truth for:
-
-- release integrity (checksum, signature status, provenance)
-- build and supply-chain attestations (manifest, SBOM)
-- environment compatibility (mainnet/testnet/devnet)
-- production closure evidence (runtime, telemetry, drills, audits)
-- desktop interface compatibility and rollout readiness
-
----
-
-## 2) Directory Structure
+## Dizin Yapısı
 
 - `release-evidence/`
-  - Build, provenance, SBOM, compatibility matrix, release notes, checksum/signature evidence.
+  - Build manifest, SBOM, provenance, compatibility matrix, audit raporu, checksum/signature kanıtları.
 - `network-production-closure/`
-  - Runtime status, telemetry snapshots, production audit, security drill, soak plan,
-    AOXHub rollout, desktop wallet compatibility, and alert rules.
+  - Runtime status, telemetry snapshot, security drill, soak plan, rollout ve alarm kuralları.
 - `index.json`
-  - Machine-readable artifact index for CI/CD gates and governance reviews.
+  - Bu klasördeki artefact grupları için makine-okunur envanter.
 
----
+## Okuma Sırası (Reading Order)
 
-## 3) Mandatory Reading Order (Always)
+1. `index.json`
+2. `release-evidence/release-evidence-*.md`
+3. `release-evidence/build-manifest-*.json`
+4. `release-evidence/provenance-*.json`
+5. `release-evidence/sbom-*.json`
+6. `release-evidence/compat-matrix-*.json`
+7. `network-production-closure/runtime-status.json`
+8. `network-production-closure/telemetry-snapshot.json`
+9. `network-production-closure/production-audit.json`
+10. `network-production-closure/security-drill.json`
 
-1. `artifacts/index.json`
-2. `artifacts/release-evidence/release-evidence-*.md`
-3. `artifacts/release-evidence/build-manifest-*.json`
-4. `artifacts/release-evidence/provenance-*.json`
-5. `artifacts/release-evidence/sbom-*.json`
-6. `artifacts/release-evidence/compat-matrix-*.json`
-7. `artifacts/network-production-closure/runtime-status.json`
-8. `artifacts/network-production-closure/telemetry-snapshot.json`
-9. `artifacts/network-production-closure/desktop-wallet-compat.json`
-10. `artifacts/network-production-closure/production-audit.json`
-11. `artifacts/network-production-closure/security-drill.json`
+## Validasyon Kontrol Listesi
 
----
+- Checksum dosyası mevcut ve binary hash ile uyumlu.
+- Signature veya signature status dosyası mevcut.
+- Provenance attestation mevcut.
+- Compatibility matrix en az mainnet/testnet/devnet satırlarını içeriyor.
+- Production audit sonucu `pass` veya eşdeğer onay durumunda.
+- Runtime/telemetry snapshot dosyaları güncel release zaman penceresiyle uyumlu.
 
-## 4) Compatibility Completion Criteria (100%)
+## Tavsiye Edilen Otomasyon
 
-A release is considered **100% complete** only if all checks below are satisfied:
+- Pre-release job:
+  - build + test + sbom + provenance üretimi
+- Release gate job:
+  - signature/provenance/checksum doğrulama
+- Post-release job:
+  - production closure raporlarının `network-production-closure/` altına eklenmesi
 
-- Mainnet compatibility evidence present and marked pass.
-- Testnet compatibility evidence present and marked pass.
-- Devnet compatibility evidence present and marked pass.
-- Desktop interface compatibility evidence present and marked pass.
-- Provenance artifact present and verifiable.
-- Checksum artifact present and matching built binary.
-- Signature evidence present (`.sig` or `.sig.status`).
-- Production closure package present and internally consistent.
+## Not
 
----
-
-## 5) Validation Checklist
-
-- JSON artifacts parse without error.
-- Required files listed in `index.json` all exist.
-- Release evidence timestamp set is consistent across manifest/SBOM/provenance.
-- Runtime and telemetry snapshots align with the release window.
-- Desktop compatibility report references the same release target.
-
----
-
-## 6) Recommended Automation Pipeline
-
-### Pre-release
-- Build + test + artifact generation (manifest, SBOM, provenance).
-
-### Release gate
-- Checksum + signature + provenance verification.
-- Compatibility gate for mainnet/testnet/devnet + desktop.
-
-### Post-release closure
-- Runtime/telemetry collection.
-- Security drill and production audit sign-off.
-- Final bundle lock and retention.
-
----
-
-## 7) Security Note
-
-Artifacts are evidence surfaces, not standalone proof of ownership.
-Final trust requires signature verification and provenance verification together.
+Bu klasördeki belgeler, kriptografik sahiplik ispatının tek kaynağı değildir;
+nihai doğrulama için imza doğrulama ve provenance doğrulaması birlikte çalıştırılmalıdır.
