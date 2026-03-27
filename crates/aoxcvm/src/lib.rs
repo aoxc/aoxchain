@@ -10,6 +10,7 @@ pub mod contracts;
 pub mod error;
 pub mod gas;
 pub mod host;
+pub mod hypervm;
 pub mod lanes;
 pub mod routing;
 pub mod system;
