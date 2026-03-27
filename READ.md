@@ -60,7 +60,7 @@ Temel hedef:
 4. Release iddiaları commit’e bağlı test/evidence paketiyle doğrulanır.
 5. Belirsizlikte sistem fail-closed davranır.
 
----
+### 5.3 Yerel zincir / operasyon akışı
 
 ## 4) Mainnet kalite kapıları
 
