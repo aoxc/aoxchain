@@ -21,6 +21,9 @@ type SectionKey =
   | 'security'
   | 'nodes'
   | 'wallets'
+  | 'runtime'
+  | 'contracts'
+  | 'explorer'
   | 'telemetry'
   | 'integrations'
   | 'reports'
@@ -43,6 +46,9 @@ type LaunchSnapshot = {
   commands: CommandPreset[]
   workspaces?: WorkspaceSurface[]
   aiSurfaces?: AiSurface[]
+  runtimeSurfaces?: RuntimeSurface[]
+  contracts?: ContractSurface[]
+  explorer?: ExplorerSurface[]
 }
 
 type Track = {
@@ -318,6 +324,76 @@ const fallbackSnapshot: LaunchSnapshot = {
       intent: 'Release veya transfer öncesi audit yüzeyini yeniler.',
     },
   ],
+  runtimeSurfaces: [
+    {
+      title: 'Node runtime memory',
+      status: 'in-progress',
+      ramMb: 742,
+      target: 'cluster/validator-lane',
+      detail: 'RAM baskısı ve GC davranışı gerçek zincir yükü altında izleniyor.',
+      command: 'cargo run -q -p aoxcmd -- runtime-status --trace verbose',
+    },
+    {
+      title: 'VM execution memory',
+      status: 'ready',
+      ramMb: 512,
+      target: 'aoxcvm/lane-router',
+      detail: 'VM lane memory profile güvenlik sınırları içinde.',
+      command: 'cargo test -p aoxcvm lane_memory_profile -- --nocapture',
+    },
+  ],
+  contracts: [
+    {
+      name: 'System governance core',
+      lane: 'system',
+      status: 'ready',
+      address: 'AOXC-SYS-GOV-0001',
+      vm: 'native/system',
+      detail: 'Ağ yönetişim kontratları production policy ile uyumlu.',
+      command: 'cargo run -q -p aoxcmd -- contract-verify --profile mainnet',
+    },
+    {
+      name: 'Treasury execution lane',
+      lane: 'evm',
+      status: 'in-progress',
+      address: '0xA0XC...TREA',
+      vm: 'evm',
+      detail: 'Treasury lane allowance ve signer politikası final review bekliyor.',
+      command: 'cargo run -q -p aoxcmd -- wallet inspect --profile mainnet',
+    },
+    {
+      name: 'Recovery policy guard',
+      lane: 'wasm',
+      status: 'ready',
+      address: 'AOXC-WASM-REC-01',
+      vm: 'wasm',
+      detail: 'Recovery lane cold-path kontrat akışı doğrulandı.',
+      command: 'cargo test -p aoxcvm wasm_recovery_lane -- --nocapture',
+    },
+  ],
+  explorer: [
+    {
+      name: 'Chain state explorer',
+      status: 'ready',
+      endpoint: 'http://127.0.0.1:8545',
+      detail: 'Height/hash/receipt yüzeylerini gerçek zamanlı izler.',
+      command: 'cargo run -q -p aoxcmd -- db-status --backend sqlite',
+    },
+    {
+      name: 'Contract lane explorer',
+      status: 'in-progress',
+      endpoint: 'aoxcvm://lanes',
+      detail: 'EVM/WASM/system lane hareketleri tek panelde birleştiriliyor.',
+      command: 'cargo run -q -p aoxcmd -- compat-matrix --format json',
+    },
+    {
+      name: 'Wallet event explorer',
+      status: 'ready',
+      endpoint: 'wallet://authority-center',
+      detail: 'Operator/treasury/recovery wallet aksiyonları izlenir.',
+      command: 'cargo run -q -p aoxcmd -- production-audit --format json',
+    },
+  ],
   workspaces: [],
   aiSurfaces: [],
 }
@@ -328,6 +404,9 @@ const navigation: { key: SectionKey; label: string }[] = [
   { key: 'security', label: 'Security' },
   { key: 'nodes', label: 'Nodes' },
   { key: 'wallets', label: 'Wallets' },
+  { key: 'runtime', label: 'Runtime' },
+  { key: 'contracts', label: 'Contracts' },
+  { key: 'explorer', label: 'Explorer' },
   { key: 'telemetry', label: 'Telemetry' },
   { key: 'integrations', label: 'Integrations' },
   { key: 'reports', label: 'Reports' },
@@ -850,6 +929,111 @@ function App() {
     )
   }
 
+  function renderRuntime() {
+    return (
+      <section className="panel-surface section-card">
+        <div className="section-heading">
+          <h2>Runtime & RAM control</h2>
+          <p>Gerçek node ve VM bellek yüzeyleri ile runtime davranışı masaüstünden yönetilir.</p>
+        </div>
+        <div className="stack-list">
+          {filteredRuntime.map((surface) => (
+            <article className="info-card compact" key={surface.title}>
+              <div className="card-topline">
+                <h3>{surface.title}</h3>
+                <span className={`status-pill ${statusTone(surface.status)}`}>{statusLabel(surface.status)}</span>
+              </div>
+              <dl className="detail-grid">
+                <div><dt>Target</dt><dd>{surface.target}</dd></div>
+                <div><dt>RAM</dt><dd>{surface.ramMb} MB</dd></div>
+              </dl>
+              <p>{surface.detail}</p>
+              <code>{surface.command}</code>
+              <div className="action-row">
+                <button type="button" onClick={() => queueCommand(`${surface.title} runtime`, surface.command, 'runtime')}>
+                  Queue
+                </button>
+                <button type="button" onClick={() => copyCommand(surface.command)}>
+                  Copy
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  function renderContracts() {
+    return (
+      <section className="panel-surface section-card">
+        <div className="section-heading">
+          <h2>Contract control center</h2>
+          <p>Sistem kontratları, lane durumu ve VM eşleşmesiyle birlikte tek panelde izlenir.</p>
+        </div>
+        <div className="stack-list">
+          {filteredContracts.map((contract) => (
+            <article className="info-card compact" key={`${contract.name}-${contract.address}`}>
+              <div className="card-topline">
+                <h3>{contract.name}</h3>
+                <span className={`status-pill ${statusTone(contract.status)}`}>{statusLabel(contract.status)}</span>
+              </div>
+              <dl className="detail-grid">
+                <div><dt>Lane</dt><dd>{contract.lane}</dd></div>
+                <div><dt>VM</dt><dd>{contract.vm}</dd></div>
+                <div><dt>Address</dt><dd>{contract.address}</dd></div>
+              </dl>
+              <p>{contract.detail}</p>
+              <code>{contract.command}</code>
+              <div className="action-row">
+                <button type="button" onClick={() => queueCommand(`${contract.name} verify`, contract.command, 'contract')}>
+                  Queue
+                </button>
+                <button type="button" onClick={() => copyCommand(contract.command)}>
+                  Copy
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  function renderExplorer() {
+    return (
+      <section className="panel-surface section-card">
+        <div className="section-heading">
+          <h2>Explorer cockpit</h2>
+          <p>Chain state, contract lane ve wallet event explorer yüzeyleri.</p>
+        </div>
+        <div className="stack-list">
+          {filteredExplorer.map((surface) => (
+            <article className="info-card compact" key={`${surface.name}-${surface.endpoint}`}>
+              <div className="card-topline">
+                <h3>{surface.name}</h3>
+                <span className={`status-pill ${statusTone(surface.status)}`}>{statusLabel(surface.status)}</span>
+              </div>
+              <p>{surface.detail}</p>
+              <dl className="detail-grid">
+                <div><dt>Endpoint</dt><dd>{surface.endpoint}</dd></div>
+              </dl>
+              <code>{surface.command}</code>
+              <div className="action-row">
+                <button type="button" onClick={() => queueCommand(`${surface.name} inspect`, surface.command, 'explorer')}>
+                  Queue
+                </button>
+                <button type="button" onClick={() => copyCommand(surface.command)}>
+                  Copy
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
   function renderIntegrations() {
     return (
       <section className="dashboard-grid two-col">
@@ -994,6 +1178,12 @@ function App() {
         return renderNodes()
       case 'wallets':
         return renderWallets()
+      case 'runtime':
+        return renderRuntime()
+      case 'contracts':
+        return renderContracts()
+      case 'explorer':
+        return renderExplorer()
       case 'telemetry':
         return renderTelemetry()
       case 'integrations':
