@@ -97,6 +97,7 @@ mod tests {
     use super::*;
     use crate::error::AovmError;
     use crate::host::receipt::ExecutionReceipt;
+    use crate::vm_kind::VmKind;
 
     struct EchoLane;
 
@@ -111,7 +112,12 @@ mod tests {
             _block: &BlockContext,
             _tx: &TxContext,
         ) -> Result<ExecutionReceipt, AovmError> {
-            Ok(ExecutionReceipt::empty())
+            Ok(ExecutionReceipt::success(
+                VmKind::Evm,
+                0,
+                Vec::new(),
+                Vec::new(),
+            ))
         }
     }
 
