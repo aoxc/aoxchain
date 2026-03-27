@@ -38,6 +38,8 @@ pub struct ContractManifestBuilder {
     pub schema_version: u32,
     pub minimum_schema_version: u32,
     pub supported_schema_versions: Vec<u32>,
+    pub supported_runtime_families: Vec<RuntimeFamily>,
+    pub supported_network_classes: Vec<NetworkClass>,
 }
 
 impl Default for ContractManifestBuilder {
@@ -64,6 +66,12 @@ impl Default for ContractManifestBuilder {
             schema_version: 1,
             minimum_schema_version: 1,
             supported_schema_versions: vec![1],
+            supported_runtime_families: Vec::new(),
+            supported_network_classes: vec![
+                NetworkClass::Mainnet,
+                NetworkClass::Testnet,
+                NetworkClass::Devnet,
+            ],
         }
     }
 }
@@ -186,6 +194,16 @@ impl ContractManifestBuilder {
         self
     }
 
+    pub fn with_supported_runtime_families(mut self, families: Vec<RuntimeFamily>) -> Self {
+        self.supported_runtime_families = families;
+        self
+    }
+
+    pub fn with_supported_network_classes(mut self, classes: Vec<NetworkClass>) -> Self {
+        self.supported_network_classes = classes;
+        self
+    }
+
     pub fn build(self) -> Result<ContractManifest, BuilderError> {
         let name = self.name.ok_or(BuilderError::MissingField("name"))?;
         let vm_target = self
@@ -217,6 +235,12 @@ impl ContractManifestBuilder {
             self.signature_required,
             self.source_trust_level.clone(),
         )?;
+
+        let supported_runtime_families = if self.supported_runtime_families.is_empty() {
+            vec![runtime_family_for_vm(&vm_target)]
+        } else {
+            self.supported_runtime_families
+        };
 
         let compatibility = Compatibility::new(
             self.minimum_schema_version,
@@ -313,7 +337,8 @@ fn default_metadata_for_name(name: &str) -> ContractMetadata {
 mod tests {
     use super::{BuilderError, ContractManifestBuilder};
     use aoxcontract::{
-        ArtifactDigest, ArtifactDigestAlgorithm, ContractCapability, Entrypoint, VmTarget,
+        ArtifactDigest, ArtifactDigestAlgorithm, ContractCapability, Entrypoint, NetworkClass,
+        RuntimeFamily, VmTarget,
     };
 
     fn digest(seed: &str) -> ArtifactDigest {
@@ -378,5 +403,41 @@ mod tests {
             .expect_err("builder should fail");
 
         assert!(matches!(err, BuilderError::MissingField("vm_target")));
+    }
+
+    #[test]
+    fn explicit_compatibility_overrides_are_preserved() {
+        let manifest = ContractManifestBuilder::new()
+            .with_name("custom-compat")
+            .with_package("aox.compat")
+            .with_version("1.0.0")
+            .with_contract_version("1.0.0")
+            .with_vm_target(VmTarget::Custom("kernel-x".to_string()))
+            .with_artifact_digest(digest(
+                "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            ))
+            .with_artifact_location("ipfs://custom/contract.bin")
+            .with_supported_runtime_families(vec![RuntimeFamily::AoxVm, RuntimeFamily::Wasm])
+            .with_supported_network_classes(vec![NetworkClass::Airgapped])
+            .add_entrypoint(
+                Entrypoint::new(
+                    "execute",
+                    VmTarget::Custom("kernel-x".to_string()),
+                    None,
+                    vec![],
+                )
+                .expect("entrypoint should build"),
+            )
+            .build()
+            .expect("manifest should build");
+
+        assert_eq!(
+            manifest.compatibility.supported_runtime_families,
+            vec![RuntimeFamily::AoxVm, RuntimeFamily::Wasm]
+        );
+        assert_eq!(
+            manifest.compatibility.supported_network_classes,
+            vec![NetworkClass::Airgapped]
+        );
     }
 }
