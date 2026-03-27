@@ -1,4 +1,4 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::types::LibError;
 
@@ -55,6 +55,38 @@ pub fn unix_timestamp_millis_from_system_time(time: SystemTime) -> Result<u128, 
     time.duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis())
         .map_err(|_| LibError::TimeError("system time is earlier than UNIX epoch".to_owned()))
+}
+
+/// Converts UNIX timestamp seconds into a [`SystemTime`] value.
+///
+/// # Errors
+///
+/// Returns [`LibError::TimeError`] when the timestamp cannot be represented
+/// on this platform.
+pub fn system_time_from_unix_timestamp(timestamp_secs: u64) -> Result<SystemTime, LibError> {
+    UNIX_EPOCH
+        .checked_add(Duration::from_secs(timestamp_secs))
+        .ok_or_else(|| LibError::TimeError("unix second timestamp overflows SystemTime".to_owned()))
+}
+
+/// Converts UNIX timestamp milliseconds into a [`SystemTime`] value.
+///
+/// # Errors
+///
+/// Returns [`LibError::TimeError`] when the timestamp cannot be represented
+/// on this platform.
+pub fn system_time_from_unix_timestamp_millis(
+    timestamp_millis: u128,
+) -> Result<SystemTime, LibError> {
+    let millis_u64 = u64::try_from(timestamp_millis).map_err(|_| {
+        LibError::TimeError("unix millisecond timestamp exceeds u64 range".to_owned())
+    })?;
+
+    UNIX_EPOCH
+        .checked_add(Duration::from_millis(millis_u64))
+        .ok_or_else(|| {
+            LibError::TimeError("unix millisecond timestamp overflows SystemTime".to_owned())
+        })
 }
 
 #[cfg(test)]

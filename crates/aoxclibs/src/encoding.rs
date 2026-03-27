@@ -47,6 +47,15 @@ pub fn decode_hex_with_max_len(data: &str, max_len: usize) -> Result<Vec<u8>, Li
     Ok(bytes)
 }
 
+/// Decodes a hexadecimal string into raw bytes and enforces an exact output length.
+///
+/// This is useful for fixed-width identity material (e.g., 32-byte hashes or keys).
+pub fn decode_hex_exact_len(data: &str, exact_len: usize) -> Result<Vec<u8>, LibError> {
+    let bytes = decode_hex(data)?;
+    ensure_exact_len(bytes.len(), exact_len)?;
+    Ok(bytes)
+}
+
 /// Encodes the provided byte slice using standard Base64 as defined by RFC 4648.
 ///
 /// Padding is preserved.
@@ -82,6 +91,13 @@ pub fn decode_base64_standard_with_max_len(
 ) -> Result<Vec<u8>, LibError> {
     let bytes = decode_base64_standard(data)?;
     ensure_max_len(bytes.len(), max_len)?;
+    Ok(bytes)
+}
+
+/// Decodes a standard Base64 string into raw bytes and enforces an exact output length.
+pub fn decode_base64_standard_exact_len(data: &str, exact_len: usize) -> Result<Vec<u8>, LibError> {
+    let bytes = decode_base64_standard(data)?;
+    ensure_exact_len(bytes.len(), exact_len)?;
     Ok(bytes)
 }
 
@@ -136,7 +152,7 @@ fn normalize_hex_input(input: &str) -> Result<&str, LibError> {
         ));
     }
 
-    if normalized.len() % 2 != 0 {
+    if !normalized.len().is_multiple_of(2) {
         return Err(LibError::ValidationError(
             "hex input must have an even number of characters".to_owned(),
         ));
@@ -152,6 +168,17 @@ fn ensure_max_len(actual_len: usize, max_len: usize) -> Result<(), LibError> {
     if actual_len > max_len {
         return Err(LibError::ValidationError(format!(
             "decoded length {actual_len} exceeds maximum allowed length {max_len}"
+        )));
+    }
+
+    Ok(())
+}
+
+/// Enforces an exact decoded output length.
+fn ensure_exact_len(actual_len: usize, exact_len: usize) -> Result<(), LibError> {
+    if actual_len != exact_len {
+        return Err(LibError::ValidationError(format!(
+            "decoded length {actual_len} does not match required length {exact_len}"
         )));
     }
 
