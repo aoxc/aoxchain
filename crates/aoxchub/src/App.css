@@ -614,6 +614,20 @@ code {
   margin-top: 2px;
 }
 
+.cli-catalog .cli-lane-card {
+  border-color: rgba(116, 48, 255, 0.28);
+}
+
+.command-inline {
+  border-style: dashed;
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.command-inline strong {
+  color: var(--text-h);
+}
+
 .main-shell > * {
   animation: panel-fade 180ms ease;
 }
