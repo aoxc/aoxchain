@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use serde::Serialize;
 
 pub const AOXC_COVENANT_KERNEL_NAME: &str = "AOXC Covenant Kernel";

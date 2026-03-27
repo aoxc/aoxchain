@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 //! AOXC developer SDK primitives.
 //!
 //! This crate currently focuses on typed contract-manifest composition helpers

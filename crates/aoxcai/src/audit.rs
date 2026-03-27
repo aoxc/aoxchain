@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 //! Audit-grade invocation records and pluggable audit sinks for AI extension calls.
 //!
 //! # Purpose

@@ -1,50 +1,42 @@
-# AOXCVM
+# README.md
 
-Multi-lane virtual machine orchestration for native/system, EVM, WASM, and external execution lanes.
+> Version: **v0.01**  
+> Status: **Experimental / Under Active Construction**  
+> License: **AOXC — MIT License**
 
-## Mission
+## Official Notice
+This page documents an **experimental AOXC codebase** currently under active development.
+All components are pre-release and may change without backward compatibility guarantees.
 
-AOXCVM is the execution compatibility layer for AOXChain. It is responsible for routing execution lanes while protecting deterministic behavior for consensus-sensitive flows.
+## Roadmap Baseline (Restart from Zero)
 
-## Scope
+### Phase 0 — Program Reset (Week 1)
+- Re-establish scope, ownership, and delivery governance.
+- Freeze non-critical workstreams.
+- Define documentation and release quality gates.
 
-- execution lane selection and guardrails,
-- envelope/payload pre-validation,
-- deterministic accounting and execution boundaries,
-- lane-level isolation strategy for fault containment.
+### Phase 1 — Engineering Stabilization (Weeks 2–4)
+- Make build/test reproducible in a single command path.
+- Enforce lint, formatting, and security scans in CI.
+- Prioritize and remediate top critical failures.
 
-## Non-goals
+### Phase 2 — Architectural Hardening (Weeks 5–8)
+- Clarify module boundaries and interface contracts.
+- Standardize configuration patterns.
+- Add observability baselines (logs, metrics, traces).
 
-- AOXCVM is **not** the desktop operator UI layer.
-- AOXCVM should not own human workflow presentation concerns.
+### Phase 3 — Release Readiness (Weeks 9–12)
+- Apply semantic versioning and structured release notes.
+- Improve critical-path test coverage.
+- Introduce runbooks and incident response workflows.
 
-## Determinism contract
+## License Position
+AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
+For legal finalization, maintainers should validate all third-party dependency obligations.
 
-For the same canonical input envelope and state root assumptions, AOXCVM must produce stable and explainable outcomes.
+## Development Maturity Statement
+This repository is **experimental** and **in progress**.
+Do not treat current behavior as production-grade or long-term stable.
 
-Minimum expectations:
-
-1. reject malformed envelopes before mutation,
-2. preserve explicit error semantics,
-3. bound resource consumption per execution lane,
-4. keep replay outcomes consistent under documented constraints.
-
-## WASM strategy (recommended)
-
-- Primary candidate: deterministic `Wasmtime` profile with strict host-call policy.
-- Secondary candidate: controlled `WasmEdge` profile where deterministic wrappers are enforced.
-- Experimental lane: minimal internal deterministic executor for protocol test/fallback scenarios.
-
-## Security verification priorities
-
-- lane-gate validation unit tests,
-- malformed payload adversarial tests,
-- cross-lane replay consistency checks,
-- gas/fuel accounting regressions,
-- serialization/hash stability checks.
-
-## Operational references
-
-- Root baseline: `README.md`
-- Audit companion: `READ.md`
-- Crate roadmap: `crates/aoxcvm/READ.md`
+---
+**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.

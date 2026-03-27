@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 /// Logical column families used by the AOXC data layer.
 ///
 /// The enum is intentionally stable because it forms part of the storage path

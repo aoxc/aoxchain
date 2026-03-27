@@ -1,42 +1,42 @@
-# AOXHub Desktop
+# README.md
 
-AOXHub Desktop is the Tauri/React operator control surface for AOXChain.
+> Version: **v0.01**  
+> Status: **Experimental / Under Active Construction**  
+> License: **AOXC — MIT License**
 
-## Mission
+## Official Notice
+This page documents an **experimental AOXC codebase** currently under active development.
+All components are pre-release and may change without backward compatibility guarantees.
 
-Provide a clear, auditable desktop experience for node operators without weakening the underlying CLI/runtime security model.
+## Roadmap Baseline (Restart from Zero)
 
-## Scope
+### Phase 0 — Program Reset (Week 1)
+- Re-establish scope, ownership, and delivery governance.
+- Freeze non-critical workstreams.
+- Define documentation and release quality gates.
 
-- launch readiness and blocker visibility,
-- cluster and node status monitoring,
-- devnet/testnet/mainnet lane matrix and full CLI command catalog,
-- wallet/treasury/recovery visibility,
-- report export and operational evidence presentation,
-- command queue surfaces mapped to backend controls.
+### Phase 1 — Engineering Stabilization (Weeks 2–4)
+- Make build/test reproducible in a single command path.
+- Enforce lint, formatting, and security scans in CI.
+- Prioritize and remediate top critical failures.
 
-## Design boundary with AOXCVM
+### Phase 2 — Architectural Hardening (Weeks 5–8)
+- Clarify module boundaries and interface contracts.
+- Standardize configuration patterns.
+- Add observability baselines (logs, metrics, traces).
 
-- `aoxcvm` is protocol-adjacent execution logic.
-- `aoxchub` is operator UX.
-- Desktop must orchestrate and display; it should not become a hidden consensus path.
+### Phase 3 — Release Readiness (Weeks 9–12)
+- Apply semantic versioning and structured release notes.
+- Improve critical-path test coverage.
+- Introduce runbooks and incident response workflows.
 
-## Operator safety expectations
+## License Position
+AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
+For legal finalization, maintainers should validate all third-party dependency obligations.
 
-1. Destructive actions should be explicit and reviewable.
-2. Read-only vs mutating actions must be clearly separated.
-3. Command mapping to CLI/runtime should be transparent.
-4. Error feedback should be actionable for incident response.
+## Development Maturity Statement
+This repository is **experimental** and **in progress**.
+Do not treat current behavior as production-grade or long-term stable.
 
-## Development
-
-```bash
-npm install
-npm run dev
-```
-
-## Build
-
-```bash
-npm run build
-```
+---
+**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.

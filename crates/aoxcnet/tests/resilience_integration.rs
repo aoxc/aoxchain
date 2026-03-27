@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use aoxcnet::config::{ExternalDomainKind, NetworkConfig};
 use aoxcnet::gossip::peer::{NodeCertificate, Peer, PeerRole};
 use aoxcnet::p2p::P2PNetwork;

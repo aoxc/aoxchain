@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use aoxcdata::contracts::store::ContractStore;
 use aoxconfig::contracts::ContractsConfig;
 use aoxcontract::{

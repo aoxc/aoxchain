@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use serde::{Deserialize, Serialize};
 
 pub type ValidatorId = [u8; 32];

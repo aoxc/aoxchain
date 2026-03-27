@@ -1,33 +1,42 @@
-# AOXCNET - Audit Roadmap
+# READ.md
 
-**System Version Baseline:** `aoxc.v.0.1.1-akdeniz`
+> Version: **v0.01**  
+> Status: **Experimental / Under Active Construction**  
+> License: **AOXC — MIT License**
 
-Networking, gossip, and transport assurance roadmap.
+## Official Notice
+This page documents an **experimental AOXC codebase** currently under active development.
+All components are pre-release and may change without backward compatibility guarantees.
 
-## Production Intent
-This document defines the mandatory roadmap for advancing the covered workspace area toward a 99.99% production-grade security and reliability posture. It must be updated whenever a release, binary, interface, or operational assumption changes.
+## Roadmap Baseline (Restart from Zero)
 
-## Nine-Point Roadmap
-1. Establish immutable release governance with the Akdeniz release baseline, signed change approval, and traceable artifact lineage.
-2. Enforce deterministic build and binary generation so every release candidate can be reproduced from the tagged source tree.
-3. Require zero-panic production paths, explicit error modeling, and bounded resource handling before feature promotion.
-4. Expand security verification with unit, integration, fuzz, adversarial, and formal-method evidence where logic is consensus- or finance-critical.
-5. Harden configuration, secrets, and operator workflows so deployment variance cannot silently weaken security posture.
-6. Introduce strict semantic version discipline covering manifests, binaries, release notes, and compatibility declarations.
-7. Maintain audit-ready documentation updates for every change, including what changed, why it changed, and which version absorbed the change.
-8. Gate release promotion on lint, test, reproducibility, supply-chain review, and incident-response preparedness evidence.
-9. Advance from the Akdeniz readiness baseline to production readiness only after 99.99% service-quality objectives are backed by measurable validation data.
+### Phase 0 — Program Reset (Week 1)
+- Re-establish scope, ownership, and delivery governance.
+- Freeze non-critical workstreams.
+- Define documentation and release quality gates.
 
-## Versioning Policy
-- Canonical documentation label: `aoxc.v.0.1.1-akdeniz`.
-- Cargo-compatible semantic version baseline: `0.1.1-akdeniz`.
-- Every release-impacting change must update the relevant READ.md entry, manifest version, and release evidence together.
-- Binary artifacts, deployment bundles, and audit records must reference the same release identifier without ambiguity.
+### Phase 1 — Engineering Stabilization (Weeks 2–4)
+- Make build/test reproducible in a single command path.
+- Enforce lint, formatting, and security scans in CI.
+- Prioritize and remediate top critical failures.
 
-## Change Ledger
-- `aoxc.v.0.1.1-akdeniz`: initialized audit roadmap, introduced strict Akdeniz release baseline, and reserved this folder for continuous release tracking.
-- `aoxc.v.0.1.1-akdeniz+resilience`: added deterministic chaos-simulation transport coverage, bounded backpressure handling, and repeatable duplicate/drop/reorder verification evidence for AOXCNET.
-- Future entries must describe the exact implementation delta, affected artifacts, and verification evidence added in that version.
+### Phase 2 — Architectural Hardening (Weeks 5–8)
+- Clarify module boundaries and interface contracts.
+- Standardize configuration patterns.
+- Add observability baselines (logs, metrics, traces).
 
-## Mandatory Update Rule
-Whenever a new file, feature, control, or operational procedure is added under this directory, append the change to this ledger with the new version number and a concise audit explanation before release approval.
+### Phase 3 — Release Readiness (Weeks 9–12)
+- Apply semantic versioning and structured release notes.
+- Improve critical-path test coverage.
+- Introduce runbooks and incident response workflows.
+
+## License Position
+AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
+For legal finalization, maintainers should validate all third-party dependency obligations.
+
+## Development Maturity Statement
+This repository is **experimental** and **in progress**.
+Do not treat current behavior as production-grade or long-term stable.
+
+---
+**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.

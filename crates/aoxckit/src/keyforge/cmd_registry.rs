@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::keyforge::cli::{RegistryCommand, RegistrySubcommand};
 use crate::keyforge::util::{read_json_file, write_json_file};
 use serde::{Deserialize, Serialize};

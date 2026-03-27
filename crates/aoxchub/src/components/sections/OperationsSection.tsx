@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 import type { CommandPreset, ReportAsset, TerminalSurface, FileStatus, LaunchBlocker } from '../../types/controlCenter'
 
 function statusLabel(status: string) {

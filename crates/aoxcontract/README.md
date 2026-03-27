@@ -1,48 +1,42 @@
-# AOXCONTRACT
+# README.md
 
-Deterministic contract manifest, artifact, policy, and validation toolkit for AOX Chain applications.
+> Version: **v0.01**  
+> Status: **Experimental / Under Active Construction**  
+> License: **AOXC — MIT License**
 
-## Executive Summary
-This document is written in a professional audit tone for engineering leadership, security reviewers, platform operators, and release managers. Its purpose is to provide a stable narrative for scope, trust boundaries, verification intent, and operational expectations.
+## Official Notice
+This page documents an **experimental AOXC codebase** currently under active development.
+All components are pre-release and may change without backward compatibility guarantees.
 
-## Architectural Overview
-The component is expected to run inside a deterministic Rust workspace with explicit error propagation, bounded memory growth, and reviewable control flow. Public interfaces should be treated as contractual surfaces that must remain observable, testable, and suitable for staged rollout in pre-production and production environments.
+## Roadmap Baseline (Restart from Zero)
 
-## Security Objectives
-The primary security objectives are listed below.
-- Preserve deterministic behavior for the same input set.
-- Reject malformed, stale, or conflicting inputs before state mutation.
-- Maintain bounded resource usage to reduce denial-of-service exposure.
-- Keep failure semantics explicit so that operators and auditors can explain incident outcomes.
+### Phase 0 — Program Reset (Week 1)
+- Re-establish scope, ownership, and delivery governance.
+- Freeze non-critical workstreams.
+- Define documentation and release quality gates.
 
-## Audit Scope
-The audit lens for this component covers logic correctness, trust assumptions, state-transition boundaries, and evidence of reproducible verification. Changes should document any residual risk, especially when the code path depends on external data, off-chain operators, or network timing.
+### Phase 1 — Engineering Stabilization (Weeks 2–4)
+- Make build/test reproducible in a single command path.
+- Enforce lint, formatting, and security scans in CI.
+- Prioritize and remediate top critical failures.
 
-## Verification Strategy
-Recommended verification activities include the following layers.
-1. Unit tests for validation rules, edge cases, and deterministic behavior.
-2. Integration tests for cross-module flows and operational hand-offs.
-3. Adversarial or hack-style tests that model malformed, replayed, conflicting, or stale inputs.
-4. Fuzz-style repetition for parser, hashing, serialization, or consensus-critical paths.
-5. Formatting, lint, and documentation checks before merge approval.
+### Phase 2 — Architectural Hardening (Weeks 5–8)
+- Clarify module boundaries and interface contracts.
+- Standardize configuration patterns.
+- Add observability baselines (logs, metrics, traces).
 
-## Operational Guidance
-Production use should remain aligned with controlled change management.
-- Update documentation whenever interfaces, invariants, or deployment assumptions change.
-- Preserve traceability between source code, tests, release artifacts, and audit evidence.
-- Record environment limitations when verification cannot be completed exactly as planned.
-- Treat incident response readiness as part of engineering quality, not a post-release activity.
+### Phase 3 — Release Readiness (Weeks 9–12)
+- Apply semantic versioning and structured release notes.
+- Improve critical-path test coverage.
+- Introduce runbooks and incident response workflows.
 
-## Security Audit Log
-The following audit statements should be reviewed on each significant change.
-- Inputs are validated before they can influence durable or consensus-sensitive state.
-- Error propagation remains explicit and avoids hidden control-flow shortcuts.
-- Resource growth is kept bounded or documented when a bounded strategy is not yet implemented.
-- Test coverage includes both expected behavior and hostile or malformed scenarios.
-- Release evidence includes the commands used and the outcome observed in CI or local execution.
+## License Position
+AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
+For legal finalization, maintainers should validate all third-party dependency obligations.
 
-## Audit Checklist
-- [ ] Confirm deterministic behavior for identical inputs.
-- [ ] Confirm malformed and conflicting inputs are rejected.
-- [ ] Confirm verification evidence is attached to the release record.
-- [ ] Confirm documentation reflects current operational assumptions.
+## Development Maturity Statement
+This repository is **experimental** and **in progress**.
+Do not treat current behavior as production-grade or long-term stable.
+
+---
+**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.

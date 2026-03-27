@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 #[must_use]
 pub fn prometheus_metrics_snapshot(
     total_requests: u64,

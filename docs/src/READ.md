@@ -1,37 +1,42 @@
-# docs/
+# READ.md
 
-**System Version Baseline:** `aoxc.v.0.1.1-akdeniz`
+> Version: **v0.01**  
+> Status: **Experimental / Under Active Construction**  
+> License: **AOXC — MIT License**
 
-## Mission
-This folder is the canonical documentation surface for AOXC architecture, release planning, operator runbooks, readiness criteria, and audit evidence.
+## Official Notice
+This page documents an **experimental AOXC codebase** currently under active development.
+All components are pre-release and may change without backward compatibility guarantees.
 
-## What should be found here
+## Roadmap Baseline (Restart from Zero)
 
-- architecture decisions and technical analysis,
-- production/readiness roadmaps,
-- deterministic testnet and operational runbooks,
-- versioning and release semantics,
-- incident/on-call guidance,
-- validation criteria and evidence expectations.
+### Phase 0 — Program Reset (Week 1)
+- Re-establish scope, ownership, and delivery governance.
+- Freeze non-critical workstreams.
+- Define documentation and release quality gates.
 
-## Governance Rules
-1. Keep documentation aligned with current system behavior and release naming.
-2. Update release evidence whenever operator-facing or protocol-facing behavior changes.
-3. Distinguish clearly between implemented behavior, target state, and unresolved blockers.
-4. Prefer deterministic commands and reproducible examples.
-5. Record residual risk explicitly when a subsystem is not fully production-closed.
-6. Keep release naming consistent across docs, manifests, and top-level readmes.
+### Phase 1 — Engineering Stabilization (Weeks 2–4)
+- Make build/test reproducible in a single command path.
+- Enforce lint, formatting, and security scans in CI.
+- Prioritize and remediate top critical failures.
 
-## Versioning Notes
+### Phase 2 — Architectural Hardening (Weeks 5–8)
+- Clarify module boundaries and interface contracts.
+- Standardize configuration patterns.
+- Add observability baselines (logs, metrics, traces).
 
-- Canonical documentation label: `aoxc.v.0.1.1-akdeniz`
-- Cargo-compatible version baseline: `0.1.1-akdeniz`
-- Human-facing release label: `AOXC v0.1.1-akdeniz`
+### Phase 3 — Release Readiness (Weeks 9–12)
+- Apply semantic versioning and structured release notes.
+- Improve critical-path test coverage.
+- Introduce runbooks and incident response workflows.
 
-## Suggested reading order
+## License Position
+AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
+For legal finalization, maintainers should validate all third-party dependency obligations.
 
-1. `AKDENIZ_RELEASE_BASELINE.md`
-2. `SUMMARY.md`
-3. `MAINNET_READINESS_CHECKLIST.md`
-4. `REAL_NETWORK_VALIDATION_RUNBOOK_TR.md`
-5. `AOXC_REAL_VERSIONING_AND_RELEASE_ROADMAP_TR.md`
+## Development Maturity Statement
+This repository is **experimental** and **in progress**.
+Do not treat current behavior as production-grade or long-term stable.
+
+---
+**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.

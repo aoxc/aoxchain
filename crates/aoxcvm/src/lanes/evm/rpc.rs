@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 /// Supported Ethereum JSON-RPC methods at the current development phase.
 pub const SUPPORTED_ETH_RPC_METHODS: &[&str] = &[
     "eth_chainId",

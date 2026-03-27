@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::{
     cli_support::{emit_serialized, has_flag, output_format},
     config::loader::load_or_init,

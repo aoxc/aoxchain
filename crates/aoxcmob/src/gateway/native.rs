@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::config::MobileConfig;
 use crate::error::MobError;
 use crate::security::keystore::SecureStore;

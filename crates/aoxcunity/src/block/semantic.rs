@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::block::hash::BodyRoots;
 use crate::block::policy_registry::{enforce_signature_policy_migration, resolve_signature_policy};
 use crate::block::types::{

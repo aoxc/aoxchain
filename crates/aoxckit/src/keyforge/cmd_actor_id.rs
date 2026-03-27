@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::keyforge::cli::{ActorIdCommand, ActorIdSubcommand};
 use aoxcore::identity::actor_id;
 

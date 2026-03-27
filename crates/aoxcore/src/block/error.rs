@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 //! core/src/block/error.rs
 //!
 //! AOVM Block Domain Error Definitions.

@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::{error::AppError, node::lifecycle::load_state};
 
 pub fn health_status() -> Result<&'static str, AppError> {

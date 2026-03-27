@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 import type { ReactNode } from 'react'
 import type { AreaProgress, Track, TelemetrySurface, ExplorerSurface, DatabaseSurface, LogSurface } from '../../types/controlCenter'
 

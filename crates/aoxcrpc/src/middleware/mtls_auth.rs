@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::error::RpcError;
 
 /// mTLS authentication policy for zero-trust ingress.
