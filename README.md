@@ -167,9 +167,6 @@ cargo run -p aoxcmd --bin aoxc -- db-status --backend sqlite
 
 Use `--backend redb` when you want the alternate index backend profile.
 
-Desktop control center (AOXHub) can run the same flow using desktop actions:
-`dbInit`, `dbStatus`, `dbPutBlock`, `dbGetHeight`, `dbGetHash`, `dbCompact`.
-
 ---
 
 ## 8. Deterministic testnet and local validation
