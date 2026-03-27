@@ -226,122 +226,6 @@ pub trait LaneAdapter<S: HostState> {
     fn execute(&self, env: &mut ExecutionEnv<'_, S>) -> Result<LaneOutput, KernelError>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum CoreCall {
-    Noop,
-    Set { key: StateKey, value: StateValue },
-    Delete { key: StateKey },
-}
-
-fn decode_core_call(payload: &[u8]) -> Result<CoreCall, KernelError> {
-    if payload.is_empty() {
-        return Err(KernelError::InvalidTransaction("empty payload"));
-    }
-
-    match payload[0] {
-        0x00 => Ok(CoreCall::Noop),
-        0x01 => {
-            if payload.len() < 3 {
-                return Err(KernelError::InvalidTransaction(
-                    "set payload too short for lengths",
-                ));
-            }
-            let key_len = payload[1] as usize;
-            let value_len = payload[2] as usize;
-            let expected = 3usize
-                .checked_add(key_len)
-                .and_then(|v| v.checked_add(value_len))
-                .ok_or(KernelError::InvalidTransaction("payload length overflow"))?;
-            if expected != payload.len() {
-                return Err(KernelError::InvalidTransaction("set payload malformed"));
-            }
-            let key = payload[3..3 + key_len].to_vec();
-            let value = payload[3 + key_len..expected].to_vec();
-            Ok(CoreCall::Set { key, value })
-        }
-        0x02 => {
-            if payload.len() < 2 {
-                return Err(KernelError::InvalidTransaction(
-                    "delete payload too short for key length",
-                ));
-            }
-            let key_len = payload[1] as usize;
-            let expected = 2usize
-                .checked_add(key_len)
-                .ok_or(KernelError::InvalidTransaction("payload length overflow"))?;
-            if expected != payload.len() {
-                return Err(KernelError::InvalidTransaction("delete payload malformed"));
-            }
-            Ok(CoreCall::Delete {
-                key: payload[2..expected].to_vec(),
-            })
-        }
-        _ => Err(KernelError::DeterministicAbort {
-            code: 1,
-            message: "unsupported operation",
-        }),
-    }
-}
-
-/// Native deterministic kernel lane with a minimal call surface.
-pub struct CoreLaneAdapter;
-
-impl<S: HostState> LaneAdapter<S> for CoreLaneAdapter {
-    fn execute(&self, env: &mut ExecutionEnv<'_, S>) -> Result<LaneOutput, KernelError> {
-        match decode_core_call(&env.tx.payload)? {
-            CoreCall::Noop => {
-                let event = env.emit_event(b"core.noop".to_vec(), Vec::new())?;
-                Ok(LaneOutput {
-                    output: b"noop".to_vec(),
-                    events: vec![event],
-                })
-            }
-            CoreCall::Set { key, value } => {
-                env.write_state(key.clone(), value.clone())?;
-                let event = env.emit_event(b"core.set".to_vec(), key)?;
-                Ok(LaneOutput {
-                    output: value,
-                    events: vec![event],
-                })
-            }
-            CoreCall::Delete { key } => {
-                env.delete_state(key.clone())?;
-                let event = env.emit_event(b"core.delete".to_vec(), key)?;
-                Ok(LaneOutput {
-                    output: b"deleted".to_vec(),
-                    events: vec![event],
-                })
-            }
-        }
-    }
-}
-
-/// Compatibility lane wrapper for EVM family runtimes.
-pub struct EvmCompatibilityLane;
-
-impl<S: HostState> LaneAdapter<S> for EvmCompatibilityLane {
-    fn execute(&self, env: &mut ExecutionEnv<'_, S>) -> Result<LaneOutput, KernelError> {
-        let event = env.emit_event(b"lane.evm.dispatched".to_vec(), env.tx.tx_id.to_vec())?;
-        Ok(LaneOutput {
-            output: env.tx.payload.clone(),
-            events: vec![event],
-        })
-    }
-}
-
-/// Compatibility lane wrapper for WASM family runtimes.
-pub struct WasmCompatibilityLane;
-
-impl<S: HostState> LaneAdapter<S> for WasmCompatibilityLane {
-    fn execute(&self, env: &mut ExecutionEnv<'_, S>) -> Result<LaneOutput, KernelError> {
-        let event = env.emit_event(b"lane.wasm.dispatched".to_vec(), env.tx.tx_id.to_vec())?;
-        Ok(LaneOutput {
-            output: env.tx.payload.clone(),
-            events: vec![event],
-        })
-    }
-}
-
 pub struct LaneRegistry<S: HostState> {
     adapters: BTreeMap<LaneId, Box<dyn LaneAdapter<S> + Send + Sync>>,
 }
@@ -368,17 +252,6 @@ impl<S: HostState> LaneRegistry<S> {
 
     pub fn lanes(&self) -> BTreeSet<LaneId> {
         self.adapters.keys().copied().collect()
-    }
-
-    pub fn with_default_compatibility_lanes() -> Self
-    where
-        S: 'static,
-    {
-        let mut registry = Self::default();
-        registry.register(LaneId::Core, CoreLaneAdapter);
-        registry.register(LaneId::Evm, EvmCompatibilityLane);
-        registry.register(LaneId::Wasm, WasmCompatibilityLane);
-        registry
     }
 }
 
@@ -561,15 +434,6 @@ mod tests {
         }
     }
 
-    fn encode_set_payload(key: &[u8], value: &[u8]) -> Vec<u8> {
-        let key_len = u8::try_from(key.len()).expect("test key length should fit into u8");
-        let value_len = u8::try_from(value.len()).expect("test value length should fit into u8");
-        let mut payload = vec![0x01, key_len, value_len];
-        payload.extend_from_slice(key);
-        payload.extend_from_slice(value);
-        payload
-    }
-
     #[test]
     fn commits_journal_on_success() {
         let mut lanes = LaneRegistry::default();
@@ -618,51 +482,5 @@ mod tests {
 
         assert!(!receipt.success);
         assert_eq!(receipt.error, Some(KernelError::GasExhausted));
-    }
-
-    #[test]
-    fn default_registry_includes_core_evm_wasm() {
-        let lanes = LaneRegistry::<MemoryState>::with_default_compatibility_lanes();
-        let names = lanes.lanes();
-        assert!(names.contains(&LaneId::Core));
-        assert!(names.contains(&LaneId::Evm));
-        assert!(names.contains(&LaneId::Wasm));
-    }
-
-    #[test]
-    fn core_compatibility_lane_can_set_state() {
-        let lanes = LaneRegistry::<MemoryState>::with_default_compatibility_lanes();
-        let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
-        let mut state = MemoryState::default();
-
-        let mut tx = sample_tx(LaneId::Core, 300_000);
-        tx.payload = encode_set_payload(b"k", b"v");
-        let receipt = kernel.execute_tx(&sample_block(), &tx, &mut state);
-
-        assert!(receipt.success);
-        assert_eq!(state.get(b"k"), Some(b"v".to_vec()));
-        assert_eq!(receipt.events.len(), 1);
-        assert_eq!(receipt.events[0].topic, b"core.set".to_vec());
-    }
-
-    #[test]
-    fn evm_and_wasm_are_compatibility_lanes() {
-        let lanes = LaneRegistry::<MemoryState>::with_default_compatibility_lanes();
-        let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
-        let mut state = MemoryState::default();
-
-        let evm_tx = sample_tx(LaneId::Evm, 300_000);
-        let wasm_tx = sample_tx(LaneId::Wasm, 300_000);
-
-        let evm_receipt = kernel.execute_tx(&sample_block(), &evm_tx, &mut state);
-        let wasm_receipt = kernel.execute_tx(&sample_block(), &wasm_tx, &mut state);
-
-        assert!(evm_receipt.success);
-        assert!(wasm_receipt.success);
-        assert_eq!(evm_receipt.events[0].topic, b"lane.evm.dispatched".to_vec());
-        assert_eq!(
-            wasm_receipt.events[0].topic,
-            b"lane.wasm.dispatched".to_vec()
-        );
     }
 }

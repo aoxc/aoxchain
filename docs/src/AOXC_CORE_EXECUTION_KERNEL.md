@@ -79,12 +79,6 @@ The `kernel.rs` module includes:
 - unit tests that validate:
   - commit-on-success,
   - revert-on-failure,
-  - deterministic out-of-fuel failure,
-  - default compatibility lane registry (`Core`, `Evm`, `Wasm`),
-  - native core lane set/delete behavior.
+  - deterministic out-of-fuel failure.
 
 Compatibility lanes (EVM/WASM) should implement `LaneAdapter` and remain outside the sovereign core semantic surface.
-
-## 9) Compatibility lane posture
-
-`EvmCompatibilityLane` and `WasmCompatibilityLane` are intentionally thin dispatch adapters in the kernel boundary: they emit canonical lane dispatch events and return deterministic output shells. Full EVM/WASM semantics are explicitly deferred to external lane runtimes.
