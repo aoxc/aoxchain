@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::layouts::AdminLayout;
-use crate::views::{ConsensusMap, Home, LaneMonitor, Nodes, Wallet, ZkpAudit};
+use crate::views::{ConsensusMap, Home, LaneMonitor, Nodes, NotFound, Wallet, ZkpAudit};
 
 #[derive(Routable, Clone, PartialEq, Debug)]
 #[rustfmt::skip]
