@@ -157,6 +157,14 @@ type StreamEvent = {
   severity: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
 }
 
+type QueuedAction = {
+  id: string
+  title: string
+  command: string
+  source: string
+  queuedAt: string
+}
+
 const fallbackSnapshot: LaunchSnapshot = {
   stage: 'Desktop operations baseline',
   verdict: 'Needs operator closure',
@@ -369,6 +377,9 @@ function App() {
   const [snapshot, setSnapshot] = useState<LaunchSnapshot>(fallbackSnapshot)
   const [error, setError] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [queue, setQueue] = useState<QueuedAction[]>([])
+  const [queueNotice, setQueueNotice] = useState<string | null>(null)
 
   useEffect(() => {
     invoke<LaunchSnapshot>('load_control_center_snapshot')
@@ -385,6 +396,7 @@ function App() {
     const onlineNodes = snapshot.nodes.filter((node) => node.status === 'online').length
     const blockedTelemetry = snapshot.telemetry.filter((item) => item.status === 'blocked').length
     const readyReports = snapshot.reports.filter((report) => report.status === 'ready').length
+    const vmLaneReady = snapshot.telemetry.some((item) => item.title.toLowerCase().includes('rpc')) && blockedTelemetry === 0
 
     return [
       {
@@ -410,6 +422,12 @@ function App() {
         value: `${readyReports}/${snapshot.reports.length || 1}`,
         detail: 'release and audit artifacts visible',
         status: readyReports === snapshot.reports.length ? 'ready' : 'in-progress',
+      },
+      {
+        title: 'VM lane seal',
+        value: vmLaneReady ? 'sealed' : 'review',
+        detail: 'execution lane health for real chain control',
+        status: vmLaneReady ? 'ready' : 'in-progress',
       },
     ]
   }, [snapshot])
@@ -503,6 +521,60 @@ function App() {
     return events
   }, [snapshot])
 
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+
+  const filteredNodes = useMemo(() => {
+    if (!normalizedQuery) return snapshot.nodes
+    return snapshot.nodes.filter((node) =>
+      [node.id, node.role, node.chainId, node.rpcAddr, node.securityMode].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.nodes])
+
+  const filteredWallets = useMemo(() => {
+    if (!normalizedQuery) return snapshot.wallets
+    return snapshot.wallets.filter((wallet) =>
+      [wallet.title, wallet.route, wallet.addressHint, wallet.detail].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.wallets])
+
+  const filteredCommands = useMemo(() => {
+    if (!normalizedQuery) return snapshot.commands
+    return snapshot.commands.filter((item) =>
+      [item.title, item.command, item.intent].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.commands])
+
+  const filteredEvents = useMemo(() => {
+    if (!normalizedQuery) return streamEvents
+    return streamEvents.filter((event) =>
+      [event.title, event.detail, event.time].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, streamEvents])
+
+  function queueCommand(title: string, command: string, source: string) {
+    const action: QueuedAction = {
+      id: `${source}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title,
+      command,
+      source,
+      queuedAt: new Date().toLocaleTimeString(),
+    }
+    setQueue((current) => [action, ...current].slice(0, 10))
+    setQueueNotice(`Queued: ${title}`)
+    setTimeout(() => setQueueNotice(null), 1600)
+  }
+
+  async function copyCommand(command: string) {
+    try {
+      await navigator.clipboard.writeText(command)
+      setQueueNotice('Command copied')
+      setTimeout(() => setQueueNotice(null), 1200)
+    } catch {
+      setQueueNotice('Clipboard unavailable')
+      setTimeout(() => setQueueNotice(null), 1200)
+    }
+  }
+
   function renderOverview() {
     return (
       <>
@@ -545,7 +617,7 @@ function App() {
               <p>Blocker, telemetry ve rapor olayları birleşik operatör akışı gibi listelenir.</p>
             </div>
             <div className="timeline-list">
-              {streamEvents.map((event) => (
+              {filteredEvents.map((event) => (
                 <article className={`timeline-item ${event.severity}`} key={`${event.time}-${event.title}`}>
                   <span>{event.time}</span>
                   <strong>{event.title}</strong>
@@ -587,7 +659,7 @@ function App() {
             <p>Desktop arayüzde hızlı operasyon için güvenli komut kaseti.</p>
           </div>
           <div className="stack-list">
-            {snapshot.commands.map((command) => (
+            {filteredCommands.map((command) => (
               <article className="info-card compact" key={command.title}>
                 <div className="card-topline">
                   <h3>{command.title}</h3>
@@ -595,8 +667,41 @@ function App() {
                 </div>
                 <p>{command.intent}</p>
                 <code>{command.command}</code>
+                <div className="action-row">
+                  <button type="button" onClick={() => queueCommand(command.title, command.command, 'preset')}>
+                    Queue
+                  </button>
+                  <button type="button" onClick={() => copyCommand(command.command)}>
+                    Copy
+                  </button>
+                </div>
               </article>
             ))}
+          </div>
+        </article>
+
+        <article className="panel-surface section-card">
+          <div className="section-heading">
+            <h2>Execution queue</h2>
+            <p>Desktop üzerinden tetiklenecek zincir/VM/wallet komutları öncelik kuyruğunda tutulur.</p>
+          </div>
+          <div className="stack-list">
+            {queue.length === 0 ? (
+              <article className="info-card compact">
+                <p className="muted">Queue is empty. Add command presets, node run, or wallet actions.</p>
+              </article>
+            ) : (
+              queue.map((entry) => (
+                <article className="info-card compact" key={entry.id}>
+                  <div className="card-topline">
+                    <h3>{entry.title}</h3>
+                    <span className="status-pill in-progress">{entry.source}</span>
+                  </div>
+                  <p>{entry.queuedAt}</p>
+                  <code>{entry.command}</code>
+                </article>
+              ))
+            )}
           </div>
         </article>
       </section>
@@ -655,7 +760,7 @@ function App() {
           <p>Node komutları, ağ yüzeyleri ve güvenlik modları gerçek snapshot üzerinden gösterilir.</p>
         </div>
         <div className="stack-list">
-          {snapshot.nodes.map((node) => (
+          {filteredNodes.map((node) => (
             <article className="info-card compact" key={node.id}>
               <div className="card-topline">
                 <div>
@@ -672,6 +777,14 @@ function App() {
                 <div><dt>Security</dt><dd>{node.securityMode}</dd></div>
               </dl>
               <code>{node.command}</code>
+              <div className="action-row">
+                <button type="button" onClick={() => queueCommand(`${node.id} control`, node.command, 'node')}>
+                  Queue
+                </button>
+                <button type="button" onClick={() => copyCommand(node.command)}>
+                  Copy
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -687,7 +800,7 @@ function App() {
           <p>Operatör, treasury ve recovery lane komutları ve rotalarıyla birlikte izlenir.</p>
         </div>
         <div className="stack-list">
-          {snapshot.wallets.map((wallet) => (
+          {filteredWallets.map((wallet) => (
             <article className="info-card compact" key={wallet.title}>
               <div className="card-topline">
                 <h3>{wallet.title}</h3>
@@ -699,6 +812,14 @@ function App() {
                 <div><dt>Address</dt><dd>{wallet.addressHint}</dd></div>
               </dl>
               <code>{wallet.command}</code>
+              <div className="action-row">
+                <button type="button" onClick={() => queueCommand(`${wallet.title} action`, wallet.command, 'wallet')}>
+                  Queue
+                </button>
+                <button type="button" onClick={() => copyCommand(wallet.command)}>
+                  Copy
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -936,11 +1057,26 @@ function App() {
             <span className="eyebrow subtle">{snapshot.profile}</span>
             <h2>{activeLabel}</h2>
             <p>{snapshot.summary}</p>
+            <div className="search-row">
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search node / wallet / command / evidence..."
+                aria-label="Search control center"
+              />
+              {searchQuery ? (
+                <button type="button" onClick={() => setSearchQuery('')}>
+                  Clear
+                </button>
+              ) : null}
+            </div>
           </div>
           <div className="topbar-badges">
             <span className={`status-pill ${snapshot.overallPercent >= 85 ? 'ready' : 'in-progress'}`}>{snapshot.stage}</span>
             <span className={`status-pill ${snapshot.blockers.length === 0 ? 'ready' : 'in-progress'}`}>{snapshot.verdict}</span>
             {error ? <span className="status-pill blocked">Fallback snapshot</span> : <span className="status-pill ready">Live repo snapshot</span>}
+            {queueNotice ? <span className="status-pill in-progress">{queueNotice}</span> : null}
           </div>
         </section>
 

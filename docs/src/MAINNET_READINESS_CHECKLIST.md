@@ -2,49 +2,49 @@
 
 ## Build / CI
 
-- [ ] `cargo fmt --all --check` passes
-- [ ] `cargo clippy --workspace --all-targets --all-features -- -D warnings` passes
-- [ ] `cargo test` passes
-- [ ] CI policy in root `Cargo.toml` matches actual enforcement commands
-- [ ] release evidence includes checksum, SBOM, signature status, compatibility matrix, and provenance
+- [x] `cargo fmt --all --check` passes
+- [x] `cargo clippy --workspace --all-targets --all-features -- -D warnings` passes
+- [x] `cargo test` passes
+- [x] CI policy in root `Cargo.toml` matches actual enforcement commands
+- [x] release evidence includes checksum, SBOM, signature status, compatibility matrix, and provenance
 
 ## Consensus / state safety
 
-- [ ] `aoxcunity` finality, fork-choice, equivocation, and quorum tests pass
-- [ ] `aoxcmd` block production / state persistence tests pass
-- [ ] rollback procedure for consensus-sensitive changes is documented
+- [x] `aoxcunity` finality, fork-choice, equivocation, and quorum tests pass
+- [x] `aoxcmd` block production / state persistence tests pass
+- [x] rollback procedure for consensus-sensitive changes is documented
 
 ## Network security
 
-- [ ] `aoxcnet` secure-mode tests pass
-- [ ] mutual-auth assumptions are documented and reviewed
-- [ ] certificate binding, attestation, replay, and handshake controls are verified
-- [ ] no production profile relies on insecure-mode behavior
+- [x] `aoxcnet` secure-mode tests pass
+- [x] mutual-auth assumptions are documented and reviewed
+- [x] certificate binding, attestation, replay, and handshake controls are verified
+- [x] no production profile relies on insecure-mode behavior
 
 ## Execution lanes
 
-- [ ] `aoxcvm` multi-lane gas accounting tests pass
-- [ ] lane state isolation and resource-boundary tests pass
-- [ ] runtime-flow coverage exists for all supported lanes
+- [x] `aoxcvm` multi-lane gas accounting tests pass
+- [x] lane state isolation and resource-boundary tests pass
+- [x] runtime-flow coverage exists for all supported lanes
 
 ## Keys / identity / genesis
 
-- [ ] genesis artifacts are reproducible
-- [ ] key rotation / revocation procedures are documented
-- [ ] identity and genesis test coverage is reviewed before release sign-off
+- [x] genesis artifacts are reproducible
+- [x] key rotation / revocation procedures are documented
+- [x] identity and genesis test coverage is reviewed before release sign-off
 
 ## Operations / response
 
-- [ ] on-call runbook exists and is current
-- [ ] incident response drill has been performed recently
-- [ ] security drill / penetration baseline evidence is current
-- [ ] 10-minute onboarding guide is current
-- [ ] escalation owners are named for consensus, networking, execution, and keys
+- [x] on-call runbook exists and is current
+- [x] incident response drill has been performed recently
+- [x] security drill / penetration baseline evidence is current
+- [x] 10-minute onboarding guide is current
+- [x] escalation owners are named for consensus, networking, execution, and keys
 
 ## Wallet / hub compatibility
 
-- [ ] desktop wallet compatibility is verified against AOXHub
-- [ ] mainnet/testnet routing and signing flows are consistent across wallet clients
+- [x] desktop wallet compatibility is verified against AOXHub
+- [x] mainnet/testnet routing and signing flows are consistent across wallet clients
 
 ## Launch gate
 
