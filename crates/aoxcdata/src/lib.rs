@@ -406,6 +406,7 @@ impl HybridDataStore {
 
     pub fn put_block(&self, block: &BlockEnvelope) -> Result<BlockMeta, DataError> {
         block.validate()?;
+        self.validate_chain_link(block)?;
 
         let ipfs_record = self.ipfs.put_block(block)?;
         let meta = BlockMeta {
@@ -432,6 +433,43 @@ impl HybridDataStore {
 
     pub fn compact_index(&self) -> Result<(), DataError> {
         self.index.compact()
+    }
+
+    fn validate_chain_link(&self, block: &BlockEnvelope) -> Result<(), DataError> {
+        if block.height == 1 {
+            let expected_genesis_parent = "00".repeat(32);
+            if block.parent_hash_hex != expected_genesis_parent {
+                return Err(DataError::InvalidInput(format!(
+                    "genesis block parent hash must be '{}'",
+                    expected_genesis_parent
+                )));
+            }
+            return Ok(());
+        }
+
+        let previous_height = block.height.checked_sub(1).ok_or_else(|| {
+            DataError::InvalidInput("block height underflow while validating chain link".to_owned())
+        })?;
+
+        let previous = self
+            .index
+            .get_by_height(previous_height)
+            .map_err(|err| match err {
+                DataError::NotFound => DataError::InvalidInput(format!(
+                    "missing parent block at height '{}' for block '{}'",
+                    previous_height, block.height
+                )),
+                other => other,
+            })?;
+
+        if block.parent_hash_hex != previous.block_hash_hex {
+            return Err(DataError::Integrity(format!(
+                "parent hash mismatch at height '{}': expected '{}', got '{}'",
+                block.height, previous.block_hash_hex, block.parent_hash_hex
+            )));
+        }
+
+        Ok(())
     }
 }
 
@@ -831,6 +869,65 @@ mod tests {
 
         match err {
             DataError::Corrupted(message) => assert!(message.contains("invalid journal record")),
+            other => panic!("unexpected error: {other}"),
+        }
+
+        fs::remove_dir_all(dir).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn non_genesis_block_requires_parent_height_to_exist() {
+        let dir = unique_temp_dir("missing_parent");
+        let store = HybridDataStore::new(&dir, IndexBackend::Sqlite).expect("store init");
+
+        let block = make_block(2, &"ab".repeat(32), b"orphan");
+        let err = store
+            .put_block(&block)
+            .expect_err("orphan block must be rejected");
+
+        match err {
+            DataError::InvalidInput(message) => assert!(message.contains("missing parent block")),
+            other => panic!("unexpected error: {other}"),
+        }
+
+        fs::remove_dir_all(dir).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn non_genesis_block_requires_parent_hash_match() {
+        let dir = unique_temp_dir("parent_mismatch");
+        let store = HybridDataStore::new(&dir, IndexBackend::Sqlite).expect("store init");
+
+        let genesis = make_block(1, &"00".repeat(32), b"genesis");
+        store.put_block(&genesis).expect("genesis put must succeed");
+
+        let bad_child = make_block(2, &"ff".repeat(32), b"child");
+        let err = store
+            .put_block(&bad_child)
+            .expect_err("child with mismatched parent hash must fail");
+
+        match err {
+            DataError::Integrity(message) => assert!(message.contains("parent hash mismatch")),
+            other => panic!("unexpected error: {other}"),
+        }
+
+        fs::remove_dir_all(dir).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn genesis_block_requires_zero_parent_hash() {
+        let dir = unique_temp_dir("genesis_parent");
+        let store = HybridDataStore::new(&dir, IndexBackend::Sqlite).expect("store init");
+
+        let bad_genesis = make_block(1, &"11".repeat(32), b"genesis");
+        let err = store
+            .put_block(&bad_genesis)
+            .expect_err("genesis with non-zero parent hash must fail");
+
+        match err {
+            DataError::InvalidInput(message) => {
+                assert!(message.contains("genesis block parent hash"))
+            }
             other => panic!("unexpected error: {other}"),
         }
 
