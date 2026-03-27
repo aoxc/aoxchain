@@ -171,33 +171,6 @@ type QueuedAction = {
   queuedAt: string
 }
 
-type RuntimeSurface = {
-  title: string
-  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
-  ramMb: number
-  target: string
-  detail: string
-  command: string
-}
-
-type ContractSurface = {
-  name: string
-  lane: string
-  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
-  address: string
-  vm: string
-  detail: string
-  command: string
-}
-
-type ExplorerSurface = {
-  name: string
-  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
-  endpoint: string
-  detail: string
-  command: string
-}
-
 const fallbackSnapshot: LaunchSnapshot = {
   stage: 'Desktop operations baseline',
   verdict: 'Needs operator closure',
@@ -649,33 +622,6 @@ function App() {
       [item.title, item.command, item.intent].join(' ').toLowerCase().includes(normalizedQuery),
     )
   }, [normalizedQuery, snapshot.commands])
-
-  const filteredRuntime = useMemo(() => {
-    const runtime = snapshot.runtimeSurfaces ?? []
-    if (!normalizedQuery) return runtime
-    return runtime.filter((surface) =>
-      [surface.title, surface.target, surface.detail, surface.command].join(' ').toLowerCase().includes(normalizedQuery),
-    )
-  }, [normalizedQuery, snapshot.runtimeSurfaces])
-
-  const filteredContracts = useMemo(() => {
-    const contracts = snapshot.contracts ?? []
-    if (!normalizedQuery) return contracts
-    return contracts.filter((contract) =>
-      [contract.name, contract.lane, contract.address, contract.vm, contract.detail]
-        .join(' ')
-        .toLowerCase()
-        .includes(normalizedQuery),
-    )
-  }, [normalizedQuery, snapshot.contracts])
-
-  const filteredExplorer = useMemo(() => {
-    const surfaces = snapshot.explorer ?? []
-    if (!normalizedQuery) return surfaces
-    return surfaces.filter((surface) =>
-      [surface.name, surface.endpoint, surface.detail, surface.command].join(' ').toLowerCase().includes(normalizedQuery),
-    )
-  }, [normalizedQuery, snapshot.explorer])
 
   const filteredEvents = useMemo(() => {
     if (!normalizedQuery) return streamEvents
