@@ -134,11 +134,20 @@ impl Validate for ContractManifest {
         {
             return Err(crate::CompatibilityError::CompatibilityMismatch.into());
         }
+        if self.entrypoints.is_empty() {
+            return Err(ManifestValidationError::EmptyEntrypoints.into());
+        }
         self.policy.enforces(
             &self.vm_target,
             &self.artifact.artifact_format,
             self.artifact.artifact_size,
         )?;
+        if self.integrity.artifact_size != self.artifact.artifact_size
+            || self.integrity.artifact_format != self.artifact.artifact_format
+            || self.integrity.media_type != self.artifact.media_type
+        {
+            return Err(ManifestValidationError::IntegrityMetadataMismatch.into());
+        }
 
         let mut names = std::collections::BTreeSet::new();
         for entrypoint in &self.entrypoints {
