@@ -53,8 +53,8 @@ fn transaction_root_and_hashes_remain_stable_under_signature_rotation() {
         "sealed transaction hashes must change when signatures rotate"
     );
     assert_ne!(
-        calculate_transaction_root(&[tx_a.clone()]),
-        calculate_transaction_root(&[tx_b.clone()]),
+        calculate_transaction_root(std::slice::from_ref(&tx_a)),
+        calculate_transaction_root(std::slice::from_ref(&tx_b)),
         "collection root must reflect signature-bearing leaf hashes"
     );
 }

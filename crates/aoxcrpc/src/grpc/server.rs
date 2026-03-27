@@ -54,8 +54,10 @@ mod tests {
 
     #[test]
     fn startup_checks_fail_for_bad_grpc_bind_addr() {
-        let mut config = RpcConfig::default();
-        config.grpc_bind_addr = "bad-addr".to_string();
+        let config = RpcConfig {
+            grpc_bind_addr: "bad-addr".to_string(),
+            ..RpcConfig::default()
+        };
         let server = GrpcServer::new(config);
 
         let result = server.startup_checks();
@@ -64,10 +66,12 @@ mod tests {
 
     #[test]
     fn startup_checks_fail_for_missing_tls_files() {
-        let mut config = RpcConfig::default();
-        config.genesis_hash = Some(format!("0x{}", "ab".repeat(32)));
-        config.tls_cert_path = "".to_string();
-        config.tls_key_path = "".to_string();
+        let config = RpcConfig {
+            genesis_hash: Some(format!("0x{}", "ab".repeat(32))),
+            tls_cert_path: "".to_string(),
+            tls_key_path: "".to_string(),
+            ..RpcConfig::default()
+        };
 
         let server = GrpcServer::new(config);
         let result = server.startup_checks();

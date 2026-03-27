@@ -3,7 +3,8 @@ use thiserror::Error;
 use aoxcontract::{
     ArtifactDigest, ArtifactFormat, ArtifactLocationKind, Compatibility, ContractArtifactRef,
     ContractCapability, ContractDescriptor, ContractError, ContractManifest, ContractMetadata,
-    ContractPolicy, ContractVersion, Entrypoint, Integrity, SourceTrustLevel, VmTarget,
+    ContractPolicy, ContractVersion, Entrypoint, Integrity, NetworkClass, RuntimeFamily,
+    SourceTrustLevel, VmTarget,
 };
 
 #[derive(Debug, Error)]
@@ -220,8 +221,12 @@ impl ContractManifestBuilder {
         let compatibility = Compatibility::new(
             self.minimum_schema_version,
             self.supported_schema_versions,
-            vec![],
-            vec![],
+            vec![runtime_family_for_vm(&vm_target)],
+            vec![
+                NetworkClass::Mainnet,
+                NetworkClass::Testnet,
+                NetworkClass::Devnet,
+            ],
             vec![],
             false,
         )?;
@@ -278,6 +283,14 @@ fn artifact_format_for_vm(vm_target: &VmTarget) -> ArtifactFormat {
     match vm_target {
         VmTarget::Evm => ArtifactFormat::EvmBytecode,
         _ => ArtifactFormat::WasmModule,
+    }
+}
+
+fn runtime_family_for_vm(vm_target: &VmTarget) -> RuntimeFamily {
+    match vm_target {
+        VmTarget::Evm => RuntimeFamily::Evm,
+        VmTarget::Wasm => RuntimeFamily::Wasm,
+        VmTarget::SuiLike | VmTarget::Custom(_) => RuntimeFamily::AoxVm,
     }
 }
 
