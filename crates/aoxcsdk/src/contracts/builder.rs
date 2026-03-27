@@ -245,8 +245,12 @@ impl ContractManifestBuilder {
         let compatibility = Compatibility::new(
             self.minimum_schema_version,
             self.supported_schema_versions,
-            supported_runtime_families,
-            self.supported_network_classes,
+            vec![runtime_family_for_vm(&vm_target)],
+            vec![
+                NetworkClass::Mainnet,
+                NetworkClass::Testnet,
+                NetworkClass::Devnet,
+            ],
             vec![],
             false,
         )?;
