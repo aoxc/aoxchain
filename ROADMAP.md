@@ -1,55 +1,53 @@
-# AOXC Foundation Roadmap (Advanced Execution Plan)
+# AOXChain Unified Roadmap (Single Official Roadmap)
 
-> Objective: deliver a production-candidate foundation through deterministic engineering, strict quality gates, and operator-ready infrastructure.
+Bu doküman repodaki **tek resmi yol haritasıdır**.
+Alt klasörlerde roadmap tutulmaz.
 
-## Phase 0 — Foundation Reset (Week 1)
-- [ ] Establish canonical top-level docs and governance language
-- [ ] Define branch strategy and release branching conventions
-- [ ] Freeze non-foundational feature expansion
-- [ ] Publish acceptance criteria for every upcoming phase
+## Faz 0 — Stabilizasyon ve Temizlik
+- [ ] Merge-conflict/dokümantasyon tutarsızlıklarının sıfırlanması
+- [ ] README/READ hiyerarşisinin sadeleştirilmesi
+- [ ] Kritik dizinlerin kapsam tanımının netleştirilmesi
 
-## Phase 1 — Build and Toolchain Convergence (Weeks 2–3)
-- [ ] Ensure Linux/macOS/Windows compatibility for mandatory workflows
-- [ ] Standardize Docker validation path for all quality gates
-- [ ] Enforce one-command verification policy for contributors
-- [ ] Track and remove environment-specific drift
+## Faz 1 — Deterministik Çekirdek Sertleştirme
+- [ ] `aoxcore` state-transition doğruluk testlerinin genişletilmesi
+- [ ] `aoxcunity` finality/safety adversarial senaryoları
+- [ ] Invariant testlerinin CI gate’e bağlanması
 
-## Phase 2 — Determinism and Consensus Hardening (Weeks 4–7)
-- [ ] Expand deterministic transaction and hashing regressions
-- [ ] Expand consensus stale/fork/finality stress tests
-- [ ] Add fault profile scenarios (reorder, duplicate, drop, delay)
-- [ ] Promote invariant violations to release-blocking checks
+## Faz 2 — Multi-VM Conformance
+- [ ] `aoxcexec` lane policy versioning
+- [ ] `aoxcvm` cross-lane replay conformance corpus
+- [ ] malformed input rejection matrix ve hata kod standardı
 
-## Phase 3 — Network and Runtime Reliability (Weeks 8–10)
-- [ ] Define runtime SLOs (latency, finality, error budgets)
-- [ ] Add telemetry and alerting baselines
-- [ ] Harden RPC contracts and backward compatibility policy
-- [ ] Verify recovery and rollback procedures under stress
+## Faz 3 — Network ve Data Dayanıklılığı
+- [ ] `aoxcnet` partition/healing senaryoları
+- [ ] `aoxcdata` snapshot/restore/corruption detect testleri
+- [ ] servis SLO metriklerinin ölçüm pipeline’ı
 
-## Phase 4 — Release Candidate Gate (Weeks 11–12)
-- [ ] Full CI + Docker + cross-platform evidence bundle
-- [ ] Security and dependency review report
-- [ ] Release notes, migration notes, rollback guidance
-- [ ] `v0.01-rc` tag only after all hard gates pass
+## Faz 4 — Operator Plane Kurumsallaşma
+- [ ] `aoxcmd` mutating action audit trail
+- [ ] `aoxckit` key lifecycle runbook standardı
+- [ ] `aoxchub` dashboard + alarm + incident akışı
 
----
+## Faz 5 — Güvenlik ve Release Evidence
+- [ ] SBOM/provenance/signature zincirinin release gate’e alınması
+- [ ] threat model ve incident drill periyodu
+- [ ] bağımsız güvenlik denetimi hazırlığı
 
-## Hard Gates (Non-Negotiable)
+## Faz 6 — Testnet -> Mainnet Geçiş Programı
+- [ ] testnet kapanış kriterleri
+- [ ] genesis freeze ve validator onboarding planı
+- [ ] rollback ve emergency governance prosedürü
 
-- [ ] `cargo fmt --all --check`
-- [ ] `cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings`
-- [ ] `cargo test --workspace --exclude aoxchub --all-targets`
-- [ ] `cargo check -p aoxchub --all-targets`
-- [ ] Cross-platform smoke validation report
-- [ ] Docker parity report
+## Faz 7 — Mainnet Launch ve Sonrası
+- [ ] launch window operasyonu
+- [ ] ilk 90 gün güvenilirlik ve performans takibi
+- [ ] protocol upgrade governance takvimi
 
----
+## Ölçülebilir başarı kriterleri
+- Deterministic replay pass oranı: %100 (kritik senaryolarda)
+- Konsensüs güvenlik ihlali: 0
+- Kritik incident MTTR hedefi: < 30 dk
+- Release evidence completeness: %100
 
-## Definition of Done
-
-AOXC v0.01 foundation is complete only if:
-
-1. Determinism-critical paths are test-guarded.
-2. Consensus and resilience regressions are stable.
-3. Build/test pipelines are reproducible across target platforms.
-4. Operator runbooks and release evidence are complete.
+## Yönetişim notu
+Bu roadmap üzerindeki her madde; sahibi, hedef tarihi, kanıt linki ve kapanış notu ile yönetilmelidir.
