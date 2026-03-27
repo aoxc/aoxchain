@@ -1,33 +1,33 @@
 # README.md
 
-> Module Documentation Status: **Active / Full Draft**  
-> License: **MIT**  
-> Repository: **AOXC**
+> Scope: `crates/aoxcmd`  
+> Status: `Active / Under Construction`  
+> License: `MIT`
 
-This directory follows the root documentation contract.
-Before editing implementation details here, read:
+This document is the local module guide for `crates/aoxcmd`.
+It is intentionally aligned with root governance, roadmap, and quality gates.
 
-1. [`README.md` at repo root](../../README.md)
-2. [`READ.md` at repo root](../../READ.md)
-3. [`ROADMAP.md` at repo root](../../ROADMAP.md)
+## Read Before Editing
 
-## Local Scope
+1. [Root README](../../README.md)
+2. [Root READ](../../READ.md)
+3. [Foundation Roadmap](../../ROADMAP.md)
 
-This folder contains implementation and/or configuration surfaces that contribute to AOXC foundation goals:
+## Module Responsibilities
 
-- deterministic behavior
-- cross-platform operability
-- Docker-compatible workflows
-- release-readiness observability
+- Maintain deterministic and reproducible behavior.
+- Follow cross-platform and Docker-compatible practices.
+- Keep local assumptions explicit and documented.
+- Preserve operational clarity for contributors and operators.
 
-## Local Contributor Checklist
+## Local Checklist
 
-- [ ] Confirm commands/build steps are reproducible.
-- [ ] Keep changes aligned with roadmap phase.
-- [ ] Add/update tests for behavior changes.
-- [ ] Keep docs synchronized with root standards.
-- [ ] Preserve MIT headers and experimental status notes as needed.
+- [ ] Document behavior and interface impact.
+- [ ] Add/update tests for behavioral changes.
+- [ ] Validate local commands on supported environments.
+- [ ] Keep this file synchronized with actual module behavior.
 
-## Notes
+## Escalation Rule
 
-If this module needs deep specialized docs, keep them here, but do not conflict with root roadmap and quality gates.
+If this module introduces protocol, consensus, crypto, or networking risk,
+open a dedicated design note before merging.

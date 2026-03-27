@@ -1,88 +1,55 @@
-# AOXC v0.01 Foundation Roadmap (Checklist + Analysis)
+# AOXC Foundation Roadmap (Advanced Execution Plan)
 
-> Scope: **Infrastructure first, then protocol hardening, then production readiness**
+> Objective: deliver a production-candidate foundation through deterministic engineering, strict quality gates, and operator-ready infrastructure.
 
-This roadmap is intentionally execution-oriented. Every item is checklist-driven and measurable.
+## Phase 0 — Foundation Reset (Week 1)
+- [ ] Establish canonical top-level docs and governance language
+- [ ] Define branch strategy and release branching conventions
+- [ ] Freeze non-foundational feature expansion
+- [ ] Publish acceptance criteria for every upcoming phase
 
----
+## Phase 1 — Build and Toolchain Convergence (Weeks 2–3)
+- [ ] Ensure Linux/macOS/Windows compatibility for mandatory workflows
+- [ ] Standardize Docker validation path for all quality gates
+- [ ] Enforce one-command verification policy for contributors
+- [ ] Track and remove environment-specific drift
 
-## A. Current Analysis (Where We Are)
+## Phase 2 — Determinism and Consensus Hardening (Weeks 4–7)
+- [ ] Expand deterministic transaction and hashing regressions
+- [ ] Expand consensus stale/fork/finality stress tests
+- [ ] Add fault profile scenarios (reorder, duplicate, drop, delay)
+- [ ] Promote invariant violations to release-blocking checks
 
-### Strengths
-- Modular workspace architecture is already established.
-- Consensus, VM, network, RPC, and integration-test surfaces exist.
-- CI quality gates are defined.
+## Phase 3 — Network and Runtime Reliability (Weeks 8–10)
+- [ ] Define runtime SLOs (latency, finality, error budgets)
+- [ ] Add telemetry and alerting baselines
+- [ ] Harden RPC contracts and backward compatibility policy
+- [ ] Verify recovery and rollback procedures under stress
 
-### Gaps
-- Documentation was inconsistent and not operationally prescriptive.
-- Cross-platform and Docker workflow was not fully codified in one place.
-- Production readiness criteria needs stricter acceptance gates.
-
-### Primary Risk
-- Building too many features before finishing deterministic and operational foundations.
-
----
-
-## B. Phase Plan (Checklist)
-
-## Phase 0 — Documentation + Foundation Reset (Week 1)
-- [ ] Establish root-level authoritative docs (`README.md`, `READ.md`, `ROADMAP.md`).
-- [ ] Normalize per-directory docs to reference root standards.
-- [ ] Define support matrix (Linux/macOS/Windows/Docker).
-- [ ] Freeze non-foundation feature additions.
-
-**Exit Criteria:** Single source of truth + clear operating baseline.
-
-## Phase 1 — Build & Environment Unification (Weeks 2–3)
-- [ ] Ensure all mandatory commands run clean on Linux/macOS/Windows.
-- [ ] Add/update Docker dev workflow for parity with local checks.
-- [ ] Provide one-command validation script for contributors.
-- [ ] Verify deterministic behavior of key integration tests.
-
-**Exit Criteria:** Reproducible environment and consistent onboarding.
-
-## Phase 2 — Protocol Hardening (Weeks 4–7)
-- [ ] Expand consensus safety/finality regression suites.
-- [ ] Add deterministic multi-lane execution conformance tests.
-- [ ] Expand network resilience tests (reorder/drop/dup/partition scenarios).
-- [ ] Formalize compatibility constraints across RPC/SDK surfaces.
-
-**Exit Criteria:** Safety-critical paths covered by repeatable tests.
-
-## Phase 3 — Operations & Security (Weeks 8–10)
-- [ ] Define SLI/SLO metrics and telemetry baseline.
-- [ ] Ship operator runbook and incident response guide.
-- [ ] Add release evidence checklist and artifact integrity workflow.
-- [ ] Run security review pass for core protocol boundaries.
-
-**Exit Criteria:** Operationally manageable pre-production posture.
-
-## Phase 4 — Release Candidate Readiness (Weeks 11–12)
-- [ ] Freeze protocol-critical interfaces for RC window.
-- [ ] Execute full regression matrix in CI + Docker.
-- [ ] Publish release notes + known limitations + rollback policy.
-- [ ] Tag `v0.01-rc` only if all hard gates pass.
-
-**Exit Criteria:** Controlled, auditable release candidate.
+## Phase 4 — Release Candidate Gate (Weeks 11–12)
+- [ ] Full CI + Docker + cross-platform evidence bundle
+- [ ] Security and dependency review report
+- [ ] Release notes, migration notes, rollback guidance
+- [ ] `v0.01-rc` tag only after all hard gates pass
 
 ---
 
-## C. Hard Quality Gates (Must Pass)
+## Hard Gates (Non-Negotiable)
 
 - [ ] `cargo fmt --all --check`
 - [ ] `cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings`
 - [ ] `cargo test --workspace --exclude aoxchub --all-targets`
 - [ ] `cargo check -p aoxchub --all-targets`
-- [ ] Cross-platform smoke checks documented and green
-- [ ] Docker parity checks documented and green
+- [ ] Cross-platform smoke validation report
+- [ ] Docker parity report
 
 ---
 
-## D. Definition of Done (v0.01 Foundation)
+## Definition of Done
 
-v0.01 foundation is complete only when:
+AOXC v0.01 foundation is complete only if:
 
-1. Docs are coherent and operationally actionable.
-2. Core build/test runs reproducibly across supported platforms.
-3. Determinism + consensus safety + resilience tests are reliable.
-4. Release and incident workflows are documented and rehearsed.
+1. Determinism-critical paths are test-guarded.
+2. Consensus and resilience regressions are stable.
+3. Build/test pipelines are reproducible across target platforms.
+4. Operator runbooks and release evidence are complete.
