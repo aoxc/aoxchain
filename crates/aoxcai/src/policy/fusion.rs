@@ -282,4 +282,145 @@ mod tests {
 
         assert_eq!(assessment.action, DecisionAction::Deny);
     }
+
+    #[tokio::test]
+    async fn decide_keeps_deny_even_when_confidence_is_low() {
+        let manifest = base_manifest();
+        let policy = FusionPolicy::new();
+        let output = model_output(OutputLabel::Malicious, 9_000, 1_000);
+
+        let assessment = policy
+            .decide(&manifest, &empty_request(), &output, &[])
+            .await
+            .expect("decision must succeed");
+
+        assert_eq!(assessment.action, DecisionAction::Deny);
+    }
+
+    #[tokio::test]
+    async fn decide_does_not_force_review_when_action_is_already_deny() {
+        let manifest = base_manifest();
+        let policy = FusionPolicy::new();
+        let output = model_output(OutputLabel::Malicious, 9_000, 9_000);
+        let findings = vec![InferenceFinding::new(
+            "missing_context",
+            "Context is incomplete.",
+            FindingSeverity::Info,
+        )];
+
+        let assessment = policy
+            .decide(&manifest, &empty_request(), &output, &findings)
+            .await
+            .expect("decision must succeed");
+
+        assert_eq!(assessment.action, DecisionAction::Deny);
+    }
+
+    #[tokio::test]
+    async fn decide_forces_deny_on_revoked_identity_override() {
+        let manifest = base_manifest();
+        let policy = FusionPolicy::new();
+        let output = model_output(OutputLabel::Trusted, 0, 8_000);
+        let findings = vec![InferenceFinding::new(
+            "revoked_identity",
+            "Subject identity is revoked.",
+            FindingSeverity::Info,
+        )];
+
+        let assessment = policy
+            .decide(&manifest, &empty_request(), &output, &findings)
+            .await
+            .expect("decision must succeed");
+
+        assert_eq!(assessment.action, DecisionAction::Deny);
+    }
+
+    #[tokio::test]
+    async fn decide_uses_weighted_average_for_effective_risk() {
+        let manifest = base_manifest();
+        let policy = FusionPolicy::new();
+        let output = model_output(OutputLabel::Review, 5_000, 9_000);
+        let findings = vec![InferenceFinding::new(
+            "anomaly_warning",
+            "Warning-level anomaly.",
+            FindingSeverity::Warning,
+        )];
+
+        let assessment = policy
+            .decide(&manifest, &empty_request(), &output, &findings)
+            .await
+            .expect("decision must succeed");
+
+        // model: 5000*6000 + deterministic(2000)*4000 = 38_000_000 / 10_000 = 3800
+        assert_eq!(assessment.effective_risk_bps, 3_800);
+        assert_eq!(assessment.action, DecisionAction::Review);
+    }
+
+    #[tokio::test]
+    async fn decide_handles_zero_weights_without_panicking() {
+        let mut manifest = base_manifest();
+        manifest.spec.decision.fusion.weights.model_risk_bps = 0;
+        manifest.spec.decision.fusion.weights.deterministic_risk_bps = 0;
+
+        let policy = FusionPolicy::new();
+        let output = model_output(OutputLabel::Trusted, 9_000, 9_000);
+
+        let assessment = policy
+            .decide(&manifest, &empty_request(), &output, &[])
+            .await
+            .expect("decision must succeed");
+
+        assert_eq!(assessment.effective_risk_bps, 0);
+        assert_eq!(assessment.action, DecisionAction::Allow);
+    }
+
+    #[test]
+    fn deterministic_risk_saturates_at_upper_bound() {
+        let findings = vec![
+            InferenceFinding::new("critical-1", "first", FindingSeverity::Critical),
+            InferenceFinding::new("critical-2", "second", FindingSeverity::Critical),
+        ];
+
+        let risk_bps = deterministic_risk_from_findings(&findings);
+
+        assert_eq!(risk_bps, 10_000);
+    }
+
+    #[test]
+    fn deterministic_risk_is_zero_when_no_findings_exist() {
+        let findings = Vec::new();
+        let risk_bps = deterministic_risk_from_findings(&findings);
+        assert_eq!(risk_bps, 0);
+    }
+
+    #[test]
+    fn tighten_action_by_risk_reviews_allow_when_risk_crosses_allow_threshold() {
+        let thresholds = base_manifest().spec.decision.thresholds;
+        let action = tighten_action_by_risk(DecisionAction::Allow, &thresholds, 2_500);
+        assert_eq!(action, DecisionAction::Review);
+    }
+
+    #[test]
+    fn tighten_action_by_risk_denies_when_risk_crosses_deny_threshold() {
+        let thresholds = base_manifest().spec.decision.thresholds;
+        let action = tighten_action_by_risk(DecisionAction::Review, &thresholds, 7_000);
+        assert_eq!(action, DecisionAction::Deny);
+    }
+
+    #[test]
+    fn map_label_to_action_uses_manifest_action_map() {
+        let manifest = base_manifest();
+        assert_eq!(
+            map_label_to_action(&manifest, OutputLabel::Trusted),
+            DecisionAction::Allow
+        );
+        assert_eq!(
+            map_label_to_action(&manifest, OutputLabel::Malicious),
+            DecisionAction::Deny
+        );
+        assert_eq!(
+            map_label_to_action(&manifest, OutputLabel::Unknown),
+            DecisionAction::Review
+        );
+    }
 }
