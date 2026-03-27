@@ -282,4 +282,54 @@ mod tests {
 
         assert_eq!(assessment.action, DecisionAction::Deny);
     }
+
+    #[test]
+    fn deterministic_risk_saturates_at_upper_bound() {
+        let findings = vec![
+            InferenceFinding::new("critical-1", "first", FindingSeverity::Critical),
+            InferenceFinding::new("critical-2", "second", FindingSeverity::Critical),
+        ];
+
+        let risk_bps = deterministic_risk_from_findings(&findings);
+
+        assert_eq!(risk_bps, 10_000);
+    }
+
+    #[test]
+    fn deterministic_risk_is_zero_when_no_findings_exist() {
+        let findings = Vec::new();
+        let risk_bps = deterministic_risk_from_findings(&findings);
+        assert_eq!(risk_bps, 0);
+    }
+
+    #[test]
+    fn tighten_action_by_risk_reviews_allow_when_risk_crosses_allow_threshold() {
+        let thresholds = base_manifest().spec.decision.thresholds;
+        let action = tighten_action_by_risk(DecisionAction::Allow, &thresholds, 2_500);
+        assert_eq!(action, DecisionAction::Review);
+    }
+
+    #[test]
+    fn tighten_action_by_risk_denies_when_risk_crosses_deny_threshold() {
+        let thresholds = base_manifest().spec.decision.thresholds;
+        let action = tighten_action_by_risk(DecisionAction::Review, &thresholds, 7_000);
+        assert_eq!(action, DecisionAction::Deny);
+    }
+
+    #[test]
+    fn map_label_to_action_uses_manifest_action_map() {
+        let manifest = base_manifest();
+        assert_eq!(
+            map_label_to_action(&manifest, OutputLabel::Trusted),
+            DecisionAction::Allow
+        );
+        assert_eq!(
+            map_label_to_action(&manifest, OutputLabel::Malicious),
+            DecisionAction::Deny
+        );
+        assert_eq!(
+            map_label_to_action(&manifest, OutputLabel::Unknown),
+            DecisionAction::Review
+        );
+    }
 }
