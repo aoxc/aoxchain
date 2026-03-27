@@ -1,76 +1,67 @@
 # README.md
 
-<<<<<<< HEAD
 > Scope: `crates/aoxcenergy`  
-> Status: `Active / Under Construction`  
+> Status: `Mainnet Readiness Program / Active`  
+> Governance: `AOXC Release + Security + Operations`  
 > License: `MIT`
 
-This document is the local module guide for `crates/aoxcenergy`.
-It is intentionally aligned with root governance, roadmap, and quality gates.
+Bu doküman, `crates/aoxcenergy` klasörü için **kurumsal seviye işletim ve geliştirme standardını** tanımlar.
+Amaç: içeriği yalnızca teknik olarak değil, aynı zamanda denetlenebilir, sürdürülebilir ve ana ağ (mainnet) hazırlığına uygun hale getirmek.
 
-## Read Before Editing
+## 1) Öncelikli Referanslar
 
 1. [Root README](../../README.md)
 2. [Root READ](../../READ.md)
 3. [Foundation Roadmap](../../ROADMAP.md)
+4. İlgili klasördeki yerel teknik dosyalar (`*.toml`, `*.rs`, `*.json`, `*.yaml`)
 
-## Module Responsibilities
+## 2) Mainnet Seviyesi Hedefler
 
-- Maintain deterministic and reproducible behavior.
-- Follow cross-platform and Docker-compatible practices.
-- Keep local assumptions explicit and documented.
-- Preserve operational clarity for contributors and operators.
+- **Deterministik Davranış:** Aynı girdi → aynı çıktı, platformdan bağımsız.
+- **Sürüm Disiplini:** Konfigürasyon/arayüz değişimleri kontrollü ve izlenebilir.
+- **Operasyonel Dayanıklılık:** Geri alma planı, runbook ve olay yönetimi hazır.
+- **Güvenlik Temeli:** En az ayrıcalık, güvenli varsayılanlar, gizli veri hijyeni.
+- **Denetlenebilirlik:** Değişiklik gerekçesi, test kanıtı ve release notları mevcut.
 
-## Local Checklist
+## 3) Klasör İçeriği Tamamlama Standardı
 
-- [ ] Document behavior and interface impact.
-- [ ] Add/update tests for behavioral changes.
-- [ ] Validate local commands on supported environments.
-- [ ] Keep this file synchronized with actual module behavior.
+Bu kapsam altındaki her alt klasör için aşağıdaki eksikler kapatılmalıdır:
 
-## Escalation Rule
+- [ ] Klasör amacı ve sınırları açık yazıldı.
+- [ ] Dosya türleri ve sahiplik modeli belirlendi.
+- [ ] Üretim etkisi (konsensüs/ağ/veri) notlandı.
+- [ ] Hata senaryoları ve rollback yaklaşımı eklendi.
+- [ ] Gözlemlenebilirlik gereksinimleri (log/metric/alert) tanımlandı.
 
-If this module introduces protocol, consensus, crypto, or networking risk,
-open a dedicated design note before merging.
-=======
-> Version: **v0.01**  
-> Status: **Experimental / Under Active Construction**  
-> License: **AOXC — MIT License**
+## 4) Değişiklik Kalite Kapıları (Minimum)
 
-## Official Notice
-This page documents an **experimental AOXC codebase** currently under active development.
-All components are pre-release and may change without backward compatibility guarantees.
+- [ ] Dokümantasyon güncellemesi değişiklik ile birlikte yapıldı.
+- [ ] Test kapsamı güncellendi (birim/integrasyon/gerekirse e2e).
+- [ ] Statik kontroller ve derleme doğrulandı.
+- [ ] Geriye dönük uyumluluk etkisi açıklandı.
+- [ ] Operasyon ekibi için uygulama notu eklendi.
 
-## Roadmap Baseline (Restart from Zero)
+## 5) Güvenlik ve Uyum Notları
 
-### Phase 0 — Program Reset (Week 1)
-- Re-establish scope, ownership, and delivery governance.
-- Freeze non-critical workstreams.
-- Define documentation and release quality gates.
+- Gizli anahtar/seed/token benzeri veriler repoya alınmamalıdır.
+- Güvenlik kritik değişimler için ek tasarım notu veya risk kaydı zorunludur.
+- Konfigürasyon varsayılanları üretim için güvenli olacak şekilde belirlenmelidir.
 
-### Phase 1 — Engineering Stabilization (Weeks 2–4)
-- Make build/test reproducible in a single command path.
-- Enforce lint, formatting, and security scans in CI.
-- Prioritize and remediate top critical failures.
+## 6) Operasyonel Runbook Beklentisi
 
-### Phase 2 — Architectural Hardening (Weeks 5–8)
-- Clarify module boundaries and interface contracts.
-- Standardize configuration patterns.
-- Add observability baselines (logs, metrics, traces).
+Her kritik akış için şu başlıklar bulunmalıdır:
 
-### Phase 3 — Release Readiness (Weeks 9–12)
-- Apply semantic versioning and structured release notes.
-- Improve critical-path test coverage.
-- Introduce runbooks and incident response workflows.
+1. Hazırlık (pre-flight kontrol)
+2. Uygulama adımları
+3. Başarı metrikleri
+4. Geri alma (rollback)
+5. Olay eskalasyon kanalı
 
-## License Position
-AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
-For legal finalization, maintainers should validate all third-party dependency obligations.
+## 7) Done Tanımı (Definition of Done)
 
-## Development Maturity Statement
-This repository is **experimental** and **in progress**.
-Do not treat current behavior as production-grade or long-term stable.
+Aşağıdaki koşullar sağlanmadan değişiklik “tamamlandı” sayılmaz:
 
----
-**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.
->>>>>>> origin/develop
+- [ ] Teknik uygulama ve dokümantasyon tutarlı.
+- [ ] Test/kalite kontrolleri geçti.
+- [ ] Mainnet etkisi değerlendirildi ve kayıt altına alındı.
+- [ ] İnceleme notu (PR açıklaması) kanıtlarla tamamlandı.
