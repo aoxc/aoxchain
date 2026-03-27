@@ -91,7 +91,8 @@ impl LaneRegistry {
 mod tests {
     use super::*;
     use crate::host::receipt::ExecutionReceipt;
-    use crate::host::state::InMemoryState;
+    use crate::host::state::InMemoryHostState;
+    use crate::vm_kind::VmKind;
 
     struct StubLane(&'static str);
 
@@ -106,7 +107,12 @@ mod tests {
             _block: &BlockContext,
             _tx: &TxContext,
         ) -> Result<ExecutionReceipt, AovmError> {
-            Ok(ExecutionReceipt::empty())
+            Ok(ExecutionReceipt::success(
+                VmKind::Evm,
+                0,
+                Vec::new(),
+                Vec::new(),
+            ))
         }
     }
 
@@ -123,16 +129,18 @@ mod tests {
         assert!(registry.get("evm").is_some());
         assert!(registry.get("missing").is_none());
 
-        let mut state = InMemoryState::default();
-        let block = BlockContext::new(1, [0; 32], 0);
-        let tx = TxContext::new(
-            [0; 32],
-            crate::vm_kind::VmKind::Evm,
-            b"".to_vec(),
-            0,
-            0,
-            [0; 20],
-        );
+        let mut state = InMemoryHostState::new(1_000);
+        let block = BlockContext::new(1, 1, 1_700_000_000, [0; 32], 1);
+        let tx = TxContext {
+            tx_hash: [0; 32],
+            sender: b"sender".to_vec(),
+            vm_kind: VmKind::Evm,
+            nonce: Some(0),
+            gas_limit: 1_000,
+            max_fee_per_gas: 1,
+            payload: b"payload".to_vec(),
+            signature: vec![1, 2, 3],
+        };
         let receipt = registry
             .get("evm")
             .expect("lane must exist")
