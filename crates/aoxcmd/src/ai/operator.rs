@@ -35,6 +35,8 @@ pub struct OperatorPlaneAiAdapter<S: AiAuditSink = MemoryAuditSink> {
     advisory_descriptor: ExtensionDescriptor,
     guarded_descriptor: ExtensionDescriptor,
     sink: S,
+    #[cfg(test)]
+    ai_disabled_override: Option<bool>,
 }
 
 impl Default for OperatorPlaneAiAdapter<MemoryAuditSink> {
@@ -65,12 +67,24 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
                 budget: ExecutionBudget::default(),
             },
             sink,
+            #[cfg(test)]
+            ai_disabled_override: None,
         }
+    }
+
+    #[cfg(test)]
+    fn is_ai_disabled(&self) -> bool {
+        self.ai_disabled_override.unwrap_or_else(ai_disabled)
+    }
+
+    #[cfg(not(test))]
+    fn is_ai_disabled(&self) -> bool {
+        ai_disabled()
     }
 
     #[must_use]
     pub fn diagnostics_assistance(&self, request: OperatorAssistRequest) -> OperatorAssistOutcome {
-        if ai_disabled() {
+        if self.is_ai_disabled() {
             let trace = denied_trace(
                 "operator-diagnostics-disabled",
                 request.topic,
@@ -136,7 +150,7 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
 
     #[must_use]
     pub fn runbook_preparation(&self, request: OperatorAssistRequest) -> OperatorAssistOutcome {
-        if ai_disabled() {
+        if self.is_ai_disabled() {
             let trace = denied_trace(
                 "operator-runbook-disabled",
                 request.topic,
@@ -244,22 +258,11 @@ fn denied_trace(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
 
-    fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
-
-    fn clear_ai_disable_flag() {
-        unsafe {
-            std::env::remove_var("AOXC_AI_DISABLE");
-        }
-    }
-
-    fn set_ai_disable_flag() {
-        unsafe {
-            std::env::set_var("AOXC_AI_DISABLE", "1");
+    impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
+        fn with_ai_disabled_override(mut self, value: bool) -> Self {
+            self.ai_disabled_override = Some(value);
+            self
         }
     }
 
@@ -273,11 +276,9 @@ mod tests {
 
     #[test]
     fn diagnostics_artifact_is_non_canonical_and_non_executing() {
-        let _guard = env_lock().lock().expect("env mutex must lock");
-        clear_ai_disable_flag();
-
         let sink = MemoryAuditSink::default();
-        let adapter = OperatorPlaneAiAdapter::with_sink(sink.clone());
+        let adapter =
+            OperatorPlaneAiAdapter::with_sink(sink.clone()).with_ai_disabled_override(false);
 
         let outcome = adapter.diagnostics_assistance(request());
         let artifact = outcome.artifact.expect("artifact should be present");
@@ -294,11 +295,9 @@ mod tests {
 
     #[test]
     fn disabled_ai_produces_explicit_denied_audit_evidence() {
-        let _guard = env_lock().lock().expect("env mutex must lock");
-        set_ai_disable_flag();
-
         let sink = MemoryAuditSink::default();
-        let adapter = OperatorPlaneAiAdapter::with_sink(sink.clone());
+        let adapter =
+            OperatorPlaneAiAdapter::with_sink(sink.clone()).with_ai_disabled_override(true);
 
         let outcome = adapter.diagnostics_assistance(request());
 
@@ -309,16 +308,11 @@ mod tests {
             InvocationDisposition::Denied
         );
         assert_eq!(outcome.trace.output_class, "no_artifact");
-
-        clear_ai_disable_flag();
     }
 
     #[test]
     fn diagnostics_summary_preserves_native_verdict_text() {
-        let _guard = env_lock().lock().expect("env mutex must lock");
-        clear_ai_disable_flag();
-
-        let adapter = OperatorPlaneAiAdapter::default();
+        let adapter = OperatorPlaneAiAdapter::default().with_ai_disabled_override(false);
 
         let outcome = adapter.diagnostics_assistance(request());
         let artifact = outcome.artifact.expect("artifact should be present");
@@ -330,10 +324,7 @@ mod tests {
 
     #[test]
     fn runbook_preparation_requires_operator_approval_and_is_non_executing() {
-        let _guard = env_lock().lock().expect("env mutex must lock");
-        clear_ai_disable_flag();
-
-        let adapter = OperatorPlaneAiAdapter::default();
+        let adapter = OperatorPlaneAiAdapter::default().with_ai_disabled_override(false);
 
         let outcome = adapter.runbook_preparation(request());
         let artifact = outcome.artifact.expect("artifact should be present");
@@ -351,10 +342,7 @@ mod tests {
 
     #[test]
     fn disabled_runbook_preparation_produces_denied_trace() {
-        let _guard = env_lock().lock().expect("env mutex must lock");
-        set_ai_disable_flag();
-
-        let adapter = OperatorPlaneAiAdapter::default();
+        let adapter = OperatorPlaneAiAdapter::default().with_ai_disabled_override(true);
 
         let outcome = adapter.runbook_preparation(request());
 
@@ -365,7 +353,5 @@ mod tests {
             InvocationDisposition::Denied
         );
         assert_eq!(outcome.trace.output_class, "no_artifact");
-
-        clear_ai_disable_flag();
     }
 }
