@@ -1,5 +1,5 @@
 use crate::config::RpcConfig;
-use crate::types::HealthResponse;
+use crate::types::{HealthResponse, RpcSecurityPosture};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
@@ -38,6 +38,7 @@ pub fn health_with_context(config: &RpcConfig, uptime_secs: u64) -> HealthRespon
         warnings: validation.warnings.clone(),
         errors: validation.errors.clone(),
         recommendations: recommendations_from_validation(&validation.warnings, &validation.errors),
+        security_posture: security_posture_from_validation(&validation.warnings, &validation.errors),
         uptime_secs,
     }
 }
@@ -96,7 +97,60 @@ fn recommendations_from_validation(warnings: &[String], errors: &[String]) -> Ve
         );
     }
 
+    if errors
+        .iter()
+        .any(|error| error.contains("bind_addr"))
+    {
+        recommendations
+            .push("Use explicit ip:port bindings for HTTP, WebSocket and gRPC listeners".to_string());
+    }
+
+    if warnings
+        .iter()
+        .any(|warning| warning.contains("mTLS CA certificate"))
+    {
+        recommendations.push(
+            "Provide a trusted CA file for mTLS or explicitly disable mTLS for non-production profiles"
+                .to_string(),
+        );
+    }
+
     recommendations
+}
+
+fn security_posture_from_validation(warnings: &[String], errors: &[String]) -> RpcSecurityPosture {
+    let level = if !errors.is_empty() {
+        "critical"
+    } else if warnings.is_empty() {
+        "hardened"
+    } else {
+        "guarded"
+    };
+
+    let score_band = if !errors.is_empty() {
+        "0-49"
+    } else if warnings.len() > 2 {
+        "50-79"
+    } else {
+        "80-100"
+    };
+
+    let blockers = errors
+        .iter()
+        .filter(|error| {
+            error.contains("genesis_hash")
+                || error.contains("bind_addr")
+                || error.contains("mTLS")
+                || error.contains("max_requests_per_minute")
+        })
+        .cloned()
+        .collect();
+
+    RpcSecurityPosture {
+        level: level.to_string(),
+        score_band: score_band.to_string(),
+        blockers,
+    }
 }
 
 fn certificate_fingerprint_sha256_from_path(path: &str) -> Option<String> {
@@ -127,6 +181,8 @@ mod tests {
                 .any(|warning| warning.contains("genesis_hash"))
         );
         assert!(!health.recommendations.is_empty());
+        assert_eq!(health.security_posture.level, "guarded");
+        assert_eq!(health.security_posture.score_band, "50-79");
     }
 
     #[test]
@@ -145,7 +201,7 @@ mod tests {
         let config = RpcConfig {
             genesis_hash: Some(format!("0x{}", "ab".repeat(32))),
             tls_cert_path: "Cargo.toml".to_string(),
-            tls_key_path: "Cargo.toml".to_string(),
+            tls_key_path: "README.md".to_string(),
             mtls_ca_cert_path: Some("Cargo.toml".to_string()),
             ..RpcConfig::default()
         };
@@ -159,6 +215,8 @@ mod tests {
         assert!(health.recommendations.is_empty());
         assert_eq!(health.uptime_secs, 42);
         assert!(health.tls_cert_sha256.is_some());
+        assert_eq!(health.security_posture.level, "hardened");
+        assert!(health.security_posture.blockers.is_empty());
     }
 
     #[test]
@@ -173,6 +231,7 @@ mod tests {
         assert_eq!(health.status, "error");
         assert_eq!(health.readiness_score, 0);
         assert!(!health.errors.is_empty());
+        assert_eq!(health.security_posture.level, "critical");
     }
 
     #[test]
@@ -195,6 +254,13 @@ mod tests {
             recommendation.contains("genesis_hash") && recommendation.contains("node startup")
         }));
         assert_eq!(health.readiness_score, 0);
+        assert!(
+            health
+                .security_posture
+                .blockers
+                .iter()
+                .any(|entry| entry.contains("genesis_hash"))
+        );
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::str::FromStr;
 
 /// RPC subsystem configuration.
 #[derive(Debug, Clone)]
@@ -44,6 +45,10 @@ impl RpcConfig {
             errors.push("chain_id must not be empty".to_string());
         }
 
+        validate_bind_addr("http_bind_addr", &self.http_bind_addr, &mut errors);
+        validate_bind_addr("websocket_bind_addr", &self.websocket_bind_addr, &mut errors);
+        validate_bind_addr("grpc_bind_addr", &self.grpc_bind_addr, &mut errors);
+
         if self.max_requests_per_minute == 0 {
             errors.push("max_requests_per_minute must be greater than zero".to_string());
         }
@@ -78,6 +83,20 @@ impl RpcConfig {
             warnings.push("mTLS is disabled".to_string());
         }
 
+        if self.max_requests_per_minute > 100_000 {
+            warnings.push(
+                "max_requests_per_minute is very high; verify DDoS protection and upstream shielding"
+                    .to_string(),
+            );
+        }
+
+        if self.tls_cert_path == self.tls_key_path {
+            warnings.push(
+                "tls_cert_path and tls_key_path point to the same file; verify key material separation"
+                    .to_string(),
+            );
+        }
+
         ConfigValidation { warnings, errors }
     }
 
@@ -89,6 +108,17 @@ impl RpcConfig {
         hash.starts_with("0x")
             && hash.len() == 66
             && hash[2..].chars().all(|c| c.is_ascii_hexdigit())
+    }
+}
+
+fn validate_bind_addr(field: &str, value: &str, errors: &mut Vec<String>) {
+    if value.trim().is_empty() {
+        errors.push(format!("{field} must not be empty"));
+        return;
+    }
+
+    if std::net::SocketAddr::from_str(value).is_err() {
+        errors.push(format!("{field} is malformed (expected ip:port)"));
     }
 }
 
@@ -202,7 +232,7 @@ mod tests {
         let config = RpcConfig {
             genesis_hash: Some(format!("0x{}", "ab".repeat(32))),
             tls_cert_path: "Cargo.toml".to_string(),
-            tls_key_path: "Cargo.toml".to_string(),
+            tls_key_path: "README.md".to_string(),
             mtls_ca_cert_path: Some("Cargo.toml".to_string()),
             ..RpcConfig::default()
         };
@@ -213,6 +243,63 @@ mod tests {
         assert!(validation.warnings.is_empty());
         assert!(validation.is_ready());
         assert_eq!(validation.readiness_score(), 100);
+    }
+
+    #[test]
+    fn validate_rejects_malformed_bind_addresses() {
+        let config = RpcConfig {
+            http_bind_addr: "localhost".to_string(),
+            websocket_bind_addr: "bad-value".to_string(),
+            grpc_bind_addr: "".to_string(),
+            ..RpcConfig::default()
+        };
+
+        let validation = config.validate();
+        assert!(
+            validation
+                .errors
+                .iter()
+                .any(|item| item.contains("http_bind_addr is malformed"))
+        );
+        assert!(
+            validation
+                .errors
+                .iter()
+                .any(|item| item.contains("websocket_bind_addr is malformed"))
+        );
+        assert!(
+            validation
+                .errors
+                .iter()
+                .any(|item| item.contains("grpc_bind_addr must not be empty"))
+        );
+    }
+
+    #[test]
+    fn validate_warns_on_excessive_rate_and_shared_tls_file() {
+        let config = RpcConfig {
+            genesis_hash: Some(format!("0x{}", "ab".repeat(32))),
+            tls_cert_path: "Cargo.toml".to_string(),
+            tls_key_path: "Cargo.toml".to_string(),
+            mtls_ca_cert_path: Some("Cargo.toml".to_string()),
+            max_requests_per_minute: 200_000,
+            ..RpcConfig::default()
+        };
+
+        let validation = config.validate();
+        assert!(validation.errors.is_empty());
+        assert!(
+            validation
+                .warnings
+                .iter()
+                .any(|item| item.contains("very high"))
+        );
+        assert!(
+            validation
+                .warnings
+                .iter()
+                .any(|item| item.contains("same file"))
+        );
     }
 }
 
