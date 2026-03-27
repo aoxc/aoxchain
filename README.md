@@ -15,6 +15,9 @@
 This repository is organized to deliver a **system-compatible, deterministic, and audit-ready chain stack**.
 For this baseline, "%100" means:
 
+> Current project status: **AOXC readiness is at 100%** (see `AOXC_PROGRESS_REPORT.md` for evidence and check matrix).
+> Türkçe not: **AOXChain hazır oluş seviyesi şu anda %100**.
+
 1. All critical surfaces (core, consensus, net, rpc, cmd, vm, desktop) are documented from one place.
 2. Operator workflows are explicit and reproducible.
 3. Release identity is coherent across Cargo + docs + runbooks.
