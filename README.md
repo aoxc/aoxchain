@@ -4,10 +4,10 @@
   <img src="./logos/aoxc.png" alt="AOXChain Logo" width="180" />
 </p>
 
-AOXChain repository portalı.
+AOXChain repository portalına hoş geldiniz.
 
 - Zincirin tam teknik tanımı: [READ.md](./READ.md)
 - Tek resmi yol haritası: [ROADMAP.md](./ROADMAP.md)
 - Lisans: [LICENSE](./LICENSE)
 
-> **Kalıcı Uyarı:** AOXChain deneysel tasarım aşamasındadır; üretim kullanımı için ek denetim ve operasyonel doğrulama zorunludur.
+> Not: Alt klasör READ/README dosyaları sadece ilgili kodun ne yaptığını açıklar; roadmap içermez.
