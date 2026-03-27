@@ -21,6 +21,9 @@ type SectionKey =
   | 'security'
   | 'nodes'
   | 'wallets'
+  | 'runtime'
+  | 'contracts'
+  | 'explorer'
   | 'telemetry'
   | 'integrations'
   | 'reports'
@@ -43,6 +46,9 @@ type LaunchSnapshot = {
   commands: CommandPreset[]
   workspaces?: WorkspaceSurface[]
   aiSurfaces?: AiSurface[]
+  runtimeSurfaces?: RuntimeSurface[]
+  contracts?: ContractSurface[]
+  explorer?: ExplorerSurface[]
 }
 
 type Track = {
@@ -155,6 +161,41 @@ type StreamEvent = {
   title: string
   detail: string
   severity: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
+}
+
+type QueuedAction = {
+  id: string
+  title: string
+  command: string
+  source: string
+  queuedAt: string
+}
+
+type RuntimeSurface = {
+  title: string
+  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
+  ramMb: number
+  target: string
+  detail: string
+  command: string
+}
+
+type ContractSurface = {
+  name: string
+  lane: string
+  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
+  address: string
+  vm: string
+  detail: string
+  command: string
+}
+
+type ExplorerSurface = {
+  name: string
+  status: Extract<Status, 'ready' | 'in-progress' | 'blocked'>
+  endpoint: string
+  detail: string
+  command: string
 }
 
 const fallbackSnapshot: LaunchSnapshot = {
@@ -310,6 +351,76 @@ const fallbackSnapshot: LaunchSnapshot = {
       intent: 'Release veya transfer öncesi audit yüzeyini yeniler.',
     },
   ],
+  runtimeSurfaces: [
+    {
+      title: 'Node runtime memory',
+      status: 'in-progress',
+      ramMb: 742,
+      target: 'cluster/validator-lane',
+      detail: 'RAM baskısı ve GC davranışı gerçek zincir yükü altında izleniyor.',
+      command: 'cargo run -q -p aoxcmd -- runtime-status --trace verbose',
+    },
+    {
+      title: 'VM execution memory',
+      status: 'ready',
+      ramMb: 512,
+      target: 'aoxcvm/lane-router',
+      detail: 'VM lane memory profile güvenlik sınırları içinde.',
+      command: 'cargo test -p aoxcvm lane_memory_profile -- --nocapture',
+    },
+  ],
+  contracts: [
+    {
+      name: 'System governance core',
+      lane: 'system',
+      status: 'ready',
+      address: 'AOXC-SYS-GOV-0001',
+      vm: 'native/system',
+      detail: 'Ağ yönetişim kontratları production policy ile uyumlu.',
+      command: 'cargo run -q -p aoxcmd -- contract-verify --profile mainnet',
+    },
+    {
+      name: 'Treasury execution lane',
+      lane: 'evm',
+      status: 'in-progress',
+      address: '0xA0XC...TREA',
+      vm: 'evm',
+      detail: 'Treasury lane allowance ve signer politikası final review bekliyor.',
+      command: 'cargo run -q -p aoxcmd -- wallet inspect --profile mainnet',
+    },
+    {
+      name: 'Recovery policy guard',
+      lane: 'wasm',
+      status: 'ready',
+      address: 'AOXC-WASM-REC-01',
+      vm: 'wasm',
+      detail: 'Recovery lane cold-path kontrat akışı doğrulandı.',
+      command: 'cargo test -p aoxcvm wasm_recovery_lane -- --nocapture',
+    },
+  ],
+  explorer: [
+    {
+      name: 'Chain state explorer',
+      status: 'ready',
+      endpoint: 'http://127.0.0.1:8545',
+      detail: 'Height/hash/receipt yüzeylerini gerçek zamanlı izler.',
+      command: 'cargo run -q -p aoxcmd -- db-status --backend sqlite',
+    },
+    {
+      name: 'Contract lane explorer',
+      status: 'in-progress',
+      endpoint: 'aoxcvm://lanes',
+      detail: 'EVM/WASM/system lane hareketleri tek panelde birleştiriliyor.',
+      command: 'cargo run -q -p aoxcmd -- compat-matrix --format json',
+    },
+    {
+      name: 'Wallet event explorer',
+      status: 'ready',
+      endpoint: 'wallet://authority-center',
+      detail: 'Operator/treasury/recovery wallet aksiyonları izlenir.',
+      command: 'cargo run -q -p aoxcmd -- production-audit --format json',
+    },
+  ],
   workspaces: [],
   aiSurfaces: [],
 }
@@ -320,6 +431,9 @@ const navigation: { key: SectionKey; label: string }[] = [
   { key: 'security', label: 'Security' },
   { key: 'nodes', label: 'Nodes' },
   { key: 'wallets', label: 'Wallets' },
+  { key: 'runtime', label: 'Runtime' },
+  { key: 'contracts', label: 'Contracts' },
+  { key: 'explorer', label: 'Explorer' },
   { key: 'telemetry', label: 'Telemetry' },
   { key: 'integrations', label: 'Integrations' },
   { key: 'reports', label: 'Reports' },
@@ -369,6 +483,9 @@ function App() {
   const [snapshot, setSnapshot] = useState<LaunchSnapshot>(fallbackSnapshot)
   const [error, setError] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [queue, setQueue] = useState<QueuedAction[]>([])
+  const [queueNotice, setQueueNotice] = useState<string | null>(null)
 
   useEffect(() => {
     invoke<LaunchSnapshot>('load_control_center_snapshot')
@@ -385,6 +502,7 @@ function App() {
     const onlineNodes = snapshot.nodes.filter((node) => node.status === 'online').length
     const blockedTelemetry = snapshot.telemetry.filter((item) => item.status === 'blocked').length
     const readyReports = snapshot.reports.filter((report) => report.status === 'ready').length
+    const vmLaneReady = snapshot.telemetry.some((item) => item.title.toLowerCase().includes('rpc')) && blockedTelemetry === 0
 
     return [
       {
@@ -410,6 +528,12 @@ function App() {
         value: `${readyReports}/${snapshot.reports.length || 1}`,
         detail: 'release and audit artifacts visible',
         status: readyReports === snapshot.reports.length ? 'ready' : 'in-progress',
+      },
+      {
+        title: 'VM lane seal',
+        value: vmLaneReady ? 'sealed' : 'review',
+        detail: 'execution lane health for real chain control',
+        status: vmLaneReady ? 'ready' : 'in-progress',
       },
     ]
   }, [snapshot])
@@ -503,6 +627,87 @@ function App() {
     return events
   }, [snapshot])
 
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+
+  const filteredNodes = useMemo(() => {
+    if (!normalizedQuery) return snapshot.nodes
+    return snapshot.nodes.filter((node) =>
+      [node.id, node.role, node.chainId, node.rpcAddr, node.securityMode].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.nodes])
+
+  const filteredWallets = useMemo(() => {
+    if (!normalizedQuery) return snapshot.wallets
+    return snapshot.wallets.filter((wallet) =>
+      [wallet.title, wallet.route, wallet.addressHint, wallet.detail].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.wallets])
+
+  const filteredCommands = useMemo(() => {
+    if (!normalizedQuery) return snapshot.commands
+    return snapshot.commands.filter((item) =>
+      [item.title, item.command, item.intent].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.commands])
+
+  const filteredRuntime = useMemo(() => {
+    const runtime = snapshot.runtimeSurfaces ?? []
+    if (!normalizedQuery) return runtime
+    return runtime.filter((surface) =>
+      [surface.title, surface.target, surface.detail, surface.command].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.runtimeSurfaces])
+
+  const filteredContracts = useMemo(() => {
+    const contracts = snapshot.contracts ?? []
+    if (!normalizedQuery) return contracts
+    return contracts.filter((contract) =>
+      [contract.name, contract.lane, contract.address, contract.vm, contract.detail]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.contracts])
+
+  const filteredExplorer = useMemo(() => {
+    const surfaces = snapshot.explorer ?? []
+    if (!normalizedQuery) return surfaces
+    return surfaces.filter((surface) =>
+      [surface.name, surface.endpoint, surface.detail, surface.command].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, snapshot.explorer])
+
+  const filteredEvents = useMemo(() => {
+    if (!normalizedQuery) return streamEvents
+    return streamEvents.filter((event) =>
+      [event.title, event.detail, event.time].join(' ').toLowerCase().includes(normalizedQuery),
+    )
+  }, [normalizedQuery, streamEvents])
+
+  function queueCommand(title: string, command: string, source: string) {
+    const action: QueuedAction = {
+      id: `${source}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title,
+      command,
+      source,
+      queuedAt: new Date().toLocaleTimeString(),
+    }
+    setQueue((current) => [action, ...current].slice(0, 10))
+    setQueueNotice(`Queued: ${title}`)
+    setTimeout(() => setQueueNotice(null), 1600)
+  }
+
+  async function copyCommand(command: string) {
+    try {
+      await navigator.clipboard.writeText(command)
+      setQueueNotice('Command copied')
+      setTimeout(() => setQueueNotice(null), 1200)
+    } catch {
+      setQueueNotice('Clipboard unavailable')
+      setTimeout(() => setQueueNotice(null), 1200)
+    }
+  }
+
   function renderOverview() {
     return (
       <>
@@ -545,7 +750,7 @@ function App() {
               <p>Blocker, telemetry ve rapor olayları birleşik operatör akışı gibi listelenir.</p>
             </div>
             <div className="timeline-list">
-              {streamEvents.map((event) => (
+              {filteredEvents.map((event) => (
                 <article className={`timeline-item ${event.severity}`} key={`${event.time}-${event.title}`}>
                   <span>{event.time}</span>
                   <strong>{event.title}</strong>
@@ -587,7 +792,7 @@ function App() {
             <p>Desktop arayüzde hızlı operasyon için güvenli komut kaseti.</p>
           </div>
           <div className="stack-list">
-            {snapshot.commands.map((command) => (
+            {filteredCommands.map((command) => (
               <article className="info-card compact" key={command.title}>
                 <div className="card-topline">
                   <h3>{command.title}</h3>
@@ -595,8 +800,41 @@ function App() {
                 </div>
                 <p>{command.intent}</p>
                 <code>{command.command}</code>
+                <div className="action-row">
+                  <button type="button" onClick={() => queueCommand(command.title, command.command, 'preset')}>
+                    Queue
+                  </button>
+                  <button type="button" onClick={() => copyCommand(command.command)}>
+                    Copy
+                  </button>
+                </div>
               </article>
             ))}
+          </div>
+        </article>
+
+        <article className="panel-surface section-card">
+          <div className="section-heading">
+            <h2>Execution queue</h2>
+            <p>Desktop üzerinden tetiklenecek zincir/VM/wallet komutları öncelik kuyruğunda tutulur.</p>
+          </div>
+          <div className="stack-list">
+            {queue.length === 0 ? (
+              <article className="info-card compact">
+                <p className="muted">Queue is empty. Add command presets, node run, or wallet actions.</p>
+              </article>
+            ) : (
+              queue.map((entry) => (
+                <article className="info-card compact" key={entry.id}>
+                  <div className="card-topline">
+                    <h3>{entry.title}</h3>
+                    <span className="status-pill in-progress">{entry.source}</span>
+                  </div>
+                  <p>{entry.queuedAt}</p>
+                  <code>{entry.command}</code>
+                </article>
+              ))
+            )}
           </div>
         </article>
       </section>
@@ -655,7 +893,7 @@ function App() {
           <p>Node komutları, ağ yüzeyleri ve güvenlik modları gerçek snapshot üzerinden gösterilir.</p>
         </div>
         <div className="stack-list">
-          {snapshot.nodes.map((node) => (
+          {filteredNodes.map((node) => (
             <article className="info-card compact" key={node.id}>
               <div className="card-topline">
                 <div>
@@ -672,6 +910,14 @@ function App() {
                 <div><dt>Security</dt><dd>{node.securityMode}</dd></div>
               </dl>
               <code>{node.command}</code>
+              <div className="action-row">
+                <button type="button" onClick={() => queueCommand(`${node.id} control`, node.command, 'node')}>
+                  Queue
+                </button>
+                <button type="button" onClick={() => copyCommand(node.command)}>
+                  Copy
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -687,7 +933,7 @@ function App() {
           <p>Operatör, treasury ve recovery lane komutları ve rotalarıyla birlikte izlenir.</p>
         </div>
         <div className="stack-list">
-          {snapshot.wallets.map((wallet) => (
+          {filteredWallets.map((wallet) => (
             <article className="info-card compact" key={wallet.title}>
               <div className="card-topline">
                 <h3>{wallet.title}</h3>
@@ -699,6 +945,14 @@ function App() {
                 <div><dt>Address</dt><dd>{wallet.addressHint}</dd></div>
               </dl>
               <code>{wallet.command}</code>
+              <div className="action-row">
+                <button type="button" onClick={() => queueCommand(`${wallet.title} action`, wallet.command, 'wallet')}>
+                  Queue
+                </button>
+                <button type="button" onClick={() => copyCommand(wallet.command)}>
+                  Copy
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -722,6 +976,111 @@ function App() {
               </div>
               <p>{item.detail}</p>
               <code>{item.target}</code>
+            </article>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  function renderRuntime() {
+    return (
+      <section className="panel-surface section-card">
+        <div className="section-heading">
+          <h2>Runtime & RAM control</h2>
+          <p>Gerçek node ve VM bellek yüzeyleri ile runtime davranışı masaüstünden yönetilir.</p>
+        </div>
+        <div className="stack-list">
+          {filteredRuntime.map((surface) => (
+            <article className="info-card compact" key={surface.title}>
+              <div className="card-topline">
+                <h3>{surface.title}</h3>
+                <span className={`status-pill ${statusTone(surface.status)}`}>{statusLabel(surface.status)}</span>
+              </div>
+              <dl className="detail-grid">
+                <div><dt>Target</dt><dd>{surface.target}</dd></div>
+                <div><dt>RAM</dt><dd>{surface.ramMb} MB</dd></div>
+              </dl>
+              <p>{surface.detail}</p>
+              <code>{surface.command}</code>
+              <div className="action-row">
+                <button type="button" onClick={() => queueCommand(`${surface.title} runtime`, surface.command, 'runtime')}>
+                  Queue
+                </button>
+                <button type="button" onClick={() => copyCommand(surface.command)}>
+                  Copy
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  function renderContracts() {
+    return (
+      <section className="panel-surface section-card">
+        <div className="section-heading">
+          <h2>Contract control center</h2>
+          <p>Sistem kontratları, lane durumu ve VM eşleşmesiyle birlikte tek panelde izlenir.</p>
+        </div>
+        <div className="stack-list">
+          {filteredContracts.map((contract) => (
+            <article className="info-card compact" key={`${contract.name}-${contract.address}`}>
+              <div className="card-topline">
+                <h3>{contract.name}</h3>
+                <span className={`status-pill ${statusTone(contract.status)}`}>{statusLabel(contract.status)}</span>
+              </div>
+              <dl className="detail-grid">
+                <div><dt>Lane</dt><dd>{contract.lane}</dd></div>
+                <div><dt>VM</dt><dd>{contract.vm}</dd></div>
+                <div><dt>Address</dt><dd>{contract.address}</dd></div>
+              </dl>
+              <p>{contract.detail}</p>
+              <code>{contract.command}</code>
+              <div className="action-row">
+                <button type="button" onClick={() => queueCommand(`${contract.name} verify`, contract.command, 'contract')}>
+                  Queue
+                </button>
+                <button type="button" onClick={() => copyCommand(contract.command)}>
+                  Copy
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  function renderExplorer() {
+    return (
+      <section className="panel-surface section-card">
+        <div className="section-heading">
+          <h2>Explorer cockpit</h2>
+          <p>Chain state, contract lane ve wallet event explorer yüzeyleri.</p>
+        </div>
+        <div className="stack-list">
+          {filteredExplorer.map((surface) => (
+            <article className="info-card compact" key={`${surface.name}-${surface.endpoint}`}>
+              <div className="card-topline">
+                <h3>{surface.name}</h3>
+                <span className={`status-pill ${statusTone(surface.status)}`}>{statusLabel(surface.status)}</span>
+              </div>
+              <p>{surface.detail}</p>
+              <dl className="detail-grid">
+                <div><dt>Endpoint</dt><dd>{surface.endpoint}</dd></div>
+              </dl>
+              <code>{surface.command}</code>
+              <div className="action-row">
+                <button type="button" onClick={() => queueCommand(`${surface.name} inspect`, surface.command, 'explorer')}>
+                  Queue
+                </button>
+                <button type="button" onClick={() => copyCommand(surface.command)}>
+                  Copy
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -873,6 +1232,12 @@ function App() {
         return renderNodes()
       case 'wallets':
         return renderWallets()
+      case 'runtime':
+        return renderRuntime()
+      case 'contracts':
+        return renderContracts()
+      case 'explorer':
+        return renderExplorer()
       case 'telemetry':
         return renderTelemetry()
       case 'integrations':
@@ -936,11 +1301,26 @@ function App() {
             <span className="eyebrow subtle">{snapshot.profile}</span>
             <h2>{activeLabel}</h2>
             <p>{snapshot.summary}</p>
+            <div className="search-row">
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search node / wallet / command / evidence..."
+                aria-label="Search control center"
+              />
+              {searchQuery ? (
+                <button type="button" onClick={() => setSearchQuery('')}>
+                  Clear
+                </button>
+              ) : null}
+            </div>
           </div>
           <div className="topbar-badges">
             <span className={`status-pill ${snapshot.overallPercent >= 85 ? 'ready' : 'in-progress'}`}>{snapshot.stage}</span>
             <span className={`status-pill ${snapshot.blockers.length === 0 ? 'ready' : 'in-progress'}`}>{snapshot.verdict}</span>
             {error ? <span className="status-pill blocked">Fallback snapshot</span> : <span className="status-pill ready">Live repo snapshot</span>}
+            {queueNotice ? <span className="status-pill in-progress">{queueNotice}</span> : null}
           </div>
         </section>
 

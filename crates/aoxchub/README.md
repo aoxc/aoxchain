@@ -1,16 +1,31 @@
 # AOXHub Desktop
 
-AOXHub Desktop is the Tauri/React control surface for AOXChain operations.
+AOXHub Desktop is the Tauri/React operator control surface for AOXChain.
 
-## Current focus
+## Mission
 
-The desktop app now provides an advanced admin-panel foundation with:
+Provide a clear, auditable desktop experience for node operators without weakening the underlying CLI/runtime security model.
 
-- launch readiness and blocker tracking,
-- a 3-node cluster control surface,
-- desktop wallet visibility for operator / treasury / recovery flows,
-- unified reporting cards for launch, node forensic, and wallet audit exports,
-- and a command-queue section that defines the next CLI adapters to wire into the GUI.
+## Scope
+
+- launch readiness and blocker visibility,
+- cluster and node status monitoring,
+- wallet/treasury/recovery visibility,
+- report export and operational evidence presentation,
+- command queue surfaces mapped to backend controls.
+
+## Design boundary with AOXCVM
+
+- `aoxcvm` is protocol-adjacent execution logic.
+- `aoxchub` is operator UX.
+- Desktop must orchestrate and display; it should not become a hidden consensus path.
+
+## Operator safety expectations
+
+1. Destructive actions should be explicit and reviewable.
+2. Read-only vs mutating actions must be clearly separated.
+3. Command mapping to CLI/runtime should be transparent.
+4. Error feedback should be actionable for incident response.
 
 ## Development
 

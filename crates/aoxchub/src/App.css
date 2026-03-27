@@ -109,6 +109,44 @@
   align-items: flex-start;
 }
 
+.search-row {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.search-row input {
+  width: min(560px, 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-h);
+  padding: 11px 14px;
+  outline: none;
+}
+
+.search-row input:focus {
+  border-color: rgba(116, 48, 255, 0.5);
+  box-shadow: 0 0 0 1px rgba(116, 48, 255, 0.25);
+}
+
+.search-row button,
+.action-row button {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: var(--text-h);
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+
+.search-row button:hover,
+.action-row button:hover {
+  border-color: rgba(116, 48, 255, 0.45);
+  background: rgba(116, 48, 255, 0.14);
+}
+
 @media (max-width: 920px) {
   .topbar {
     flex-direction: column;
@@ -291,6 +329,12 @@
 .command-card span,
 .command-card small {
   display: block;
+}
+
+.action-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .command-card span {
