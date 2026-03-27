@@ -35,7 +35,6 @@ pub struct OperatorPlaneAiAdapter<S: AiAuditSink = MemoryAuditSink> {
     advisory_descriptor: ExtensionDescriptor,
     guarded_descriptor: ExtensionDescriptor,
     sink: S,
-    #[cfg(test)]
     ai_disabled_override: Option<bool>,
 }
 
@@ -67,19 +66,12 @@ impl<S: AiAuditSink> OperatorPlaneAiAdapter<S> {
                 budget: ExecutionBudget::default(),
             },
             sink,
-            #[cfg(test)]
             ai_disabled_override: None,
         }
     }
 
-    #[cfg(test)]
     fn is_ai_disabled(&self) -> bool {
         self.ai_disabled_override.unwrap_or_else(ai_disabled)
-    }
-
-    #[cfg(not(test))]
-    fn is_ai_disabled(&self) -> bool {
-        ai_disabled()
     }
 
     #[must_use]
