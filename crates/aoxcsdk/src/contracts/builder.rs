@@ -67,11 +67,7 @@ impl Default for ContractManifestBuilder {
             minimum_schema_version: 1,
             supported_schema_versions: vec![1],
             supported_runtime_families: Vec::new(),
-            supported_network_classes: vec![
-                NetworkClass::Mainnet,
-                NetworkClass::Testnet,
-                NetworkClass::Devnet,
-            ],
+            supported_network_classes: default_supported_network_classes(),
         }
     }
 }
@@ -241,6 +237,11 @@ impl ContractManifestBuilder {
         } else {
             self.supported_runtime_families
         };
+        let supported_network_classes = if self.supported_network_classes.is_empty() {
+            default_supported_network_classes()
+        } else {
+            self.supported_network_classes
+        };
 
         let compatibility = Compatibility::new(
             self.minimum_schema_version,
@@ -297,6 +298,14 @@ fn default_media_type_for_format(format: &ArtifactFormat) -> &'static str {
         ArtifactFormat::Archive => "application/vnd.aox.archive",
         ArtifactFormat::ManifestLinked => "application/json",
     }
+}
+
+fn default_supported_network_classes() -> Vec<NetworkClass> {
+    vec![
+        NetworkClass::Mainnet,
+        NetworkClass::Testnet,
+        NetworkClass::Devnet,
+    ]
 }
 
 fn artifact_format_for_vm(vm_target: &VmTarget) -> ArtifactFormat {
