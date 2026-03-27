@@ -209,6 +209,19 @@ pub struct EconomicFloorReport {
     pub audit_notes: Vec<String>,
 }
 
+/// Component share breakdown in basis points (`10_000 = 100%`) relative to the
+/// full network floor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CostShareBps {
+    pub energy: u32,
+    pub operations: u32,
+    pub continuity: u32,
+    pub security: u32,
+    pub treasury_build: u32,
+    pub target_margin: u32,
+    pub tax: u32,
+}
+
 impl EconomicFloorReport {
     /// Classifies a realized unit value against the computed floor.
     #[must_use]
@@ -238,6 +251,81 @@ impl EconomicFloorReport {
             EconomicZone::SurvivalZone
         }
     }
+
+    /// Verifies canonical arithmetic identities across computed report fields.
+    #[must_use]
+    pub fn is_consistent(&self) -> bool {
+        let total_energy = self
+            .raw_energy_cost
+            .checked_add(self.energy_overhead_cost)
+            .ok();
+        let base_sustainable = self
+            .total_energy_cost
+            .checked_add(self.total_operational_cost)
+            .ok();
+        let sustainable = base_sustainable.and_then(|value| {
+            value
+                .checked_add(self.continuity_component)
+                .ok()
+                .and_then(|v| v.checked_add(self.security_component).ok())
+        });
+        let pre_tax = self
+            .sustainable_cost
+            .checked_add(self.treasury_build_component)
+            .ok()
+            .and_then(|value| value.checked_add(self.target_margin_component).ok());
+        let full = self.pre_tax_full_cost.checked_add(self.tax_component).ok();
+
+        total_energy == Some(self.total_energy_cost)
+            && sustainable == Some(self.sustainable_cost)
+            && pre_tax == Some(self.pre_tax_full_cost)
+            && full == Some(self.full_network_cost_floor)
+    }
+
+    /// Returns normalized component shares in basis points relative to
+    /// `full_network_cost_floor`. The shares always sum to `10_000` when the
+    /// floor is non-zero.
+    #[must_use]
+    pub fn cost_share_bps(&self) -> Option<CostShareBps> {
+        if self.full_network_cost_floor.is_zero() {
+            return None;
+        }
+
+        let total = self.full_network_cost_floor.micros();
+        let energy = share_bps(self.total_energy_cost.micros(), total);
+        let operations = share_bps(self.total_operational_cost.micros(), total);
+        let continuity = share_bps(self.continuity_component.micros(), total);
+        let security = share_bps(self.security_component.micros(), total);
+        let treasury_build = share_bps(self.treasury_build_component.micros(), total);
+        let target_margin = share_bps(self.target_margin_component.micros(), total);
+
+        let allocated = energy
+            .saturating_add(operations)
+            .saturating_add(continuity)
+            .saturating_add(security)
+            .saturating_add(treasury_build)
+            .saturating_add(target_margin);
+        let tax = BPS_DENOMINATOR.saturating_sub(allocated);
+
+        Some(CostShareBps {
+            energy,
+            operations,
+            continuity,
+            security,
+            treasury_build,
+            target_margin,
+            tax,
+        })
+    }
+}
+
+fn share_bps(part: u128, total: u128) -> u32 {
+    if total == 0 {
+        return 0;
+    }
+
+    let numerator = part.saturating_mul(BPS_DENOMINATOR as u128);
+    (numerator / total) as u32
 }
 
 /// AOXC energy and economic floor engine.
@@ -638,5 +726,38 @@ mod tests {
         let zone = report.classify_realized_value(realized, 1_000);
 
         assert_eq!(zone, EconomicZone::TreasuryBuildZone);
+    }
+
+    #[test]
+    fn report_consistency_checks_pass_on_compute() {
+        let engine = EnergyAnchorEngine::new();
+        let report = engine
+            .compute(&base_inputs(), &base_governance(), None, false)
+            .expect("computation must succeed");
+
+        assert!(report.is_consistent());
+    }
+
+    #[test]
+    fn cost_share_bps_sums_to_full_denominator() {
+        let engine = EnergyAnchorEngine::new();
+        let report = engine
+            .compute(&base_inputs(), &base_governance(), None, false)
+            .expect("computation must succeed");
+
+        let shares = report
+            .cost_share_bps()
+            .expect("non-zero full floor must produce shares");
+
+        let sum = shares
+            .energy
+            .saturating_add(shares.operations)
+            .saturating_add(shares.continuity)
+            .saturating_add(shares.security)
+            .saturating_add(shares.treasury_build)
+            .saturating_add(shares.target_margin)
+            .saturating_add(shares.tax);
+
+        assert_eq!(sum, BPS_DENOMINATOR);
     }
 }

@@ -143,6 +143,43 @@ impl MemoryRegion {
         Ok(())
     }
 
+    /// Copies bytes from another memory region into this region with full
+    /// bounds validation on both source and destination ranges.
+    pub fn copy_from_region(
+        &mut self,
+        destination_offset: usize,
+        source: &Self,
+        source_offset: usize,
+        length: usize,
+    ) -> Result<(), MemoryRegionError> {
+        let source_end = source_offset
+            .checked_add(length)
+            .ok_or(MemoryRegionError::ArithmeticOverflow)?;
+        let destination_end = destination_offset
+            .checked_add(length)
+            .ok_or(MemoryRegionError::ArithmeticOverflow)?;
+
+        if source_end > source.data.len() {
+            return Err(MemoryRegionError::OutOfBounds {
+                offset: source_offset,
+                length,
+                region_length: source.data.len(),
+            });
+        }
+
+        if destination_end > self.data.len() {
+            return Err(MemoryRegionError::OutOfBounds {
+                offset: destination_offset,
+                length,
+                region_length: self.data.len(),
+            });
+        }
+
+        self.data[destination_offset..destination_end]
+            .copy_from_slice(&source.data[source_offset..source_end]);
+        Ok(())
+    }
+
     /// Fills the entire region with zero bytes.
     pub fn clear(&mut self) {
         self.data.fill(0);
@@ -151,6 +188,12 @@ impl MemoryRegion {
     /// Fills the entire region with the provided byte value.
     pub fn fill(&mut self, value: u8) {
         self.data.fill(value);
+    }
+
+    /// Returns true when every byte in the region is zero.
+    #[must_use]
+    pub fn is_cleared(&self) -> bool {
+        self.data.iter().all(|byte| *byte == 0)
     }
 }
 
@@ -288,5 +331,76 @@ mod tests {
                 .expect("allocation at the exact limit must succeed");
 
         assert_eq!(region.len(), DEFAULT_MAX_REGION_BYTES);
+    }
+
+    #[test]
+    fn copy_from_region_is_lossless_with_valid_ranges() {
+        let mut source = MemoryRegion::new_zeroed(16).expect("region creation must succeed");
+        let mut destination = MemoryRegion::new_zeroed(16).expect("region creation must succeed");
+
+        source
+            .write(2, &[11, 22, 33, 44, 55])
+            .expect("source write must succeed");
+
+        destination
+            .copy_from_region(6, &source, 2, 5)
+            .expect("copy must succeed");
+
+        assert_eq!(
+            destination
+                .read(6, 5)
+                .expect("destination read must succeed"),
+            &[11, 22, 33, 44, 55]
+        );
+    }
+
+    #[test]
+    fn copy_from_region_rejects_source_out_of_bounds() {
+        let source = MemoryRegion::new_zeroed(8).expect("region creation must succeed");
+        let mut destination = MemoryRegion::new_zeroed(8).expect("region creation must succeed");
+
+        let error = destination
+            .copy_from_region(0, &source, 7, 2)
+            .expect_err("copy must fail when source range exceeds source length");
+
+        assert_eq!(
+            error,
+            MemoryRegionError::OutOfBounds {
+                offset: 7,
+                length: 2,
+                region_length: 8
+            }
+        );
+    }
+
+    #[test]
+    fn copy_from_region_rejects_destination_out_of_bounds() {
+        let source = MemoryRegion::new_zeroed(8).expect("region creation must succeed");
+        let mut destination = MemoryRegion::new_zeroed(8).expect("region creation must succeed");
+
+        let error = destination
+            .copy_from_region(7, &source, 0, 2)
+            .expect_err("copy must fail when destination range exceeds destination length");
+
+        assert_eq!(
+            error,
+            MemoryRegionError::OutOfBounds {
+                offset: 7,
+                length: 2,
+                region_length: 8
+            }
+        );
+    }
+
+    #[test]
+    fn is_cleared_tracks_fill_and_clear_state() {
+        let mut region = MemoryRegion::new_zeroed(8).expect("region creation must succeed");
+        assert!(region.is_cleared());
+
+        region.fill(9);
+        assert!(!region.is_cleared());
+
+        region.clear();
+        assert!(region.is_cleared());
     }
 }
