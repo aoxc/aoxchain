@@ -146,158 +146,141 @@ fn Home() -> Element {
 
     rsx! {
         main { class: "layout-shell",
-            LeftSidebar { selected_env, selected_action }
-            CenterPanel {
-                selected_env,
-                selected_action,
-                note,
-                latest_result,
-                history
-            }
-            RightSidebar {
-                history,
-                ok_count,
-                err_count
+            aside { class: "glass left-sidebar",
+                h1 { class: "brand", "AOXHub Control" }
+                p { class: "muted", "Mainnet / Testnet / Devnet tek arayüz" }
+
+                nav { class: "menu-list",
+                    for action in ACTIONS {
+                        button {
+                            class: if selected_action() == action.id { "menu-btn active" } else { "menu-btn" },
+                            onclick: {
+                                let action_id = action.id.to_string();
+                                move |_| selected_action.set(action_id.clone())
+                            },
+                            span { class: "menu-title", "{action.title}" }
+                            span { class: "menu-desc", "{action.desc}" }
+                        }
+                    }
+                }
             }
             FooterPanel {}
         }
     }
 }
 
-#[component]
-fn LeftSidebar(selected_env: Signal<String>, mut selected_action: Signal<String>) -> Element {
-    rsx! {
-        aside { class: "glass left-sidebar",
-            h1 { class: "brand", "AOXHub Control" }
-            p { class: "muted", "Mainnet / Testnet / Devnet tek arayüz" }
-            p { class: "muted", "Aktif ağ: {selected_env}" }
-
-            nav { class: "menu-list",
-                for action in ACTIONS {
-                    button {
-                        class: if selected_action() == action.id { "menu-btn active" } else { "menu-btn" },
-                        onclick: {
-                            let action_id = action.id.to_string();
-                            move |_| selected_action.set(action_id.clone())
-                        },
-                        span { class: "menu-title", "{action.title}" }
-                        span { class: "menu-desc", "{action.desc}" }
+            section { class: "glass content",
+                header { class: "content-head",
+                    div {
+                        h2 { "Tüm Zincir Yönetim Paneli" }
+                        p { class: "muted", "Desktop + Web + Mobil uyumlu yeni nesil arayüz" }
+                    }
+                    div { class: "metric-row",
+                        for metric in METRICS {
+                            article { class: "metric-pill",
+                                p { class: "metric-label", "{metric.label}" }
+                                p { class: "metric-value", "{metric.value}" }
+                            }
+                        }
                     }
                 }
-            }
-        }
-    }
-}
 
-#[component]
-fn CenterPanel(
-    mut selected_env: Signal<String>,
-    selected_action: Signal<String>,
-    mut note: Signal<String>,
-    mut latest_result: Signal<String>,
-    mut history: Signal<Vec<String>>,
-) -> Element {
-    rsx! {
-        section { class: "glass content",
-            header { class: "content-head",
-                div {
-                    h2 { "Tüm Zincir Yönetim Paneli" }
-                    p { class: "muted", "Desktop + Web + Mobil uyumlu yeni nesil arayüz" }
-                    p { class: "muted", "Aktif işlem: {selected_action}" }
+                section { class: "env-grid",
+                    for env in ENVIRONMENTS {
+                        button {
+                            class: if selected_env() == env.id { "env-card selected" } else { "env-card" },
+                            onclick: {
+                                let env_id = env.id.to_string();
+                                move |_| selected_env.set(env_id.clone())
+                            },
+                            h3 { "{env.title}" }
+                            p { "RPC: {env.rpc}" }
+                            p { "Finality: {env.finality}" }
+                            p { class: "env-status", "{env.status}" }
+                        }
+                    }
                 }
-                div { class: "metric-row",
-                    for metric in METRICS {
-                        article { class: "metric-pill",
-                            p { class: "metric-label", "{metric.label}" }
-                            p { class: "metric-value", "{metric.value}" }
+
+                section { class: "control-panel",
+                    h3 { "İşlem Konsolu" }
+                    p { class: "muted", "Seçilen ağ ve menüye göre işlem tetiklenir." }
+
+                    label { class: "field",
+                        span { "Operasyon Notu" }
+                        textarea {
+                            value: "{note}",
+                            rows: "4",
+                            placeholder: "Örn: testnet bridge dry-run",
+                            oninput: move |event| note.set(event.value()),
                         }
                     }
                 }
             }
 
-            section { class: "env-grid",
-                for env in ENVIRONMENTS {
                     button {
-                        class: if selected_env() == env.id { "env-card selected" } else { "env-card" },
-                        onclick: {
-                            let env_id = env.id.to_string();
-                            move |_| selected_env.set(env_id.clone())
+                        class: "primary-btn",
+                        onclick: move |_| async move {
+                            let env = selected_env();
+                            let action = selected_action();
+                            let operator_note = note();
+
+                            let result = run_operation_server(env, action, operator_note)
+                                .await
+                                .unwrap_or_else(|err| format!("❌ sunucu hatası: {err}"));
+
+                            latest_result.set(result.clone());
+                            history.with_mut(|items| items.insert(0, result));
                         },
-                        h3 { "{env.title}" }
-                        p { "RPC: {env.rpc}" }
-                        p { "Finality: {env.finality}" }
-                        p { class: "env-status", "{env.status}" }
+                        "İşlemi Çalıştır"
+                    }
+
+                    if !latest_result().is_empty() {
+                        p { class: "latest", "Sonuç: {latest_result}" }
                     }
                 }
             }
 
-            section { class: "control-panel",
-                h3 { "İşlem Konsolu" }
-                p { class: "muted", "Seçilen ağ ve menüye göre işlem tetiklenir." }
-
-                label { class: "field",
-                    span { "Operasyon Notu" }
-                    textarea {
-                        value: "{note}",
-                        rows: "4",
-                        placeholder: "Örn: testnet bridge dry-run",
-                        oninput: move |event| note.set(event.value()),
+            aside { class: "glass right-sidebar",
+                h3 { "Operasyon Durumu" }
+                div { class: "status-grid",
+                    article { class: "status-card",
+                        p { "Toplam" }
+                        strong { "{history().len()}" }
+                    }
+                    article { class: "status-card ok",
+                        p { "Başarılı" }
+                        strong { "{ok_count}" }
+                    }
+                    article { class: "status-card err",
+                        p { "Hata" }
+                        strong { "{err_count}" }
                     }
                 }
 
-                button {
-                    class: "primary-btn",
-                    onclick: move |_| async move {
-                        let env = selected_env();
-                        let action = selected_action();
-                        let operator_note = note();
-
-                        let result = run_operation_server(env, action, operator_note)
-                            .await
-                            .unwrap_or_else(|err| format!("❌ sunucu hatası: {err}"));
-
-                        latest_result.set(result.clone());
-                        history.with_mut(|items| items.insert(0, result));
-                    },
-                    "İşlemi Çalıştır"
-                }
-
-                if !latest_result().is_empty() {
-                    p { class: "latest", "Sonuç: {latest_result}" }
-                }
-            }
-        }
-    }
-}
-
-#[component]
-fn RightSidebar(history: Signal<Vec<String>>, ok_count: usize, err_count: usize) -> Element {
-    rsx! {
-        aside { class: "glass right-sidebar",
-            h3 { "Operasyon Durumu" }
-            div { class: "status-grid",
-                article { class: "status-card",
-                    p { "Toplam" }
-                    strong { "{history().len()}" }
-                }
-                article { class: "status-card ok",
-                    p { "Başarılı" }
-                    strong { "{ok_count}" }
-                }
-                article { class: "status-card err",
-                    p { "Hata" }
-                    strong { "{err_count}" }
-                }
-            }
-
-            h4 { "Son İşlemler" }
-            ul { class: "history-list",
-                if history().is_empty() {
-                    li { "Henüz işlem yok." }
-                } else {
-                    for entry in history().iter().take(8) {
-                        li { "{entry}" }
+                h4 { "Son İşlemler" }
+                ul { class: "history-list",
+                    if history().is_empty() {
+                        li { "Henüz işlem yok." }
+                    } else {
+                        for entry in history().iter().take(8) {
+                            li { "{entry}" }
+                        }
                     }
+                }
+            }
+
+            footer { class: "glass footer",
+                div { class: "footer-col",
+                    h4 { "Ağ Uyum" }
+                    p { "Mainnet, Testnet, Devnet profilleri tek ekran yönetimi." }
+                }
+                div { class: "footer-col",
+                    h4 { "Güvenlik" }
+                    p { "İşlemler önce doğrulanır, sonra yayınlanır." }
+                }
+                div { class: "footer-col",
+                    h4 { "Platform" }
+                    p { "Responsive: desktop, tablet, mobil web." }
                 }
             }
         }
