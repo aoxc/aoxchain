@@ -1,179 +1,67 @@
-# AOXC v0.1.1-Akdeniz — System-Aligned Full Baseline
+# AOXChain (aoxc/aoxchain)
 
-<p align="center">
-  <img src="logos/aoxc_transparent.png" alt="AOXC logo" width="220" />
-</p>
+AOXChain is a multi-crate Rust workspace organized as a sovereign modular chain stack.
 
-<p align="center">
-  <strong>AOXChain Rust workspace for sovereign core, consensus, networking, RPC, operator tooling, AOXCVM multi-lane execution, and AOXHub desktop operations.</strong>
-</p>
+This README is architecture-first and evidence-oriented. It distinguishes current implementation from target-state intent.
 
----
+## Repository status (current-state honesty)
 
-## 1) Repository goal ("%100 hedef" interpretation)
+- **Currently implemented:** kernel/consensus crates, runtime crates, network/RPC/data services, CLI tooling, desktop operator surface, SDK/peripheral crates.
+- **Partially implemented:** complete cross-lane replay evidence, full partition/recovery evidence bundles, and uniform control-plane audit evidence packaging.
+- **Target state:** release gates that enforce deterministic replay, boundary-policy checks, and incident-grade evidence packaging across all critical tiers.
 
-This repository is organized to deliver a **system-compatible, deterministic, and audit-ready chain stack**.
-For this baseline, "%100" means:
+No “100% complete” production claim is made in this document.
 
-> Current project status: **AOXC readiness is at 100%** (see `AOXC_PROGRESS_REPORT.md` for evidence and check matrix).
-> Türkçe not: **AOXChain hazır oluş seviyesi şu anda %100**.
+## Architecture map
 
-1. All critical surfaces (core, consensus, net, rpc, cmd, vm, desktop) are documented from one place.
-2. Operator workflows are explicit and reproducible.
-3. Release identity is coherent across Cargo + docs + runbooks.
-4. Known gaps are listed transparently (not hidden).
-
----
-
-## 2) Layer model
-
-| Layer | Main crate/app | Responsibility |
+| Domain | Primary crates/surfaces | Authority model |
 |---|---|---|
-| Chain core | `aoxcore` | identity, genesis, tx/block primitives, receipts, mempool |
-| Consensus | `aoxcunity` | quorum, proposer logic, finality and vote flow |
-| Network | `aoxcnet` | peer communication, gossip, sync boundaries |
-| API ingress | `aoxcrpc` | HTTP / gRPC / WebSocket service surface |
-| Operator plane | `aoxcmd` | bootstrap, db lifecycle, diagnostics, runtime CLI |
-| Execution plane | `aoxcvm` | lane-oriented execution compatibility (native/EVM/WASM/etc.) |
-| Desktop control | `aoxchub` | Tauri/React operator dashboard and control UX |
+| Kernel | `aoxcore`, `aoxcunity` | Consensus/state-transition authority (deterministic, release-blocking). |
+| Runtimes | `aoxcexec`, `aoxcvm`, `aoxcenergy` | Deterministic execution policy/orchestration; feeds kernel outcomes. |
+| System Services | `aoxcnet`, `aoxcrpc`, `aoxcdata`, `aoxconfig`, `aoxclibs`, `aoxchal` | Availability, ingress, persistence, config, shared infra. |
+| Operator Environment | `aoxcmd`, `aoxckit`, `aoxchub` | Human control plane; non-consensus authority. |
+| Applications / Peripheral | `aoxcsdk`, `aoxcontract`, `aoxcai`, `aoxcmob` | Ecosystem and integration surfaces outside kernel authority. |
 
----
+## Critical boundary rules
 
-## 3) AOXCVM + Desktop separation (clear boundaries)
+1. Kernel and deterministic runtime paths are consensus-sensitive.
+2. UI/control-plane surfaces are operator-only and must remain command-transparent.
+3. `aoxchub` is not protocol authority and must never become a hidden consensus path.
+4. Non-deterministic inputs (network/RPC/operator/AI) must be normalized before deterministic execution.
 
-### AOXCVM (`crates/aoxcvm`)
+## Release tier overview
 
-- Protocol-adjacent execution compatibility layer.
-- Must remain deterministic in consensus-sensitive flows.
-- Focus: execution routing, validation guards, lane isolation.
+- **Tier 0 (Consensus Critical):** `aoxcore`, `aoxcunity`
+- **Tier 1 (Deterministic Runtime Critical):** `aoxcexec`, `aoxcvm`, `aoxcenergy`
+- **Tier 2 (Network/Availability/Persistence):** `aoxcnet`, `aoxcrpc`, `aoxcdata`, `aoxconfig`, `aoxclibs`, `aoxchal`
+- **Tier 3 (Operator/Control Plane):** `aoxcmd`, `aoxckit`, `aoxchub`
+- **Tier 4 (Application/Peripheral):** `aoxcsdk`, `aoxcontract`, `aoxcai`, `aoxcmob`
 
-### AOXHub Desktop (`crates/aoxchub`)
+See `docs/RELEASE_TIERS.md` for full rationale.
 
-- Human operator interface layer.
-- Not consensus-critical by itself.
-- Focus: visibility, orchestration UX, command dispatch, reporting.
+## Documentation index (root architecture set)
 
-### Why this separation is important
+- `docs/ARCHITECTURE.md`
+- `docs/SECURITY_MODEL.md`
+- `docs/EXECUTION_MODEL.md`
+- `docs/STATE_MODEL.md`
+- `docs/RELEASE_TIERS.md`
+- `docs/SYSTEM_INVARIANTS.md`
+- `docs/LICENSING.md`
+- `docs/TRADEMARK_POLICY.md`
+- `READ.md` (audit companion)
 
-- VM changes can affect chain behavior/security.
-- Desktop changes primarily affect operator productivity/observability.
-- Release gating should treat these with different criticality levels.
-
----
-
-## 4) Quick start
-
-### Requirements
-
-- Rust + Cargo
-- Git
-- Linux/macOS recommended
-- Optional Node.js toolchain for desktop (`aoxchub`)
-
-### Clone
-
-```bash
-git clone <your-repo-url> aoxchain
-cd aoxchain
-```
-
-### Core checks
-
-```bash
-cargo fmt --all
-cargo test -p aoxcmd
-```
-
-### CLI surface
-
-```bash
-cargo run -p aoxcmd --bin aoxc -- --help
-```
-
----
-
-## 5) Operator bootstrap flow
-
-```bash
-# 1) local runtime home
-export AOXC_HOME="$PWD/.aoxc-local"
-
-# 2) key bootstrap
-cargo run -p aoxcmd --bin aoxc -- bootstrap key \
-  --name validator-01 \
-  --profile testnet \
-  --password 'Test#2026!'
-
-# 3) node bootstrap
-cargo run -p aoxcmd --bin aoxc -- bootstrap node
-
-# 4) produce deterministic sample block
-cargo run -p aoxcmd --bin aoxc -- produce-once --tx demo-tx
-```
-
----
-
-## 6) Local DB lifecycle (real operator flow)
-
-```bash
-cargo run -p aoxcmd --bin aoxc -- db-init --backend sqlite
-cargo run -p aoxcmd --bin aoxc -- db-put-block --block-file ./sample-block.json --backend sqlite
-cargo run -p aoxcmd --bin aoxc -- db-get-height --height 1 --backend sqlite
-cargo run -p aoxcmd --bin aoxc -- db-get-hash --hash <hex64> --backend sqlite
-cargo run -p aoxcmd --bin aoxc -- db-compact --backend sqlite
-cargo run -p aoxcmd --bin aoxc -- db-status --backend sqlite
-```
-
----
-
-## 7) AOXCVM execution readiness checklist
-
-- deterministic lane routing documented,
-- gas/fuel/accounting strategy documented,
-- malformed payload rejection test coverage,
-- replay consistency across lanes,
-- operator-facing runbook references updated.
-
-See also: `crates/aoxcvm/README.md` and `crates/aoxcvm/READ.md`.
-
----
-
-## 8) AOXHub desktop readiness checklist
-
-- critical operator actions mapped to underlying CLI commands,
-- clear separation between "view" and "mutating" actions,
-- launch readiness / blockers panel maintained,
-- incident/export audit artifacts preserved.
-
-See also: `crates/aoxchub/README.md`.
-
----
-
-## 9) Quality gates (recommended for release)
+## Minimal verification commands
 
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings
 cargo test --workspace --exclude aoxchub --all-targets
-# desktop gate (needs system desktop deps):
 cargo check -p aoxchub --all-targets
 ```
 
----
+## License
 
-## 10) Documentation map
+Repository code is licensed under **AGPL-3.0-only** (see `LICENSE` and `docs/LICENSING.md`).
 
-- `READ.md` (root audit companion)
-- `docs/src/READ.md`
-- `docs/src/AKDENIZ_RELEASE_BASELINE.md`
-- `docs/src/MAINNET_READINESS_CHECKLIST.md`
-- `docs/src/REAL_NETWORK_VALIDATION_RUNBOOK_TR.md`
-- `docs/src/AOXC_REAL_VERSIONING_AND_RELEASE_ROADMAP_TR.md`
-
----
-
-## 11) Known reality
-
-AOXC has strong architectural decomposition and broad documentation; however, production-hardening remains an ongoing effort in multi-host validation, sync/recovery proofs, and workspace-wide release evidence completeness.
-
-This baseline intentionally documents both strengths and gaps so the release process remains evidence-driven.
+Trademark and brand usage are governed separately by `docs/TRADEMARK_POLICY.md`.

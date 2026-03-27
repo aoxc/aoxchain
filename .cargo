@@ -1,0 +1,3 @@
+[alias]
+# Başına '!' koyduğumuzda Cargo bunun dış bir terminal komutu zinciri olduğunu anlar
+check-all = "!cargo fmt && cargo clippy && cargo deny check && cargo tarpaulin --ignore-tests"

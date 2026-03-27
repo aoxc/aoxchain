@@ -202,22 +202,45 @@ impl ContractManifestBuilder {
 
     pub fn build(self) -> Result<ContractManifest, BuilderError> {
         let name = self.name.ok_or(BuilderError::MissingField("name"))?;
+        let package = self
+            .package
+            .ok_or(BuilderError::MissingField("package"))?;
+        let version = self
+            .version
+            .ok_or(BuilderError::MissingField("version"))?;
+        let contract_version = ContractVersion(
+            self.contract_version
+                .ok_or(BuilderError::MissingField("contract_version"))?,
+        );
         let vm_target = self
             .vm_target
             .ok_or(BuilderError::MissingField("vm_target"))?;
         let digest = self
             .artifact_digest
             .ok_or(BuilderError::MissingField("artifact_digest"))?;
+        let artifact_location = self
+            .artifact_location
+            .ok_or(BuilderError::MissingField("artifact_location"))?;
+
         let artifact_format = artifact_format_for_vm(&vm_target);
+        let artifact_media_type = default_media_type_for_format(&artifact_format).to_string();
+
+        let supported_runtime_families = normalize_supported_runtime_families(
+            self.supported_runtime_families,
+            &vm_target,
+        );
+
+        let supported_network_classes =
+            normalize_supported_network_classes(self.supported_network_classes);
+
         let artifact = ContractArtifactRef::new(
             digest.clone(),
             self.artifact_size,
             artifact_format.clone(),
             self.artifact_location_kind,
-            self.artifact_location
-                .ok_or(BuilderError::MissingField("artifact_location"))?,
+            artifact_location,
             self.compression,
-            Some(default_media_type_for_format(&artifact_format).to_string()),
+            Some(artifact_media_type),
             vm_target.clone(),
         )?;
 
@@ -232,22 +255,11 @@ impl ContractManifestBuilder {
             self.source_trust_level.clone(),
         )?;
 
-        let supported_runtime_families = if self.supported_runtime_families.is_empty() {
-            vec![runtime_family_for_vm(&vm_target)]
-        } else {
-            self.supported_runtime_families
-        };
-        let supported_network_classes = if self.supported_network_classes.is_empty() {
-            default_supported_network_classes()
-        } else {
-            self.supported_network_classes
-        };
-
         let compatibility = Compatibility::new(
             self.minimum_schema_version,
             self.supported_schema_versions,
             supported_runtime_families,
-            self.supported_network_classes,
+            supported_network_classes,
             vec![],
             false,
         )?;
@@ -267,12 +279,9 @@ impl ContractManifestBuilder {
 
         Ok(ContractManifest::new(
             name,
-            self.package.ok_or(BuilderError::MissingField("package"))?,
-            self.version.ok_or(BuilderError::MissingField("version"))?,
-            ContractVersion(
-                self.contract_version
-                    .ok_or(BuilderError::MissingField("contract_version"))?,
-            ),
+            package,
+            version,
+            contract_version,
             vm_target,
             artifact,
             self.entrypoints,
@@ -288,6 +297,25 @@ impl ContractManifestBuilder {
     pub fn build_descriptor(self) -> Result<ContractDescriptor, BuilderError> {
         let manifest = self.build()?;
         Ok(ContractDescriptor::new(manifest)?)
+    }
+}
+
+fn normalize_supported_runtime_families(
+    families: Vec<RuntimeFamily>,
+    vm_target: &VmTarget,
+) -> Vec<RuntimeFamily> {
+    if families.is_empty() {
+        vec![runtime_family_for_vm(vm_target)]
+    } else {
+        families
+    }
+}
+
+fn normalize_supported_network_classes(classes: Vec<NetworkClass>) -> Vec<NetworkClass> {
+    if classes.is_empty() {
+        default_supported_network_classes()
+    } else {
+        classes
     }
 }
 
