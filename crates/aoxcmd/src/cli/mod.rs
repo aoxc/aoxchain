@@ -46,6 +46,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "testnet-fixture-init" => bootstrap::cmd_testnet_fixture_init(&args[2..]),
         "load-benchmark" => ops::cmd_load_benchmark(&args[2..]),
         "mainnet-readiness" => ops::cmd_mainnet_readiness(&args[2..]),
+        "testnet-readiness" => ops::cmd_testnet_readiness(&args[2..]),
         "full-surface-readiness" => ops::cmd_full_surface_readiness(&args[2..]),
         "level-score" => ops::cmd_level_score(&args[2..]),
         "key-bootstrap" => bootstrap::cmd_key_bootstrap(&args[2..]),
