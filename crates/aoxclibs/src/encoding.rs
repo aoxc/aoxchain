@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 
 use crate::types::LibError;
 
@@ -211,7 +211,8 @@ mod tests {
 
     #[test]
     fn test_decode_hex_with_max_len_enforces_limit() {
-        let err = decode_hex_with_max_len("DEADBEEF", 3).expect_err("length limit must be enforced");
+        let err =
+            decode_hex_with_max_len("DEADBEEF", 3).expect_err("length limit must be enforced");
         assert!(matches!(err, LibError::ValidationError(_)));
     }
 
@@ -261,8 +262,8 @@ mod tests {
 
     #[test]
     fn test_decode_base64_urlsafe_no_pad_rejects_invalid_data() {
-        let err =
-            decode_base64_urlsafe_no_pad("@#%$").expect_err("invalid URL-safe base64 input must fail");
+        let err = decode_base64_urlsafe_no_pad("@#%$")
+            .expect_err("invalid URL-safe base64 input must fail");
         assert!(matches!(err, LibError::EncodingError(_)));
     }
 }

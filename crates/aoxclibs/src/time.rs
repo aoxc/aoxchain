@@ -83,8 +83,8 @@ mod tests {
     fn test_unix_timestamp_from_system_time_is_deterministic() {
         let fixed_time = UNIX_EPOCH + Duration::from_secs(42);
 
-        let timestamp =
-            unix_timestamp_from_system_time(fixed_time).expect("fixed second conversion must succeed");
+        let timestamp = unix_timestamp_from_system_time(fixed_time)
+            .expect("fixed second conversion must succeed");
 
         assert_eq!(timestamp, 42);
     }
