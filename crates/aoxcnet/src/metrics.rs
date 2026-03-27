@@ -65,7 +65,10 @@ impl NetworkMetrics {
 
     #[must_use]
     pub fn accepted_peer_rate_bps(&self) -> u16 {
-        ratio_bps(self.accepted_peers, self.accepted_peers.saturating_add(self.rejected_peers))
+        ratio_bps(
+            self.accepted_peers,
+            self.accepted_peers.saturating_add(self.rejected_peers),
+        )
     }
 
     #[must_use]

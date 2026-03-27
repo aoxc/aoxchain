@@ -46,7 +46,11 @@ impl RpcConfig {
         }
 
         validate_bind_addr("http_bind_addr", &self.http_bind_addr, &mut errors);
-        validate_bind_addr("websocket_bind_addr", &self.websocket_bind_addr, &mut errors);
+        validate_bind_addr(
+            "websocket_bind_addr",
+            &self.websocket_bind_addr,
+            &mut errors,
+        );
         validate_bind_addr("grpc_bind_addr", &self.grpc_bind_addr, &mut errors);
 
         if self.max_requests_per_minute == 0 {

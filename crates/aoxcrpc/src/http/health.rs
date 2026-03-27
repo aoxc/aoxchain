@@ -38,7 +38,10 @@ pub fn health_with_context(config: &RpcConfig, uptime_secs: u64) -> HealthRespon
         warnings: validation.warnings.clone(),
         errors: validation.errors.clone(),
         recommendations: recommendations_from_validation(&validation.warnings, &validation.errors),
-        security_posture: security_posture_from_validation(&validation.warnings, &validation.errors),
+        security_posture: security_posture_from_validation(
+            &validation.warnings,
+            &validation.errors,
+        ),
         uptime_secs,
     }
 }
@@ -97,12 +100,10 @@ fn recommendations_from_validation(warnings: &[String], errors: &[String]) -> Ve
         );
     }
 
-    if errors
-        .iter()
-        .any(|error| error.contains("bind_addr"))
-    {
-        recommendations
-            .push("Use explicit ip:port bindings for HTTP, WebSocket and gRPC listeners".to_string());
+    if errors.iter().any(|error| error.contains("bind_addr")) {
+        recommendations.push(
+            "Use explicit ip:port bindings for HTTP, WebSocket and gRPC listeners".to_string(),
+        );
     }
 
     if warnings
