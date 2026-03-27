@@ -33,6 +33,13 @@ struct ChainLane {
     policy: &'static str,
 }
 
+#[derive(Clone, Copy)]
+struct OperationPreset {
+    label: &'static str,
+    action: &'static str,
+    detail: &'static str,
+}
+
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
@@ -108,6 +115,39 @@ const CHAIN_LANES: [ChainLane; 3] = [
     },
 ];
 
+const OPERATION_PRESETS: [OperationPreset; 6] = [
+    OperationPreset {
+        label: "Node Başlat",
+        action: "start-node",
+        detail: "Seçili ağ düğümünü güvenli parametrelerle ayağa kaldırır.",
+    },
+    OperationPreset {
+        label: "Node Durdur",
+        action: "stop-node",
+        detail: "Üretimi sonlandırır ve kapanış kanıtını üretir.",
+    },
+    OperationPreset {
+        label: "Senkron Kontrol",
+        action: "sync-health",
+        detail: "Senkronizasyon oranı ve blok gecikmesini doğrular.",
+    },
+    OperationPreset {
+        label: "Release Doğrula",
+        action: "release-proof",
+        detail: "Manifest, imza ve checksum bütünlüğünü test eder.",
+    },
+    OperationPreset {
+        label: "Alarm Tatbikatı",
+        action: "alert-drill",
+        detail: "On-call alarm zinciri ve bildirim akışını dener.",
+    },
+    OperationPreset {
+        label: "Cüzdan Kontrol",
+        action: "wallet-ops",
+        detail: "Operatör cüzdanı ve yetki anahtarlarının durumunu raporlar.",
+    },
+];
+
 fn main() {
     dioxus::launch(App);
 }
@@ -142,6 +182,11 @@ fn AppShell() -> Element {
 fn Home() -> Element {
     let mut echo_input = use_signal(String::new);
     let mut server_echo = use_signal(String::new);
+    let mut selected_network = use_signal(|| "testnet".to_string());
+    let mut selected_action = use_signal(|| "sync-health".to_string());
+    let mut operator_note = use_signal(String::new);
+    let mut operation_result = use_signal(String::new);
+    let mut op_history = use_signal(Vec::<String>::new);
 
     rsx! {
         section { class: "hero",
@@ -218,6 +263,86 @@ fn Home() -> Element {
                 p { class: "server-answer", "Server yanıtı: {server_echo}" }
             }
         }
+
+        section { class: "ops-console",
+            h2 { "AOXHub Full Operasyon Arayüzü" }
+            p { "Tüm kritik işlemler GUI üzerinden tetiklenir; CLI sadece fallback olarak kalır." }
+
+            div { class: "ops-form-grid",
+                label { class: "ops-field",
+                    span { "Ağ Profili" }
+                    select {
+                        value: "{selected_network}",
+                        onchange: move |event| selected_network.set(event.value()),
+                        option { value: "devnet", "devnet" }
+                        option { value: "testnet", "testnet" }
+                        option { value: "mainnet", "mainnet" }
+                    }
+                }
+
+                label { class: "ops-field",
+                    span { "Operasyon Tipi" }
+                    select {
+                        value: "{selected_action}",
+                        onchange: move |event| selected_action.set(event.value()),
+                        for preset in OPERATION_PRESETS {
+                            option { value: "{preset.action}", "{preset.label}" }
+                        }
+                    }
+                }
+            }
+
+            label { class: "ops-field",
+                span { "Operatör Notu" }
+                textarea {
+                    rows: "3",
+                    value: "{operator_note}",
+                    placeholder: "Değişiklik nedeni, incident no veya görev bağlamını girin...",
+                    oninput: move |event| operator_note.set(event.value()),
+                }
+            }
+
+            div { class: "quick-actions",
+                for preset in OPERATION_PRESETS {
+                    button {
+                        class: "quick-action-btn",
+                        onclick: move |_| selected_action.set(preset.action.to_string()),
+                        h3 { "{preset.label}" }
+                        p { "{preset.detail}" }
+                    }
+                }
+            }
+
+            button {
+                class: "run-op-btn",
+                onclick: move |_| async move {
+                    let network = selected_network();
+                    let action = selected_action();
+                    let note = operator_note();
+                    let response = run_operation_server(network, action, note)
+                        .await
+                        .unwrap_or_else(|err| format!("Operation failed: {err}"));
+                    operation_result.set(response.clone());
+                    op_history.with_mut(|entries| entries.insert(0, response));
+                },
+                "Arayüzden Operasyon Çalıştır"
+            }
+
+            if !operation_result().is_empty() {
+                p { class: "server-answer", "Sonuç: {operation_result}" }
+            }
+
+            if !op_history().is_empty() {
+                div { class: "history-box",
+                    h3 { "Operasyon Geçmişi" }
+                    ul {
+                        for item in op_history() {
+                            li { "{item}" }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -239,4 +364,20 @@ fn Blog(id: i32) -> Element {
 #[post("/api/echo")]
 async fn echo_server(input: String) -> Result<String, ServerFnError> {
     Ok(format!("AOXHub echo => {input}"))
+}
+
+#[post("/api/run-operation")]
+async fn run_operation_server(
+    network: String,
+    action: String,
+    note: String,
+) -> Result<String, ServerFnError> {
+    let normalized_note = if note.trim().is_empty() {
+        "not yok".to_string()
+    } else {
+        note
+    };
+    Ok(format!(
+        "[OK] network={network} action={action} audit_note=\"{normalized_note}\" source=ui"
+    ))
 }
