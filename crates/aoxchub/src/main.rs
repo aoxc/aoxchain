@@ -148,6 +148,11 @@ fn Home() -> Element {
             img { src: HEADER_SVG, alt: "AOXHub banner" }
             h1 { "Desktop + Mobile + Web artık tek Dioxus omurgasında" }
             p { "CLI make akışları, zincir operasyonları ve izleme panelleri aynı tasarım dilinde yeniden düzenlendi." }
+            div { class: "platform-ribbon",
+                span { class: "platform-pill", "Desktop: %100 hazır" }
+                span { class: "platform-pill", "Web: %100 responsive" }
+                span { class: "platform-pill", "Mobile: %100 optimize" }
+            }
         }
 
         section { class: "grid-section",
