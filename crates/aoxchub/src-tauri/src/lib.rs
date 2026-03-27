@@ -1484,6 +1484,12 @@ fn command_presets() -> Vec<CommandPreset> {
             risk_level: RiskLevel::Low,
         },
         CommandPreset {
+            title: "Compute net level score".to_string(),
+            command: "cargo run -q -p aoxcmd -- level-score --format json".to_string(),
+            intent: "Report consolidated platform level ratio from readiness and block-production posture.".to_string(),
+            risk_level: RiskLevel::Low,
+        },
+        CommandPreset {
             title: "Run runtime status".to_string(),
             command: "cargo run -q -p aoxcmd -- runtime-status --format json".to_string(),
             intent: "Refresh runtime health and operational posture for the selected environment.".to_string(),

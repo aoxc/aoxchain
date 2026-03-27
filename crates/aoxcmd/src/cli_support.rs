@@ -82,6 +82,7 @@ Validation and audit:
   interop-readiness | interop-gate | production-audit
   mainnet-readiness [--enforce] [--write-report <path>]
   full-surface-readiness [--enforce] [--write-report <path>]
+  level-score [--enforce]
 
 Global flags:
   --home <path>        Override AOXC home directory.
