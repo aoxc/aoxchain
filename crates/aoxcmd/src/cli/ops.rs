@@ -82,6 +82,16 @@ struct FullSurfaceReadiness {
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
+struct PlatformLevelScore {
+    profile: String,
+    mainnet_readiness_score: u8,
+    full_surface_score: u8,
+    block_production_score: u8,
+    net_level_score: u8,
+    level_verdict: &'static str,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
 struct ReadinessAreaProgress {
     area: &'static str,
     completed_weight: u8,
@@ -229,6 +239,69 @@ pub fn cmd_full_surface_readiness(args: &[String]) -> Result<(), AppError> {
     }
 
     emit_serialized(&full, output_format(args))
+}
+
+pub fn cmd_level_score(args: &[String]) -> Result<(), AppError> {
+    let settings = load_or_init()?;
+    let key_summary = crate::keys::manager::inspect_operator_key().ok();
+    let genesis_ok = crate::cli::bootstrap::genesis_ready();
+    let node_state = lifecycle::load_state().ok();
+    let node_ok = node_state.is_some();
+
+    let mainnet = evaluate_mainnet_readiness(
+        &settings,
+        settings.validate().err(),
+        key_summary
+            .as_ref()
+            .map(|summary| summary.operational_state.as_str()),
+        genesis_ok,
+        node_ok,
+    );
+    let full = evaluate_full_surface_readiness(&settings, &mainnet);
+
+    let block_production_score = node_state
+        .as_ref()
+        .map(|state| if state.current_height > 0 { 100 } else { 0 })
+        .unwrap_or(0);
+
+    let net_level_score = ((u16::from(mainnet.readiness_score)
+        + u16::from(full.overall_score)
+        + u16::from(block_production_score))
+        / 3) as u8;
+
+    let level_verdict = if net_level_score >= 100 {
+        "perfect"
+    } else if net_level_score >= 90 {
+        "candidate"
+    } else if net_level_score >= 70 {
+        "in-progress"
+    } else {
+        "bootstrap"
+    };
+
+    let score = PlatformLevelScore {
+        profile: settings.profile,
+        mainnet_readiness_score: mainnet.readiness_score,
+        full_surface_score: full.overall_score,
+        block_production_score,
+        net_level_score,
+        level_verdict,
+    };
+
+    if has_flag(args, "--enforce") && score.net_level_score < 100 {
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            format!(
+                "Platform level score enforcement failed at {} (mainnet={}, full-surface={}, block-production={})",
+                score.net_level_score,
+                score.mainnet_readiness_score,
+                score.full_surface_score,
+                score.block_production_score
+            ),
+        ));
+    }
+
+    emit_serialized(&score, output_format(args))
 }
 
 pub fn cmd_profile_baseline(args: &[String]) -> Result<(), AppError> {

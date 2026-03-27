@@ -24,7 +24,7 @@ use crate::{
         bootstrap_operator_key, consensus_public_key_hex, inspect_operator_key,
         operator_fingerprint, verify_operator_key,
     },
-    node::lifecycle::bootstrap_state,
+    node::{engine, lifecycle::bootstrap_state},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
