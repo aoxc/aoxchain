@@ -187,6 +187,10 @@ struct ActionOptions {
     redact: Option<bool>,
     enforce: Option<bool>,
     scenario: Option<String>,
+    backend: Option<String>,
+    block_file: Option<String>,
+    height: Option<u64>,
+    hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -234,6 +238,12 @@ enum DesktopAction {
     NodeRun,
     NetworkSmoke,
     RealNetworkValidation,
+    DbInit,
+    DbStatus,
+    DbPutBlock,
+    DbGetHeight,
+    DbGetHash,
+    DbCompact,
     LaunchDeterministicCluster,
 }
 
@@ -728,6 +738,155 @@ fn build_action_spec(repo_root: &Path, request: &CommandExecutionRequest) -> App
                 )],
             }
         }
+        DesktopAction::DbInit => {
+            let backend = options
+                .backend
+                .clone()
+                .unwrap_or_else(|| "sqlite".to_string());
+            let args = vec![
+                "db-init".to_string(),
+                "--backend".to_string(),
+                backend,
+                "--format".to_string(),
+                format.clone(),
+            ];
+
+            ActionSpec {
+                program: "cargo".to_string(),
+                rendered_command: render_cargo_command(&args),
+                args,
+                script_path: None,
+                env_vars,
+                artifact_hints: vec![("Runtime DB root".to_string(), format!("{home}/runtime/db"))],
+            }
+        }
+        DesktopAction::DbStatus => {
+            let backend = options
+                .backend
+                .clone()
+                .unwrap_or_else(|| "sqlite".to_string());
+            let args = vec![
+                "db-status".to_string(),
+                "--backend".to_string(),
+                backend,
+                "--format".to_string(),
+                format.clone(),
+            ];
+
+            ActionSpec {
+                program: "cargo".to_string(),
+                rendered_command: render_cargo_command(&args),
+                args,
+                script_path: None,
+                env_vars,
+                artifact_hints: vec![("Runtime DB root".to_string(), format!("{home}/runtime/db"))],
+            }
+        }
+        DesktopAction::DbPutBlock => {
+            let backend = options
+                .backend
+                .clone()
+                .unwrap_or_else(|| "sqlite".to_string());
+            let block_file = options.block_file.clone().ok_or_else(|| {
+                "dbPutBlock action requires options.blockFile (path to block envelope json)"
+                    .to_string()
+            })?;
+            let args = vec![
+                "db-put-block".to_string(),
+                "--block-file".to_string(),
+                block_file,
+                "--backend".to_string(),
+                backend,
+                "--format".to_string(),
+                format.clone(),
+            ];
+
+            ActionSpec {
+                program: "cargo".to_string(),
+                rendered_command: render_cargo_command(&args),
+                args,
+                script_path: None,
+                env_vars,
+                artifact_hints: vec![("Runtime DB root".to_string(), format!("{home}/runtime/db"))],
+            }
+        }
+        DesktopAction::DbGetHeight => {
+            let backend = options
+                .backend
+                .clone()
+                .unwrap_or_else(|| "sqlite".to_string());
+            let height = options.height.ok_or_else(|| {
+                "dbGetHeight action requires options.height (u64 block height)".to_string()
+            })?;
+            let args = vec![
+                "db-get-height".to_string(),
+                "--height".to_string(),
+                height.to_string(),
+                "--backend".to_string(),
+                backend,
+                "--format".to_string(),
+                format.clone(),
+            ];
+
+            ActionSpec {
+                program: "cargo".to_string(),
+                rendered_command: render_cargo_command(&args),
+                args,
+                script_path: None,
+                env_vars,
+                artifact_hints: vec![("Runtime DB root".to_string(), format!("{home}/runtime/db"))],
+            }
+        }
+        DesktopAction::DbGetHash => {
+            let backend = options
+                .backend
+                .clone()
+                .unwrap_or_else(|| "sqlite".to_string());
+            let hash = options
+                .hash
+                .clone()
+                .ok_or_else(|| "dbGetHash action requires options.hash (hex hash)".to_string())?;
+            let args = vec![
+                "db-get-hash".to_string(),
+                "--hash".to_string(),
+                hash,
+                "--backend".to_string(),
+                backend,
+                "--format".to_string(),
+                format.clone(),
+            ];
+
+            ActionSpec {
+                program: "cargo".to_string(),
+                rendered_command: render_cargo_command(&args),
+                args,
+                script_path: None,
+                env_vars,
+                artifact_hints: vec![("Runtime DB root".to_string(), format!("{home}/runtime/db"))],
+            }
+        }
+        DesktopAction::DbCompact => {
+            let backend = options
+                .backend
+                .clone()
+                .unwrap_or_else(|| "sqlite".to_string());
+            let args = vec![
+                "db-compact".to_string(),
+                "--backend".to_string(),
+                backend,
+                "--format".to_string(),
+                format.clone(),
+            ];
+
+            ActionSpec {
+                program: "cargo".to_string(),
+                rendered_command: render_cargo_command(&args),
+                args,
+                script_path: None,
+                env_vars,
+                artifact_hints: vec![("Runtime DB root".to_string(), format!("{home}/runtime/db"))],
+            }
+        }
         DesktopAction::LaunchDeterministicCluster => {
             if request.environment == EnvironmentKind::Mainnet {
                 return Err(
@@ -736,7 +895,7 @@ fn build_action_spec(repo_root: &Path, request: &CommandExecutionRequest) -> App
                 );
             }
 
-            let script_rel = "configs/deterministic-testnet/launch-testnet.sh";
+            let script_rel = "configs/environments/localnet/launch-localnet.sh";
             let script_path = repo_root.join(script_rel);
 
             if !script_path.exists() {
@@ -758,11 +917,11 @@ fn build_action_spec(repo_root: &Path, request: &CommandExecutionRequest) -> App
                     ("Deterministic launcher".to_string(), script_rel.to_string()),
                     (
                         "Deterministic nodes".to_string(),
-                        "configs/deterministic-testnet/nodes".to_string(),
+                        "configs/environments/localnet/nodes".to_string(),
                     ),
                     (
                         "Deterministic homes".to_string(),
-                        "configs/deterministic-testnet/homes".to_string(),
+                        "configs/environments/localnet/homes".to_string(),
                     ),
                 ],
             }
@@ -866,6 +1025,30 @@ fn next_steps_for(
             "Store results under network-production-closure artifacts.".to_string(),
             "Review closure evidence before testnet or mainnet promotion.".to_string(),
         ],
+        DesktopAction::DbInit => vec![
+            "Ingest canonical block envelopes with db-put-block.".to_string(),
+            "Run db-status to verify index and CAS surfaces.".to_string(),
+        ],
+        DesktopAction::DbStatus => vec![
+            "If object/index counts drift, run db-compact.".to_string(),
+            "Use db-get-height/hash to verify deterministic retrieval.".to_string(),
+        ],
+        DesktopAction::DbPutBlock => vec![
+            "Use db-get-height and db-get-hash to verify the inserted block.".to_string(),
+            "Compact the index periodically for long-running nodes.".to_string(),
+        ],
+        DesktopAction::DbGetHeight => vec![
+            "Cross-check payload and hash against expected chain records.".to_string(),
+            "Use db-get-hash for direct hash-based verification.".to_string(),
+        ],
+        DesktopAction::DbGetHash => vec![
+            "Validate returned block height and parent linkage.".to_string(),
+            "Run db-status to monitor CAS/index growth.".to_string(),
+        ],
+        DesktopAction::DbCompact => vec![
+            "Re-run db-status to confirm compaction result.".to_string(),
+            "Archive snapshots as part of release evidence when needed.".to_string(),
+        ],
         DesktopAction::LaunchDeterministicCluster => vec![
             "Verify node cards and telemetry surfaces in AOXHub.".to_string(),
             "Run network-smoke and production-audit from the desktop control plane.".to_string(),
@@ -883,7 +1066,13 @@ fn risk_level_for(action: DesktopAction) -> RiskLevel {
         | DesktopAction::ConfigValidate
         | DesktopAction::ConfigPrint
         | DesktopAction::NodeHealth
-        | DesktopAction::NetworkSmoke => RiskLevel::Low,
+        | DesktopAction::NetworkSmoke
+        | DesktopAction::DbInit
+        | DesktopAction::DbStatus
+        | DesktopAction::DbPutBlock
+        | DesktopAction::DbGetHeight
+        | DesktopAction::DbGetHash
+        | DesktopAction::DbCompact => RiskLevel::Low,
 
         DesktopAction::NodeBootstrap
         | DesktopAction::NodeRun
@@ -1206,7 +1395,7 @@ fn command_presets() -> Vec<CommandPreset> {
     vec![
         CommandPreset {
             title: "Bring up deterministic local cluster".to_string(),
-            command: "configs/deterministic-testnet/launch-testnet.sh".to_string(),
+            command: "configs/environments/localnet/launch-localnet.sh".to_string(),
             intent: "Bootstrap the deterministic local cluster and verify cluster orchestration from desktop.".to_string(),
             risk_level: RiskLevel::Medium,
         },
@@ -1226,6 +1415,18 @@ fn command_presets() -> Vec<CommandPreset> {
             title: "Generate production audit".to_string(),
             command: "cargo run -q -p aoxcmd -- production-audit --format json".to_string(),
             intent: "Refresh the operator audit surface before release or wallet approval.".to_string(),
+            risk_level: RiskLevel::Low,
+        },
+        CommandPreset {
+            title: "Initialize runtime DB".to_string(),
+            command: "cargo run -q -p aoxcmd -- db-init --backend sqlite --format json".to_string(),
+            intent: "Prepare the runtime data store under AOXC_HOME for real-chain local flows.".to_string(),
+            risk_level: RiskLevel::Low,
+        },
+        CommandPreset {
+            title: "Check runtime DB status".to_string(),
+            command: "cargo run -q -p aoxcmd -- db-status --backend sqlite --format json".to_string(),
+            intent: "Inspect CAS/index surfaces and object count from desktop.".to_string(),
             risk_level: RiskLevel::Low,
         },
     ]
