@@ -513,9 +513,6 @@ pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
         )
     })?;
     let bind_host = arg_value(args, "--bind-host");
-    let skip_produce_once = has_flag(args, "--skip-produce-once");
-    let produce_once_tx = arg_value(args, "--produce-once-tx")
-        .unwrap_or_else(|| "bootstrap-mainnet-anchor".to_string());
 
     let mut settings = build_profile_settings(home.display().to_string(), profile, bind_host)?;
     settings.logging.json = true;
@@ -537,10 +534,7 @@ pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
     let _material = bootstrap_operator_key(&name, profile.as_str(), &password)?;
     let operator_fp = operator_fingerprint()?;
     let consensus_pk = consensus_public_key_hex()?;
-    let mut node_state = bootstrap_state()?;
-    if !skip_produce_once {
-        node_state = engine::produce_once(&produce_once_tx)?;
-    }
+    let node_state = bootstrap_state()?;
 
     let summary = ProfileBootstrapSummary {
         profile: profile.as_str().to_string(),
