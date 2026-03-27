@@ -241,21 +241,12 @@ impl ContractManifestBuilder {
         } else {
             self.supported_runtime_families
         };
-        let supported_network_classes = if self.supported_network_classes.is_empty() {
-            vec![
-                NetworkClass::Mainnet,
-                NetworkClass::Testnet,
-                NetworkClass::Devnet,
-            ]
-        } else {
-            self.supported_network_classes
-        };
 
         let compatibility = Compatibility::new(
             self.minimum_schema_version,
             self.supported_schema_versions,
             supported_runtime_families,
-            supported_network_classes,
+            self.supported_network_classes,
             vec![],
             false,
         )?;
