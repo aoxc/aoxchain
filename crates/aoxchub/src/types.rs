@@ -1,7 +1,12 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum LaneKind { EVM, Move, WASM, Cardano }
+pub enum LaneKind {
+    Evm,
+    Move,
+    Wasm,
+    Cardano,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LaneStatus {
@@ -18,4 +23,5 @@ pub struct ConsensusNode {
     pub stake_weight: u64,
     pub latency_ms: u32,
     pub region: String,
+    pub online: bool,
 }
