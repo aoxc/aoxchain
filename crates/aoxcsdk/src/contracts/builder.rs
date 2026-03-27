@@ -436,4 +436,39 @@ mod tests {
             vec![NetworkClass::Airgapped]
         );
     }
+
+    #[test]
+    fn empty_compatibility_overrides_fall_back_to_defaults() {
+        let manifest = ContractManifestBuilder::new()
+            .with_name("default-compat")
+            .with_package("aox.default")
+            .with_version("1.0.0")
+            .with_contract_version("1.0.0")
+            .with_vm_target(VmTarget::Wasm)
+            .with_artifact_digest(digest(
+                "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            ))
+            .with_artifact_location("ipfs://default/contract.wasm")
+            .with_supported_runtime_families(vec![])
+            .with_supported_network_classes(vec![])
+            .add_entrypoint(
+                Entrypoint::new("execute", VmTarget::Wasm, None, vec![])
+                    .expect("entrypoint should build"),
+            )
+            .build()
+            .expect("manifest should build");
+
+        assert_eq!(
+            manifest.compatibility.supported_runtime_families,
+            vec![RuntimeFamily::Wasm]
+        );
+        assert_eq!(
+            manifest.compatibility.supported_network_classes,
+            vec![
+                NetworkClass::Mainnet,
+                NetworkClass::Testnet,
+                NetworkClass::Devnet
+            ]
+        );
+    }
 }
