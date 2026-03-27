@@ -19,6 +19,7 @@
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// AOXC governance-controlled family namespace root.
 ///
@@ -278,6 +279,26 @@ pub struct GenesisConfig {
 
     /// AOXC genesis seal material.
     pub genesis_seal: AOXCANDSeal,
+
+    /// Genesis creation timestamp (unix seconds, UTC).
+    #[serde(default = "default_genesis_timestamp")]
+    pub genesis_time_unix: u64,
+
+    /// Protocol version for compatibility pinning.
+    #[serde(default = "default_protocol_version")]
+    pub protocol_version: String,
+
+    /// Quantum-resilience and cryptographic policy profile.
+    #[serde(default)]
+    pub quantum_policy: QuantumPolicy,
+
+    /// Canonical bootstrap peers for the selected network.
+    #[serde(default)]
+    pub boot_nodes: Vec<BootNode>,
+
+    /// Human-readable genesis release notes.
+    #[serde(default)]
+    pub genesis_notes: String,
 }
 
 impl GenesisConfig {
@@ -292,6 +313,11 @@ impl GenesisConfig {
         genesis_seal: AOXCANDSeal,
     ) -> Result<Self, GenesisConfigError> {
         let cfg = Self {
+            quantum_policy: QuantumPolicy::for_network_class(identity.network_class),
+            boot_nodes: default_boot_nodes(identity.network_class),
+            genesis_notes: default_genesis_notes(identity.network_class).to_string(),
+            genesis_time_unix: default_genesis_timestamp(),
+            protocol_version: default_protocol_version(),
             identity,
             block_time,
             validators,
@@ -347,6 +373,20 @@ impl GenesisConfig {
             return Err(GenesisConfigError::EmptyAccounts);
         }
 
+        self.quantum_policy.validate()?;
+
+        if self.protocol_version.trim().is_empty() {
+            return Err(GenesisConfigError::InvalidProtocolVersion);
+        }
+
+        if self.boot_nodes.is_empty() {
+            return Err(GenesisConfigError::EmptyBootNodes);
+        }
+
+        for node in &self.boot_nodes {
+            node.validate()?;
+        }
+
         Ok(())
     }
 
@@ -379,6 +419,15 @@ impl GenesisConfig {
 
         hasher.update(format!("{:?}", self.settlement_link).as_bytes());
         hasher.update(format!("{:?}", self.genesis_seal).as_bytes());
+        hasher.update(self.genesis_time_unix.to_le_bytes());
+        hasher.update(self.protocol_version.as_bytes());
+        hasher.update(format!("{:?}", self.quantum_policy).as_bytes());
+
+        for node in &self.boot_nodes {
+            hasher.update(format!("{node:?}").as_bytes());
+        }
+
+        hasher.update(self.genesis_notes.as_bytes());
 
         let digest = hasher.finalize();
         let mut out = [0u8; 32];
@@ -538,6 +587,12 @@ pub enum GenesisConfigError {
         expected_prefix: u64,
         actual_prefix: u64,
     },
+    InvalidProtocolVersion,
+    EmptyBootNodes,
+    InvalidBootNode {
+        node_id: String,
+    },
+    InvalidQuantumPolicy,
 }
 
 impl fmt::Display for GenesisConfigError {
@@ -600,6 +655,21 @@ impl fmt::Display for GenesisConfigError {
                     "genesis configuration validation failed: chain_id prefix mismatch; expected `{expected_prefix}`, got `{actual_prefix}`"
                 )
             }
+            Self::InvalidProtocolVersion => f.write_str(
+                "genesis configuration validation failed: protocol_version must not be empty",
+            ),
+            Self::EmptyBootNodes => f.write_str(
+                "genesis configuration validation failed: boot_nodes must not be empty",
+            ),
+            Self::InvalidBootNode { node_id } => {
+                write!(
+                    f,
+                    "genesis configuration validation failed: boot node `{node_id}` is invalid"
+                )
+            }
+            Self::InvalidQuantumPolicy => f.write_str(
+                "genesis configuration validation failed: quantum policy is invalid",
+            ),
         }
     }
 }
@@ -629,6 +699,152 @@ pub struct SettlementLink {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AOXCANDSeal {
     pub seal_id: String,
+}
+
+/// Canonical bootstrap node descriptor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BootNode {
+    pub node_id: String,
+    pub endpoint: String,
+    pub role: String,
+}
+
+impl BootNode {
+    fn validate(&self) -> Result<(), GenesisConfigError> {
+        if self.node_id.trim().is_empty()
+            || self.endpoint.trim().is_empty()
+            || self.role.trim().is_empty()
+        {
+            return Err(GenesisConfigError::InvalidBootNode {
+                node_id: self.node_id.clone(),
+            });
+        }
+
+        if !self.endpoint.contains("://") {
+            return Err(GenesisConfigError::InvalidBootNode {
+                node_id: self.node_id.clone(),
+            });
+        }
+
+        Ok(())
+    }
+}
+
+/// Quantum security policy profile for genesis.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuantumPolicy {
+    pub pq_signature_schemes: Vec<String>,
+    pub classical_signature_schemes: Vec<String>,
+    pub handshake_kem: String,
+    pub state_hash: String,
+    pub commitment_hash: String,
+    pub min_signature_threshold: u16,
+    pub rotation_epoch_blocks: u64,
+}
+
+impl Default for QuantumPolicy {
+    fn default() -> Self {
+        Self::for_network_class(NetworkClass::Devnet)
+    }
+}
+
+impl QuantumPolicy {
+    #[must_use]
+    pub fn for_network_class(network_class: NetworkClass) -> Self {
+        match network_class {
+            NetworkClass::PublicMainnet => Self {
+                pq_signature_schemes: vec!["ML-DSA-87".into(), "SLH-DSA-SHA2-192f".into()],
+                classical_signature_schemes: vec!["Ed25519".into()],
+                handshake_kem: "ML-KEM-1024".into(),
+                state_hash: "SHA3-256".into(),
+                commitment_hash: "BLAKE3".into(),
+                min_signature_threshold: 3,
+                rotation_epoch_blocks: 43_200,
+            },
+            NetworkClass::PublicTestnet | NetworkClass::Validation => Self {
+                pq_signature_schemes: vec!["ML-DSA-65".into()],
+                classical_signature_schemes: vec!["Ed25519".into()],
+                handshake_kem: "ML-KEM-768".into(),
+                state_hash: "SHA3-256".into(),
+                commitment_hash: "BLAKE3".into(),
+                min_signature_threshold: 2,
+                rotation_epoch_blocks: 14_400,
+            },
+            NetworkClass::Devnet
+            | NetworkClass::SovereignPrivate
+            | NetworkClass::Consortium
+            | NetworkClass::RegulatedPrivate => Self {
+                pq_signature_schemes: vec!["ML-DSA-44".into()],
+                classical_signature_schemes: vec!["Ed25519".into()],
+                handshake_kem: "ML-KEM-512".into(),
+                state_hash: "SHA3-256".into(),
+                commitment_hash: "BLAKE3".into(),
+                min_signature_threshold: 1,
+                rotation_epoch_blocks: 7_200,
+            },
+        }
+    }
+
+    fn validate(&self) -> Result<(), GenesisConfigError> {
+        if self.pq_signature_schemes.is_empty()
+            || self.classical_signature_schemes.is_empty()
+            || self.handshake_kem.trim().is_empty()
+            || self.state_hash.trim().is_empty()
+            || self.commitment_hash.trim().is_empty()
+            || self.min_signature_threshold == 0
+            || self.rotation_epoch_blocks == 0
+        {
+            return Err(GenesisConfigError::InvalidQuantumPolicy);
+        }
+
+        Ok(())
+    }
+}
+
+fn default_genesis_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+}
+
+fn default_protocol_version() -> String {
+    "aoxc-genesis/v2".to_string()
+}
+
+fn default_genesis_notes(network_class: NetworkClass) -> &'static str {
+    match network_class {
+        NetworkClass::PublicMainnet => {
+            "AOXC mainnet genesis: production consensus, strict PQ threshold policy, audited settlement."
+        }
+        NetworkClass::PublicTestnet => {
+            "AOXC testnet genesis: feature proving, interoperability rehearsal, accelerated validator rotation."
+        }
+        NetworkClass::Devnet => {
+            "AOXC devnet genesis: rapid experimentation profile, short epochs, permissive development policy."
+        }
+        NetworkClass::Validation => {
+            "AOXC validation genesis: staging hardening before public release."
+        }
+        NetworkClass::SovereignPrivate => "AOXC sovereign private genesis profile.",
+        NetworkClass::Consortium => "AOXC consortium genesis profile.",
+        NetworkClass::RegulatedPrivate => "AOXC regulated private genesis profile.",
+    }
+}
+
+fn default_boot_nodes(network_class: NetworkClass) -> Vec<BootNode> {
+    let suffix = network_class.slug();
+    vec![
+        BootNode {
+            node_id: format!("aoxc-{suffix}-boot-001"),
+            endpoint: format!("aoxc://{suffix}.seed-001.aoxc.net:443"),
+            role: "seed".to_string(),
+        },
+        BootNode {
+            node_id: format!("aoxc-{suffix}-boot-002"),
+            endpoint: format!("aoxc://{suffix}.seed-002.aoxc.net:443"),
+            role: "relay".to_string(),
+        },
+    ]
 }
 
 #[cfg(test)]
@@ -708,5 +924,50 @@ mod tests {
         let fp2 = cfg.fingerprint().unwrap();
 
         assert_eq!(fp1, fp2);
+    }
+
+    #[test]
+    fn mainnet_quantum_policy_is_strict() {
+        let identity = ChainIdentity::new(
+            AOXC_FAMILY_ID,
+            NetworkClass::PublicMainnet,
+            1,
+            1,
+            "AOXC Mainnet",
+        )
+        .unwrap();
+
+        let cfg = GenesisConfig::new(
+            identity,
+            3000,
+            vec![Validator {
+                id: "val-mainnet-1".into(),
+            }],
+            vec![GenesisAccount {
+                address: "aox1mainnet".into(),
+                balance: 10_000_000,
+            }],
+            100_000_000,
+            SettlementLink {
+                endpoint: "aoxc://settlement/mainnet".into(),
+            },
+            AOXCANDSeal {
+                seal_id: "seal-mainnet-001".into(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(cfg.quantum_policy.handshake_kem, "ML-KEM-1024");
+        assert!(cfg.quantum_policy.min_signature_threshold >= 3);
+        assert!(!cfg.boot_nodes.is_empty());
+    }
+
+    #[test]
+    fn testnet_and_devnet_receive_distinct_quantum_profiles() {
+        let testnet = QuantumPolicy::for_network_class(NetworkClass::PublicTestnet);
+        let devnet = QuantumPolicy::for_network_class(NetworkClass::Devnet);
+
+        assert_ne!(testnet.handshake_kem, devnet.handshake_kem);
+        assert!(testnet.rotation_epoch_blocks > devnet.rotation_epoch_blocks);
     }
 }
