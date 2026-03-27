@@ -7,8 +7,8 @@ Bu doküman, repository'nin her ana klasörünü **ana sorumluluk**, **mevcut du
 ### `Cargo.toml`
 - **Rol:** Workspace crate kompozisyonu ve ortak dependency yönetimi.
 - **Durum:** Çok-crate mimari net; modüler büyümeye uygun.
-- **Gap:** CI seviyesinde zorunlu kalite kapıları (fmt/clippy/test policy) dosya bazlı zorlanmıyor.
-- **Hedef:** branch protection ile eşleşen “required checks” matrisi.
+- **Gap:** Core workspace ile desktop (Tauri) kalite kapıları ayrı yönetilmediğinde Linux sistem paketleri eksik ortamlarda CI kırılabiliyor.
+- **Hedef:** branch protection ile eşleşen, core + desktop ayrışmış required checks matrisi.
 
 ### `README.md`
 - **Rol:** Yeni geliştirici ve operatör için giriş kapısı.
@@ -59,7 +59,7 @@ Bu doküman, repository'nin her ana klasörünü **ana sorumluluk**, **mevcut du
 ## 3) `docs/`
 - **Rol:** Mimari, operasyon, audit, mainnet hazırlığı.
 - **Durum:** Teknik analiz ve mainnet blueprint mevcut.
-- **Gap:** “SRE/On-call runbook” ve “incident response drill” ayrı dokümanlar olarak eklenmeli.
+- **Gap:** Bazı dökümanlarda kapanan maddeler (örn. on-call ve incident runbook) hâlâ açık eksik gibi raporlanıyor; içerik senkronizasyonu gerekli.
 
 ## 4) `models/`
 - **Rol:** Örnek risk/policy model dosyaları.
@@ -73,11 +73,12 @@ Bu doküman, repository'nin her ana klasörünü **ana sorumluluk**, **mevcut du
 
 ## Mainnet'i aşacak kalite için önerilen zorunlu kalite kapıları
 
-1. `cargo fmt --all -- --check`
-2. `cargo clippy --workspace --all-targets -- -D warnings`
-3. `cargo test --workspace`
-4. Deterministic multi-node simulation suite (en az 3 node, byzantine-lite senaryo)
-5. Release artefact signing + provenance attestation (SLSA seviyesi hedeflenerek)
+1. `cargo fmt --all --check`
+2. `cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings`
+3. `cargo test --workspace --exclude aoxchub --all-targets`
+4. `cargo check -p aoxchub --all-targets` (desktop bağımlılıkları kurulu runner üzerinde)
+5. Deterministic multi-node simulation suite (en az 3 node, byzantine-lite senaryo)
+6. Release artefact signing + provenance attestation (SLSA seviyesi hedeflenerek)
 
 ## Bu PR'daki net kazanım
 

@@ -9,6 +9,7 @@ set -euo pipefail
 # ==============================================================================
 
 MODE="${1:-full}"
+DESKTOP_CRATE="aoxchub"
 
 # Requirement verification
 require_cmd() {
@@ -44,17 +45,17 @@ require_cmd cargo
 case "${MODE}" in
     quick)
         run "Format Check" cargo fmt --all --check
-        run "Compile Check" cargo check --locked --workspace --all-targets
-        run "Locked Unit Tests" cargo test --locked --workspace --no-fail-fast
+        run "Compile Check (Core Workspace)" cargo check --locked --workspace --exclude "${DESKTOP_CRATE}" --all-targets
+        run "Locked Unit Tests (Core Workspace)" cargo test --locked --workspace --exclude "${DESKTOP_CRATE}" --no-fail-fast
         ;;
 
     full)
         ensure_cargo_tool cargo-audit
         run "Security Audit" cargo audit
         run "Format Check" cargo fmt --all --check
-        run "Linter (Clippy)" cargo clippy --workspace --all-targets --all-features -- -D warnings
-        run "Compile Check" cargo check --locked --workspace --all-targets
-        run "Locked Comprehensive Tests" cargo test --locked --workspace --all-targets --no-fail-fast
+        run "Linter (Clippy, Core Workspace)" cargo clippy --workspace --exclude "${DESKTOP_CRATE}" --all-targets --all-features -- -D warnings
+        run "Compile Check (Core Workspace)" cargo check --locked --workspace --exclude "${DESKTOP_CRATE}" --all-targets
+        run "Locked Comprehensive Tests (Core Workspace)" cargo test --locked --workspace --exclude "${DESKTOP_CRATE}" --all-targets --no-fail-fast
         run "Doc Tests" cargo test --doc
         ;;
 
@@ -64,15 +65,19 @@ case "${MODE}" in
         run "Vulnerability Audit" cargo audit
         run "License & Dependency Audit" cargo deny check
         run "Format Check" cargo fmt --all --check
-        run "Compile Check (Release)" cargo check --locked --workspace --all-targets --release
-        run "Clippy (Strict)" cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run "Compile Check (Release, Core Workspace)" cargo check --locked --workspace --exclude "${DESKTOP_CRATE}" --all-targets --release
+        run "Clippy (Strict, Core Workspace)" cargo clippy --workspace --exclude "${DESKTOP_CRATE}" --all-targets --all-features -- -D warnings
         run "Build Production Binary" cargo build --locked --release -p aoxcmd --bin aoxc
         run "Release Artifact Certification" ./scripts/release_artifact_certify.sh target/release/aoxc
-        run "Locked Production Test Suite" cargo test --locked --workspace --release --all-targets --no-fail-fast
+        run "Locked Production Test Suite (Core Workspace)" cargo test --locked --workspace --exclude "${DESKTOP_CRATE}" --release --all-targets --no-fail-fast
+        ;;
+
+    desktop)
+        run "Compile Check (Desktop Tauri Surface)" cargo check --locked -p "${DESKTOP_CRATE}" --all-targets
         ;;
 
     *)
-        echo "Usage: $0 {quick|full|audit|release}" >&2
+        echo "Usage: $0 {quick|full|audit|release|desktop}" >&2
         exit 2
         ;;
 esac
