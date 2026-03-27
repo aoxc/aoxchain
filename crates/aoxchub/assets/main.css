@@ -176,67 +176,6 @@ a {
     gap: 12px;
 }
 
-.pro-control {
-    margin-top: 22px;
-    border: 1px solid #355385;
-    border-radius: 16px;
-    padding: 16px;
-    background: linear-gradient(155deg, rgba(22, 45, 86, 0.45), rgba(16, 24, 42, 0.95));
-    display: grid;
-    gap: 12px;
-}
-
-.pro-control h2 {
-    margin: 0;
-}
-
-.pro-control p {
-    margin: 0;
-    color: #c7d8fb;
-}
-
-.big-network-buttons {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-}
-
-.net-btn {
-    border: 1px solid #3a5686;
-    background: #10203c;
-    color: #d7e6ff;
-    border-radius: 12px;
-    padding: 14px 10px;
-    font-size: 1rem;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    cursor: pointer;
-}
-
-.net-btn.active {
-    background: #1f4a8c;
-    border-color: #6aa1ff;
-    color: #ffffff;
-}
-
-.pro-step-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 10px;
-}
-
-.pro-plan-output {
-    margin: 0;
-    border-radius: 10px;
-    border: 1px solid #375782;
-    background: rgba(10, 18, 35, 0.9);
-    padding: 12px;
-    color: #d0e2ff;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-size: 0.86rem;
-}
-
 .ops-console p {
     margin: 0;
     color: var(--muted);
@@ -259,8 +198,7 @@ a {
 }
 
 .ops-field select,
-.ops-field textarea,
-.ops-field input {
+.ops-field textarea {
     border-radius: 10px;
     border: 1px solid var(--panel-border);
     background: #0c1322;
@@ -325,49 +263,6 @@ a {
     gap: 6px;
     color: #d7e4ff;
     font-size: 0.86rem;
-}
-
-.history-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.82rem;
-}
-
-.history-table th,
-.history-table td {
-    border-bottom: 1px solid #273a5a;
-    text-align: left;
-    padding: 8px 6px;
-    vertical-align: top;
-}
-
-.history-table th {
-    color: #9db4e0;
-    font-weight: 600;
-}
-
-.history-table td {
-    color: #d7e4ff;
-}
-
-.cell-ok {
-    color: #75e6b2 !important;
-    font-weight: 700;
-}
-
-.cell-error {
-    color: #ff8f8f !important;
-    font-weight: 700;
-}
-
-.error-banner {
-    margin: 0;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid #823d4b;
-    background: rgba(72, 24, 38, 0.6);
-    color: #ffc3ce;
-    font-weight: 600;
 }
 
 .echo-box p {
@@ -450,16 +345,6 @@ a {
 
     .ops-form-grid {
         grid-template-columns: 1fr;
-    }
-
-    .big-network-buttons {
-        grid-template-columns: 1fr;
-    }
-
-    .history-table {
-        display: block;
-        overflow-x: auto;
-        white-space: nowrap;
     }
 
     .pager {
