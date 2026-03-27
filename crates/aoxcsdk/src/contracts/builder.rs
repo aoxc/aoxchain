@@ -340,6 +340,18 @@ mod tests {
         assert_eq!(manifest.name, "hello");
         assert_eq!(manifest.metadata.display_name, "hello");
         assert_eq!(manifest.schema_version, 1);
+        assert_eq!(
+            manifest.compatibility.supported_runtime_families,
+            vec![aoxcontract::RuntimeFamily::Wasm]
+        );
+        assert_eq!(
+            manifest.compatibility.supported_network_classes,
+            vec![
+                aoxcontract::NetworkClass::Mainnet,
+                aoxcontract::NetworkClass::Testnet,
+                aoxcontract::NetworkClass::Devnet
+            ]
+        );
     }
 
     #[test]

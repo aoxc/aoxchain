@@ -156,4 +156,30 @@ mod tests {
             LibError::TimeError("system time is earlier than UNIX epoch".to_owned())
         );
     }
+
+    #[test]
+    fn test_system_time_from_unix_timestamp_roundtrip() {
+        let system_time =
+            system_time_from_unix_timestamp(1_700_000_123).expect("seconds -> system time");
+        let seconds = unix_timestamp_from_system_time(system_time).expect("system time -> seconds");
+
+        assert_eq!(seconds, 1_700_000_123);
+    }
+
+    #[test]
+    fn test_system_time_from_unix_timestamp_millis_roundtrip() {
+        let system_time = system_time_from_unix_timestamp_millis(1_700_000_123_456)
+            .expect("millis -> system time");
+        let millis =
+            unix_timestamp_millis_from_system_time(system_time).expect("system time -> millis");
+
+        assert_eq!(millis, 1_700_000_123_456);
+    }
+
+    #[test]
+    fn test_system_time_from_unix_timestamp_millis_rejects_out_of_u64_range() {
+        let err = system_time_from_unix_timestamp_millis(u128::from(u64::MAX) + 1)
+            .expect_err("u64 overflow must fail");
+        assert!(matches!(err, LibError::TimeError(_)));
+    }
 }

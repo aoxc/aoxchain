@@ -244,6 +244,15 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_hex_exact_len_enforces_exact_length() {
+        let decoded = decode_hex_exact_len("DEADBEEF", 4).expect("exact len decode must succeed");
+        assert_eq!(decoded, vec![0xDE, 0xAD, 0xBE, 0xEF]);
+
+        let err = decode_hex_exact_len("DEADBEEF", 3).expect_err("exact len mismatch must fail");
+        assert!(matches!(err, LibError::ValidationError(_)));
+    }
+
+    #[test]
     fn test_base64_standard_roundtrip() {
         let original = b"aoxchain";
 
@@ -270,6 +279,18 @@ mod tests {
         let encoded = encode_base64_standard(b"abcd");
         let err = decode_base64_standard_with_max_len(&encoded, 3)
             .expect_err("length limit must be enforced");
+        assert!(matches!(err, LibError::ValidationError(_)));
+    }
+
+    #[test]
+    fn test_decode_base64_standard_exact_len_enforces_exact_length() {
+        let encoded = encode_base64_standard(b"abcd");
+        let decoded =
+            decode_base64_standard_exact_len(&encoded, 4).expect("exact len decode must succeed");
+        assert_eq!(decoded, b"abcd");
+
+        let err = decode_base64_standard_exact_len(&encoded, 5)
+            .expect_err("exact len mismatch must fail");
         assert!(matches!(err, LibError::ValidationError(_)));
     }
 
