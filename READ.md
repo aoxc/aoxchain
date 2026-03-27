@@ -63,7 +63,32 @@ A compliant release should show:
 - known limitation registry,
 - commit SHA linked to release notes.
 
-## 7) Primary references
+Minimum baseline evidence should include non-crate surfaces too:
+
+- root governance docs (`README.md`, `READ.md`),
+- environment/config docs under `configs/`,
+- operator and validation scripts under `scripts/`,
+- docs index consistency under `docs/src/`.
+
+## 7) Mainnet-ready baseline command set
+
+Use this compact command set before candidate sign-off:
+
+```bash
+cargo fmt --all --check
+cargo check --workspace --exclude aoxchub
+cargo test -p aoxcsdk --lib
+cargo test -p aoxcmd --lib
+cargo test --workspace --exclude aoxchub --all-targets
+```
+
+If CI/runtime shows sporadic env-sensitive behavior, add serialized execution:
+
+```bash
+cargo test --workspace --exclude aoxchub --all-targets -- --test-threads=1
+```
+
+## 8) Primary references
 
 - `README.md`
 - `crates/aoxcvm/README.md`

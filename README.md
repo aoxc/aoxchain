@@ -155,13 +155,36 @@ See also: `crates/aoxchub/README.md`.
 cargo fmt --all --check
 cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings
 cargo test --workspace --exclude aoxchub --all-targets
+# if a CI runner exhibits env-flaky behavior, serialize tests:
+cargo test --workspace --exclude aoxchub --all-targets -- --test-threads=1
 # desktop gate (needs system desktop deps):
 cargo check -p aoxchub --all-targets
 ```
 
 ---
 
-## 10) Documentation map
+## 10) Mainnet baseline acceptance gate (operator-friendly)
+
+Before a release candidate is tagged as mainnet-ready, run this minimum gate:
+
+```bash
+cargo fmt --all --check
+cargo check --workspace --exclude aoxchub
+cargo test -p aoxcsdk --lib
+cargo test -p aoxcmd --lib
+cargo test --workspace --exclude aoxchub --all-targets
+```
+
+Expected outcome:
+
+- all commands succeed,
+- no unresolved compile errors,
+- no failing workspace tests,
+- release evidence can be generated from the same commit SHA.
+
+---
+
+## 11) Documentation map
 
 - `READ.md` (root audit companion)
 - `docs/src/READ.md`
@@ -172,7 +195,7 @@ cargo check -p aoxchub --all-targets
 
 ---
 
-## 11) Known reality
+## 12) Known reality
 
 AOXC has strong architectural decomposition and broad documentation; however, production-hardening remains an ongoing effort in multi-host validation, sync/recovery proofs, and workspace-wide release evidence completeness.
 

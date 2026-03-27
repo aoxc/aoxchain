@@ -67,11 +67,7 @@ impl Default for ContractManifestBuilder {
             minimum_schema_version: 1,
             supported_schema_versions: vec![1],
             supported_runtime_families: Vec::new(),
-            supported_network_classes: vec![
-                NetworkClass::Mainnet,
-                NetworkClass::Testnet,
-                NetworkClass::Devnet,
-            ],
+            supported_network_classes: default_supported_network_classes(),
         }
     }
 }
@@ -241,16 +237,17 @@ impl ContractManifestBuilder {
         } else {
             self.supported_runtime_families
         };
+        let supported_network_classes = if self.supported_network_classes.is_empty() {
+            default_supported_network_classes()
+        } else {
+            self.supported_network_classes
+        };
 
         let compatibility = Compatibility::new(
             self.minimum_schema_version,
             self.supported_schema_versions,
-            vec![runtime_family_for_vm(&vm_target)],
-            vec![
-                NetworkClass::Mainnet,
-                NetworkClass::Testnet,
-                NetworkClass::Devnet,
-            ],
+            supported_runtime_families,
+            supported_network_classes,
             vec![],
             false,
         )?;
@@ -301,6 +298,14 @@ fn default_media_type_for_format(format: &ArtifactFormat) -> &'static str {
         ArtifactFormat::Archive => "application/vnd.aox.archive",
         ArtifactFormat::ManifestLinked => "application/json",
     }
+}
+
+fn default_supported_network_classes() -> Vec<NetworkClass> {
+    vec![
+        NetworkClass::Mainnet,
+        NetworkClass::Testnet,
+        NetworkClass::Devnet,
+    ]
 }
 
 fn artifact_format_for_vm(vm_target: &VmTarget) -> ArtifactFormat {
@@ -438,6 +443,41 @@ mod tests {
         assert_eq!(
             manifest.compatibility.supported_network_classes,
             vec![NetworkClass::Airgapped]
+        );
+    }
+
+    #[test]
+    fn empty_compatibility_overrides_fall_back_to_defaults() {
+        let manifest = ContractManifestBuilder::new()
+            .with_name("default-compat")
+            .with_package("aox.default")
+            .with_version("1.0.0")
+            .with_contract_version("1.0.0")
+            .with_vm_target(VmTarget::Wasm)
+            .with_artifact_digest(digest(
+                "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            ))
+            .with_artifact_location("ipfs://default/contract.wasm")
+            .with_supported_runtime_families(vec![])
+            .with_supported_network_classes(vec![])
+            .add_entrypoint(
+                Entrypoint::new("execute", VmTarget::Wasm, None, vec![])
+                    .expect("entrypoint should build"),
+            )
+            .build()
+            .expect("manifest should build");
+
+        assert_eq!(
+            manifest.compatibility.supported_runtime_families,
+            vec![RuntimeFamily::Wasm]
+        );
+        assert_eq!(
+            manifest.compatibility.supported_network_classes,
+            vec![
+                NetworkClass::Mainnet,
+                NetworkClass::Testnet,
+                NetworkClass::Devnet
+            ]
         );
     }
 }
