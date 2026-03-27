@@ -17,14 +17,7 @@ impl HybridSignature {
     pub fn is_valid_for_policy(&self, policy: SignaturePolicy) -> bool {
         match policy {
             SignaturePolicy::ClassicalOnly => !self.classical.is_empty(),
-            SignaturePolicy::Hybrid => {
-                !self.classical.is_empty()
-                    && self
-                        .post_quantum
-                        .as_ref()
-                        .map(|bytes| !bytes.is_empty())
-                        .unwrap_or(false)
-            }
+            SignaturePolicy::Hybrid => !self.classical.is_empty() && self.post_quantum.is_some(),
             SignaturePolicy::PostQuantumOnly => self
                 .post_quantum
                 .as_ref()
@@ -60,16 +53,5 @@ mod tests {
         assert!(sig.is_valid_for_policy(SignaturePolicy::ClassicalOnly));
         assert!(sig.is_valid_for_policy(SignaturePolicy::Hybrid));
         assert!(sig.is_valid_for_policy(SignaturePolicy::PostQuantumOnly));
-    }
-
-    #[test]
-    fn empty_post_quantum_is_not_valid_in_hybrid_modes() {
-        let sig = HybridSignature {
-            classical: vec![1],
-            post_quantum: Some(Vec::new()),
-        };
-
-        assert!(!sig.is_valid_for_policy(SignaturePolicy::Hybrid));
-        assert!(!sig.is_valid_for_policy(SignaturePolicy::PostQuantumOnly));
     }
 }

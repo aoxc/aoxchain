@@ -42,16 +42,6 @@ impl DeterministicScheduler {
             lane_order: lanes,
         }
     }
-
-    /// Buckets pre-sorted lane inputs into deterministic partitions.
-    pub fn partition_lane_items<T: Clone>(&self, items: &[T]) -> Vec<Vec<T>> {
-        let partition_count = self.max_partitions.min(items.len().max(1));
-        let mut partitions = vec![Vec::new(); partition_count];
-        for (idx, item) in items.iter().cloned().enumerate() {
-            partitions[idx % partition_count].push(item);
-        }
-        partitions
-    }
 }
 
 #[cfg(test)]
@@ -69,16 +59,5 @@ mod tests {
         let decision = scheduler.plan(&counts);
         assert_eq!(decision.lane_order, vec!["evm", "wasm"]);
         assert_eq!(decision.partition_count, 2);
-    }
-
-    #[test]
-    fn partition_is_stable_and_bounded() {
-        let scheduler = DeterministicScheduler::new(3);
-        let partitions = scheduler.partition_lane_items(&[1, 2, 3, 4, 5]);
-
-        assert_eq!(partitions.len(), 3);
-        assert_eq!(partitions[0], vec![1, 4]);
-        assert_eq!(partitions[1], vec![2, 5]);
-        assert_eq!(partitions[2], vec![3]);
     }
 }

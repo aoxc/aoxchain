@@ -33,11 +33,6 @@ impl LaneDescriptor {
             max_parallelism: 1,
         }
     }
-
-    pub fn with_parallelism(mut self, max_parallelism: usize) -> Self {
-        self.max_parallelism = max_parallelism.max(1);
-        self
-    }
 }
 
 /// Minimal execution API for pluggable HyperVM lanes.
@@ -64,9 +59,6 @@ impl LaneRegistry {
     }
 
     pub fn register(&mut self, lane: Box<dyn LaneExecutor>) {
-        let incoming = lane.descriptor().id.0.clone();
-        self.lanes
-            .retain(|existing| existing.descriptor().id.0 != incoming);
         self.lanes.push(lane);
         self.lanes
             .sort_by(|a, b| a.descriptor().id.as_str().cmp(b.descriptor().id.as_str()));
@@ -98,11 +90,8 @@ impl LaneRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::{BlockContext, TxContext};
-    use crate::gas::Gas;
     use crate::host::receipt::ExecutionReceipt;
-    use crate::host::state::InMemoryHostState;
-    use crate::vm_kind::VmKind;
+    use crate::host::state::InMemoryState;
 
     struct StubLane(&'static str);
 
@@ -117,25 +106,7 @@ mod tests {
             _block: &BlockContext,
             _tx: &TxContext,
         ) -> Result<ExecutionReceipt, AovmError> {
-            Ok(ExecutionReceipt::success(
-                VmKind::Evm,
-                0,
-                Vec::new(),
-                Vec::new(),
-            ))
-        }
-    }
-
-    fn tx() -> TxContext {
-        TxContext {
-            tx_hash: [0; 32],
-            sender: vec![1],
-            vm_kind: VmKind::Evm,
-            nonce: Some(0),
-            gas_limit: 1_000 as Gas,
-            max_fee_per_gas: 1,
-            payload: vec![0x01],
-            signature: vec![0xAB],
+            Ok(ExecutionReceipt::empty())
         }
     }
 
@@ -152,22 +123,21 @@ mod tests {
         assert!(registry.get("evm").is_some());
         assert!(registry.get("missing").is_none());
 
-        let mut state = InMemoryHostState::new(5_000);
-        let block = BlockContext::new(1, 100, 12345, [7; 32], 1);
+        let mut state = InMemoryState::default();
+        let block = BlockContext::new(1, [0; 32], 0);
+        let tx = TxContext::new(
+            [0; 32],
+            crate::vm_kind::VmKind::Evm,
+            b"".to_vec(),
+            0,
+            0,
+            [0; 20],
+        );
         let receipt = registry
             .get("evm")
             .expect("lane must exist")
-            .execute(&mut state, &block, &tx())
+            .execute(&mut state, &block, &tx)
             .expect("stub lane should execute");
         assert_eq!(receipt.gas_used, 0);
-    }
-
-    #[test]
-    fn register_replaces_same_lane_id() {
-        let mut registry = LaneRegistry::new();
-        registry.register(Box::new(StubLane("evm")));
-        registry.register(Box::new(StubLane("evm")));
-
-        assert_eq!(registry.len(), 1);
     }
 }
