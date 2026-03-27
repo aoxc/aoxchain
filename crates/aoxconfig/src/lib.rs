@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// This structure groups chain-level and contract-runtime controls under
 /// one typed surface so callers can load, validate and pass config as a
 /// single object.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AoxConfig {
     pub chain: ChainConfig,
     pub contracts: ContractsConfig,
@@ -37,15 +37,6 @@ impl AoxConfig {
             Ok(())
         } else {
             Err(errors)
-        }
-    }
-}
-
-impl Default for AoxConfig {
-    fn default() -> Self {
-        Self {
-            chain: ChainConfig::default(),
-            contracts: ContractsConfig::default(),
         }
     }
 }
