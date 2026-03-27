@@ -106,7 +106,14 @@ const AOXC_CLI_COMMANDS: [CommandSpec; 6] = [
 pub fn Home() -> Element {
     let chain = use_context::<Signal<GlobalChainState>>();
     let mut profile = use_signal(|| NetworkProfile::Mainnet);
-    let total_tps: f32 = chain.read().lanes.iter().map(|lane| lane.tps).sum();
+    let chain_snapshot = chain.read().clone();
+    let total_tps: f32 = chain_snapshot.lanes.iter().map(|lane| lane.tps).sum();
+    let offline_nodes = chain_snapshot
+        .nodes
+        .iter()
+        .filter(|node| !node.online)
+        .count();
+    let explorer_chain = chain_snapshot.clone();
     let telemetry = latest_snapshot();
 
     rsx! {
@@ -129,18 +136,18 @@ pub fn Home() -> Element {
             }
 
             div { class: "grid gap-4 md:grid-cols-2 xl:grid-cols-4",
-                MetricCard { title: "Current Block", value: format!("#{}", chain.read().height), hint: "L1 finalized".to_string() }
-                MetricCard { title: "Aggregate TPS", value: format!("{total_tps:.1}"), hint: "Cross-runtime".to_string() }
-                MetricCard { title: "Network Health", value: format!("{:.2}%", chain.read().network_health), hint: "Consensus signal".to_string() }
-                MetricCard { title: "RPC Endpoint", value: profile().rpc_endpoint().to_string(), hint: format!("{} profile", profile().title()) }
+                MetricCard { title: "Current Block".to_string(), value: format!("#{}", chain_snapshot.height), hint: "L1 finalized".to_string() }
+                MetricCard { title: "Aggregate TPS".to_string(), value: format!("{total_tps:.1}"), hint: "Cross-runtime".to_string() }
+                MetricCard { title: "Network Health".to_string(), value: format!("{:.2}%", chain_snapshot.network_health), hint: format!("{offline_nodes} offline / {} active", chain_snapshot.active_nodes) }
+                MetricCard { title: "RPC Endpoint".to_string(), value: profile().rpc_endpoint().to_string(), hint: format!("{} profile", profile().title()) }
             }
 
             CompatibilityPanel {}
             TelemetryPanel { telemetry_source: telemetry.source, telemetry_ok: telemetry.healthy }
             WalletPanel {}
-            ExplorerPanel { chain: chain.read().clone() }
-            CommandPanel { title: "Make Komutları", commands: MAKE_COMMANDS.to_vec() }
-            CommandPanel { title: "AOXC CLI Komutları", commands: AOXC_CLI_COMMANDS.to_vec() }
+            ExplorerPanel { chain: explorer_chain }
+            CommandPanel { title: "Make Komutları".to_string(), commands: MAKE_COMMANDS.to_vec() }
+            CommandPanel { title: "AOXC CLI Komutları".to_string(), commands: AOXC_CLI_COMMANDS.to_vec() }
         }
     }
 }
@@ -245,7 +252,7 @@ fn CompatibilityPanel() -> Element {
 }
 
 #[component]
-fn TelemetryPanel(telemetry_source: &'static str, telemetry_ok: bool) -> Element {
+fn TelemetryPanel(telemetry_source: String, telemetry_ok: bool) -> Element {
     let status = if telemetry_ok { "healthy" } else { "degraded" };
 
     rsx! {
@@ -303,7 +310,7 @@ fn ExplorerPanel(chain: GlobalChainState) -> Element {
 }
 
 #[component]
-fn CommandPanel(title: &'static str, commands: Vec<CommandSpec>) -> Element {
+fn CommandPanel(title: String, commands: Vec<CommandSpec>) -> Element {
     rsx! {
         GlassSurface { class: Some("p-5".to_string()),
             h3 { class: "text-lg font-semibold text-white", "{title}" }
@@ -330,7 +337,7 @@ fn CommandPanel(title: &'static str, commands: Vec<CommandSpec>) -> Element {
 }
 
 #[component]
-fn MetricCard(title: &'static str, value: String, hint: String) -> Element {
+fn MetricCard(title: String, value: String, hint: String) -> Element {
     rsx! {
         GlassSurface { class: Some("p-4".to_string()), intensity: Some("low"),
             p { class: "text-xs uppercase tracking-wide text-slate-400", "{title}" }
