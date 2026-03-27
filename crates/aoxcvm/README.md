@@ -33,6 +33,17 @@ Production use should remain aligned with controlled change management.
 - Record environment limitations when verification cannot be completed exactly as planned.
 - Treat incident response readiness as part of engineering quality, not a post-release activity.
 
+## WASM Engine Strategy (Advanced Recommendation)
+To move AOXCVM to a stronger production profile, use a staged WASM strategy:
+- **Primary recommendation:** `Wasmtime` in deterministic profile (fuel metering + epoch interruption + disabled non-deterministic host calls).
+- **Secondary option:** `WasmEdge` for high-throughput edge workloads where deterministic behavior is still enforced by policy wrappers.
+- **Research/experimental lane:** continue supporting a minimal internal deterministic executor for protocol tests and emergency fallback.
+
+Suggested rollout:
+1. keep strict module gate checks (`magic`, `version`, size limits),
+2. add deterministic gas/fuel accounting parity tests between engines,
+3. run cross-engine replay tests on the same block trace before enabling multi-engine production routing.
+
 ## Security Audit Log
 The following audit statements should be reviewed on each significant change.
 - Inputs are validated before they can influence durable or consensus-sensitive state.
