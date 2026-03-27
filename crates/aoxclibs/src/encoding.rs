@@ -13,7 +13,92 @@ pub fn encode_hex_lower(data: &[u8]) -> String {
 }
 
 pub fn decode_hex(data: &str) -> Result<Vec<u8>, LibError> {
-    hex::decode(data).map_err(|e| LibError::EncodingError(e.to_string()))
+    let normalized = normalize_hex_input(data)?;
+    hex::decode(normalized).map_err(|e| LibError::EncodingError(e.to_string()))
+}
+
+/// Decode hexadecimal text and enforce a maximum output byte length.
+pub fn decode_hex_with_max_len(data: &str, max_len: usize) -> Result<Vec<u8>, LibError> {
+    let bytes = decode_hex(data)?;
+    ensure_max_len(bytes.len(), max_len)?;
+    Ok(bytes)
+}
+
+#[must_use]
+pub fn encode_base64_standard(data: &[u8]) -> String {
+    general_purpose::STANDARD.encode(data)
+}
+
+#[must_use]
+pub fn encode_base64_urlsafe_no_pad(data: &[u8]) -> String {
+    general_purpose::URL_SAFE_NO_PAD.encode(data)
+}
+
+pub fn decode_base64_standard(data: &str) -> Result<Vec<u8>, LibError> {
+    general_purpose::STANDARD
+        .decode(data)
+        .map_err(|e| LibError::EncodingError(e.to_string()))
+}
+
+pub fn decode_base64_standard_with_max_len(
+    data: &str,
+    max_len: usize,
+) -> Result<Vec<u8>, LibError> {
+    let bytes = decode_base64_standard(data)?;
+    ensure_max_len(bytes.len(), max_len)?;
+    Ok(bytes)
+}
+
+pub fn decode_base64_urlsafe_no_pad(data: &str) -> Result<Vec<u8>, LibError> {
+    general_purpose::URL_SAFE_NO_PAD
+        .decode(data)
+        .map_err(|e| LibError::EncodingError(e.to_string()))
+}
+
+pub fn decode_base64_urlsafe_no_pad_with_max_len(
+    data: &str,
+    max_len: usize,
+) -> Result<Vec<u8>, LibError> {
+    let bytes = decode_base64_urlsafe_no_pad(data)?;
+    ensure_max_len(bytes.len(), max_len)?;
+    Ok(bytes)
+}
+
+fn normalize_hex_input(input: &str) -> Result<&str, LibError> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Err(LibError::ValidationError(
+            "hex input cannot be empty".to_owned(),
+        ));
+    }
+
+    let normalized = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+        .unwrap_or(trimmed);
+
+    if normalized.is_empty() {
+        return Err(LibError::ValidationError(
+            "hex input cannot be only prefix".to_owned(),
+        ));
+    }
+
+    if normalized.len() % 2 != 0 {
+        return Err(LibError::ValidationError(
+            "hex input must have even length".to_owned(),
+        ));
+    }
+
+    Ok(normalized)
+}
+
+fn ensure_max_len(actual_len: usize, max_len: usize) -> Result<(), LibError> {
+    if actual_len > max_len {
+        return Err(LibError::ValidationError(format!(
+            "decoded length {actual_len} exceeds maximum {max_len}",
+        )));
+    }
+    Ok(())
 }
 
 #[must_use]
