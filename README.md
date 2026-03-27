@@ -81,7 +81,7 @@ The `v0.1.1-akdeniz` line should mean:
 This repository already contains the foundation for that through:
 
 - release/readiness planning in `docs/src/`,
-- deterministic testnet fixtures in `configs/deterministic-testnet/`,
+- deterministic environment bundles in `configs/environments/`,
 - operator scripts in `scripts/`,
 - integration coverage in `tests/`.
 
@@ -147,8 +147,9 @@ If the exact CLI surface changes, the canonical source of truth is `crates/aoxcm
 
 Useful entry points:
 
-- `configs/deterministic-testnet/`
-- `configs/deterministic-testnet/launch-testnet.sh`
+- `configs/environments/localnet/`
+- `configs/environments/testnet/`
+- `configs/environments/localnet/launch-localnet.sh`
 - `scripts/run-local.sh`
 - `scripts/validation/multi_host_validation.sh`
 
@@ -181,8 +182,10 @@ Recommended minimum release gates:
 
 ```bash
 cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test
+cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings
+cargo test --workspace --exclude aoxchub --all-targets
+# desktop surface (requires Linux desktop system dependencies):
+cargo check -p aoxchub --all-targets
 ```
 
 For this change set, the focused verification path remained:

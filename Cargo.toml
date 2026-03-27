@@ -55,10 +55,11 @@ pqcrypto-traits = "0.3.5"
 [workspace.metadata.ci]
 required_checks = [
     "cargo fmt --all --check",
-    "cargo clippy --workspace --all-targets --all-features -- -D warnings",
-    "cargo test",
+    "cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings",
+    "cargo test --workspace --exclude aoxchub --all-targets",
+    "cargo check -p aoxchub --all-targets",
 ]
-policy = "Formatting, clippy, and full test-suite checks are mandatory for merge and release branches."
+policy = "Formatting, core workspace clippy/tests, and an explicit desktop surface check are mandatory for merge and release branches."
 
 [workspace.metadata.quality_focus]
 aoxcore = "Increase property-based test coverage for identity and genesis models."
