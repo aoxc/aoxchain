@@ -26,6 +26,7 @@ This document defines the mandatory roadmap for advancing the covered workspace 
 
 ## Change Ledger
 - `aoxc.v.0.1.1-akdeniz`: initialized audit roadmap, introduced strict Akdeniz release baseline, and reserved this folder for continuous release tracking.
+- `aoxc.v.0.1.1-akdeniz`: harden encoding/time utility surfaces with bounded decode helpers, stronger validation errors, reverse timestamp conversion APIs, and expanded deterministic test coverage.
 - Future entries must describe the exact implementation delta, affected artifacts, and verification evidence added in that version.
 
 ## Mandatory Update Rule
