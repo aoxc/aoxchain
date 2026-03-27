@@ -102,7 +102,8 @@ a {
 }
 
 .grid-section h2,
-.echo-box h2 {
+.echo-box h2,
+.ops-console h2 {
     margin: 0 0 10px;
     font-size: clamp(1rem, 1.5vw, 1.4rem);
 }
@@ -163,6 +164,210 @@ a {
     background: var(--panel);
     display: grid;
     gap: 10px;
+}
+
+.ops-console {
+    margin-top: 22px;
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    padding: 16px;
+    background: var(--panel);
+    display: grid;
+    gap: 12px;
+}
+
+.pro-control {
+    margin-top: 22px;
+    border: 1px solid #355385;
+    border-radius: 16px;
+    padding: 16px;
+    background: linear-gradient(155deg, rgba(22, 45, 86, 0.45), rgba(16, 24, 42, 0.95));
+    display: grid;
+    gap: 12px;
+}
+
+.pro-control h2 {
+    margin: 0;
+}
+
+.pro-control p {
+    margin: 0;
+    color: #c7d8fb;
+}
+
+.big-network-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.net-btn {
+    border: 1px solid #3a5686;
+    background: #10203c;
+    color: #d7e6ff;
+    border-radius: 12px;
+    padding: 14px 10px;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+}
+
+.net-btn.active {
+    background: #1f4a8c;
+    border-color: #6aa1ff;
+    color: #ffffff;
+}
+
+.pro-step-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.pro-plan-output {
+    margin: 0;
+    border-radius: 10px;
+    border: 1px solid #375782;
+    background: rgba(10, 18, 35, 0.9);
+    padding: 12px;
+    color: #d0e2ff;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.86rem;
+}
+
+.ops-console p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.ops-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.ops-field {
+    display: grid;
+    gap: 8px;
+}
+
+.ops-field span {
+    font-size: 0.9rem;
+    color: #d2def9;
+}
+
+.ops-field select,
+.ops-field textarea,
+.ops-field input {
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    background: #0c1322;
+    color: var(--text);
+    padding: 10px 12px;
+    font-family: inherit;
+}
+
+.quick-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+}
+
+.quick-action-btn {
+    text-align: left;
+    border: 1px solid #274268;
+    background: rgba(23, 51, 95, 0.5);
+    border-radius: 10px;
+    color: var(--text);
+    padding: 10px;
+    cursor: pointer;
+}
+
+.quick-action-btn h3 {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+}
+
+.quick-action-btn p {
+    margin: 0;
+    font-size: 0.84rem;
+    color: #bed2fb;
+}
+
+.run-op-btn {
+    cursor: pointer;
+    max-width: 320px;
+    border-radius: 10px;
+    border: 1px solid #2d4f86;
+    padding: 10px 12px;
+    color: var(--text);
+    background: #17335f;
+}
+
+.history-box {
+    border: 1px dashed #2b4670;
+    border-radius: 10px;
+    padding: 12px;
+    background: rgba(7, 14, 26, 0.8);
+}
+
+.history-box h3 {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+}
+
+.history-box ul {
+    margin: 0;
+    padding-left: 16px;
+    display: grid;
+    gap: 6px;
+    color: #d7e4ff;
+    font-size: 0.86rem;
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.history-table th,
+.history-table td {
+    border-bottom: 1px solid #273a5a;
+    text-align: left;
+    padding: 8px 6px;
+    vertical-align: top;
+}
+
+.history-table th {
+    color: #9db4e0;
+    font-weight: 600;
+}
+
+.history-table td {
+    color: #d7e4ff;
+}
+
+.cell-ok {
+    color: #75e6b2 !important;
+    font-weight: 700;
+}
+
+.cell-error {
+    color: #ff8f8f !important;
+    font-weight: 700;
+}
+
+.error-banner {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #823d4b;
+    background: rgba(72, 24, 38, 0.6);
+    color: #ffc3ce;
+    font-weight: 600;
 }
 
 .echo-box p {
@@ -237,9 +442,24 @@ a {
     }
 
     .echo-box input,
-    .echo-box button {
+    .echo-box button,
+    .run-op-btn {
         max-width: none;
         width: 100%;
+    }
+
+    .ops-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .big-network-buttons {
+        grid-template-columns: 1fr;
+    }
+
+    .history-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
     }
 
     .pager {

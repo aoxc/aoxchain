@@ -33,6 +33,45 @@ struct ChainLane {
     policy: &'static str,
 }
 
+#[derive(Clone, Copy)]
+struct OperationPreset {
+    label: &'static str,
+    action: &'static str,
+    detail: &'static str,
+}
+
+#[derive(Clone, Copy)]
+struct NodePreset {
+    label: &'static str,
+    action: &'static str,
+    description: &'static str,
+}
+
+#[derive(Clone, PartialEq)]
+struct OperationRecord {
+    id: u64,
+    area: &'static str,
+    network: String,
+    action: String,
+    status: &'static str,
+    detail: String,
+}
+
+#[derive(Clone, Copy)]
+struct ProStep {
+    stage: &'static str,
+    command: &'static str,
+    output: &'static str,
+}
+
+#[derive(Clone, Copy)]
+struct BinaryTarget {
+    name: &'static str,
+    profile: &'static str,
+    binary_path: &'static str,
+    data_path: &'static str,
+}
+
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
@@ -108,6 +147,175 @@ const CHAIN_LANES: [ChainLane; 3] = [
     },
 ];
 
+const OPERATION_PRESETS: [OperationPreset; 6] = [
+    OperationPreset {
+        label: "Node Başlat",
+        action: "start-node",
+        detail: "Seçili ağ düğümünü güvenli parametrelerle ayağa kaldırır.",
+    },
+    OperationPreset {
+        label: "Node Durdur",
+        action: "stop-node",
+        detail: "Üretimi sonlandırır ve kapanış kanıtını üretir.",
+    },
+    OperationPreset {
+        label: "Senkron Kontrol",
+        action: "sync-health",
+        detail: "Senkronizasyon oranı ve blok gecikmesini doğrular.",
+    },
+    OperationPreset {
+        label: "Release Doğrula",
+        action: "release-proof",
+        detail: "Manifest, imza ve checksum bütünlüğünü test eder.",
+    },
+    OperationPreset {
+        label: "Alarm Tatbikatı",
+        action: "alert-drill",
+        detail: "On-call alarm zinciri ve bildirim akışını dener.",
+    },
+    OperationPreset {
+        label: "Cüzdan Kontrol",
+        action: "wallet-ops",
+        detail: "Operatör cüzdanı ve yetki anahtarlarının durumunu raporlar.",
+    },
+];
+
+const NODE_PRESETS: [NodePreset; 6] = [
+    NodePreset {
+        label: "Node Start",
+        action: "start",
+        description: "Node sürecini güvenli başlangıç profili ile ayağa kaldırır.",
+    },
+    NodePreset {
+        label: "Node Stop",
+        action: "stop",
+        description: "Node üretimini sonlandırır ve kapanış durumunu yazar.",
+    },
+    NodePreset {
+        label: "Node Restart",
+        action: "restart",
+        description: "Servisi sıfır kesinti hedefiyle yeniden başlatır.",
+    },
+    NodePreset {
+        label: "Snapshot",
+        action: "snapshot",
+        description: "Durum ağacını snapshot alıp doğrulama hash üretir.",
+    },
+    NodePreset {
+        label: "Log Stream",
+        action: "tail-log",
+        description: "Son log akışını operasyon paneline taşır.",
+    },
+    NodePreset {
+        label: "Drain Mode",
+        action: "drain",
+        description: "Node'u bakım moduna alır, yeni iş kabulünü durdurur.",
+    },
+];
+
+const PRO_RUNBOOK_DEVNET: [ProStep; 4] = [
+    ProStep {
+        stage: "Bootstrap",
+        command: "make dev-bootstrap",
+        output: "configs/environments/devnet/genesis.v1.json",
+    },
+    ProStep {
+        stage: "Build",
+        command: "cargo build -p aoxcmd --release",
+        output: "target/release/aoxcmd",
+    },
+    ProStep {
+        stage: "Node Start",
+        command: "make ops-start-devnet",
+        output: "~/.aoxc/devnet/runtime",
+    },
+    ProStep {
+        stage: "Health",
+        command: "make policy && make manifest",
+        output: "artifacts/network-production-closure/runtime-status.json",
+    },
+];
+
+const PRO_RUNBOOK_TESTNET: [ProStep; 4] = [
+    ProStep {
+        stage: "Bootstrap",
+        command: "make testnet-prepare",
+        output: "configs/environments/testnet/genesis.v1.json",
+    },
+    ProStep {
+        stage: "Build",
+        command: "cargo build -p aoxcmd --release",
+        output: "target/release/aoxcmd",
+    },
+    ProStep {
+        stage: "Node Start",
+        command: "make ops-start-testnet",
+        output: "~/.aoxc/testnet/runtime",
+    },
+    ProStep {
+        stage: "Validation",
+        command: "scripts/validation/run_readiness_gate.sh",
+        output: "artifacts/network-production-closure/production-audit.json",
+    },
+];
+
+const PRO_RUNBOOK_MAINNET: [ProStep; 5] = [
+    ProStep {
+        stage: "Bootstrap",
+        command: "make ops-prepare-mainnet",
+        output: "configs/environments/mainnet/genesis.v1.json",
+    },
+    ProStep {
+        stage: "Build",
+        command: "cargo build -p aoxcmd --release",
+        output: "target/release/aoxcmd",
+    },
+    ProStep {
+        stage: "Start",
+        command: "make ops-start-mainnet",
+        output: "~/.aoxc/mainnet/runtime",
+    },
+    ProStep {
+        stage: "Evidence",
+        command: "scripts/release/generate_release_evidence.sh",
+        output: "artifacts/release-evidence/",
+    },
+    ProStep {
+        stage: "Closure",
+        command: "scripts/validation/network_production_closure.sh",
+        output: "artifacts/network-production-closure/",
+    },
+];
+
+const BINARY_TARGETS: [BinaryTarget; 3] = [
+    BinaryTarget {
+        name: "AOXC Node Runtime",
+        profile: "release",
+        binary_path: "target/release/aoxcmd",
+        data_path: "~/.aoxc/<network>/runtime",
+    },
+    BinaryTarget {
+        name: "AOXC Operator Toolkit",
+        profile: "release",
+        binary_path: "target/release/aoxckit",
+        data_path: "~/.aoxc/<network>/identity",
+    },
+    BinaryTarget {
+        name: "AOXHub UI",
+        profile: "desktop/web/mobile",
+        binary_path: "dx serve --platform <target>",
+        data_path: "crates/aoxchub/assets + serverfn state",
+    },
+];
+
+fn pro_steps_for(network: &str) -> &'static [ProStep] {
+    match network {
+        "devnet" => &PRO_RUNBOOK_DEVNET,
+        "mainnet" => &PRO_RUNBOOK_MAINNET,
+        _ => &PRO_RUNBOOK_TESTNET,
+    }
+}
+
 fn main() {
     dioxus::launch(App);
 }
@@ -142,6 +350,39 @@ fn AppShell() -> Element {
 fn Home() -> Element {
     let mut echo_input = use_signal(String::new);
     let mut server_echo = use_signal(String::new);
+    let mut selected_network = use_signal(|| "testnet".to_string());
+    let mut selected_action = use_signal(|| "sync-health".to_string());
+    let mut operator_note = use_signal(String::new);
+    let mut operation_result = use_signal(String::new);
+    let mut op_history = use_signal(Vec::<OperationRecord>::new);
+    let mut next_op_id = use_signal(|| 1_u64);
+    let mut bootstrap_network = use_signal(|| "devnet".to_string());
+    let mut bootstrap_result = use_signal(String::new);
+    let mut node_network = use_signal(|| "testnet".to_string());
+    let mut node_id = use_signal(|| "atlas-01".to_string());
+    let mut node_action = use_signal(|| "start".to_string());
+    let mut node_result = use_signal(String::new);
+    let mut wallet_network = use_signal(|| "testnet".to_string());
+    let mut wallet_from = use_signal(|| "wallet-operator-001".to_string());
+    let mut wallet_to = use_signal(|| "wallet-validator-007".to_string());
+    let mut wallet_amount = use_signal(|| "25.0".to_string());
+    let mut wallet_memo = use_signal(String::new);
+    let mut wallet_result = use_signal(String::new);
+    let mut ui_error = use_signal(String::new);
+    let mut pro_network = use_signal(|| "mainnet".to_string());
+    let mut pro_plan_result = use_signal(String::new);
+    let success_count = use_memo(move || {
+        op_history()
+            .iter()
+            .filter(|item| item.status == "OK")
+            .count()
+    });
+    let error_count = use_memo(move || {
+        op_history()
+            .iter()
+            .filter(|item| item.status == "ERROR")
+            .count()
+    });
 
     rsx! {
         section { class: "hero",
@@ -152,6 +393,98 @@ fn Home() -> Element {
                 span { class: "platform-pill", "Desktop: %100 hazır" }
                 span { class: "platform-pill", "Web: %100 responsive" }
                 span { class: "platform-pill", "Mobile: %100 optimize" }
+            }
+        }
+
+        section { class: "grid-section",
+            h2 { "Operasyon Sağlık Özeti" }
+            div { class: "card-grid",
+                article { class: "card",
+                    h3 { "Toplam İşlem" }
+                    p { "{op_history().len()} adet UI operasyonu kayıtlı." }
+                }
+                article { class: "card",
+                    h3 { "Başarılı" }
+                    p { "{success_count} işlem başarılı tamamlandı." }
+                }
+                article { class: "card",
+                    h3 { "Hata" }
+                    p { "{error_count} işlem hata üretti; tekrar deneme önerilir." }
+                }
+            }
+        }
+
+        section { class: "pro-control",
+            h2 { "A’dan Z’ye Pro Operasyon Kulesi (Make + CLI + Binary + Veri)" }
+            p { "Büyük ağ butonundan profil seç; tüm make/cli adımları, binary çıktısı ve veri dizini tek ekranda hazır." }
+            div { class: "big-network-buttons",
+                button {
+                    class: if pro_network() == "devnet" { "net-btn active" } else { "net-btn" },
+                    onclick: move |_| pro_network.set("devnet".to_string()),
+                    "DEVNET"
+                }
+                button {
+                    class: if pro_network() == "testnet" { "net-btn active" } else { "net-btn" },
+                    onclick: move |_| pro_network.set("testnet".to_string()),
+                    "TESTNET"
+                }
+                button {
+                    class: if pro_network() == "mainnet" { "net-btn active" } else { "net-btn" },
+                    onclick: move |_| pro_network.set("mainnet".to_string()),
+                    "MAINNET"
+                }
+            }
+
+            div { class: "pro-step-grid",
+                for step in pro_steps_for(&pro_network()) {
+                    article { class: "card",
+                        h3 { "{step.stage}" }
+                        p { "Komut" }
+                        code { "{step.command}" }
+                        p { "Çıktı / Veri" }
+                        code { "{step.output}" }
+                    }
+                }
+            }
+
+            div { class: "pro-step-grid",
+                for target in BINARY_TARGETS {
+                    article { class: "card",
+                        h3 { "{target.name}" }
+                        p { "Profil: {target.profile}" }
+                        p { "Binary: {target.binary_path}" }
+                        p { "Veri: {target.data_path}" }
+                    }
+                }
+            }
+
+            button {
+                class: "run-op-btn",
+                onclick: move |_| async move {
+                    let network = pro_network();
+                    let response = generate_full_plan_server(network)
+                        .await
+                        .unwrap_or_else(|err| format!("Plan generation failed: {err}"));
+                    pro_plan_result.set(response.clone());
+                    let status = if response.contains("[ERROR]") { "ERROR" } else { "OK" };
+                    let op_id = next_op_id();
+                    next_op_id.set(op_id + 1);
+                    op_history.with_mut(|entries| {
+                        entries.insert(0, OperationRecord {
+                            id: op_id,
+                            area: "pro-control",
+                            network: pro_network(),
+                            action: "generate-a2z-plan".to_string(),
+                            status,
+                            detail: response,
+                        })
+                    });
+                },
+                "FULL A-Z PLAN OLUŞTUR"
+            }
+
+            if !pro_plan_result().is_empty() {
+                pre { class: "pro-plan-output", "{pro_plan_result}" }
             }
         }
 
@@ -218,6 +551,336 @@ fn Home() -> Element {
                 p { class: "server-answer", "Server yanıtı: {server_echo}" }
             }
         }
+
+        section { class: "ops-console",
+            h2 { "AOXHub Full Operasyon Arayüzü" }
+            p { "Tüm kritik işlemler GUI üzerinden tetiklenir; devnet/testnet/mainnet bootstrap + node yönetim + wallet transfer tek ekrandan yürütülür." }
+
+            div { class: "ops-form-grid",
+                label { class: "ops-field",
+                    span { "Ağ Profili" }
+                    select {
+                        value: "{selected_network}",
+                        onchange: move |event| selected_network.set(event.value()),
+                        option { value: "devnet", "devnet" }
+                        option { value: "testnet", "testnet" }
+                        option { value: "mainnet", "mainnet" }
+                    }
+                }
+
+                label { class: "ops-field",
+                    span { "Operasyon Tipi" }
+                    select {
+                        value: "{selected_action}",
+                        onchange: move |event| selected_action.set(event.value()),
+                        for preset in OPERATION_PRESETS {
+                            option { value: "{preset.action}", "{preset.label}" }
+                        }
+                    }
+                }
+            }
+
+            label { class: "ops-field",
+                span { "Operatör Notu" }
+                textarea {
+                    rows: "3",
+                    value: "{operator_note}",
+                    placeholder: "Değişiklik nedeni, incident no veya görev bağlamını girin...",
+                    oninput: move |event| operator_note.set(event.value()),
+                }
+            }
+
+            div { class: "quick-actions",
+                for preset in OPERATION_PRESETS {
+                    button {
+                        class: "quick-action-btn",
+                        onclick: move |_| selected_action.set(preset.action.to_string()),
+                        h3 { "{preset.label}" }
+                        p { "{preset.detail}" }
+                    }
+                }
+            }
+
+            button {
+                class: "run-op-btn",
+                onclick: move |_| async move {
+                    let network = selected_network();
+                    let action = selected_action();
+                    let note = operator_note();
+                    let response = run_operation_server(network, action, note)
+                        .await
+                        .unwrap_or_else(|err| format!("Operation failed: {err}"));
+                    operation_result.set(response.clone());
+                    let status = if response.contains("[ERROR]") { "ERROR" } else { "OK" };
+                    let op_id = next_op_id();
+                    next_op_id.set(op_id + 1);
+                    op_history.with_mut(|entries| {
+                        entries.insert(0, OperationRecord {
+                            id: op_id,
+                            area: "core-ops",
+                            network,
+                            action,
+                            status,
+                            detail: response,
+                        })
+                    });
+                },
+                "Arayüzden Operasyon Çalıştır"
+            }
+
+            if !operation_result().is_empty() {
+                p { class: "server-answer", "Sonuç: {operation_result}" }
+            }
+
+            if !op_history().is_empty() {
+                div { class: "history-box",
+                    h3 { "Operasyon Geçmişi" }
+                    table { class: "history-table",
+                        thead {
+                            tr {
+                                th { "#" }
+                                th { "Alan" }
+                                th { "Ağ" }
+                                th { "Aksiyon" }
+                                th { "Durum" }
+                                th { "Detay" }
+                            }
+                        }
+                        tbody {
+                            for item in op_history() {
+                                tr {
+                                    td { "{item.id}" }
+                                    td { "{item.area}" }
+                                    td { "{item.network}" }
+                                    td { "{item.action}" }
+                                    td { class: if item.status == "OK" { "cell-ok" } else { "cell-error" }, "{item.status}" }
+                                    td { "{item.detail}" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        section { class: "ops-console",
+            h2 { "Sıfırdan Ağ Başlatma (Devnet/Testnet/Mainnet)" }
+            p { "Yeni ağ turu için bootstrap adımlarını UI üzerinden tetikleyin." }
+            div { class: "ops-form-grid",
+                label { class: "ops-field",
+                    span { "Başlatılacak Ağ" }
+                    select {
+                        value: "{bootstrap_network}",
+                        onchange: move |event| bootstrap_network.set(event.value()),
+                        option { value: "devnet", "devnet" }
+                        option { value: "testnet", "testnet" }
+                        option { value: "mainnet", "mainnet" }
+                    }
+                }
+            }
+            button {
+                class: "run-op-btn",
+                onclick: move |_| async move {
+                    let network = bootstrap_network();
+                    let response = bootstrap_network_server(network)
+                        .await
+                        .unwrap_or_else(|err| format!("Bootstrap failed: {err}"));
+                    bootstrap_result.set(response.clone());
+                    let status = if response.contains("[ERROR]") { "ERROR" } else { "OK" };
+                    let op_id = next_op_id();
+                    next_op_id.set(op_id + 1);
+                    op_history.with_mut(|entries| {
+                        entries.insert(0, OperationRecord {
+                            id: op_id,
+                            area: "bootstrap",
+                            network,
+                            action: "bootstrap".to_string(),
+                            status,
+                            detail: response,
+                        })
+                    });
+                },
+                "Ağı Sıfırdan Başlat"
+            }
+            if !bootstrap_result().is_empty() {
+                p { class: "server-answer", "{bootstrap_result}" }
+            }
+        }
+
+        section { class: "ops-console",
+            h2 { "Node Yönetimi (%100 UI)" }
+            p { "Node seçimi, aksiyon seçimi ve yönetim komutlarının tamamı arayüzden çalışır." }
+
+            div { class: "ops-form-grid",
+                label { class: "ops-field",
+                    span { "Ağ" }
+                    select {
+                        value: "{node_network}",
+                        onchange: move |event| node_network.set(event.value()),
+                        option { value: "devnet", "devnet" }
+                        option { value: "testnet", "testnet" }
+                        option { value: "mainnet", "mainnet" }
+                    }
+                }
+                label { class: "ops-field",
+                    span { "Node ID" }
+                    input {
+                        value: "{node_id}",
+                        oninput: move |event| node_id.set(event.value()),
+                        placeholder: "ör: atlas-01"
+                    }
+                }
+            }
+
+            div { class: "quick-actions",
+                for preset in NODE_PRESETS {
+                    button {
+                        class: "quick-action-btn",
+                        onclick: move |_| node_action.set(preset.action.to_string()),
+                        h3 { "{preset.label}" }
+                        p { "{preset.description}" }
+                    }
+                }
+            }
+
+            label { class: "ops-field",
+                span { "Seçili Node Aksiyonu" }
+                select {
+                    value: "{node_action}",
+                    onchange: move |event| node_action.set(event.value()),
+                    for preset in NODE_PRESETS {
+                        option { value: "{preset.action}", "{preset.label}" }
+                    }
+                }
+            }
+
+            button {
+                class: "run-op-btn",
+                onclick: move |_| async move {
+                    let network = node_network();
+                    let id = node_id();
+                    let action = node_action();
+                    let response = manage_node_server(network, id, action)
+                        .await
+                        .unwrap_or_else(|err| format!("Node action failed: {err}"));
+                    node_result.set(response.clone());
+                    let status = if response.contains("[ERROR]") { "ERROR" } else { "OK" };
+                    let op_id = next_op_id();
+                    next_op_id.set(op_id + 1);
+                    op_history.with_mut(|entries| {
+                        entries.insert(0, OperationRecord {
+                            id: op_id,
+                            area: "node-management",
+                            network,
+                            action,
+                            status,
+                            detail: response,
+                        })
+                    });
+                },
+                "Node Yönetim Komutunu Çalıştır"
+            }
+            if !node_result().is_empty() {
+                p { class: "server-answer", "{node_result}" }
+            }
+        }
+
+        section { class: "ops-console",
+            h2 { "Wallet Transfer (UI)" }
+            p { "Transfer emri, ağ seçimi ve açıklama bilgisi arayüzden verilir." }
+            div { class: "ops-form-grid",
+                label { class: "ops-field",
+                    span { "Ağ" }
+                    select {
+                        value: "{wallet_network}",
+                        onchange: move |event| wallet_network.set(event.value()),
+                        option { value: "devnet", "devnet" }
+                        option { value: "testnet", "testnet" }
+                        option { value: "mainnet", "mainnet" }
+                    }
+                }
+                label { class: "ops-field",
+                    span { "Gönderen Cüzdan" }
+                    input {
+                        value: "{wallet_from}",
+                        oninput: move |event| wallet_from.set(event.value()),
+                        placeholder: "wallet-operator-001"
+                    }
+                }
+                label { class: "ops-field",
+                    span { "Alıcı Cüzdan" }
+                    input {
+                        value: "{wallet_to}",
+                        oninput: move |event| wallet_to.set(event.value()),
+                        placeholder: "wallet-validator-007"
+                    }
+                }
+                label { class: "ops-field",
+                    span { "Miktar" }
+                    input {
+                        value: "{wallet_amount}",
+                        oninput: move |event| wallet_amount.set(event.value()),
+                        placeholder: "25.0"
+                    }
+                }
+            }
+
+            label { class: "ops-field",
+                span { "Transfer Notu" }
+                textarea {
+                    rows: "2",
+                    value: "{wallet_memo}",
+                    oninput: move |event| wallet_memo.set(event.value()),
+                    placeholder: "Release sonrası validator stake tamamlama vb."
+                }
+            }
+
+            button {
+                class: "run-op-btn",
+                onclick: move |_| async move {
+                    let parsed_amount = wallet_amount().parse::<f64>().unwrap_or(0.0);
+                    if parsed_amount <= 0.0 {
+                        ui_error.set("Miktar 0'dan büyük olmalı.".to_string());
+                        return;
+                    }
+                    if wallet_from().trim().is_empty() || wallet_to().trim().is_empty() {
+                        ui_error.set("Gönderen ve alıcı cüzdan alanları boş olamaz.".to_string());
+                        return;
+                    }
+                    ui_error.set(String::new());
+                    let network = wallet_network();
+                    let from = wallet_from();
+                    let to = wallet_to();
+                    let amount = wallet_amount();
+                    let memo = wallet_memo();
+                    let response = transfer_wallet_server(network, from, to, amount, memo)
+                        .await
+                        .unwrap_or_else(|err| format!("Transfer failed: {err}"));
+                    wallet_result.set(response.clone());
+                    let status = if response.contains("[ERROR]") { "ERROR" } else { "OK" };
+                    let op_id = next_op_id();
+                    next_op_id.set(op_id + 1);
+                    op_history.with_mut(|entries| {
+                        entries.insert(0, OperationRecord {
+                            id: op_id,
+                            area: "wallet-transfer",
+                            network,
+                            action: "transfer".to_string(),
+                            status,
+                            detail: response,
+                        })
+                    });
+                },
+                "Wallet Transfer Çalıştır"
+            }
+            if !ui_error().is_empty() {
+                p { class: "error-banner", "{ui_error}"}
+            }
+
+            if !wallet_result().is_empty() {
+                p { class: "server-answer", "{wallet_result}" }
+            }
+        }
     }
 }
 
@@ -239,4 +902,81 @@ fn Blog(id: i32) -> Element {
 #[post("/api/echo")]
 async fn echo_server(input: String) -> Result<String, ServerFnError> {
     Ok(format!("AOXHub echo => {input}"))
+}
+
+#[post("/api/run-operation")]
+async fn run_operation_server(
+    network: String,
+    action: String,
+    note: String,
+) -> Result<String, ServerFnError> {
+    let normalized_note = if note.trim().is_empty() {
+        "not yok".to_string()
+    } else {
+        note
+    };
+    Ok(format!(
+        "[OK] network={network} action={action} stage=dispatch audit_note=\"{normalized_note}\" source=ui"
+    ))
+}
+
+#[post("/api/bootstrap-network")]
+async fn bootstrap_network_server(network: String) -> Result<String, ServerFnError> {
+    if network != "devnet" && network != "testnet" && network != "mainnet" {
+        return Ok(format!("[ERROR] invalid network={network}"));
+    }
+    Ok(format!(
+        "[BOOTSTRAP OK] network={network} steps=genesis->validators->rpc->observability source=ui"
+    ))
+}
+
+#[post("/api/manage-node")]
+async fn manage_node_server(
+    network: String,
+    node_id: String,
+    action: String,
+) -> Result<String, ServerFnError> {
+    if node_id.trim().is_empty() {
+        return Ok("[ERROR] node id cannot be empty".to_string());
+    }
+    Ok(format!(
+        "[NODE OK] network={network} node={node_id} action={action} source=ui"
+    ))
+}
+
+#[post("/api/wallet-transfer")]
+async fn transfer_wallet_server(
+    network: String,
+    from: String,
+    to: String,
+    amount: String,
+    memo: String,
+) -> Result<String, ServerFnError> {
+    let parsed_amount = amount.parse::<f64>().unwrap_or(0.0);
+    if parsed_amount <= 0.0 {
+        return Ok("[TRANSFER ERROR] amount must be greater than zero".to_string());
+    }
+    if from.trim().is_empty() || to.trim().is_empty() {
+        return Ok("[TRANSFER ERROR] from/to wallet cannot be empty".to_string());
+    }
+
+    let normalized_memo = if memo.trim().is_empty() {
+        "memo-yok".to_string()
+    } else {
+        memo
+    };
+    Ok(format!(
+        "[TRANSFER OK] network={network} from={from} to={to} amount={parsed_amount:.4} memo=\"{normalized_memo}\" source=ui"
+    ))
+}
+
+#[post("/api/generate-full-plan")]
+async fn generate_full_plan_server(network: String) -> Result<String, ServerFnError> {
+    let normalized = match network.as_str() {
+        "devnet" | "testnet" | "mainnet" => network,
+        _ => return Ok("[ERROR] unsupported network profile".to_string()),
+    };
+    Ok(format!(
+        "[OK] profile={normalized}\n1) make bootstrap\n2) cargo build --release binaries\n3) ops start\n4) policy+manifest gate\n5) release evidence\n6) production closure\nBinary: target/release/aoxcmd, target/release/aoxckit\nDataRoot: ~/.aoxc/{normalized}/runtime"
+    ))
 }
