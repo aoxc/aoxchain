@@ -164,6 +164,10 @@ fn Home() -> Element {
                     }
                 }
             }
+            FooterPanel {}
+        }
+    }
+}
 
             section { class: "glass content",
                 header { class: "content-head",
@@ -210,6 +214,8 @@ fn Home() -> Element {
                             oninput: move |event| note.set(event.value()),
                         }
                     }
+                }
+            }
 
                     button {
                         class: "primary-btn",
@@ -276,6 +282,26 @@ fn Home() -> Element {
                     h4 { "Platform" }
                     p { "Responsive: desktop, tablet, mobil web." }
                 }
+            }
+        }
+    }
+}
+
+#[component]
+fn FooterPanel() -> Element {
+    rsx! {
+        footer { class: "glass footer",
+            div { class: "footer-col",
+                h4 { "Ağ Uyum" }
+                p { "Mainnet, Testnet, Devnet profilleri tek ekran yönetimi." }
+            }
+            div { class: "footer-col",
+                h4 { "Güvenlik" }
+                p { "İşlemler önce doğrulanır, sonra yayınlanır." }
+            }
+            div { class: "footer-col",
+                h4 { "Platform" }
+                p { "Responsive: desktop, tablet, mobil web." }
             }
         }
     }
