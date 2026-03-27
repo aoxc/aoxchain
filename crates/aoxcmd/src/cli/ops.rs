@@ -169,12 +169,21 @@ pub fn cmd_load_benchmark(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
+    cmd_profile_readiness(args, "mainnet")
+}
+
+pub fn cmd_testnet_readiness(args: &[String]) -> Result<(), AppError> {
+    cmd_profile_readiness(args, "testnet")
+}
+
+fn cmd_profile_readiness(args: &[String], target_profile: &'static str) -> Result<(), AppError> {
     let settings = load_or_init()?;
     let key_summary = crate::keys::manager::inspect_operator_key().ok();
     let genesis_ok = crate::cli::bootstrap::genesis_ready();
     let node_ok = lifecycle::load_state().is_ok();
     let config_validation = settings.validate();
-    let readiness = evaluate_mainnet_readiness(
+    let readiness = evaluate_profile_readiness(
+        target_profile,
         &settings,
         config_validation.err(),
         key_summary
@@ -194,10 +203,15 @@ pub fn cmd_mainnet_readiness(args: &[String]) -> Result<(), AppError> {
     }
 
     if has_flag(args, "--enforce") && readiness.verdict != "candidate" {
+        let profile_title = if target_profile.eq_ignore_ascii_case("testnet") {
+            "Testnet"
+        } else {
+            "Mainnet"
+        };
         return Err(AppError::new(
             ErrorCode::PolicyGateFailed,
             format!(
-                "Mainnet readiness enforcement failed at score {} with blockers: {}",
+                "{profile_title} readiness enforcement failed at score {} with blockers: {}",
                 readiness.readiness_score,
                 readiness.blockers.join(" | ")
             ),
@@ -212,7 +226,8 @@ pub fn cmd_full_surface_readiness(args: &[String]) -> Result<(), AppError> {
     let key_summary = crate::keys::manager::inspect_operator_key().ok();
     let genesis_ok = crate::cli::bootstrap::genesis_ready();
     let node_ok = lifecycle::load_state().is_ok();
-    let mainnet_readiness = evaluate_mainnet_readiness(
+    let mainnet_readiness = evaluate_profile_readiness(
+        "mainnet",
         &settings,
         settings.validate().err(),
         key_summary
@@ -248,7 +263,8 @@ pub fn cmd_level_score(args: &[String]) -> Result<(), AppError> {
     let node_state = lifecycle::load_state().ok();
     let node_ok = node_state.is_some();
 
-    let mainnet = evaluate_mainnet_readiness(
+    let mainnet = evaluate_profile_readiness(
+        "mainnet",
         &settings,
         settings.validate().err(),
         key_summary
@@ -317,7 +333,8 @@ pub fn cmd_profile_baseline(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&report, output_format(args))
 }
 
-fn evaluate_mainnet_readiness(
+fn evaluate_profile_readiness(
+    target_profile: &'static str,
     settings: &crate::config::settings::Settings,
     config_validation_error: Option<String>,
     key_operational_state: Option<&str>,
@@ -327,11 +344,14 @@ fn evaluate_mainnet_readiness(
     let repo_root = locate_repo_root();
     let release_dir = locate_repo_artifact_dir("release-evidence");
     let closure_dir = locate_repo_artifact_dir("network-production-closure");
-    let mainnet_checklist = repo_root
-        .join("docs")
-        .join("src")
-        .join("MAINNET_READINESS_CHECKLIST.md");
-    let checklist_open_items = open_checklist_items(&mainnet_checklist);
+    let profile_checklist = repo_root.join("docs").join("src").join(
+        if target_profile.eq_ignore_ascii_case("testnet") {
+            "TESTNET_READINESS_CHECKLIST.md"
+        } else {
+            "MAINNET_READINESS_CHECKLIST.md"
+        },
+    );
+    let checklist_open_items = open_checklist_items(&profile_checklist);
     let baseline_parity = compare_embedded_network_profiles().ok();
     let aoxhub_parity = compare_aoxhub_network_profiles().ok();
     let key_state = key_operational_state.unwrap_or("missing");
@@ -347,9 +367,13 @@ fn evaluate_mainnet_readiness(
                 .unwrap_or_else(|| "Operator configuration passed validation".to_string()),
         ),
         readiness_check(
-            "mainnet-profile",
+            if target_profile.eq_ignore_ascii_case("testnet") {
+                "testnet-profile"
+            } else {
+                "mainnet-profile"
+            },
             "configuration",
-            settings.profile.eq_ignore_ascii_case("mainnet"),
+            settings.profile.eq_ignore_ascii_case(target_profile),
             10,
             format!("Active profile is {}", settings.profile),
         ),
@@ -476,14 +500,16 @@ fn evaluate_mainnet_readiness(
             3,
             if checklist_open_items.is_empty() {
                 format!(
-                    "Mainnet checklist is fully closed at {}",
-                    mainnet_checklist.display()
+                    "{} checklist is fully closed at {}",
+                    target_profile,
+                    profile_checklist.display()
                 )
             } else {
                 format!(
-                    "Mainnet checklist has {} open items at {}",
+                    "{} checklist has {} open items at {}",
+                    target_profile,
                     checklist_open_items.len(),
-                    mainnet_checklist.display()
+                    profile_checklist.display()
                 )
             },
         ),
@@ -1095,12 +1121,12 @@ fn area_progress(checks: &[ReadinessCheck]) -> Vec<ReadinessAreaProgress> {
 fn track_progress(checks: &[ReadinessCheck]) -> Vec<ReadinessTrackProgress> {
     let testnet_max = checks
         .iter()
-        .filter(|check| check.name != "mainnet-profile")
+        .filter(|check| !check.name.ends_with("-profile"))
         .map(|check| check.weight)
         .sum::<u8>();
     let testnet_completed = checks
         .iter()
-        .filter(|check| check.name != "mainnet-profile" && check.passed)
+        .filter(|check| !check.name.ends_with("-profile") && check.passed)
         .map(|check| check.weight)
         .sum::<u8>();
     let mainnet_max = checks.iter().map(|check| check.weight).sum::<u8>();
@@ -1470,6 +1496,9 @@ fn remediation_plan(checks: &[ReadinessCheck]) -> Vec<String> {
             "mainnet-profile" => {
                 "Run `aoxc production-bootstrap --profile mainnet --password <value>` or `aoxc config-init --profile mainnet --json-logs`."
             }
+            "testnet-profile" => {
+                "Run `aoxc production-bootstrap --profile testnet --password <value>` or `aoxc config-init --profile testnet --json-logs`."
+            }
             "official-peers" => {
                 "Re-enable curated peer enforcement in the operator settings before joining production."
             }
@@ -1528,7 +1557,7 @@ fn remediation_plan(checks: &[ReadinessCheck]) -> Vec<String> {
 
     if plan.is_empty() {
         plan.push(
-            "Candidate is at 100%; keep running `aoxc mainnet-readiness --enforce --format json` in CI to prevent regressions."
+            "Candidate is at 100%; keep running `aoxc mainnet-readiness --enforce --format json` and `aoxc testnet-readiness --enforce --format json` in CI to prevent regressions."
                 .to_string(),
         );
     }
@@ -1895,7 +1924,7 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
 mod tests {
     use super::{
         build_surface, compare_aoxhub_network_profiles, compare_embedded_network_profiles,
-        evaluate_full_surface_readiness, evaluate_mainnet_readiness, full_surface_markdown_report,
+        evaluate_full_surface_readiness, evaluate_profile_readiness, full_surface_markdown_report,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
         locate_repo_artifact_dir, open_checklist_items, parse_network_profile,
@@ -2039,7 +2068,8 @@ mod tests {
         settings.logging.json = true;
         settings.network.bind_host = "0.0.0.0".to_string();
 
-        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+        let readiness =
+            evaluate_profile_readiness("mainnet", &settings, None, Some("active"), true, true);
 
         assert_eq!(readiness.readiness_score, 100);
         assert_eq!(readiness.verdict, "candidate");
@@ -2063,7 +2093,8 @@ mod tests {
         settings.logging.json = true;
         settings.network.bind_host = "0.0.0.0".to_string();
 
-        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+        let readiness =
+            evaluate_profile_readiness("mainnet", &settings, None, Some("active"), true, true);
 
         let testnet = readiness
             .track_progress
@@ -2081,6 +2112,26 @@ mod tests {
             .next_focus
             .iter()
             .any(|entry| entry.starts_with("configuration:")));
+    }
+
+    #[test]
+    fn readiness_requires_testnet_profile_for_testnet_gate() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.profile = "mainnet".to_string();
+        settings.logging.json = true;
+        settings.network.bind_host = "0.0.0.0".to_string();
+
+        let readiness =
+            evaluate_profile_readiness("testnet", &settings, None, Some("active"), true, true);
+
+        assert!(readiness
+            .blockers
+            .iter()
+            .any(|entry| entry.starts_with("testnet-profile:")));
+        assert!(readiness
+            .remediation_plan
+            .iter()
+            .any(|step| step.contains("--profile testnet")));
     }
 
     #[test]
@@ -2114,7 +2165,8 @@ mod tests {
         settings.network.bind_host = "0.0.0.0".to_string();
         settings.telemetry.enable_metrics = true;
 
-        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+        let readiness =
+            evaluate_profile_readiness("mainnet", &settings, None, Some("active"), true, true);
         let full = evaluate_full_surface_readiness(&settings, &readiness);
 
         assert_eq!(full.release_line, "aoxc.v.0.1.1-akdeniz");
@@ -2161,7 +2213,8 @@ mod tests {
         settings.network.bind_host = "0.0.0.0".to_string();
         settings.telemetry.enable_metrics = true;
 
-        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+        let readiness =
+            evaluate_profile_readiness("mainnet", &settings, None, Some("active"), true, true);
         let full = evaluate_full_surface_readiness(&settings, &readiness);
         let report = full_surface_markdown_report(&full);
 
@@ -2231,7 +2284,8 @@ security_mode = "audit_strict"
         settings.logging.json = true;
         settings.network.bind_host = "0.0.0.0".to_string();
 
-        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+        let readiness =
+            evaluate_profile_readiness("mainnet", &settings, None, Some("active"), true, true);
         let report = readiness_markdown_report(
             &readiness,
             compare_embedded_network_profiles().ok().as_ref(),
@@ -2254,7 +2308,8 @@ security_mode = "audit_strict"
         settings.logging.json = true;
         settings.network.bind_host = "0.0.0.0".to_string();
 
-        let readiness = evaluate_mainnet_readiness(&settings, None, Some("active"), true, true);
+        let readiness =
+            evaluate_profile_readiness("mainnet", &settings, None, Some("active"), true, true);
         write_readiness_markdown_report(
             &path,
             &readiness,
