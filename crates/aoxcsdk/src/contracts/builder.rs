@@ -206,12 +206,8 @@ impl ContractManifestBuilder {
 
     pub fn build(self) -> Result<ContractManifest, BuilderError> {
         let name = self.name.ok_or(BuilderError::MissingField("name"))?;
-        let package = self
-            .package
-            .ok_or(BuilderError::MissingField("package"))?;
-        let version = self
-            .version
-            .ok_or(BuilderError::MissingField("version"))?;
+        let package = self.package.ok_or(BuilderError::MissingField("package"))?;
+        let version = self.version.ok_or(BuilderError::MissingField("version"))?;
         let contract_version = ContractVersion(
             self.contract_version
                 .ok_or(BuilderError::MissingField("contract_version"))?,
@@ -229,10 +225,8 @@ impl ContractManifestBuilder {
         let artifact_format = artifact_format_for_vm(&vm_target);
         let artifact_media_type = default_media_type_for_format(&artifact_format).to_string();
 
-        let supported_runtime_families = normalize_supported_runtime_families(
-            self.supported_runtime_families,
-            &vm_target,
-        );
+        let supported_runtime_families =
+            normalize_supported_runtime_families(self.supported_runtime_families, &vm_target);
 
         let supported_network_classes =
             normalize_supported_network_classes(self.supported_network_classes);
