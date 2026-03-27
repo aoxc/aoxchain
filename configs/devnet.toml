@@ -1,0 +1,10 @@
+chain_id = "aox-devnet-1"
+listen_addr = "0.0.0.0:46656"
+rpc_addr = "0.0.0.0:28545"
+peers = [
+  "dev-seed-1.aoxc.net:46656",
+  "dev-seed-2.aoxc.net:46656",
+]
+security_mode = "developer_guarded"
+consensus_profile = "fast-finality-dev"
+feature_flags = ["state-sync-v2", "telemetry-debug", "rpc-trace"]

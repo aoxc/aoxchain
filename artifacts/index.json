@@ -1,0 +1,77 @@
+{
+  "schema_version": "aoxc-artifacts-index/v2",
+  "bundle_profile": "advanced-production-readiness",
+  "required_networks": [
+    "mainnet",
+    "testnet",
+    "devnet"
+  ],
+  "required_interfaces": [
+    "desktop-wallet"
+  ],
+  "artifact_sets": [
+    {
+      "name": "release-evidence",
+      "path": "artifacts/release-evidence",
+      "required_files": [
+        "release-evidence-20260323T144016Z.md",
+        "build-manifest-20260323T144016Z.json",
+        "sbom-20260323T144016Z.json",
+        "provenance-20260323T144016Z.json",
+        "compat-matrix-20260323T144016Z.json",
+        "production-audit-20260323T144016Z.json",
+        "aoxc-20260323T144016Z.sha256"
+      ],
+      "signature_evidence": [
+        "aoxc-20260323T144016Z.sig.status"
+      ],
+      "status": "complete"
+    },
+    {
+      "name": "network-production-closure",
+      "path": "artifacts/network-production-closure",
+      "required_files": [
+        "runtime-status.json",
+        "telemetry-snapshot.json",
+        "production-audit.json",
+        "security-drill.json",
+        "soak-plan.json",
+        "aoxhub-rollout.json",
+        "desktop-wallet-compat.json",
+        "alert-rules.md"
+      ],
+      "status": "complete"
+    }
+  ],
+  "always_reading_order": [
+    "artifacts/index.json",
+    "artifacts/release-evidence/release-evidence-20260323T144016Z.md",
+    "artifacts/release-evidence/build-manifest-20260323T144016Z.json",
+    "artifacts/release-evidence/provenance-20260323T144016Z.json",
+    "artifacts/release-evidence/sbom-20260323T144016Z.json",
+    "artifacts/release-evidence/compat-matrix-20260323T144016Z.json",
+    "artifacts/network-production-closure/runtime-status.json",
+    "artifacts/network-production-closure/telemetry-snapshot.json",
+    "artifacts/network-production-closure/desktop-wallet-compat.json",
+    "artifacts/network-production-closure/production-audit.json",
+    "artifacts/network-production-closure/security-drill.json"
+  ],
+  "completion_gate": {
+    "require_mainnet": true,
+    "require_testnet": true,
+    "require_devnet": true,
+    "require_desktop_wallet": true,
+    "require_provenance": true,
+    "require_checksum": true,
+    "require_signature": true,
+    "require_production_closure": true
+  },
+  "verification_commands": [
+    "python -m json.tool artifacts/index.json > /dev/null",
+    "python -m json.tool artifacts/release-evidence/build-manifest-20260323T144016Z.json > /dev/null",
+    "python -m json.tool artifacts/release-evidence/provenance-20260323T144016Z.json > /dev/null",
+    "python -m json.tool artifacts/release-evidence/compat-matrix-20260323T144016Z.json > /dev/null",
+    "python -m json.tool artifacts/network-production-closure/runtime-status.json > /dev/null",
+    "python -m json.tool artifacts/network-production-closure/desktop-wallet-compat.json > /dev/null"
+  ]
+}
