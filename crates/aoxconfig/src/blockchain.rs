@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
+
 /// Global chain runtime configuration.
 ///
 /// This structure defines timing parameters that directly influence
@@ -12,7 +14,7 @@ use std::time::Duration;
 ///   reduce network liveness.
 ///
 /// These parameters must therefore be validated during node bootstrap.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChainConfig {
     /// Target block production interval in seconds.
     ///
@@ -54,9 +56,32 @@ impl Default for ChainConfig {
     /// - 6 second block interval provides a balance between
     ///   confirmation latency and network stability.
     fn default() -> Self {
-        Self {
-            block_time_secs: 6,
-        }
+        Self { block_time_secs: 6 }
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::ChainConfig;
+
+    #[test]
+    fn default_is_valid() {
+        let cfg = ChainConfig::default();
+        assert!(cfg.validate().is_ok());
+        assert_eq!(cfg.block_interval().as_secs(), 6);
+    }
+
+    #[test]
+    fn rejects_too_small_interval() {
+        let cfg = ChainConfig { block_time_secs: 1 };
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_too_large_interval() {
+        let cfg = ChainConfig {
+            block_time_secs: 601,
+        };
+        assert!(cfg.validate().is_err());
+    }
+}
