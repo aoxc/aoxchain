@@ -19,7 +19,7 @@ members = [
     "crates/aoxcsdk",
     "crates/aoxcunity",
     "crates/aoxcvm",
-    "crates/aoxchub/src-tauri",
+    "crates/aoxchub",
     "tests",
 ]
 
@@ -71,5 +71,4 @@ aoxcdata = "Preserve deterministic storage/integrity coverage when changing pers
 panic = "abort"
 lto = true
 codegen-units = 1
-
 
