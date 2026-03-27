@@ -1,69 +1,42 @@
-# AOXC Environment Bundles
+# README.md
 
-This directory contains the canonical environment bundles for AOXC.
+> Version: **v0.01**  
+> Status: **Experimental / Under Active Construction**  
+> License: **AOXC — MIT License**
 
-Each environment bundle defines the files required to identify, validate, and operate a specific AOXC network line.
+## Official Notice
+This page documents an **experimental AOXC codebase** currently under active development.
+All components are pre-release and may change without backward compatibility guarantees.
 
-## Environment Classes
+## Roadmap Baseline (Restart from Zero)
 
-The current AOXC environment structure includes:
+### Phase 0 — Program Reset (Week 1)
+- Re-establish scope, ownership, and delivery governance.
+- Freeze non-critical workstreams.
+- Define documentation and release quality gates.
 
-- `mainnet/`
-- `testnet/`
-- `validation/`
-- `localnet/`
-- `sovereign/template/`
+### Phase 1 — Engineering Stabilization (Weeks 2–4)
+- Make build/test reproducible in a single command path.
+- Enforce lint, formatting, and security scans in CI.
+- Prioritize and remediate top critical failures.
 
-## Bundle Model
+### Phase 2 — Architectural Hardening (Weeks 5–8)
+- Clarify module boundaries and interface contracts.
+- Standardize configuration patterns.
+- Add observability baselines (logs, metrics, traces).
 
-Each canonical AOXC environment bundle is expected to contain:
+### Phase 3 — Release Readiness (Weeks 9–12)
+- Apply semantic versioning and structured release notes.
+- Improve critical-path test coverage.
+- Introduce runbooks and incident response workflows.
 
-- `manifest.v1.json`
-- `genesis.v1.json`
-- `genesis.v1.sha256`
-- `validators.json`
-- `bootnodes.json`
-- `profile.toml`
-- `release-policy.toml`
-- `certificate.json`
+## License Position
+AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
+For legal finalization, maintainers should validate all third-party dependency obligations.
 
-Localnet additionally includes local orchestration and deterministic multi-node support files.
+## Development Maturity Statement
+This repository is **experimental** and **in progress**.
+Do not treat current behavior as production-grade or long-term stable.
 
-## Authority Model
-
-The authoritative policy hierarchy is:
-
-1. `configs/registry/network-registry.toml`
-2. `configs/registry/binary-compatibility.toml`
-3. `configs/environments/*/manifest.v1.json`
-
-The remaining files inside each environment bundle must remain consistent with those layers.
-
-## Stability Expectations
-
-### Long-lived identity anchors
-- `manifest.v1.json`
-
-### Long-lived but revisable policy files
-- `profile.toml`
-- `release-policy.toml`
-
-### Operationally variable files
-- `validators.json`
-- `bootnodes.json`
-- `certificate.json`
-- `genesis.v1.sha256`
-- in some cases `genesis.v1.json`
-
-## Security Rule
-
-Environment bundles must not be partially updated in a way that breaks identity consistency.
-
-If any of the following drift apart:
-- `chain_id`
-- `network_id`
-- `network_serial`
-- manifest references
-- genesis hash bindings
-
-the environment must be treated as invalid until reconciled.
+---
+**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.

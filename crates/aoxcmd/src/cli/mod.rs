@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::{
     cli_support::{arg_value, detect_language, localized_unknown_command, print_usage},
     error::AppError,

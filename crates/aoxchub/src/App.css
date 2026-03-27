@@ -1,3 +1,8 @@
+/* AOXC MIT License
+ * Experimental software under active construction.
+ * This file is part of the AOXC pre-release codebase.
+ */
+
 .desktop-shell {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);

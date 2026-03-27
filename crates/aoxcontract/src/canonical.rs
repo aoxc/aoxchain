@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use serde_json::{Map, Value, json};
 
 use crate::{CanonicalizationError, ContractError, ContractManifest, Validate};

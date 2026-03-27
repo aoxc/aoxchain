@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 /// Canonical AOXChain port map used by CLI and network defaults.
 pub const RPC_HTTP_PORT: u16 = 2626;
 pub const P2P_PRIMARY_PORT: u16 = 2727;

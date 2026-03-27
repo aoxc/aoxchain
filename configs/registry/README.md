@@ -1,50 +1,42 @@
-# AOXC Registry Policy
+# README.md
 
-This directory contains the authoritative policy layer for AOXC network identity and binary compatibility.
+> Version: **v0.01**  
+> Status: **Experimental / Under Active Construction**  
+> License: **AOXC — MIT License**
 
-These files are intended to be stable, governance-controlled, and audit-relevant.
+## Official Notice
+This page documents an **experimental AOXC codebase** currently under active development.
+All components are pre-release and may change without backward compatibility guarantees.
 
-## Files
+## Roadmap Baseline (Restart from Zero)
 
-### `network-registry.toml`
-Defines the canonical AOXC network identity model, including:
-- family identity,
-- `chain_id` derivation,
-- `network_serial` policy,
-- `network_id` policy,
-- canonical environment names,
-- reserved ranges,
-- governance constraints.
+### Phase 0 — Program Reset (Week 1)
+- Re-establish scope, ownership, and delivery governance.
+- Freeze non-critical workstreams.
+- Define documentation and release quality gates.
 
-This file is the root identity policy for all AOXC environment manifests.
+### Phase 1 — Engineering Stabilization (Weeks 2–4)
+- Make build/test reproducible in a single command path.
+- Enforce lint, formatting, and security scans in CI.
+- Prioritize and remediate top critical failures.
 
-### `binary-compatibility.toml`
-Defines the canonical binary compatibility and provenance expectations for AOXC node artifacts.
+### Phase 2 — Architectural Hardening (Weeks 5–8)
+- Clarify module boundaries and interface contracts.
+- Standardize configuration patterns.
+- Add observability baselines (logs, metrics, traces).
 
-This includes:
-- single-binary multi-network expectations,
-- manifest compatibility requirements,
-- genesis compatibility requirements,
-- build and provenance expectations,
-- runtime rejection rules.
+### Phase 3 — Release Readiness (Weeks 9–12)
+- Apply semantic versioning and structured release notes.
+- Improve critical-path test coverage.
+- Introduce runbooks and incident response workflows.
 
-## Governance Expectations
+## License Position
+AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
+For legal finalization, maintainers should validate all third-party dependency obligations.
 
-Changes to files in this directory must be treated as release-impacting changes.
+## Development Maturity Statement
+This repository is **experimental** and **in progress**.
+Do not treat current behavior as production-grade or long-term stable.
 
-Such changes must not be introduced silently and must be accompanied by:
-- release evidence,
-- audit log updates,
-- manifest compatibility review,
-- operational review where applicable.
-
-## Stability Expectations
-
-These files should change rarely.
-
-Routine deployment operations should not require modifications here unless:
-- identity policy changes,
-- compatibility policy changes,
-- canonical naming changes,
-- new reserved ranges are introduced,
-- a new environment class becomes officially supported.
+---
+**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.

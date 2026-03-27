@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 //! AOXCMD integration layer for the optional `aoxcai` subsystem.
 //!
 //! The operator command plane is currently the only real integration target for

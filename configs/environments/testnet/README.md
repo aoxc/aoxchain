@@ -1,38 +1,42 @@
-# AOXC Testnet Environment
+# README.md
 
-This directory contains the canonical public testnet environment bundle for AOXC.
+> Version: **v0.01**  
+> Status: **Experimental / Under Active Construction**  
+> License: **AOXC — MIT License**
 
-## Canonical Identity
+## Official Notice
+This page documents an **experimental AOXC codebase** currently under active development.
+All components are pre-release and may change without backward compatibility guarantees.
 
-- Chain name: `AOXC PUSULA`
-- Environment: `testnet`
-- Network class: `public_testnet`
-- Network serial: `2626-002`
-- Chain ID: `2626010001`
-- Network ID: `aoxc-testnet-2626-002`
+## Roadmap Baseline (Restart from Zero)
 
-## Authoritative Files
+### Phase 0 — Program Reset (Week 1)
+- Re-establish scope, ownership, and delivery governance.
+- Freeze non-critical workstreams.
+- Define documentation and release quality gates.
 
-### Stable identity anchor
-- `manifest.v1.json`
+### Phase 1 — Engineering Stabilization (Weeks 2–4)
+- Make build/test reproducible in a single command path.
+- Enforce lint, formatting, and security scans in CI.
+- Prioritize and remediate top critical failures.
 
-### Genesis anchor
-- `genesis.v1.json`
-- `genesis.v1.sha256`
+### Phase 2 — Architectural Hardening (Weeks 5–8)
+- Clarify module boundaries and interface contracts.
+- Standardize configuration patterns.
+- Add observability baselines (logs, metrics, traces).
 
-### Operational network data
-- `validators.json`
-- `bootnodes.json`
-- `certificate.json`
+### Phase 3 — Release Readiness (Weeks 9–12)
+- Apply semantic versioning and structured release notes.
+- Improve critical-path test coverage.
+- Introduce runbooks and incident response workflows.
 
-### Policy controls
-- `profile.toml`
-- `release-policy.toml`
+## License Position
+AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
+For legal finalization, maintainers should validate all third-party dependency obligations.
 
-## Rule
+## Development Maturity Statement
+This repository is **experimental** and **in progress**.
+Do not treat current behavior as production-grade or long-term stable.
 
-The testnet bundle must remain consistent with:
-- `configs/registry/network-registry.toml`
-- `configs/registry/binary-compatibility.toml`
-
-Identity mismatches across these files must be treated as validation blockers.
+---
+**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.

@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 import type { ControlCenterSnapshot } from '../../types/controlCenter'
 
 export function HeroSection({ snapshot, error }: { snapshot: ControlCenterSnapshot; error: string | null }) {

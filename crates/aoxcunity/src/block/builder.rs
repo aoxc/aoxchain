@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use std::collections::HashSet;
 
 use crate::block::hash::{canonical_section_sort_key, compute_block_hash, compute_body_roots};

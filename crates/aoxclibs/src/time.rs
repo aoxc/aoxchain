@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::types::LibError;

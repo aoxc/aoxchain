@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use aoxcvm::context::{BlockContext, TxContext};
 use aoxcvm::host::state::{HostStateView, InMemoryHostState};
 use aoxcvm::lanes::VirtualMachine;

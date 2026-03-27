@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# AOXC MIT License
+# Experimental software under active construction.
+# This file is part of the AOXC pre-release codebase.
 set -euo pipefail
 
 ARTIFACT_DIR="${ARTIFACT_DIR:-artifacts/release-evidence}"

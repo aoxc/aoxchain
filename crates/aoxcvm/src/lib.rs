@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 //! AOXC Multi-VM Runtime (AOVM)
 //!
 //! This crate implements a deterministic multi-lane execution runtime

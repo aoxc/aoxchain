@@ -1,41 +1,42 @@
-# AOXC Sovereign Environments
+# README.md
 
-This directory contains sovereign AOXC private network materials.
+> Version: **v0.01**  
+> Status: **Experimental / Under Active Construction**  
+> License: **AOXC — MIT License**
 
-At the current baseline, the directory provides a canonical template bundle under:
+## Official Notice
+This page documents an **experimental AOXC codebase** currently under active development.
+All components are pre-release and may change without backward compatibility guarantees.
 
-- `template/`
+## Roadmap Baseline (Restart from Zero)
 
-## Purpose
+### Phase 0 — Program Reset (Week 1)
+- Re-establish scope, ownership, and delivery governance.
+- Freeze non-critical workstreams.
+- Define documentation and release quality gates.
 
-The sovereign template exists to support future AOXC private Layer 1 deployments while preserving the same high-level operating model used across the AOXC family:
+### Phase 1 — Engineering Stabilization (Weeks 2–4)
+- Make build/test reproducible in a single command path.
+- Enforce lint, formatting, and security scans in CI.
+- Prioritize and remediate top critical failures.
 
-- single binary,
-- environment-derived identity,
-- manifest-governed bundle structure,
-- registry-controlled naming and compatibility.
+### Phase 2 — Architectural Hardening (Weeks 5–8)
+- Clarify module boundaries and interface contracts.
+- Standardize configuration patterns.
+- Add observability baselines (logs, metrics, traces).
 
-## Template Rule
+### Phase 3 — Release Readiness (Weeks 9–12)
+- Apply semantic versioning and structured release notes.
+- Improve critical-path test coverage.
+- Introduce runbooks and incident response workflows.
 
-The template is not a deployable final network identity.
+## License Position
+AOXC documentation and code in this repository are intended to be distributed under the **MIT License**.
+For legal finalization, maintainers should validate all third-party dependency obligations.
 
-It is a controlled starting point for future sovereign deployments.
+## Development Maturity Statement
+This repository is **experimental** and **in progress**.
+Do not treat current behavior as production-grade or long-term stable.
 
-Template identity must not be copied into a real deployment unchanged.
-
-A real sovereign network must generate and document its own:
-- `network_serial`
-- `chain_id`
-- `network_id`
-- chain display name
-- validator set
-- bootnode set
-- certificate material
-
-## Governance Rule
-
-Future sovereign networks must remain consistent with:
-- `configs/registry/network-registry.toml`
-- `configs/registry/binary-compatibility.toml`
-
-Any officially promoted sovereign deployment should receive its own environment directory rather than reusing the template directory as-is.
+---
+**AOXC MIT Notice:** This page and related code are part of the AOXC experimental build stream.

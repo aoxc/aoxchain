@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 // crates/aoxckit/tests/cli_tests.rs
 use assert_cmd::Command;
 use predicates::prelude::*;

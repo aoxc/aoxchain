@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 //! Reference adapter model for integrating `aoxcai` into kernel-adjacent crates.
 //!
 //! Adapters are the only approved integration pattern:

@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 //! Mappers between contract transport models and workspace domain models.
 
 use chrono::Utc;

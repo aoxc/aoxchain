@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 use crate::context::{BlockContext, TxContext};
 use crate::host::receipt::ExecutionReceipt;
 use crate::host::state::HostStateView;

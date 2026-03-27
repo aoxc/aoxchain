@@ -1,3 +1,7 @@
+// AOXC MIT License
+// Experimental software under active construction.
+// This file is part of the AOXC pre-release codebase.
+
 //! AOXC deterministic Ed25519 key derivation helpers.
 //!
 //! This module converts AOXC role-scoped key material into real Ed25519
