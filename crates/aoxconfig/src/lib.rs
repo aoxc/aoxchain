@@ -4,9 +4,11 @@
 
 pub mod blockchain;
 pub mod contracts;
+pub mod mainnet;
 
 pub use blockchain::ChainConfig;
 pub use contracts::ContractsConfig;
+pub use mainnet::MainnetProgram;
 
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +21,7 @@ use serde::{Deserialize, Serialize};
 pub struct AoxConfig {
     pub chain: ChainConfig,
     pub contracts: ContractsConfig,
+    pub mainnet: MainnetProgram,
 }
 
 impl AoxConfig {
@@ -35,6 +38,13 @@ impl AoxConfig {
                 .validate()
                 .into_iter()
                 .map(|e| format!("contracts: {e}")),
+        );
+
+        errors.extend(
+            self.mainnet
+                .validate()
+                .into_iter()
+                .map(|e| format!("mainnet: {e}")),
         );
 
         if errors.is_empty() {
@@ -60,10 +70,12 @@ mod tests {
         let mut cfg = AoxConfig::default();
         cfg.chain.block_time_secs = 1;
         cfg.contracts.registry.local_manifest_directory.clear();
+        cfg.mainnet.milestones.pop();
 
         let errs = cfg.validate().expect_err("config should be invalid");
-        assert_eq!(errs.len(), 2);
+        assert_eq!(errs.len(), 3);
         assert!(errs.iter().any(|e| e.starts_with("chain:")));
         assert!(errs.iter().any(|e| e.starts_with("contracts:")));
+        assert!(errs.iter().any(|e| e.starts_with("mainnet:")));
     }
 }
