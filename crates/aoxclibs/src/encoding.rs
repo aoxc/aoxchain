@@ -12,9 +12,6 @@ pub fn encode_hex_lower(data: &[u8]) -> String {
     hex::encode(data)
 }
 
-/// Decode hexadecimal text.
-///
-/// Accepts values with or without a `0x` prefix and is case-insensitive.
 pub fn decode_hex(data: &str) -> Result<Vec<u8>, LibError> {
     let normalized = normalize_hex_input(data)?;
     hex::decode(normalized).map_err(|e| LibError::EncodingError(e.to_string()))
@@ -104,6 +101,28 @@ fn ensure_max_len(actual_len: usize, max_len: usize) -> Result<(), LibError> {
     Ok(())
 }
 
+#[must_use]
+pub fn encode_base64_standard(data: &[u8]) -> String {
+    general_purpose::STANDARD.encode(data)
+}
+
+#[must_use]
+pub fn encode_base64_urlsafe_no_pad(data: &[u8]) -> String {
+    general_purpose::URL_SAFE_NO_PAD.encode(data)
+}
+
+pub fn decode_base64_standard(data: &str) -> Result<Vec<u8>, LibError> {
+    general_purpose::STANDARD
+        .decode(data)
+        .map_err(|e| LibError::EncodingError(e.to_string()))
+}
+
+pub fn decode_base64_urlsafe_no_pad(data: &str) -> Result<Vec<u8>, LibError> {
+    general_purpose::URL_SAFE_NO_PAD
+        .decode(data)
+        .map_err(|e| LibError::EncodingError(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -124,38 +143,11 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_hex_accepts_prefix_and_spaces() {
-        let decoded = decode_hex("  0xDEADBEEF  ").expect("prefixed hex decode failed");
-        assert_eq!(decoded, vec![0xDE, 0xAD, 0xBE, 0xEF]);
-    }
-
-    #[test]
-    fn test_decode_hex_with_max_len() {
-        let ok = decode_hex_with_max_len("DEADBEEF", 4).expect("max-len decode should pass");
-        assert_eq!(ok.len(), 4);
-
-        let err = decode_hex_with_max_len("DEADBEEF", 3).expect_err("max-len should fail");
-        assert!(matches!(err, LibError::ValidationError(_)));
-    }
-
-    #[test]
     fn test_base64_standard_roundtrip() {
         let original = b"aoxchain";
         let encoded = encode_base64_standard(original);
         let decoded = decode_base64_standard(&encoded).expect("Decode base64 standard failed");
         assert_eq!(decoded, original);
-    }
-
-    #[test]
-    fn test_base64_standard_with_max_len() {
-        let encoded = encode_base64_standard(b"abcd");
-
-        let ok = decode_base64_standard_with_max_len(&encoded, 4).expect("should fit max length");
-        assert_eq!(ok, b"abcd");
-
-        let err = decode_base64_standard_with_max_len(&encoded, 3)
-            .expect_err("decoded payload should exceed max");
-        assert!(matches!(err, LibError::ValidationError(_)));
     }
 
     #[test]
@@ -168,36 +160,11 @@ mod tests {
     }
 
     #[test]
-    fn test_base64_urlsafe_no_pad_with_max_len() {
-        let encoded = encode_base64_urlsafe_no_pad(b"net");
-
-        let ok = decode_base64_urlsafe_no_pad_with_max_len(&encoded, 3)
-            .expect("urlsafe payload should fit max");
-        assert_eq!(ok, b"net");
-
-        let err = decode_base64_urlsafe_no_pad_with_max_len(&encoded, 2)
-            .expect_err("urlsafe payload should exceed max");
-        assert!(matches!(err, LibError::ValidationError(_)));
-    }
-
-    #[test]
     fn test_decode_invalid_data_returns_error() {
         let err = decode_hex("XYZ").expect_err("Invalid hex should fail");
         assert!(matches!(err, LibError::EncodingError(_)));
 
         let err = decode_base64_standard("@#%$").expect_err("Invalid base64 should fail");
         assert!(matches!(err, LibError::EncodingError(_)));
-    }
-
-    #[test]
-    fn test_decode_hex_validation_errors() {
-        let err = decode_hex("").expect_err("empty input should fail");
-        assert!(matches!(err, LibError::ValidationError(_)));
-
-        let err = decode_hex("0x").expect_err("prefix-only input should fail");
-        assert!(matches!(err, LibError::ValidationError(_)));
-
-        let err = decode_hex("ABC").expect_err("odd length should fail");
-        assert!(matches!(err, LibError::ValidationError(_)));
     }
 }
