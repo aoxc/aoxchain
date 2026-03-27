@@ -2,18 +2,20 @@ use dioxus::prelude::*;
 
 #[component]
 pub fn GlassSurface(
-    children: Element, 
+    children: Element,
     class: Option<String>,
-    intensity: Option<&'static str> // "low", "high"
+    intensity: Option<&'static str>,
 ) -> Element {
     let blur = match intensity.unwrap_or("high") {
         "low" => "backdrop-blur-md",
-        _ => "backdrop-blur-[40px]",
+        _ => "backdrop-blur-[30px]",
     };
-    
+
+    let class_name = class.unwrap_or_default();
+
     rsx! {
-        div { 
-            class: "bg-white/[0.02] {blur} border border-white/10 rounded-[2.5rem] shadow-[0_22px_70px_4px_rgba(0,0,0,0.56)] {class}",
+        div {
+            class: "rounded-3xl border border-white/15 bg-white/5 {blur} shadow-[0_8px_30px_rgba(0,0,0,0.45)] {class_name}",
             {children}
         }
     }
