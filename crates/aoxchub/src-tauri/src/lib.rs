@@ -226,6 +226,7 @@ enum EnvironmentKind {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 enum DesktopAction {
+    ProductionBootstrap,
     MainnetReadiness,
     FullSurfaceReadiness,
     RuntimeStatus,
@@ -234,6 +235,7 @@ enum DesktopAction {
     ConfigValidate,
     ConfigPrint,
     NodeBootstrap,
+    ProduceOnce,
     NodeHealth,
     NodeRun,
     NetworkSmoke,
@@ -514,6 +516,42 @@ fn build_action_spec(repo_root: &Path, request: &CommandExecutionRequest) -> App
                 )],
             }
         }
+        DesktopAction::ProductionBootstrap => {
+            let scenario = options
+                .scenario
+                .clone()
+                .unwrap_or_else(|| "desktop-bootstrap-anchor".to_string());
+            let args = vec![
+                "production-bootstrap".to_string(),
+                "--home".to_string(),
+                home.clone(),
+                "--profile".to_string(),
+                profile.clone(),
+                "--name".to_string(),
+                "desktop-operator".to_string(),
+                "--password".to_string(),
+                "Desktop#2026!".to_string(),
+                "--produce-once-tx".to_string(),
+                scenario,
+                "--format".to_string(),
+                format.clone(),
+            ];
+
+            ActionSpec {
+                program: "cargo".to_string(),
+                rendered_command: render_cargo_command(&args),
+                args,
+                script_path: None,
+                env_vars,
+                artifact_hints: vec![
+                    ("Node home".to_string(), home.clone()),
+                    (
+                        "Progress report".to_string(),
+                        AOXC_PROGRESS_REPORT.to_string(),
+                    ),
+                ],
+            }
+        }
         DesktopAction::FullSurfaceReadiness => {
             let mut args = vec!["full-surface-readiness".to_string()];
             if options.enforce.unwrap_or(true) {
@@ -657,6 +695,30 @@ fn build_action_spec(repo_root: &Path, request: &CommandExecutionRequest) -> App
                         AOXC_PROGRESS_REPORT.to_string(),
                     ),
                 ],
+            }
+        }
+        DesktopAction::ProduceOnce => {
+            let tx = options
+                .scenario
+                .clone()
+                .unwrap_or_else(|| "desktop-produce-once".to_string());
+            let args = vec![
+                "produce-once".to_string(),
+                "--home".to_string(),
+                home.clone(),
+                "--tx".to_string(),
+                tx,
+                "--format".to_string(),
+                format.clone(),
+            ];
+
+            ActionSpec {
+                program: "cargo".to_string(),
+                rendered_command: render_cargo_command(&args),
+                args,
+                script_path: None,
+                env_vars,
+                artifact_hints: vec![("Node home".to_string(), home.clone())],
             }
         }
         DesktopAction::NodeHealth => {
@@ -972,6 +1034,10 @@ fn next_steps_for(
     }
 
     match action {
+        DesktopAction::ProductionBootstrap => vec![
+            "Run mainnet-readiness and full-surface-readiness after bootstrap.".to_string(),
+            "Verify produced block metadata from runtime-status.".to_string(),
+        ],
         DesktopAction::MainnetReadiness => vec![
             "Review remaining blockers in AOXC_PROGRESS_REPORT.md.".to_string(),
             "Run full-surface-readiness for a broader closure decision.".to_string(),
@@ -1008,6 +1074,10 @@ fn next_steps_for(
         DesktopAction::NodeBootstrap => vec![
             "Run node-health after bootstrapping.".to_string(),
             "Run node-run for local validation or controlled smoke testing.".to_string(),
+        ],
+        DesktopAction::ProduceOnce => vec![
+            "Run runtime-status to confirm height increment and consensus fields.".to_string(),
+            "Run node-health and network-smoke after block production.".to_string(),
         ],
         DesktopAction::NodeHealth => vec![
             "If health is degraded, inspect logs and diagnostics.".to_string(),
@@ -1059,6 +1129,7 @@ fn next_steps_for(
 fn risk_level_for(action: DesktopAction) -> RiskLevel {
     match action {
         DesktopAction::MainnetReadiness
+        | DesktopAction::ProductionBootstrap
         | DesktopAction::FullSurfaceReadiness
         | DesktopAction::RuntimeStatus
         | DesktopAction::ProductionAudit
@@ -1075,6 +1146,7 @@ fn risk_level_for(action: DesktopAction) -> RiskLevel {
         | DesktopAction::DbCompact => RiskLevel::Low,
 
         DesktopAction::NodeBootstrap
+        | DesktopAction::ProduceOnce
         | DesktopAction::NodeRun
         | DesktopAction::RealNetworkValidation
         | DesktopAction::LaunchDeterministicCluster => RiskLevel::Medium,
@@ -1400,9 +1472,21 @@ fn command_presets() -> Vec<CommandPreset> {
             risk_level: RiskLevel::Medium,
         },
         CommandPreset {
+            title: "Production bootstrap + first block".to_string(),
+            command: "cargo run -q -p aoxcmd -- production-bootstrap --profile mainnet --password <value> --produce-once-tx bootstrap-mainnet-anchor --format json".to_string(),
+            intent: "Create production profile artifacts and produce the first deterministic block in one flow.".to_string(),
+            risk_level: RiskLevel::Medium,
+        },
+        CommandPreset {
             title: "Run mainnet readiness".to_string(),
             command: "cargo run -q -p aoxcmd -- mainnet-readiness --enforce --format json".to_string(),
             intent: "Refresh the mainnet readiness surface before any promotion decision.".to_string(),
+            risk_level: RiskLevel::Low,
+        },
+        CommandPreset {
+            title: "Compute net level score".to_string(),
+            command: "cargo run -q -p aoxcmd -- level-score --format json".to_string(),
+            intent: "Report consolidated platform level ratio from readiness and block-production posture.".to_string(),
             risk_level: RiskLevel::Low,
         },
         CommandPreset {
@@ -1416,6 +1500,12 @@ fn command_presets() -> Vec<CommandPreset> {
             command: "cargo run -q -p aoxcmd -- production-audit --format json".to_string(),
             intent: "Refresh the operator audit surface before release or wallet approval.".to_string(),
             risk_level: RiskLevel::Low,
+        },
+        CommandPreset {
+            title: "Produce one block".to_string(),
+            command: "cargo run -q -p aoxcmd -- produce-once --tx desktop-produce-once --format json".to_string(),
+            intent: "Run single-block production directly from desktop control workflows.".to_string(),
+            risk_level: RiskLevel::Medium,
         },
         CommandPreset {
             title: "Initialize runtime DB".to_string(),
