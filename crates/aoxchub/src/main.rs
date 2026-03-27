@@ -8,6 +8,7 @@ mod modules;
 mod route;
 mod services;
 mod state;
+mod types;
 mod views;
 
 use app::App;
