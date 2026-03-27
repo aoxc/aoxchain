@@ -14,6 +14,7 @@ use crate::util::{now_epoch_secs, prefixed_id};
 use aoxcore::identity::hd_path::HdPath;
 use aoxcore::identity::key_engine::{KeyEngine, MASTER_SEED_LEN};
 use ed25519_dalek::SigningKey;
+use std::cmp::Ordering as CmpOrdering;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// High-level mobile gateway for secure native AOXC participation flows.
@@ -201,10 +202,23 @@ where
         decision: WitnessDecision,
     ) -> Result<TaskSubmissionResult, MobError> {
         self.ensure_permit_active(permit)?;
+        let task_id = task_id.into();
+        if task_id.trim().is_empty() {
+            return Err(MobError::InvalidInput("task_id must not be empty"));
+        }
+        if task_id.len() > 128
+            || !task_id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+        {
+            return Err(MobError::InvalidInput(
+                "task_id must be <=128 chars and use [A-Za-z0-9_-]",
+            ));
+        }
         let profile = self.store.load_device_profile()?;
         let signing_key = self.store.load_signing_key()?;
         let receipt = TaskReceipt {
-            task_id: task_id.into(),
+            task_id,
             decision,
             client_timestamp_epoch_secs: now_epoch_secs()?,
             device_id: profile.device_id,
@@ -244,6 +258,17 @@ where
                 "challenge is already expired",
             ));
         }
+        if challenge.issued_at_epoch_secs > challenge.expires_at_epoch_secs {
+            return Err(MobError::InvalidSessionChallenge(
+                "challenge issued_at must be <= expires_at",
+            ));
+        }
+        if now.saturating_sub(challenge.issued_at_epoch_secs) > self.config.challenge_max_skew_secs
+        {
+            return Err(MobError::InvalidSessionChallenge(
+                "challenge issued_at is older than allowed skew",
+            ));
+        }
         if challenge.issued_at_epoch_secs > now + self.config.challenge_max_skew_secs {
             return Err(MobError::InvalidSessionChallenge(
                 "challenge issued_at is unreasonably far in the future",
@@ -270,6 +295,21 @@ where
         if permit.device_id != profile.device_id {
             return Err(MobError::InvalidSessionChallenge(
                 "session permit device_id does not match local profile",
+            ));
+        }
+        if permit.issued_at_epoch_secs > permit.expires_at_epoch_secs {
+            return Err(MobError::InvalidSessionChallenge(
+                "session permit issued_at must be <= expires_at",
+            ));
+        }
+        if permit
+            .expires_at_epoch_secs
+            .saturating_sub(permit.issued_at_epoch_secs)
+            .cmp(&self.config.session_ttl_secs)
+            == CmpOrdering::Greater
+        {
+            return Err(MobError::InvalidSessionChallenge(
+                "session permit ttl exceeds configured session_ttl_secs",
             ));
         }
         self.ensure_permit_active(permit)
@@ -500,5 +540,109 @@ mod tests {
 
         assert!(result.accepted);
         assert_eq!(result.reward_units, 25);
+    }
+
+    #[tokio::test]
+    async fn submit_witness_decision_rejects_invalid_task_id() {
+        let config = MobileConfig::default();
+        let transport = MockRelayTransport::new(config.chain_id.clone());
+        let gateway = NativeGateway::new(config, transport, crate::InMemorySecureStore::new())
+            .expect("gateway creation must succeed");
+        gateway
+            .provision_from_master_seed(
+                sample_seed(),
+                HdPath::new(1, 100, 1, 0).expect("path must be valid"),
+                DevicePlatform::Android,
+                "guardian-android",
+            )
+            .expect("device provisioning must succeed");
+        let session = gateway
+            .open_session()
+            .await
+            .expect("session open must succeed");
+
+        let error = gateway
+            .submit_witness_decision(&session.permit, "task invalid", WitnessDecision::Approve)
+            .await
+            .expect_err("invalid task_id must be rejected");
+        assert_eq!(error.code(), "AOXCMOB_INPUT_INVALID");
+    }
+
+    #[tokio::test]
+    async fn open_session_rejects_replay_like_old_challenge() {
+        struct ReplayChallengeTransport;
+
+        #[async_trait::async_trait]
+        impl AoxcMobileTransport for ReplayChallengeTransport {
+            async fn request_session_challenge(
+                &self,
+                _profile: &DeviceProfile,
+                config: &MobileConfig,
+            ) -> Result<SessionChallenge, MobError> {
+                let now = now_epoch_secs()?;
+                Ok(SessionChallenge {
+                    challenge_id: "CH-OLD".to_string(),
+                    relay_nonce: "NONCE-OLD".to_string(),
+                    issued_at_epoch_secs: now.saturating_sub(config.challenge_max_skew_secs + 5),
+                    expires_at_epoch_secs: now + 10,
+                    audience: config.app_id.clone(),
+                    session_ttl_secs: config.session_ttl_secs,
+                })
+            }
+
+            async fn submit_session_envelope(
+                &self,
+                _envelope: SessionEnvelope,
+                _config: &MobileConfig,
+            ) -> Result<SessionPermit, MobError> {
+                unreachable!("challenge should be rejected before envelope submission")
+            }
+
+            async fn fetch_chain_health(
+                &self,
+                _permit: &SessionPermit,
+                _config: &MobileConfig,
+            ) -> Result<ChainHealth, MobError> {
+                unreachable!()
+            }
+
+            async fn fetch_available_tasks(
+                &self,
+                _permit: &SessionPermit,
+                _config: &MobileConfig,
+            ) -> Result<Vec<TaskDescriptor>, MobError> {
+                unreachable!()
+            }
+
+            async fn submit_task_receipt(
+                &self,
+                _receipt: SignedTaskReceipt,
+                _config: &MobileConfig,
+            ) -> Result<TaskSubmissionResult, MobError> {
+                unreachable!()
+            }
+        }
+
+        let config = MobileConfig::default();
+        let gateway = NativeGateway::new(
+            config,
+            ReplayChallengeTransport,
+            crate::InMemorySecureStore::new(),
+        )
+        .expect("gateway creation must succeed");
+        gateway
+            .provision_from_master_seed(
+                sample_seed(),
+                HdPath::new(1, 100, 1, 0).expect("path must be valid"),
+                DevicePlatform::Desktop,
+                "guardian-desktop",
+            )
+            .expect("device provisioning must succeed");
+
+        let error = gateway
+            .open_session()
+            .await
+            .expect_err("replay-like old challenge must be rejected");
+        assert_eq!(error.code(), "AOXCMOB_SESSION_CHALLENGE_INVALID");
     }
 }

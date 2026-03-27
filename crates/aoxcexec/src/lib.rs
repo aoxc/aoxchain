@@ -47,6 +47,37 @@ impl LanePolicy {
             max_sender_txs_per_block,
         }
     }
+
+    pub fn validate(&self) -> Result<(), ExecutionError> {
+        if self.lane_id.trim().is_empty() {
+            return Err(ExecutionError::InvalidPolicy("lane_id must not be empty"));
+        }
+        if !self
+            .lane_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+        {
+            return Err(ExecutionError::InvalidPolicy(
+                "lane_id contains invalid characters",
+            ));
+        }
+        if self.base_gas == 0 {
+            return Err(ExecutionError::InvalidPolicy(
+                "base_gas must be greater than zero",
+            ));
+        }
+        if self.max_payload_bytes == 0 || self.max_gas_per_tx == 0 {
+            return Err(ExecutionError::InvalidPolicy(
+                "max_payload_bytes and max_gas_per_tx must be greater than zero",
+            ));
+        }
+        if self.max_sender_txs_per_block == 0 {
+            return Err(ExecutionError::InvalidPolicy(
+                "max_sender_txs_per_block must be greater than zero",
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -149,6 +180,7 @@ impl LaneRegistry {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionError {
     InvalidContext(&'static str),
+    InvalidPolicy(&'static str),
     DuplicateTransaction([u8; 32]),
     DuplicateSenderNonce {
         sender: [u8; 32],
@@ -166,6 +198,7 @@ impl fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidContext(reason) => write!(f, "invalid execution context: {reason}"),
+            Self::InvalidPolicy(reason) => write!(f, "invalid lane policy: {reason}"),
             Self::DuplicateTransaction(tx_hash) => {
                 write!(
                     f,
@@ -1075,6 +1108,11 @@ fn validate_context(context: &ExecutionContext) -> Result<(), ExecutionError> {
             "batch limits must be greater than zero",
         ));
     }
+    if context.max_receipt_size == 0 {
+        return Err(ExecutionError::InvalidContext(
+            "max_receipt_size must be greater than zero",
+        ));
+    }
     Ok(())
 }
 
@@ -1109,6 +1147,21 @@ fn validate_payload_shape(payload: &ExecutionPayload) -> Result<(), ReceiptFailu
     if payload.lane_id.trim().is_empty() {
         return Err(ReceiptFailure::InvalidPayload("lane_id must not be empty"));
     }
+    if !payload
+        .lane_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+    {
+        return Err(ReceiptFailure::InvalidPayload(
+            "lane_id contains invalid characters",
+        ));
+    }
+    if payload.sender == [0u8; 32] {
+        return Err(ReceiptFailure::InvalidPayload("sender must not be zero"));
+    }
+    if payload.tx_hash == [0u8; 32] {
+        return Err(ReceiptFailure::InvalidPayload("tx_hash must not be zero"));
+    }
     if payload.data.is_empty() {
         return Err(ReceiptFailure::InvalidPayload(
             "payload data must not be empty",
@@ -1129,10 +1182,35 @@ fn validate_payload_shape(payload: &ExecutionPayload) -> Result<(), ReceiptFailu
             "access_scope must contain at least one lane",
         ));
     }
+    let mut seen = BTreeSet::new();
+    for scope in &payload.access_scope {
+        let trimmed = scope.trim();
+        if trimmed.is_empty() {
+            return Err(ReceiptFailure::InvalidPayload(
+                "access_scope items must not be empty",
+            ));
+        }
+        if !trimmed
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+        {
+            return Err(ReceiptFailure::InvalidPayload(
+                "access_scope items contain invalid characters",
+            ));
+        }
+        if !seen.insert(trimmed) {
+            return Err(ReceiptFailure::InvalidPayload(
+                "access_scope items must be unique",
+            ));
+        }
+    }
     if payload.replay_domain.trim().is_empty() {
         return Err(ReceiptFailure::InvalidPayload(
             "replay_domain must not be empty",
         ));
+    }
+    if payload.replay_domain.len() > 128 {
+        return Err(ReceiptFailure::InvalidPayload("replay_domain is too long"));
     }
     Ok(())
 }
@@ -1193,14 +1271,17 @@ fn validate_no_duplicate_sender_nonce(payloads: &[ExecutionPayload]) -> Result<(
 fn canonicalize_payloads(payloads: &[ExecutionPayload]) -> Vec<ExecutionPayload> {
     let mut ordered = payloads.to_vec();
     ordered.sort_by(|left, right| {
-        left.nonce
-            .cmp(&right.nonce)
+        left.lane_id
+            .cmp(&right.lane_id)
+            .then_with(|| left.sender.cmp(&right.sender))
+            .then_with(|| left.nonce.cmp(&right.nonce))
             .then_with(|| left.tx_hash.cmp(&right.tx_hash))
     });
     ordered
 }
 
 fn validate_registry_checksum(policy: &LaneRegistryPolicy) -> Result<(), ExecutionError> {
+    policy.policy.validate()?;
     let expected = hash_struct(
         DOMAIN_EXEC_CONFIG_V1,
         &(
@@ -1244,8 +1325,14 @@ fn canonical_bytes<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, Executio
 fn hash_struct<T: Serialize>(domain: &[u8], value: &T) -> [u8; 32] {
     let mut hasher = Hasher::new();
     hasher.update(domain);
-    let bytes = serde_json::to_vec(value).unwrap_or_default();
-    hasher.update(&bytes);
+    match serde_json::to_vec(value) {
+        Ok(bytes) => {
+            hasher.update(&bytes);
+        }
+        Err(_) => {
+            hasher.update(b"SERDE_JSON_ENCODE_FAILURE");
+        }
+    };
     *hasher.finalize().as_bytes()
 }
 
@@ -1303,9 +1390,15 @@ fn truncate_error_message(message: String) -> String {
     if message.len() <= MAX_ERROR_MESSAGE_LEN {
         return message;
     }
-    let mut out = message;
-    out.truncate(MAX_ERROR_MESSAGE_LEN);
-    out
+    let mut end = 0usize;
+    for (idx, ch) in message.char_indices() {
+        let next = idx + ch.len_utf8();
+        if next > MAX_ERROR_MESSAGE_LEN {
+            break;
+        }
+        end = next;
+    }
+    message[..end].to_string()
 }
 
 /// Compatibility alias retained for existing users that still instantiate the
@@ -1527,5 +1620,79 @@ mod tests {
                 InMemoryStateStore::default().snapshot_root().expect("root")
             );
         }
+    }
+
+    #[test]
+    fn invalid_context_rejects_zero_max_receipt_size() {
+        let mut context = sample_context();
+        context.max_receipt_size = 0;
+        let orchestrator = DeterministicOrchestrator::default();
+        let payloads = vec![sample_payload([1; 32], [2; 32], 0, "native", 50_000, 4)];
+        let err = orchestrator
+            .execute_batch(&context, &payloads)
+            .expect_err("context must be rejected");
+        assert_eq!(
+            err,
+            ExecutionError::InvalidContext("max_receipt_size must be greater than zero")
+        );
+    }
+
+    #[test]
+    fn invalid_scope_item_is_rejected() {
+        let orchestrator = DeterministicOrchestrator::default();
+        let context = sample_context();
+        let mut payload = sample_payload([5; 32], [6; 32], 0, "native", 50_000, 8);
+        payload.access_scope = vec!["native".to_string(), "native".to_string()];
+        payload = payload
+            .with_mock_signature()
+            .expect("signature generation should succeed");
+
+        let outcome = orchestrator
+            .execute_batch(&context, &[payload])
+            .expect("batch should return receipt");
+        assert_eq!(outcome.receipts.len(), 1);
+        assert!(!outcome.receipts[0].success);
+        assert!(
+            outcome.receipts[0]
+                .error_message
+                .as_deref()
+                .unwrap_or_default()
+                .contains("access_scope")
+        );
+    }
+
+    #[test]
+    fn invalid_policy_configuration_is_rejected() {
+        let bad_policy = LanePolicy {
+            lane_id: "native".to_string(),
+            enabled: true,
+            base_gas: 0,
+            gas_per_byte: 1,
+            max_payload_bytes: 1024,
+            max_gas_per_tx: 1_000_000,
+            max_sender_txs_per_block: 10,
+        };
+        let registry = LaneRegistry::new(vec![LaneRegistryPolicy::new(
+            "native-mainnet",
+            1,
+            1,
+            "gov://bootstrap/native/v1",
+            bad_policy,
+        )]);
+        let orchestrator = DeterministicOrchestrator::new(
+            registry,
+            default_lanes(),
+            InMemoryStateStore::default(),
+        );
+        let context = sample_context();
+        let payload = sample_payload([1; 32], [1; 32], 0, "native", 50_000, 8);
+
+        let err = orchestrator
+            .execute_batch(&context, &[payload])
+            .expect_err("invalid policy should fail");
+        assert_eq!(
+            err,
+            ExecutionError::InvalidPolicy("base_gas must be greater than zero")
+        );
     }
 }

@@ -175,6 +175,20 @@ impl AoxcMobileTransport for MockRelayTransport {
         receipt: SignedTaskReceipt,
         _config: &MobileConfig,
     ) -> Result<TaskSubmissionResult, MobError> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| MobError::Transport("mock session store lock poisoned".to_string()))?;
+        let Some(bound_device_id) = sessions.get(&receipt.receipt.session_id) else {
+            return Err(MobError::Transport("unknown session_id".to_string()));
+        };
+        if bound_device_id != &receipt.receipt.device_id {
+            return Err(MobError::Transport(
+                "receipt device_id does not match session device binding".to_string(),
+            ));
+        }
+        drop(sessions);
+
         let mut last_receipt = self
             .last_receipt
             .lock()

@@ -30,10 +30,14 @@ pub enum ManifestValidationError {
     MissingSchemaVersion,
     #[error("duplicate entrypoint: {0}")]
     DuplicateEntrypoint(String),
+    #[error("manifest must contain at least one entrypoint")]
+    EmptyEntrypoints,
     #[error("declared vm target does not match artifact vm target")]
     VmTargetMismatch,
     #[error("manifest integrity digest does not match artifact digest")]
     DigestAlgorithmMismatch,
+    #[error("manifest integrity does not match artifact metadata")]
+    IntegrityMetadataMismatch,
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -70,6 +74,14 @@ pub enum CompatibilityError {
     MissingMinimumSchemaVersion,
     #[error("supported schema versions cannot be empty")]
     EmptySupportedSchemaVersions,
+    #[error("supported runtime families cannot be empty")]
+    EmptySupportedRuntimeFamilies,
+    #[error("supported network classes cannot be empty")]
+    EmptySupportedNetworkClasses,
+    #[error("supported schema versions contain duplicates")]
+    DuplicateSupportedSchemaVersions,
+    #[error("minimum schema version must be listed in supported schema versions")]
+    MinimumSchemaVersionNotSupported,
     #[error("manifest schema version is incompatible")]
     CompatibilityMismatch,
 }
