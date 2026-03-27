@@ -80,9 +80,20 @@ h2 {
     font-size: 0.88rem;
 }
 
-.step-grid,
-.action-grid {
-    margin-top: 10px;
+.grid-section h2,
+.echo-box h2,
+.ops-console h2 {
+    margin: 0 0 10px;
+    font-size: clamp(1rem, 1.5vw, 1.4rem);
+}
+
+.section-note {
+    margin: 0 0 10px;
+    color: #bfd3ff;
+    font-size: 0.92rem;
+}
+
+.card-grid {
     display: grid;
     gap: 10px;
     grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
@@ -142,6 +153,19 @@ button {
     border: 1px solid var(--line);
     border-radius: 10px;
     padding: 10px;
+    cursor: pointer;
+    transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-1px);
+    border-color: #3b67a3;
+    background: rgba(32, 73, 135, 0.54);
+}
+
+.quick-action-btn h3 {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
 }
 
 textarea {
@@ -154,9 +178,18 @@ textarea {
     margin-top: 10px;
     max-width: 260px;
     cursor: pointer;
-    background: #1f4d8a;
-    border-color: #2f67b0;
-    transition: transform 120ms ease;
+    max-width: 320px;
+    border-radius: 10px;
+    border: 1px solid #2d4f86;
+    padding: 10px 12px;
+    color: var(--text);
+    background: #17335f;
+    transition: transform 120ms ease, filter 120ms ease;
+}
+
+.run-op-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
 }
 
 .run-btn:hover {
@@ -180,8 +213,25 @@ textarea {
     margin-top: 10px;
     border: 1px dashed #335686;
     border-radius: 10px;
-    padding: 10px;
-    background: rgba(8, 15, 29, 0.9);
+    border: 1px solid var(--panel-border);
+    padding: 10px 12px;
+    color: var(--text);
+    background: #0c1322;
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+button:focus {
+    outline: 2px solid #4d8cff;
+    outline-offset: 2px;
+}
+
+.echo-box button {
+    cursor: pointer;
+    max-width: 220px;
+    background: #17335f;
+    border-color: #2d4f86;
 }
 
 .history ul {
