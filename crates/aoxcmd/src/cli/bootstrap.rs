@@ -24,7 +24,7 @@ use crate::{
         bootstrap_operator_key, consensus_public_key_hex, inspect_operator_key,
         operator_fingerprint, verify_operator_key,
     },
-    node::lifecycle::bootstrap_state,
+    node::{engine, lifecycle::bootstrap_state},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -499,26 +499,63 @@ fn bootstrap_root() -> PathBuf {
 }
 
 pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
-    cmd_profile_bootstrap(args)
-}
+    let home = resolve_home()?;
+    ensure_layout(&home)?;
 
-pub fn cmd_profile_bootstrap(args: &[String]) -> Result<(), AppError> {
     let profile = EnvironmentProfile::parse(
-        &arg_value(args, "--profile").unwrap_or_else(|| "validation".to_string()),
+        &arg_value(args, "--profile").unwrap_or_else(|| "mainnet".to_string()),
     )?;
-
-    let output_dir = arg_value(args, "--output-dir")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| bootstrap_root().join(profile.as_str()));
-
+    let name = arg_value(args, "--name").unwrap_or_else(|| "validator-01".to_string());
     let password = arg_value(args, "--password").ok_or_else(|| {
         AppError::new(
             ErrorCode::UsageInvalidArguments,
-            "Missing required flag --password for profile bootstrap",
+            "Missing required flag --password for production bootstrap",
         )
     })?;
+    let bind_host = arg_value(args, "--bind-host");
+    let skip_produce_once = has_flag(args, "--skip-produce-once");
+    let produce_once_tx = arg_value(args, "--produce-once-tx")
+        .unwrap_or_else(|| "bootstrap-mainnet-anchor".to_string());
 
-    let summary = bootstrap_profile_directory(&output_dir, profile, &password)?;
+    let mut settings = build_profile_settings(home.display().to_string(), profile, bind_host)?;
+    settings.logging.json = true;
+    settings
+        .validate()
+        .map_err(|e| AppError::new(ErrorCode::ConfigInvalid, e))?;
+    persist(&settings)?;
+
+    let genesis = profile.genesis_document();
+    let genesis_json = serde_json::to_string_pretty(&genesis).map_err(|e| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode production genesis document",
+            e,
+        )
+    })?;
+    write_file(&genesis_path()?, &genesis_json)?;
+
+    let _material = bootstrap_operator_key(&name, profile.as_str(), &password)?;
+    let operator_fp = operator_fingerprint()?;
+    let consensus_pk = consensus_public_key_hex()?;
+    let mut node_state = bootstrap_state()?;
+    if !skip_produce_once {
+        node_state = engine::produce_once(&produce_once_tx)?;
+    }
+
+    let summary = ProfileBootstrapSummary {
+        profile: profile.as_str().to_string(),
+        home_dir: home.display().to_string(),
+        bind_host: settings.network.bind_host.clone(),
+        p2p_port: settings.network.p2p_port,
+        rpc_port: settings.network.rpc_port,
+        prometheus_port: settings.telemetry.prometheus_port,
+        chain_id: genesis.identity.chain_id,
+        network_id: genesis.identity.network_id,
+        operator_fingerprint: operator_fp,
+        consensus_public_key: consensus_pk,
+        node_height: node_state.current_height,
+    };
+
     emit_serialized(&summary, output_format(args))
 }
 

@@ -63,7 +63,7 @@ Bootstrap:
   genesis-init | genesis-validate | genesis-inspect | genesis-hash
   config-init [--profile <validator|testnet|mainnet>] [--bind-host <host>] [--json-logs]
   config-validate | config-print
-  production-bootstrap --password <value> [--profile <testnet|mainnet>] [--name <validator>] [--bind-host <host>]
+  production-bootstrap --password <value> [--profile <testnet|mainnet>] [--name <validator>] [--bind-host <host>] [--produce-once-tx <value>] [--skip-produce-once]
   dual-profile-bootstrap --password <value> [--output-dir <path>] [--name-prefix <validator>]
 
 Node and economy:

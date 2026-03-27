@@ -65,7 +65,7 @@ fn canonical_lane_txs() -> Vec<TxContext> {
             [23u8; 32],
             b"carol",
             VmKind::Wasm,
-            [vec![0x00], b"\0asm-deterministic".to_vec()].concat(),
+            [vec![0x00], b"\0asm\x01\0\0\0deterministic".to_vec()].concat(),
             100_000,
         ),
         tx(
@@ -195,7 +195,7 @@ fn wasm_upload_instantiate_and_execute_flow_works() {
         [5u8; 32],
         b"carol",
         VmKind::Wasm,
-        [vec![0x00], b"\0asm-demo".to_vec()].concat(),
+        [vec![0x00], b"\0asm\x01\0\0\0demo".to_vec()].concat(),
         100_000,
     );
 
@@ -241,6 +241,56 @@ fn wasm_upload_instantiate_and_execute_flow_works() {
         .query(&state, &block, &instance_id)
         .expect("instance must be queryable");
     assert!(!stored_instance.is_empty());
+}
+
+#[test]
+fn wasm_upload_rejects_invalid_header() {
+    let block = block_context();
+    let mut state = InMemoryHostState::new(1_000_000);
+    let router = dispatcher();
+
+    let invalid_upload = tx(
+        [35u8; 32],
+        b"carol",
+        VmKind::Wasm,
+        [vec![0x00], b"not-wasm".to_vec()].concat(),
+        100_000,
+    );
+
+    let err = router
+        .execute(&mut state, &block, &invalid_upload)
+        .expect_err("invalid WASM header must be rejected");
+    assert!(err.to_string().contains("WASM module"));
+}
+
+#[test]
+fn wasm_instantiate_rejects_oversized_state() {
+    let block = block_context();
+    let mut state = InMemoryHostState::new(5_000_000);
+    let router = dispatcher();
+
+    let upload_tx = tx(
+        [36u8; 32],
+        b"carol",
+        VmKind::Wasm,
+        [vec![0x00], b"\0asm\x01\0\0\0state-size".to_vec()].concat(),
+        200_000,
+    );
+    let upload_receipt = router.execute(&mut state, &block, &upload_tx).unwrap();
+
+    let oversized_state = vec![0xAB; 262_145];
+    let instantiate_tx = tx(
+        [37u8; 32],
+        b"carol",
+        VmKind::Wasm,
+        [vec![0x01], upload_receipt.output, oversized_state].concat(),
+        500_000,
+    );
+
+    let err = router
+        .execute(&mut state, &block, &instantiate_tx)
+        .expect_err("oversized state must be rejected");
+    assert!(err.to_string().contains("state exceeds max size"));
 }
 
 #[test]
@@ -308,7 +358,7 @@ fn dispatcher_and_gas_accounting_work_across_all_lanes() {
             [12u8; 32],
             b"carol",
             VmKind::Wasm,
-            [vec![0x00], b"wasm".to_vec()].concat(),
+            [vec![0x00], b"\0asm\x01\0\0\0gas".to_vec()].concat(),
             100_000,
         ),
         tx(
@@ -426,7 +476,7 @@ fn same_logical_identifier_can_exist_in_multiple_lanes_without_state_collision()
         shared_id,
         b"carol",
         VmKind::Wasm,
-        [vec![0x00], b"\0asm-shared-id".to_vec()].concat(),
+        [vec![0x00], b"\0asm\x01\0\0\0shared-id".to_vec()].concat(),
         100_000,
     );
     let cardano_create = tx(

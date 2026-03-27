@@ -544,10 +544,15 @@ fn evaluate_full_surface_readiness(
     let testnet_config = repo_root.join("configs").join("testnet.toml");
     let aoxhub_mainnet = repo_root.join("configs").join("aoxhub-mainnet.toml");
     let aoxhub_testnet = repo_root.join("configs").join("aoxhub-testnet.toml");
-    let testnet_fixture = repo_root
+    let testnet_fixture_v1 = repo_root
+        .join("configs")
+        .join("deterministic-testnet")
+        .join("genesis.v1.json");
+    let testnet_fixture_legacy = repo_root
         .join("configs")
         .join("deterministic-testnet")
         .join("genesis.json");
+    let testnet_fixture_exists = testnet_fixture_v1.exists() || testnet_fixture_legacy.exists();
     let testnet_launch = repo_root
         .join("configs")
         .join("deterministic-testnet")
@@ -605,10 +610,11 @@ fn evaluate_full_surface_readiness(
                 ),
                 surface_check(
                     "deterministic-fixture",
-                    testnet_fixture.exists(),
+                    testnet_fixture_exists,
                     format!(
-                        "expected deterministic fixture at {}",
-                        testnet_fixture.display()
+                        "expected deterministic fixture at {} or {}",
+                        testnet_fixture_v1.display(),
+                        testnet_fixture_legacy.display()
                     ),
                 ),
                 surface_check(
@@ -623,7 +629,11 @@ fn evaluate_full_surface_readiness(
                 ),
             ],
             vec![
-                testnet_fixture.display().to_string(),
+                if testnet_fixture_v1.exists() {
+                    testnet_fixture_v1.display().to_string()
+                } else {
+                    testnet_fixture_legacy.display().to_string()
+                },
                 multi_host.display().to_string(),
             ],
         ),
