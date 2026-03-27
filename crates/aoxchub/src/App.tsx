@@ -171,6 +171,33 @@ type QueuedAction = {
   queuedAt: string
 }
 
+type TransferScenario = {
+  title: string
+  from: string
+  to: string
+  amount: string
+  feePolicy: string
+  risk: 'ready' | 'in-progress' | 'blocked'
+  command: string
+}
+
+type StakeScenario = {
+  title: string
+  validator: string
+  strategy: string
+  lock: string
+  estimate: string
+  status: 'ready' | 'in-progress' | 'blocked'
+  command: string
+}
+
+type ExplorerSignal = {
+  title: string
+  value: string
+  detail: string
+  status: 'ready' | 'in-progress' | 'blocked'
+}
+
 const fallbackSnapshot: LaunchSnapshot = {
   stage: 'Desktop operations baseline',
   verdict: 'Needs operator closure',
@@ -616,6 +643,103 @@ function App() {
     )
   }, [normalizedQuery, snapshot.wallets])
 
+  const transferScenarios = useMemo<TransferScenario[]>(() => {
+    const operatorWallet = snapshot.wallets[0]
+    const treasuryWallet = snapshot.wallets.find((wallet) => wallet.title.toLowerCase().includes('treasury'))
+    const recoveryWallet = snapshot.wallets.find((wallet) => wallet.title.toLowerCase().includes('recovery'))
+
+    return [
+      {
+        title: 'Fast validator transfer',
+        from: operatorWallet?.addressHint ?? 'AOXC1-VAL-OPER-PRIMARY',
+        to: treasuryWallet?.addressHint ?? 'AOXC1-TREASURY-DESKTOP',
+        amount: '1250 AOXC',
+        feePolicy: 'dynamic priority fee',
+        risk: operatorWallet?.status === 'connected' ? 'ready' : 'in-progress',
+        command: 'cargo run -q -p aoxcmd -- wallet transfer --profile mainnet --to AOXC1-TREASURY-DESKTOP --amount 1250',
+      },
+      {
+        title: 'Treasury batch transfer',
+        from: treasuryWallet?.addressHint ?? 'AOXC1-TREASURY-DESKTOP',
+        to: 'AOXC1-MULTI-DEST-BATCH',
+        amount: '10000 AOXC / 12 outputs',
+        feePolicy: 'policy guarded + co-sign required',
+        risk: treasuryWallet?.status === 'attention' ? 'in-progress' : 'ready',
+        command: 'cargo run -q -p aoxcmd -- wallet batch-transfer --profile mainnet --plan artifacts/treasury-payouts.json',
+      },
+      {
+        title: 'Recovery emergency bridge',
+        from: recoveryWallet?.addressHint ?? 'AOXC1-RECOVERY-ESCROW',
+        to: operatorWallet?.addressHint ?? 'AOXC1-VAL-OPER-PRIMARY',
+        amount: '250 AOXC',
+        feePolicy: 'offline sign + delayed broadcast',
+        risk: recoveryWallet?.status === 'locked' ? 'ready' : 'blocked',
+        command: 'cargo run -q -p aoxcmd -- wallet emergency-transfer --profile mainnet --dry-run --from recovery',
+      },
+    ]
+  }, [snapshot.wallets])
+
+  const stakeScenarios = useMemo<StakeScenario[]>(() => {
+    const onlineNode = snapshot.nodes.find((node) => node.status === 'online')
+    const degradedNode = snapshot.nodes.find((node) => node.status !== 'online')
+    return [
+      {
+        title: 'Primary validator staking',
+        validator: onlineNode?.id ?? 'atlas',
+        strategy: 'long horizon / rewards compounding',
+        lock: '21 days',
+        estimate: '+9.8% APR (projected)',
+        status: 'ready',
+        command: 'cargo run -q -p aoxcmd -- stake delegate --validator atlas --amount 5000 --profile mainnet',
+      },
+      {
+        title: 'Risk-balanced staking',
+        validator: `${onlineNode?.id ?? 'atlas'} + ${degradedNode?.id ?? 'cypher'}`,
+        strategy: 'split stake 70/30 for redundancy',
+        lock: '14 days',
+        estimate: '+8.7% APR (projected)',
+        status: degradedNode ? 'in-progress' : 'ready',
+        command: 'cargo run -q -p aoxcmd -- stake rebalance --profile mainnet --policy cautious',
+      },
+      {
+        title: 'Instant unstake drill',
+        validator: degradedNode?.id ?? 'cypher',
+        strategy: 'incident playbook simulation',
+        lock: '0 day (simulation)',
+        estimate: 'capital release test',
+        status: degradedNode ? 'in-progress' : 'blocked',
+        command: 'cargo run -q -p aoxcmd -- stake simulate-unstake --validator cypher --profile testnet',
+      },
+    ]
+  }, [snapshot.nodes])
+
+  const explorerSignals = useMemo<ExplorerSignal[]>(() => {
+    const healthyExplorer = snapshot.explorer.filter((item) => item.status === 'ready').length
+    const riskyExplorer = snapshot.explorer.filter((item) => item.status !== 'ready').length
+    const onlineNodes = snapshot.nodes.filter((node) => node.status === 'online').length
+
+    return [
+      {
+        title: 'Explorer readiness',
+        value: `${healthyExplorer}/${snapshot.explorer.length || 1}`,
+        detail: 'active explorer surfaces',
+        status: riskyExplorer === 0 ? 'ready' : 'in-progress',
+      },
+      {
+        title: 'Live block watchers',
+        value: `${onlineNodes}`,
+        detail: 'online nodes sending chain updates',
+        status: onlineNodes >= 2 ? 'ready' : 'in-progress',
+      },
+      {
+        title: 'Anomaly alerts',
+        value: riskyExplorer === 0 ? '0' : `${riskyExplorer}`,
+        detail: 'surfaces requiring manual review',
+        status: riskyExplorer === 0 ? 'ready' : 'blocked',
+      },
+    ]
+  }, [snapshot.explorer, snapshot.nodes])
+
   const filteredCommands = useMemo(() => {
     if (!normalizedQuery) return snapshot.commands
     return snapshot.commands.filter((item) =>
@@ -873,35 +997,101 @@ function App() {
 
   function renderWallets() {
     return (
-      <section className="panel-surface section-card">
-        <div className="section-heading">
-          <h2>Wallet authority center</h2>
-          <p>Operatör, treasury ve recovery lane komutları ve rotalarıyla birlikte izlenir.</p>
-        </div>
-        <div className="stack-list">
-          {filteredWallets.map((wallet) => (
-            <article className="info-card compact" key={wallet.title}>
-              <div className="card-topline">
-                <h3>{wallet.title}</h3>
-                <span className={`status-pill ${statusTone(wallet.status)}`}>{statusLabel(wallet.status)}</span>
-              </div>
-              <p>{wallet.detail}</p>
-              <dl className="detail-grid">
-                <div><dt>Route</dt><dd>{wallet.route}</dd></div>
-                <div><dt>Address</dt><dd>{wallet.addressHint}</dd></div>
-              </dl>
-              <code>{wallet.command}</code>
-              <div className="action-row">
-                <button type="button" onClick={() => queueCommand(`${wallet.title} action`, wallet.command, 'wallet')}>
-                  Queue
-                </button>
-                <button type="button" onClick={() => copyCommand(wallet.command)}>
-                  Copy
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
+      <section className="dashboard-grid two-col">
+        <article className="panel-surface section-card">
+          <div className="section-heading">
+            <h2>Wallet authority center</h2>
+            <p>Operatör, treasury ve recovery lane komutları ve rotalarıyla birlikte izlenir.</p>
+          </div>
+          <div className="stack-list">
+            {filteredWallets.map((wallet) => (
+              <article className="info-card compact" key={wallet.title}>
+                <div className="card-topline">
+                  <h3>{wallet.title}</h3>
+                  <span className={`status-pill ${statusTone(wallet.status)}`}>{statusLabel(wallet.status)}</span>
+                </div>
+                <p>{wallet.detail}</p>
+                <dl className="detail-grid">
+                  <div><dt>Route</dt><dd>{wallet.route}</dd></div>
+                  <div><dt>Address</dt><dd>{wallet.addressHint}</dd></div>
+                </dl>
+                <code>{wallet.command}</code>
+                <div className="action-row">
+                  <button type="button" onClick={() => queueCommand(`${wallet.title} action`, wallet.command, 'wallet')}>
+                    Queue
+                  </button>
+                  <button type="button" onClick={() => copyCommand(wallet.command)}>
+                    Copy
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel-surface section-card">
+          <div className="section-heading">
+            <h2>Secure transfer lab</h2>
+            <p>Transfer akışları preflight güvenlik kontrolüyle birlikte simüle edilir.</p>
+          </div>
+          <div className="stack-list">
+            {transferScenarios.map((scenario) => (
+              <article className="info-card compact wallet-advanced-card" key={scenario.title}>
+                <div className="card-topline">
+                  <h3>{scenario.title}</h3>
+                  <span className={`status-pill ${scenario.risk}`}>{statusLabel(scenario.risk)}</span>
+                </div>
+                <dl className="detail-grid">
+                  <div><dt>From</dt><dd>{scenario.from}</dd></div>
+                  <div><dt>To</dt><dd>{scenario.to}</dd></div>
+                  <div><dt>Amount</dt><dd>{scenario.amount}</dd></div>
+                  <div><dt>Fee policy</dt><dd>{scenario.feePolicy}</dd></div>
+                </dl>
+                <code>{scenario.command}</code>
+                <div className="action-row">
+                  <button type="button" onClick={() => queueCommand(`${scenario.title} transfer`, scenario.command, 'wallet-transfer')}>
+                    Queue transfer
+                  </button>
+                  <button type="button" onClick={() => copyCommand(scenario.command)}>
+                    Copy
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel-surface section-card">
+          <div className="section-heading">
+            <h2>Stake strategy vault</h2>
+            <p>Stake / unstake / rebalance planları tek merkezde gözden geçirilir.</p>
+          </div>
+          <div className="stack-list">
+            {stakeScenarios.map((scenario) => (
+              <article className="info-card compact wallet-advanced-card" key={scenario.title}>
+                <div className="card-topline">
+                  <h3>{scenario.title}</h3>
+                  <span className={`status-pill ${scenario.status}`}>{statusLabel(scenario.status)}</span>
+                </div>
+                <dl className="detail-grid">
+                  <div><dt>Validator</dt><dd>{scenario.validator}</dd></div>
+                  <div><dt>Strategy</dt><dd>{scenario.strategy}</dd></div>
+                  <div><dt>Lock</dt><dd>{scenario.lock}</dd></div>
+                  <div><dt>Yield</dt><dd>{scenario.estimate}</dd></div>
+                </dl>
+                <code>{scenario.command}</code>
+                <div className="action-row">
+                  <button type="button" onClick={() => queueCommand(`${scenario.title} stake`, scenario.command, 'wallet-stake')}>
+                    Queue stake
+                  </button>
+                  <button type="button" onClick={() => copyCommand(scenario.command)}>
+                    Copy
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
       </section>
     )
   }
@@ -1002,34 +1192,66 @@ function App() {
 
   function renderExplorer() {
     return (
-      <section className="panel-surface section-card">
-        <div className="section-heading">
-          <h2>Explorer cockpit</h2>
-          <p>Chain state, contract lane ve wallet event explorer yüzeyleri.</p>
-        </div>
-        <div className="stack-list">
-          {filteredExplorer.map((surface) => (
-            <article className="info-card compact" key={`${surface.name}-${surface.endpoint}`}>
-              <div className="card-topline">
-                <h3>{surface.name}</h3>
-                <span className={`status-pill ${statusTone(surface.status)}`}>{statusLabel(surface.status)}</span>
-              </div>
-              <p>{surface.detail}</p>
-              <dl className="detail-grid">
-                <div><dt>Endpoint</dt><dd>{surface.endpoint}</dd></div>
-              </dl>
-              <code>{surface.command}</code>
-              <div className="action-row">
-                <button type="button" onClick={() => queueCommand(`${surface.name} inspect`, surface.command, 'explorer')}>
-                  Queue
-                </button>
-                <button type="button" onClick={() => copyCommand(surface.command)}>
-                  Copy
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
+      <section className="dashboard-grid two-col">
+        <article className="panel-surface section-card">
+          <div className="section-heading">
+            <h2>Explorer cockpit</h2>
+            <p>Chain state, contract lane ve wallet event explorer yüzeyleri.</p>
+          </div>
+          <div className="stack-list">
+            {filteredExplorer.map((surface) => (
+              <article className="info-card compact explorer-advanced-card" key={`${surface.name}-${surface.endpoint}`}>
+                <div className="card-topline">
+                  <h3>{surface.name}</h3>
+                  <span className={`status-pill ${statusTone(surface.status)}`}>{statusLabel(surface.status)}</span>
+                </div>
+                <p>{surface.detail}</p>
+                <dl className="detail-grid">
+                  <div><dt>Endpoint</dt><dd>{surface.endpoint}</dd></div>
+                </dl>
+                <code>{surface.command}</code>
+                <div className="action-row">
+                  <button type="button" onClick={() => queueCommand(`${surface.name} inspect`, surface.command, 'explorer')}>
+                    Queue
+                  </button>
+                  <button type="button" onClick={() => copyCommand(surface.command)}>
+                    Copy
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel-surface section-card">
+          <div className="section-heading">
+            <h2>Live explorer pulse</h2>
+            <p>Explorer metrikleri ile zincir tarama sağlığı tek bakışta görünür.</p>
+          </div>
+          <div className="mission-grid">
+            {explorerSignals.map((signal) => (
+              <article className="metric-card panel-surface" key={signal.title}>
+                <div className="card-topline">
+                  <span>{signal.title}</span>
+                  <span className={`status-pill ${signal.status}`}>{statusLabel(signal.status)}</span>
+                </div>
+                <strong>{signal.value}</strong>
+                <p>{signal.detail}</p>
+              </article>
+            ))}
+          </div>
+          <article className="info-card compact explorer-timeline panel-surface">
+            <h3>Deep scan lanes</h3>
+            <ul className="bullet-list">
+              {filteredExplorer.map((surface) => (
+                <li key={`${surface.name}-scan`}>
+                  <strong>{surface.name}</strong>
+                  <span>{surface.endpoint}</span>
+                </li>
+              ))}
+            </ul>
+          </article>
+        </article>
       </section>
     )
   }

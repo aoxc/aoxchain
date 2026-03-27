@@ -21,15 +21,57 @@ impl GrpcServer {
     }
 
     pub fn startup_checks(&self) -> Result<(), RpcError> {
-        if self.config.grpc_bind_addr.trim().is_empty() {
-            return Err(RpcError::InvalidRequest);
-        }
-
         if self.config.tls_cert_path.trim().is_empty() || self.config.tls_key_path.trim().is_empty()
         {
             return Err(RpcError::InternalError);
         }
 
+        let validation = self.config.validate();
+
+        if validation
+            .errors
+            .iter()
+            .any(|error| error.contains("grpc_bind_addr") || error.contains("chain_id"))
+        {
+            return Err(RpcError::InvalidRequest);
+        }
+
+        if validation
+            .errors
+            .iter()
+            .any(|error| error.contains("tls") || error.contains("mTLS"))
+        {
+            return Err(RpcError::InternalError);
+        }
+
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn startup_checks_fail_for_bad_grpc_bind_addr() {
+        let mut config = RpcConfig::default();
+        config.grpc_bind_addr = "bad-addr".to_string();
+        let server = GrpcServer::new(config);
+
+        let result = server.startup_checks();
+        assert!(matches!(result, Err(RpcError::InvalidRequest)));
+    }
+
+    #[test]
+    fn startup_checks_fail_for_missing_tls_files() {
+        let mut config = RpcConfig::default();
+        config.genesis_hash = Some(format!("0x{}", "ab".repeat(32)));
+        config.tls_cert_path = "".to_string();
+        config.tls_key_path = "".to_string();
+
+        let server = GrpcServer::new(config);
+        let result = server.startup_checks();
+
+        assert!(matches!(result, Err(RpcError::InternalError)));
     }
 }
