@@ -46,3 +46,8 @@ The following audit statements should be reviewed on each significant change.
 - [ ] Confirm malformed and conflicting inputs are rejected.
 - [ ] Confirm verification evidence is attached to the release record.
 - [ ] Confirm documentation reflects current operational assumptions.
+
+## Current SDK Surface
+- `contracts::ContractManifestBuilder` now includes preset constructors (`wasm`, `evm`) and richer policy/schema customization methods.
+- Builders can produce either `ContractManifest` (`build`) or `ContractDescriptor` (`build_descriptor`).
+- If metadata is omitted, deterministic default metadata is generated from the contract name.
