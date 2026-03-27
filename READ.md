@@ -1,99 +1,56 @@
-# AOXC Audit Companion — v0.1.1-akdeniz (System Compatibility Update)
+# AOXChain Audit Companion
 
-This file is the audit-oriented companion to the root `README.md`.
+This file is the audit-oriented companion to `README.md` and the root architecture/security/state model documents.
 
-## 1) Release identity
+## 1) Audit scope statement
 
-- **Release label:** `AOXC v0.1.1-akdeniz`
-- **Cargo baseline:** `0.1.1-akdeniz`
-- **Documentation baseline:** `aoxc.v.0.1.1-akdeniz`
+The repository should be reviewed as a modular chain stack with explicit boundaries:
 
-## 2) What changed in this document update
+- kernel authority,
+- deterministic runtime authority,
+- system service availability surfaces,
+- operator control-plane surfaces,
+- ecosystem/peripheral surfaces.
 
-This update aligns the root guidance with a single "full target" interpretation:
+## 2) Current-state honesty summary
 
-- unified scope across core/consensus/net/rpc/cmd/vm/desktop,
-- explicit AOXCVM vs AOXHub responsibility separation,
-- deterministic operator lifecycle emphasis,
-- transparent statement of remaining readiness gaps.
+- **Currently implemented:** clear multi-crate decomposition across core, consensus, runtime, networking, RPC, persistence, operator CLI/UI, and integration crates.
+- **Partially implemented:** uniform end-to-end evidence packaging for replay determinism, partition recovery, and control-plane mutating-action audit trails.
+- **Target state:** release-time policy checks that prevent boundary violations and require reproducible evidence bundles for tier-0 through tier-3 changes.
 
-## 3) Audit intent
+## 3) Audit-critical boundary assertions
 
-The repository should be reviewed as a deterministic multi-crate chain workspace with explicit trust boundaries for:
+1. `aoxcore` + `aoxcunity` define kernel authority.
+2. `aoxcexec` + `aoxcvm` (with `aoxcenergy`) define deterministic runtime authority surfaces.
+3. `aoxcmd` remains the authoritative operational shell.
+4. `aoxchub` remains operator UX and is not protocol authority.
+5. AI/advisory surfaces (`aoxcai`) remain outside deterministic consensus authority.
 
-- cryptographic identity and custody,
-- consensus correctness/finality,
-- runtime persistence and DB lifecycle,
-- network transport and observability,
-- execution-lane safety,
-- desktop/operator control-plane hygiene,
-- release evidence traceability.
+## 4) Required evidence classes per release candidate
 
-## 4) "%100 hedef" audit interpretation
+- exact command list executed,
+- pass/fail/limited outcomes,
+- changed-files inventory,
+- boundary-impact statement (which tier/domain changed),
+- known gaps and risk acceptance notes.
 
-For this baseline, "%100" means full documentation consistency and release discipline, **not** a claim that all future production risks are already eliminated.
-
-A compliant release should show:
-
-1. consistent version identity,
-2. reproducible commands and outcomes,
-3. documented limitations,
-4. crate-level responsibility clarity,
-5. operator-usable runbooks.
-
-## 5) AOXCVM and Desktop governance split
-
-### AOXCVM (`crates/aoxcvm`)
-
-- consensus-adjacent execution compatibility layer,
-- deterministic execution constraints required,
-- stronger validation + replay guarantees expected.
-
-### AOXHub Desktop (`crates/aoxchub`)
-
-- operator UX and orchestration layer,
-- should remain auditable and explicit in command mapping,
-- should not silently bypass CLI/runtime controls.
-
-## 6) Required release evidence
-
-- executed command list,
-- test/check outcomes (pass/fail/limited),
-- updated docs list,
-- known limitation registry,
-- commit SHA linked to release notes.
-
-Minimum baseline evidence should include non-crate surfaces too:
-
-- root governance docs (`README.md`, `READ.md`),
-- environment/config docs under `configs/`,
-- operator and validation scripts under `scripts/`,
-- docs index consistency under `docs/src/`.
-
-## 7) Mainnet-ready baseline command set
-
-Use this compact command set before candidate sign-off:
+## 5) Baseline command set (workspace verification)
 
 ```bash
 cargo fmt --all --check
-cargo check --workspace --exclude aoxchub
-cargo test -p aoxcsdk --lib
-cargo test -p aoxcmd --lib
+cargo clippy --workspace --exclude aoxchub --all-targets --all-features -- -D warnings
 cargo test --workspace --exclude aoxchub --all-targets
+cargo check -p aoxchub --all-targets
 ```
 
-If CI/runtime shows sporadic env-sensitive behavior, add serialized execution:
+## 6) Reference set
 
-```bash
-cargo test --workspace --exclude aoxchub --all-targets -- --test-threads=1
-```
-
-## 8) Primary references
-
+- `docs/ARCHITECTURE.md`
+- `docs/SECURITY_MODEL.md`
+- `docs/EXECUTION_MODEL.md`
+- `docs/STATE_MODEL.md`
+- `docs/RELEASE_TIERS.md`
+- `docs/SYSTEM_INVARIANTS.md`
+- `docs/LICENSING.md`
+- `docs/TRADEMARK_POLICY.md`
 - `README.md`
-- `crates/aoxcvm/README.md`
-- `crates/aoxchub/README.md`
-- `docs/src/AKDENIZ_RELEASE_BASELINE.md`
-- `docs/src/MAINNET_READINESS_CHECKLIST.md`
-- `docs/src/REAL_NETWORK_VALIDATION_RUNBOOK_TR.md`
-- `docs/src/AOXC_REAL_VERSIONING_AND_RELEASE_ROADMAP_TR.md`

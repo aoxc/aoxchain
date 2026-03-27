@@ -247,7 +247,7 @@ impl ContractManifestBuilder {
             self.minimum_schema_version,
             self.supported_schema_versions,
             supported_runtime_families,
-            self.supported_network_classes,
+            supported_network_classes,
             vec![],
             false,
         )?;
