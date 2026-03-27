@@ -13,8 +13,16 @@ pub struct HealthResponse {
     pub warnings: Vec<String>,
     pub errors: Vec<String>,
     pub recommendations: Vec<String>,
+    pub security_posture: RpcSecurityPosture,
 
     pub uptime_secs: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RpcSecurityPosture {
+    pub level: String,
+    pub score_band: String,
+    pub blockers: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
