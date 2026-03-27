@@ -198,8 +198,7 @@ a {
 }
 
 .ops-field select,
-.ops-field textarea,
-.ops-field input {
+.ops-field textarea {
     border-radius: 10px;
     border: 1px solid var(--panel-border);
     background: #0c1322;

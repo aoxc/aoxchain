@@ -40,13 +40,6 @@ struct OperationPreset {
     detail: &'static str,
 }
 
-#[derive(Clone, Copy)]
-struct NodePreset {
-    label: &'static str,
-    action: &'static str,
-    description: &'static str,
-}
-
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
@@ -155,39 +148,6 @@ const OPERATION_PRESETS: [OperationPreset; 6] = [
     },
 ];
 
-const NODE_PRESETS: [NodePreset; 6] = [
-    NodePreset {
-        label: "Node Start",
-        action: "start",
-        description: "Node sürecini güvenli başlangıç profili ile ayağa kaldırır.",
-    },
-    NodePreset {
-        label: "Node Stop",
-        action: "stop",
-        description: "Node üretimini sonlandırır ve kapanış durumunu yazar.",
-    },
-    NodePreset {
-        label: "Node Restart",
-        action: "restart",
-        description: "Servisi sıfır kesinti hedefiyle yeniden başlatır.",
-    },
-    NodePreset {
-        label: "Snapshot",
-        action: "snapshot",
-        description: "Durum ağacını snapshot alıp doğrulama hash üretir.",
-    },
-    NodePreset {
-        label: "Log Stream",
-        action: "tail-log",
-        description: "Son log akışını operasyon paneline taşır.",
-    },
-    NodePreset {
-        label: "Drain Mode",
-        action: "drain",
-        description: "Node'u bakım moduna alır, yeni iş kabulünü durdurur.",
-    },
-];
-
 fn main() {
     dioxus::launch(App);
 }
@@ -227,18 +187,6 @@ fn Home() -> Element {
     let mut operator_note = use_signal(String::new);
     let mut operation_result = use_signal(String::new);
     let mut op_history = use_signal(Vec::<String>::new);
-    let mut bootstrap_network = use_signal(|| "devnet".to_string());
-    let mut bootstrap_result = use_signal(String::new);
-    let mut node_network = use_signal(|| "testnet".to_string());
-    let mut node_id = use_signal(|| "atlas-01".to_string());
-    let mut node_action = use_signal(|| "start".to_string());
-    let mut node_result = use_signal(String::new);
-    let mut wallet_network = use_signal(|| "testnet".to_string());
-    let mut wallet_from = use_signal(|| "wallet-operator-001".to_string());
-    let mut wallet_to = use_signal(|| "wallet-validator-007".to_string());
-    let mut wallet_amount = use_signal(|| "25.0".to_string());
-    let mut wallet_memo = use_signal(String::new);
-    let mut wallet_result = use_signal(String::new);
 
     rsx! {
         section { class: "hero",
@@ -318,7 +266,7 @@ fn Home() -> Element {
 
         section { class: "ops-console",
             h2 { "AOXHub Full Operasyon Arayüzü" }
-            p { "Tüm kritik işlemler GUI üzerinden tetiklenir; devnet/testnet/mainnet bootstrap + node yönetim + wallet transfer tek ekrandan yürütülür." }
+            p { "Tüm kritik işlemler GUI üzerinden tetiklenir; CLI sadece fallback olarak kalır." }
 
             div { class: "ops-form-grid",
                 label { class: "ops-field",
@@ -395,176 +343,6 @@ fn Home() -> Element {
                 }
             }
         }
-
-        section { class: "ops-console",
-            h2 { "Sıfırdan Ağ Başlatma (Devnet/Testnet/Mainnet)" }
-            p { "Yeni ağ turu için bootstrap adımlarını UI üzerinden tetikleyin." }
-            div { class: "ops-form-grid",
-                label { class: "ops-field",
-                    span { "Başlatılacak Ağ" }
-                    select {
-                        value: "{bootstrap_network}",
-                        onchange: move |event| bootstrap_network.set(event.value()),
-                        option { value: "devnet", "devnet" }
-                        option { value: "testnet", "testnet" }
-                        option { value: "mainnet", "mainnet" }
-                    }
-                }
-            }
-            button {
-                class: "run-op-btn",
-                onclick: move |_| async move {
-                    let network = bootstrap_network();
-                    let response = bootstrap_network_server(network)
-                        .await
-                        .unwrap_or_else(|err| format!("Bootstrap failed: {err}"));
-                    bootstrap_result.set(response.clone());
-                    op_history.with_mut(|entries| entries.insert(0, response));
-                },
-                "Ağı Sıfırdan Başlat"
-            }
-            if !bootstrap_result().is_empty() {
-                p { class: "server-answer", "{bootstrap_result}" }
-            }
-        }
-
-        section { class: "ops-console",
-            h2 { "Node Yönetimi (%100 UI)" }
-            p { "Node seçimi, aksiyon seçimi ve yönetim komutlarının tamamı arayüzden çalışır." }
-
-            div { class: "ops-form-grid",
-                label { class: "ops-field",
-                    span { "Ağ" }
-                    select {
-                        value: "{node_network}",
-                        onchange: move |event| node_network.set(event.value()),
-                        option { value: "devnet", "devnet" }
-                        option { value: "testnet", "testnet" }
-                        option { value: "mainnet", "mainnet" }
-                    }
-                }
-                label { class: "ops-field",
-                    span { "Node ID" }
-                    input {
-                        value: "{node_id}",
-                        oninput: move |event| node_id.set(event.value()),
-                        placeholder: "ör: atlas-01"
-                    }
-                }
-            }
-
-            div { class: "quick-actions",
-                for preset in NODE_PRESETS {
-                    button {
-                        class: "quick-action-btn",
-                        onclick: move |_| node_action.set(preset.action.to_string()),
-                        h3 { "{preset.label}" }
-                        p { "{preset.description}" }
-                    }
-                }
-            }
-
-            label { class: "ops-field",
-                span { "Seçili Node Aksiyonu" }
-                select {
-                    value: "{node_action}",
-                    onchange: move |event| node_action.set(event.value()),
-                    for preset in NODE_PRESETS {
-                        option { value: "{preset.action}", "{preset.label}" }
-                    }
-                }
-            }
-
-            button {
-                class: "run-op-btn",
-                onclick: move |_| async move {
-                    let network = node_network();
-                    let id = node_id();
-                    let action = node_action();
-                    let response = manage_node_server(network, id, action)
-                        .await
-                        .unwrap_or_else(|err| format!("Node action failed: {err}"));
-                    node_result.set(response.clone());
-                    op_history.with_mut(|entries| entries.insert(0, response));
-                },
-                "Node Yönetim Komutunu Çalıştır"
-            }
-            if !node_result().is_empty() {
-                p { class: "server-answer", "{node_result}" }
-            }
-        }
-
-        section { class: "ops-console",
-            h2 { "Wallet Transfer (UI)" }
-            p { "Transfer emri, ağ seçimi ve açıklama bilgisi arayüzden verilir." }
-            div { class: "ops-form-grid",
-                label { class: "ops-field",
-                    span { "Ağ" }
-                    select {
-                        value: "{wallet_network}",
-                        onchange: move |event| wallet_network.set(event.value()),
-                        option { value: "devnet", "devnet" }
-                        option { value: "testnet", "testnet" }
-                        option { value: "mainnet", "mainnet" }
-                    }
-                }
-                label { class: "ops-field",
-                    span { "Gönderen Cüzdan" }
-                    input {
-                        value: "{wallet_from}",
-                        oninput: move |event| wallet_from.set(event.value()),
-                        placeholder: "wallet-operator-001"
-                    }
-                }
-                label { class: "ops-field",
-                    span { "Alıcı Cüzdan" }
-                    input {
-                        value: "{wallet_to}",
-                        oninput: move |event| wallet_to.set(event.value()),
-                        placeholder: "wallet-validator-007"
-                    }
-                }
-                label { class: "ops-field",
-                    span { "Miktar" }
-                    input {
-                        value: "{wallet_amount}",
-                        oninput: move |event| wallet_amount.set(event.value()),
-                        placeholder: "25.0"
-                    }
-                }
-            }
-
-            label { class: "ops-field",
-                span { "Transfer Notu" }
-                textarea {
-                    rows: "2",
-                    value: "{wallet_memo}",
-                    oninput: move |event| wallet_memo.set(event.value()),
-                    placeholder: "Release sonrası validator stake tamamlama vb."
-                }
-            }
-
-            button {
-                class: "run-op-btn",
-                onclick: move |_| async move {
-                    let network = wallet_network();
-                    let from = wallet_from();
-                    let to = wallet_to();
-                    let amount = wallet_amount();
-                    let memo = wallet_memo();
-                    let response = transfer_wallet_server(network, from, to, amount, memo)
-                        .await
-                        .unwrap_or_else(|err| format!("Transfer failed: {err}"));
-                    wallet_result.set(response.clone());
-                    op_history.with_mut(|entries| entries.insert(0, response));
-                },
-                "Wallet Transfer Çalıştır"
-            }
-
-            if !wallet_result().is_empty() {
-                p { class: "server-answer", "{wallet_result}" }
-            }
-        }
     }
 }
 
@@ -601,49 +379,5 @@ async fn run_operation_server(
     };
     Ok(format!(
         "[OK] network={network} action={action} audit_note=\"{normalized_note}\" source=ui"
-    ))
-}
-
-#[post("/api/bootstrap-network")]
-async fn bootstrap_network_server(network: String) -> Result<String, ServerFnError> {
-    Ok(format!(
-        "[BOOTSTRAP OK] network={network} steps=genesis->validators->rpc->observability source=ui"
-    ))
-}
-
-#[post("/api/manage-node")]
-async fn manage_node_server(
-    network: String,
-    node_id: String,
-    action: String,
-) -> Result<String, ServerFnError> {
-    Ok(format!(
-        "[NODE OK] network={network} node={node_id} action={action} source=ui"
-    ))
-}
-
-#[post("/api/wallet-transfer")]
-async fn transfer_wallet_server(
-    network: String,
-    from: String,
-    to: String,
-    amount: String,
-    memo: String,
-) -> Result<String, ServerFnError> {
-    let parsed_amount = amount.parse::<f64>().unwrap_or(0.0);
-    if parsed_amount <= 0.0 {
-        return Ok("[TRANSFER ERROR] amount must be greater than zero".to_string());
-    }
-    if from.trim().is_empty() || to.trim().is_empty() {
-        return Ok("[TRANSFER ERROR] from/to wallet cannot be empty".to_string());
-    }
-
-    let normalized_memo = if memo.trim().is_empty() {
-        "memo-yok".to_string()
-    } else {
-        memo
-    };
-    Ok(format!(
-        "[TRANSFER OK] network={network} from={from} to={to} amount={parsed_amount:.4} memo=\"{normalized_memo}\" source=ui"
     ))
 }
