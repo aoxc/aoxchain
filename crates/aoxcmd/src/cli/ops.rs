@@ -324,8 +324,14 @@ fn evaluate_mainnet_readiness(
     genesis_ok: bool,
     node_ok: bool,
 ) -> Readiness {
+    let repo_root = locate_repo_root();
     let release_dir = locate_repo_artifact_dir("release-evidence");
     let closure_dir = locate_repo_artifact_dir("network-production-closure");
+    let mainnet_checklist = repo_root
+        .join("docs")
+        .join("src")
+        .join("MAINNET_READINESS_CHECKLIST.md");
+    let checklist_open_items = open_checklist_items(&mainnet_checklist);
     let baseline_parity = compare_embedded_network_profiles().ok();
     let aoxhub_parity = compare_aoxhub_network_profiles().ok();
     let key_state = key_operational_state.unwrap_or("missing");
@@ -462,6 +468,24 @@ fn evaluate_mainnet_readiness(
             has_desktop_wallet_compat_artifact(&closure_dir),
             4,
             "Desktop wallet compatibility evidence must cover AOXHub plus mainnet/testnet routing".to_string(),
+        ),
+        readiness_check(
+            "checklist-closure",
+            "operations",
+            checklist_open_items.is_empty(),
+            3,
+            if checklist_open_items.is_empty() {
+                format!(
+                    "Mainnet checklist is fully closed at {}",
+                    mainnet_checklist.display()
+                )
+            } else {
+                format!(
+                    "Mainnet checklist has {} open items at {}",
+                    checklist_open_items.len(),
+                    mainnet_checklist.display()
+                )
+            },
         ),
         readiness_check(
             "compatibility-matrix",
@@ -1665,6 +1689,19 @@ fn locate_repo_root() -> PathBuf {
     cwd
 }
 
+fn open_checklist_items(path: &Path) -> Vec<String> {
+    let raw = match fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(_) => return vec![format!("missing-checklist:{}", path.display())],
+    };
+
+    raw.lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("- [ ] "))
+        .map(|line| line.trim_start_matches("- [ ] ").to_string())
+        .collect()
+}
+
 fn parse_network_profile(path: &Path) -> Result<NetworkProfileConfig, AppError> {
     let raw = fs::read_to_string(path).map_err(|e| {
         AppError::with_source(
@@ -1861,8 +1898,9 @@ mod tests {
         evaluate_full_surface_readiness, evaluate_mainnet_readiness, full_surface_markdown_report,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
-        locate_repo_artifact_dir, parse_network_profile, ports_are_shifted_consistently,
-        readiness_markdown_report, surface_check, write_readiness_markdown_report,
+        locate_repo_artifact_dir, open_checklist_items, parse_network_profile,
+        ports_are_shifted_consistently, readiness_markdown_report, surface_check,
+        write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -1965,6 +2003,33 @@ mod tests {
         assert!(has_desktop_wallet_compat_artifact(&dir));
 
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn open_checklist_items_detects_unchecked_entries() {
+        let dir = unique_dir("checklist-open");
+        let checklist = dir.join("MAINNET_READINESS_CHECKLIST.md");
+        fs::create_dir_all(&dir).expect("fixture directory should be created");
+        fs::write(
+            &checklist,
+            "# checklist\n- [x] done\n- [ ] pending-1\n- [ ] pending-2\n",
+        )
+        .expect("checklist fixture should be written");
+
+        let open = open_checklist_items(&checklist);
+        assert_eq!(open.len(), 2);
+        assert!(open.iter().any(|item| item == "pending-1"));
+        assert!(open.iter().any(|item| item == "pending-2"));
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn open_checklist_items_returns_missing_marker_when_file_absent() {
+        let path = unique_dir("checklist-missing").join("MAINNET_READINESS_CHECKLIST.md");
+        let open = open_checklist_items(&path);
+        assert_eq!(open.len(), 1);
+        assert!(open[0].starts_with("missing-checklist:"));
     }
 
     #[test]
