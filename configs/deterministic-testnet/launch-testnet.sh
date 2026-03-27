@@ -21,7 +21,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 FIXTURE_DIR="${ROOT_DIR}/deterministic-testnet"
 
-GENESIS_PATH="${FIXTURE_DIR}/genesis.json"
+GENESIS_PATH="${FIXTURE_DIR}/genesis.v1.json"
+GENESIS_SHA_PATH="${FIXTURE_DIR}/genesis.v1.sha256"
+CERTIFICATE_PATH="${FIXTURE_DIR}/certificate.json"
+RELEASE_POLICY_PATH="${FIXTURE_DIR}/release-policy.toml"
 PROFILE_PATH="${FIXTURE_DIR}/profile.toml"
 MANIFEST_PATH="${FIXTURE_DIR}/manifest.v1.json"
 BOOTNODES_PATH="${FIXTURE_DIR}/bootnodes.json"
@@ -40,6 +43,9 @@ require_file "${PROFILE_PATH}"
 require_file "${MANIFEST_PATH}"
 require_file "${BOOTNODES_PATH}"
 require_file "${VALIDATORS_PATH}"
+require_file "${GENESIS_SHA_PATH}"
+require_file "${CERTIFICATE_PATH}"
+require_file "${RELEASE_POLICY_PATH}"
 
 echo "[AOXC] deterministic testnet compatibility launcher"
 echo "[AOXC] fixture directory : ${FIXTURE_DIR}"
@@ -48,7 +54,22 @@ echo "[AOXC] profile          : ${PROFILE_PATH}"
 echo "[AOXC] manifest         : ${MANIFEST_PATH}"
 echo "[AOXC] bootnodes        : ${BOOTNODES_PATH}"
 echo "[AOXC] validators       : ${VALIDATORS_PATH}"
+echo "[AOXC] genesis sha      : ${GENESIS_SHA_PATH}"
+echo "[AOXC] certificate      : ${CERTIFICATE_PATH}"
+echo "[AOXC] release policy   : ${RELEASE_POLICY_PATH}"
+
+EXPECTED_HASH="$(awk '{print $1}' "${GENESIS_SHA_PATH}")"
+ACTUAL_HASH="$(sha256sum "${GENESIS_PATH}" | awk '{print $1}')"
+
+if [[ "${EXPECTED_HASH}" != "${ACTUAL_HASH}" ]]; then
+  echo "[AOXC][error] genesis hash mismatch" >&2
+  echo "[AOXC][error] expected: ${EXPECTED_HASH}" >&2
+  echo "[AOXC][error] actual  : ${ACTUAL_HASH}" >&2
+  exit 1
+fi
+
 echo "[AOXC] status           : fixture-surface-validated"
+echo "[AOXC] genesis hash     : verified"
 
 cat <<'EOF'
 
