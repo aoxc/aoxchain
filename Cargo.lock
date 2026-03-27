@@ -256,10 +256,10 @@ dependencies = [
 name = "aoxclibs"
 version = "0.1.1-akdeniz"
 dependencies = [
+ "base64 0.22.1",
  "hex",
  "serde",
  "thiserror 2.0.18",
- "tokio",
 ]
 
 [[package]]
