@@ -3,41 +3,23 @@ use dioxus::prelude::*;
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
 enum Route {
-    #[layout(AppShell)]
-        #[route("/")]
-        Home {},
-        #[route("/blog/:id")]
-        Blog { id: i32 },
+    #[route("/")]
+    Home {},
 }
 
 #[derive(Clone, Copy)]
-struct PlatformSurface {
+struct BeginnerStep {
+    id: &'static str,
     title: &'static str,
-    status: &'static str,
-    detail: &'static str,
-    cmd: &'static str,
+    explain: &'static str,
 }
 
 #[derive(Clone, Copy)]
-struct CliFlow {
+struct ChainAction {
+    id: &'static str,
     title: &'static str,
-    intent: &'static str,
-    cmd: &'static str,
-}
-
-#[derive(Clone, Copy)]
-struct ChainLane {
-    network: &'static str,
-    chain_id: &'static str,
-    sync: &'static str,
-    policy: &'static str,
-}
-
-#[derive(Clone, Copy)]
-struct OperationPreset {
-    label: &'static str,
-    action: &'static str,
-    detail: &'static str,
+    explain: &'static str,
+    example: &'static str,
 }
 
 #[derive(Clone, Copy)]
@@ -53,106 +35,76 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 const HEADER_SVG: Asset = asset!("/assets/header.svg");
 
-const PLATFORMS: [PlatformSurface; 3] = [
-    PlatformSurface {
-        title: "Desktop Control Center",
-        status: "Ready",
-        detail: "Node yönetimi, olay akışı ve release kanıtları tek panelde.",
-        cmd: "dx serve --platform desktop",
+const BEGINNER_STEPS: [BeginnerStep; 5] = [
+    BeginnerStep {
+        id: "1",
+        title: "Programı Aç",
+        explain: "AOXHub düğmesine bas. Ekran açılınca hazırız.",
     },
-    PlatformSurface {
-        title: "Web Mission Console",
-        status: "Ready",
-        detail: "Operasyon panelleri responsive ve düşük gecikmeli gözlem için optimize.",
-        cmd: "dx serve --platform web",
+    BeginnerStep {
+        id: "2",
+        title: "Ağı Seç",
+        explain: "Devnet test için, Mainnet gerçek kullanım için.",
     },
-    PlatformSurface {
-        title: "Mobile Operator View",
-        status: "Ready",
-        detail: "Saha ekipleri için alarm, node sağlık ve cüzdan kısa aksiyon ekranı.",
-        cmd: "dx serve --platform mobile",
+    BeginnerStep {
+        id: "3",
+        title: "İşlem Türü Seç",
+        explain: "Para gönder, stake yap, oy ver gibi işlemi seç.",
     },
-];
-
-const CLI_FLOWS: [CliFlow; 5] = [
-    CliFlow {
-        title: "Bootstrap",
-        intent: "Operatör anahtarları + başlangıç konfigürasyonu",
-        cmd: "make dev-bootstrap",
+    BeginnerStep {
+        id: "4",
+        title: "Not Yaz",
+        explain: "Neden yaptığını kısa yaz: örn. 'test transferi'.",
     },
-    CliFlow {
-        title: "Quality Gate",
-        intent: "Format, check, test ve release doğrulama",
-        cmd: "make quality-release",
-    },
-    CliFlow {
-        title: "Local Chain Loop",
-        intent: "Yerel ağda üretim döngüsü + sağlık kontrolü",
-        cmd: "make real-chain-run-once",
-    },
-    CliFlow {
-        title: "Mainnet Operations",
-        intent: "Başlat, durum al, log izle, güvenli durdur",
-        cmd: "make ops-start-mainnet",
-    },
-    CliFlow {
-        title: "Policy & Manifest",
-        intent: "Build manifest ve node bağlantı politikası doğrulaması",
-        cmd: "make manifest && make policy",
+    BeginnerStep {
+        id: "5",
+        title: "Çalıştır ve Kontrol Et",
+        explain: "Çalıştır'a bas. Sonuç yeşilse tamam, kırmızıysa düzelt.",
     },
 ];
 
-const CHAIN_LANES: [ChainLane; 3] = [
-    ChainLane {
-        network: "devnet",
-        chain_id: "AOXC-DEV-1001",
-        sync: "99.2%",
-        policy: "Hızlı iterasyon + test tx yoğunluğu",
+const CHAIN_ACTIONS: [ChainAction; 7] = [
+    ChainAction {
+        id: "transfer",
+        title: "Transfer",
+        explain: "Bir cüzdandan diğerine coin gönderir.",
+        example: "Örnek: 1 AOXC gönder",
     },
-    ChainLane {
-        network: "testnet",
-        chain_id: "AOXC-TST-2001",
-        sync: "98.7%",
-        policy: "Sürüm adayı doğrulama + senaryo regresyon",
+    ChainAction {
+        id: "stake",
+        title: "Stake",
+        explain: "Coin kilitleyip ağ güvenliğine katkı sağlar.",
+        example: "Örnek: 50 AOXC stake et",
     },
-    ChainLane {
-        network: "mainnet",
-        chain_id: "AOXC-MAIN-1",
-        sync: "97.9%",
-        policy: "Sıfır veri kaybı + imzalı release kontrolü",
+    ChainAction {
+        id: "unstake",
+        title: "Unstake",
+        explain: "Stake edilen coinleri geri açar.",
+        example: "Örnek: 10 AOXC unstake et",
     },
-];
-
-const OPERATION_PRESETS: [OperationPreset; 6] = [
-    OperationPreset {
-        label: "Node Başlat",
-        action: "start-node",
-        detail: "Seçili ağ düğümünü güvenli parametrelerle ayağa kaldırır.",
+    ChainAction {
+        id: "vote",
+        title: "Yönetişim Oyu",
+        explain: "Tekliflere evet/hayır oyu verir.",
+        example: "Örnek: Proposal #21 için evet",
     },
-    OperationPreset {
-        label: "Node Durdur",
-        action: "stop-node",
-        detail: "Üretimi sonlandırır ve kapanış kanıtını üretir.",
+    ChainAction {
+        id: "contract-call",
+        title: "Sözleşme Çağrısı",
+        explain: "Akıllı sözleşmede bir fonksiyon çalıştırır.",
+        example: "Örnek: mint(1)",
     },
-    OperationPreset {
-        label: "Senkron Kontrol",
-        action: "sync-health",
-        detail: "Senkronizasyon oranı ve blok gecikmesini doğrular.",
+    ChainAction {
+        id: "bridge",
+        title: "Köprü (Bridge)",
+        explain: "Varlığı bir ağdan diğerine taşır.",
+        example: "Örnek: Testnet -> Mainnet",
     },
-    OperationPreset {
-        label: "Release Doğrula",
-        action: "release-proof",
-        detail: "Manifest, imza ve checksum bütünlüğünü test eder.",
-    },
-    OperationPreset {
-        label: "Alarm Tatbikatı",
-        action: "alert-drill",
-        detail: "On-call alarm zinciri ve bildirim akışını dener.",
-    },
-    OperationPreset {
-        label: "Cüzdan Kontrol",
-        action: "wallet-ops",
-        detail: "Operatör cüzdanı ve yetki anahtarlarının durumunu raporlar.",
+    ChainAction {
+        id: "multisig",
+        title: "Multisig",
+        explain: "Birden fazla imza ile güvenli onay yapar.",
+        example: "Örnek: 2/3 imza ile onay",
     },
 ];
 
@@ -210,29 +162,11 @@ fn App() -> Element {
 }
 
 #[component]
-fn AppShell() -> Element {
-    rsx! {
-        main { class: "app-shell",
-            header { class: "topbar",
-                div { class: "brand", "AOXHub Unified Surface" }
-                nav { class: "nav-links",
-                    Link { to: Route::Home {}, "Dashboard" }
-                    Link { to: Route::Blog { id: 1 }, "Roadmap Notes" }
-                }
-            }
-            Outlet::<Route> {}
-        }
-    }
-}
-
-#[component]
 fn Home() -> Element {
-    let mut echo_input = use_signal(String::new);
-    let mut server_echo = use_signal(String::new);
-    let mut selected_network = use_signal(|| "testnet".to_string());
-    let mut selected_action = use_signal(|| "sync-health".to_string());
+    let mut selected_network = use_signal(|| "devnet".to_string());
+    let mut selected_action = use_signal(|| CHAIN_ACTIONS[0].id.to_string());
     let mut operator_note = use_signal(String::new);
-    let mut operation_result = use_signal(String::new);
+    let mut latest_result = use_signal(String::new);
     let mut op_history = use_signal(Vec::<String>::new);
     let success_count = op_history()
         .iter()
@@ -243,76 +177,55 @@ fn Home() -> Element {
         .filter(|entry| entry.starts_with("[ERR]"))
         .count();
 
+    let success_count = op_history()
+        .iter()
+        .filter(|entry| entry.starts_with("✅"))
+        .count();
+    let error_count = op_history()
+        .iter()
+        .filter(|entry| entry.starts_with("❌"))
+        .count();
+
     rsx! {
-        section { class: "hero",
-            img { src: HEADER_SVG, alt: "AOXHub banner" }
-            h1 { "Desktop + Mobile + Web artık tek Dioxus omurgasında" }
-            p { "CLI make akışları, zincir operasyonları ve izleme panelleri aynı tasarım dilinde yeniden düzenlendi." }
-            div { class: "platform-ribbon",
-                span { class: "platform-pill", "Desktop: %100 hazır" }
-                span { class: "platform-pill", "Web: %100 responsive" }
-                span { class: "platform-pill", "Mobile: %100 optimize" }
-            }
-        }
-
-        section { class: "grid-section",
-            h2 { "Operasyon Sağlık Özeti" }
-            div { class: "card-grid",
-                article { class: "card",
-                    h3 { "Toplam İşlem" }
-                    p { "{op_history().len()} adet UI operasyonu kayıtlı." }
-                }
-                article { class: "card",
-                    h3 { "Başarılı" }
-                    p { "{success_count} işlem başarılı tamamlandı." }
-                }
-                article { class: "card",
-                    h3 { "Hata" }
-                    p { "{error_count} işlem hata üretti; tekrar deneme önerilir." }
+        main { class: "page",
+            section { class: "hero",
+                img { class: "hero-image", src: HEADER_SVG, alt: "AOXHub" }
+                h1 { "AOXHub: Herkes İçin Çok Basit Zincir Ekranı" }
+                p { "Web, mobil ve masaüstü aynı ekrandan çalışır. 7 yaşındaki biri bile adımları izleyerek işlem yapabilir." }
+                div { class: "badge-row",
+                    span { class: "badge", "Web ✅" }
+                    span { class: "badge", "Mobil ✅" }
+                    span { class: "badge", "Desktop ✅" }
                 }
             }
-        }
 
-        section { class: "grid-section",
-            h2 { "Yüzey Uyum Durumu" }
-            div { class: "card-grid",
-                for platform in PLATFORMS {
-                    article { class: "card",
-                        p { class: "chip ok", "{platform.status}" }
-                        h3 { "{platform.title}" }
-                        p { "{platform.detail}" }
-                        code { "{platform.cmd}" }
+            section { class: "panel",
+                h2 { "1) Sıfırdan Başlangıç (Binary'den)" }
+                p { class: "sub", "Sadece sırayla git. Her adım kısa ve açık." }
+                div { class: "step-grid",
+                    for step in BEGINNER_STEPS {
+                        article { class: "step-card",
+                            div { class: "step-id", "{step.id}" }
+                            h3 { "{step.title}" }
+                            p { "{step.explain}" }
+                        }
                     }
                 }
             }
-        }
 
-        section { class: "grid-section",
-            h2 { "CLI + Make Operasyon Akışları" }
-            div { class: "card-grid",
-                for flow in CLI_FLOWS {
-                    article { class: "card",
-                        h3 { "{flow.title}" }
-                        p { "{flow.intent}" }
-                        code { "{flow.cmd}" }
+            section { class: "panel",
+                h2 { "2) Tüm Zincir İşlemleri" }
+                p { class: "sub", "Bu kutular ne işe yaradığını çocuk diliyle anlatır." }
+                div { class: "action-grid",
+                    for action in CHAIN_ACTIONS {
+                        article { class: "action-card",
+                            h3 { "{action.title}" }
+                            p { "{action.explain}" }
+                            p { class: "example", "{action.example}" }
+                        }
                     }
                 }
             }
-        }
-
-        section { class: "grid-section",
-            h2 { "Zincir Profilleri" }
-            div { class: "card-grid",
-                for lane in CHAIN_LANES {
-                    article { class: "card",
-                        h3 { "{lane.network}" }
-                        p { "Chain ID: {lane.chain_id}" }
-                        p { "Senkronizasyon: {lane.sync}" }
-                        p { "Politika: {lane.policy}" }
-                    }
-                }
-            }
-        }
 
         section { class: "grid-section",
             h2 { "Ultra Premium Zincir Yetenek Matrisi" }
@@ -352,106 +265,80 @@ fn Home() -> Element {
             }
         }
 
-        section { class: "ops-console",
-            h2 { "AOXHub Full Operasyon Arayüzü" }
-            p { "Tüm kritik işlemler GUI üzerinden tetiklenir; CLI sadece fallback olarak kalır." }
-
-            div { class: "ops-form-grid",
-                label { class: "ops-field",
-                    span { "Ağ Profili" }
-                    select {
-                        value: "{selected_network}",
-                        onchange: move |event| selected_network.set(event.value()),
-                        option { value: "devnet", "devnet" }
-                        option { value: "testnet", "testnet" }
-                        option { value: "mainnet", "mainnet" }
+                div { class: "form-grid",
+                    label {
+                        span { "Ağ" }
+                        select {
+                            value: "{selected_network}",
+                            onchange: move |event| selected_network.set(event.value()),
+                            option { value: "devnet", "devnet (öğrenme)" }
+                            option { value: "testnet", "testnet (deneme)" }
+                            option { value: "mainnet", "mainnet (gerçek)" }
+                        }
                     }
-                }
 
-                label { class: "ops-field",
-                    span { "Operasyon Tipi" }
-                    select {
-                        value: "{selected_action}",
-                        onchange: move |event| selected_action.set(event.value()),
-                        for preset in OPERATION_PRESETS {
-                            option { value: "{preset.action}", "{preset.label}" }
+                    label {
+                        span { "İşlem" }
+                        select {
+                            value: "{selected_action}",
+                            onchange: move |event| selected_action.set(event.value()),
+                            for action in CHAIN_ACTIONS {
+                                option { value: "{action.id}", "{action.title}" }
+                            }
                         }
                     }
                 }
-            }
 
-            label { class: "ops-field",
-                span { "Operatör Notu" }
-                textarea {
-                    rows: "3",
-                    value: "{operator_note}",
-                    placeholder: "Değişiklik nedeni, incident no veya görev bağlamını girin...",
-                    oninput: move |event| operator_note.set(event.value()),
-                }
-            }
-
-            div { class: "quick-actions",
-                for preset in OPERATION_PRESETS {
-                    button {
-                        class: "quick-action-btn",
-                        onclick: move |_| selected_action.set(preset.action.to_string()),
-                        h3 { "{preset.label}" }
-                        p { "{preset.detail}" }
+                label {
+                    span { "Kısa Not" }
+                    textarea {
+                        rows: "3",
+                        value: "{operator_note}",
+                        placeholder: "Örn: test transferi",
+                        oninput: move |event| operator_note.set(event.value()),
                     }
                 }
-            }
 
-            button {
-                class: "run-op-btn",
-                onclick: move |_| async move {
-                    let network = selected_network();
-                    let action = selected_action();
-                    let note = operator_note();
-                    let response = run_operation_server(network, action, note)
-                        .await
-                        .unwrap_or_else(|err| format!("Operation failed: {err}"));
-                    operation_result.set(response.clone());
-                    op_history.with_mut(|entries| entries.insert(0, response));
-                },
-                "Arayüzden Operasyon Çalıştır"
-            }
+                button {
+                    class: "run-btn",
+                    onclick: move |_| async move {
+                        let network = selected_network();
+                        let action = selected_action();
+                        let note = operator_note();
 
-            if !operation_result().is_empty() {
-                p { class: "server-answer", "Sonuç: {operation_result}" }
-            }
+                        let result = run_operation_server(network, action, note)
+                            .await
+                            .unwrap_or_else(|e| format!("❌ Sistem hatası: {e}"));
 
-            if !op_history().is_empty() {
-                div { class: "history-box",
-                    h3 { "Operasyon Geçmişi" }
-                    ul {
-                        for item in op_history() {
-                            li { "{item}" }
+                        latest_result.set(result.clone());
+                        op_history.with_mut(|history| history.insert(0, result));
+                    },
+                    "İşlemi Çalıştır"
+                }
+
+                div { class: "stats-row",
+                    p { "Toplam: {op_history().len()}" }
+                    p { "Başarılı: {success_count}" }
+                    p { "Hata: {error_count}" }
+                }
+
+                if !latest_result().is_empty() {
+                    p { class: "result", "Sonuç: {latest_result}" }
+                }
+
+                if !op_history().is_empty() {
+                    div { class: "history",
+                        h3 { "Geçmiş" }
+                        ul {
+                            for item in op_history() {
+                                li { "{item}" }
+                            }
                         }
                     }
                 }
             }
         }
     }
-}
-
-#[component]
-fn Blog(id: i32) -> Element {
-    rsx! {
-        section { class: "grid-section",
-            h2 { "Roadmap Notu #{id}" }
-            p { "Arayüz modernizasyonu Dioxus 0.7 ile merkezi bileşen yaklaşımına taşındı." }
-            p { "Bir sonraki adım: gerçek zamanlı telemetry kaynaklarını server functions ve websocket köprüsü ile bağlamak." }
-            div { class: "pager",
-                Link { to: Route::Blog { id: id - 1 }, "Önceki" }
-                Link { to: Route::Blog { id: id + 1 }, "Sonraki" }
-            }
-        }
-    }
-}
-
-#[post("/api/echo")]
-async fn echo_server(input: String) -> Result<String, ServerFnError> {
-    Ok(format!("AOXHub echo => {input}"))
 }
 
 #[post("/api/run-operation")]
@@ -474,9 +361,10 @@ async fn run_operation_server(
     let normalized_note = if note.trim().is_empty() {
         "not yok".to_string()
     } else {
-        note
+        note.trim()
     };
+
     Ok(format!(
-        "[OK] network={network} action={action} audit_note=\"{normalized_note}\" source=ui"
+        "✅ Tamamlandı | ağ={network} | işlem={action} | not={clean_note}"
     ))
 }
