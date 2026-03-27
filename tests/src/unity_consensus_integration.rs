@@ -35,7 +35,7 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
         env::set_var("AOXC_HOME", &home);
     }
 
-    let test_result = (|| {
+    let test_result = {
         let key_material = bootstrap_operator_key("validator-01", "testnet", "Test#2026!")
             .expect("operator key bootstrap should succeed");
         let key_summary = key_material
@@ -203,7 +203,7 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
         );
 
         Ok::<(), Box<dyn std::error::Error>>(())
-    })();
+    };
 
     if let Some(previous) = previous_home {
         unsafe {

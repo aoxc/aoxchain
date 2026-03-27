@@ -136,7 +136,7 @@ fn normalize_hex_input(input: &str) -> Result<&str, LibError> {
         ));
     }
 
-    if normalized.len() % 2 != 0 {
+    if !normalized.len().is_multiple_of(2) {
         return Err(LibError::ValidationError(
             "hex input must have an even number of characters".to_owned(),
         ));
