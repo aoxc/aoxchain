@@ -118,8 +118,8 @@ pub fn cmd_diagnostics_bundle(args: &[String]) -> Result<(), AppError> {
             bundle_dir.join("genesis.json"),
         ),
         (
-            home.join("runtime").join("node_state.json"),
-            bundle_dir.join("node_state.json"),
+            home.join("runtime").join("db").join("main.redb"),
+            bundle_dir.join("main.redb"),
         ),
         (
             home.join("ledger").join("ledger.json"),
