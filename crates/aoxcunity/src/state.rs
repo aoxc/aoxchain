@@ -4,7 +4,12 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use crate::block::Block;
+use crate::block::hash::{compute_block_hash, compute_body_roots};
+use crate::block::semantic::{
+    validate_block_semantics, validate_capability_section_alignment,
+    validate_root_semantic_bindings,
+};
+use crate::block::{Block, BlockBody};
 use crate::error::ConsensusError;
 use crate::fork_choice::{BlockMeta, ForkChoice};
 use crate::quorum::QuorumThreshold;
@@ -69,6 +74,8 @@ impl ConsensusState {
     /// - parent/child height discontinuity,
     /// - local head regressions that violate current fork-choice expectations.
     pub fn admit_block(&mut self, block: Block) -> Result<(), ConsensusError> {
+        self.validate_block_integrity(&block)?;
+
         if self.fork_choice.contains(block.hash) || self.blocks.contains_key(&block.hash) {
             return Err(ConsensusError::DuplicateBlock);
         }
@@ -119,6 +126,47 @@ impl ConsensusState {
         });
 
         self.blocks.insert(block.hash, block);
+        Ok(())
+    }
+
+    fn validate_block_integrity(&self, block: &Block) -> Result<(), ConsensusError> {
+        let canonical_hash = compute_block_hash(&block.header);
+        if block.hash != canonical_hash {
+            return Err(ConsensusError::InvalidBlockHash);
+        }
+
+        let computed_roots = compute_body_roots(&block.body);
+        let header = &block.header;
+        if header.body_root != computed_roots.body_root
+            || header.finality_root != computed_roots.finality_root
+            || header.authority_root != computed_roots.authority_root
+            || header.lane_root != computed_roots.lane_root
+            || header.proof_root != computed_roots.proof_root
+            || header.identity_root != computed_roots.identity_root
+            || header.ai_root != computed_roots.ai_root
+            || header.pq_root != computed_roots.pq_root
+            || header.external_settlement_root != computed_roots.external_settlement_root
+            || header.policy_root != computed_roots.policy_root
+            || header.time_seal_root != computed_roots.time_seal_root
+            || header.capability_flags != computed_roots.capability_flags
+        {
+            return Err(ConsensusError::InvalidBlockBodyCommitments);
+        }
+
+        validate_block_semantics(
+            block.header.timestamp,
+            block.header.crypto_epoch,
+            &block.body,
+        )
+        .map_err(|_| ConsensusError::InvalidBlockSemantics)?;
+
+        validate_capability_section_alignment(&block.body, block.header.capability_flags)
+            .map_err(|_| ConsensusError::InvalidBlockBodyCommitments)?;
+
+        let empty_roots = compute_body_roots(&BlockBody::default());
+        validate_root_semantic_bindings(&block.body, &computed_roots, &empty_roots)
+            .map_err(|_| ConsensusError::InvalidBlockBodyCommitments)?;
+
         Ok(())
     }
 
@@ -714,6 +762,37 @@ mod tests {
     }
 
     #[test]
+    fn rejects_block_with_tampered_hash() {
+        let mut state =
+            state_with_validators(vec![validator(1, 10, ValidatorRole::Validator, true)]);
+
+        let mut block = make_block([0u8; 32], 0, [1u8; 32]);
+        block.hash = [99u8; 32];
+
+        let err = state.admit_block(block).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            ConsensusError::InvalidBlockHash.to_string()
+        );
+    }
+
+    #[test]
+    fn rejects_block_with_tampered_body_commitments() {
+        let mut state =
+            state_with_validators(vec![validator(1, 10, ValidatorRole::Validator, true)]);
+
+        let mut block = make_block([0u8; 32], 0, [1u8; 32]);
+        block.header.body_root = [77u8; 32];
+        block.hash = crate::block::hash::compute_block_hash(&block.header);
+
+        let err = state.admit_block(block).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            ConsensusError::InvalidBlockBodyCommitments.to_string()
+        );
+    }
+
+    #[test]
     fn finalization_builds_deterministic_quorum_certificate() {
         let mut state =
             state_with_validators(vec![validator(1, 10, ValidatorRole::Validator, true)]);
@@ -1025,6 +1104,7 @@ mod tests {
                         network_id: 2626,
                         epoch: 7,
                         validator_set_root: [9u8; 32],
+                        pq_attestation_root: [9u8; 32],
                         signature_scheme: 1,
                     },
                 },
@@ -1032,6 +1112,7 @@ mod tests {
                     network_id: 2626,
                     epoch: 0,
                     validator_set_root: state.rotation.validator_set_hash(),
+                    pq_attestation_root: state.rotation.validator_set_hash(),
                     signature_scheme: 1,
                 },
             )

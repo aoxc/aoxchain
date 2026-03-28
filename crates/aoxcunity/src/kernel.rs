@@ -579,6 +579,7 @@ impl ConsensusEngine {
             network_id: self.network_id,
             epoch: self.current_epoch,
             validator_set_root: self.state.rotation.validator_set_hash(),
+            pq_attestation_root: self.state.rotation.validator_set_hash(),
             signature_scheme: self.signature_scheme,
         }
     }
@@ -618,6 +619,9 @@ fn map_consensus_error(error: &ConsensusError) -> KernelRejection {
         | ConsensusError::HeightRegression
         | ConsensusError::InvalidParentHeight
         | ConsensusError::InvalidGenesisParent => KernelRejection::StaleArtifact,
+        ConsensusError::InvalidBlockHash
+        | ConsensusError::InvalidBlockBodyCommitments
+        | ConsensusError::InvalidBlockSemantics => KernelRejection::InvalidSignature,
         ConsensusError::ValidatorNotFound
         | ConsensusError::InactiveValidator
         | ConsensusError::NonVotingValidator
@@ -717,6 +721,7 @@ mod tests {
             network_id: 2626,
             epoch,
             validator_set_root: engine.state.rotation.validator_set_hash(),
+            pq_attestation_root: engine.state.rotation.validator_set_hash(),
             signature_scheme: 1,
         }
     }
@@ -956,6 +961,7 @@ mod tests {
                         network_id: 4040,
                         epoch: 0,
                         validator_set_root: engine.state.rotation.validator_set_hash(),
+                        pq_attestation_root: engine.state.rotation.validator_set_hash(),
                         signature_scheme: 42,
                     },
                 },

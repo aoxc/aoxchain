@@ -99,6 +99,7 @@ mod tests {
                 network_id: 2626,
                 epoch: 1,
                 validator_set_root: [7u8; 32],
+                pq_attestation_root: [6u8; 32],
                 signature_scheme: 1,
             },
             signature: vec![5u8; 64],
