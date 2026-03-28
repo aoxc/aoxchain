@@ -9,7 +9,7 @@ use crate::{
     node::state::NodeState,
 };
 use chrono::Utc;
-use redb::{Database, ReadableDatabase, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -204,6 +204,63 @@ pub fn persist_ledger_state(ledger: &LedgerState) -> Result<(), AppError> {
     let db = open_or_create_db(&main_redb_path()?)?;
     write_json_value(&db, LEDGER_STATE_KEY, ledger, ErrorCode::FilesystemIoFailed)?;
     Ok(())
+}
+
+pub fn load_chain_logs(
+    limit: usize,
+    category: Option<&str>,
+) -> Result<Vec<ChainLogEntry>, AppError> {
+    let db = open_or_create_db(&main_redb_path()?)?;
+    let read_txn = db.begin_read().map_err(|e| {
+        AppError::new(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to begin chain log read transaction: {e}"),
+        )
+    })?;
+
+    let table = read_txn.open_table(CHAIN_LOG_TABLE).map_err(|e| {
+        AppError::new(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to open chain log table for read: {e}"),
+        )
+    })?;
+
+    let mut entries = Vec::new();
+
+    for row in table.iter().map_err(|e| {
+        AppError::new(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to iterate chain log table: {e}"),
+        )
+    })? {
+        let row = row.map_err(|e| {
+            AppError::new(
+                ErrorCode::FilesystemIoFailed,
+                format!("Failed to decode chain log table row: {e}"),
+            )
+        })?;
+
+        let entry: ChainLogEntry = serde_json::from_str(row.1.value()).map_err(|e| {
+            AppError::with_source(
+                ErrorCode::OutputEncodingFailed,
+                "Failed to parse chain log entry JSON",
+                e,
+            )
+        })?;
+
+        if let Some(filter) = category {
+            if entry.category != filter {
+                continue;
+            }
+        }
+
+        entries.push(entry);
+    }
+
+    entries.sort_by(|a, b| b.id.cmp(&a.id));
+    entries.truncate(limit);
+
+    Ok(entries)
 }
 
 pub fn append_chain_log(category: &str, action: &str, detail: &str) -> Result<(), AppError> {
