@@ -104,7 +104,7 @@ BOOTSTRAP
 NODE AND ECONOMY
   node-bootstrap
   produce-once
-  node-run
+  node-run [--rounds <n>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log]
   node-health
   economy-init
   treasury-transfer
@@ -233,12 +233,7 @@ fn render_text_value(value: &Value) -> String {
 /// - Arrays are printed as list items.
 /// - Nested structures are indented with spaces only.
 /// - The renderer remains ASCII-safe and icon-free.
-fn render_text_value_into(
-    value: &Value,
-    indent: usize,
-    key: Option<&str>,
-    output: &mut String,
-) {
+fn render_text_value_into(value: &Value, indent: usize, key: Option<&str>, output: &mut String) {
     let padding = " ".repeat(indent);
 
     match value {

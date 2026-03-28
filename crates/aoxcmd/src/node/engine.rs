@@ -23,6 +23,19 @@ use ed25519_dalek::{Signer, SigningKey};
 use sha3::{Digest, Sha3_256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[derive(Debug, Clone)]
+pub struct RoundTelemetry {
+    pub round_index: u64,
+    pub tx_id: String,
+    pub height: u64,
+    pub produced_blocks: u64,
+    pub consensus_round: u64,
+    pub section_count: usize,
+    pub block_hash_hex: String,
+    pub parent_hash_hex: String,
+    pub timestamp_unix: u64,
+}
+
 /// Produces a single block from the provided transaction payload.
 ///
 /// Security guarantees:
@@ -43,6 +56,17 @@ pub fn produce_once(tx: &str) -> Result<NodeState, AppError> {
 
 /// Produces multiple deterministic block rounds.
 pub fn run_rounds(rounds: u64, tx_prefix: &str) -> Result<NodeState, AppError> {
+    run_rounds_with_observer(rounds, tx_prefix, |_| {})
+}
+
+pub fn run_rounds_with_observer<F>(
+    rounds: u64,
+    tx_prefix: &str,
+    mut observer: F,
+) -> Result<NodeState, AppError>
+where
+    F: FnMut(&RoundTelemetry),
+{
     let mut state = load_state()?;
     state.running = true;
     let key_material = crate::keys::loader::load_operator_key()?;
@@ -51,6 +75,19 @@ pub fn run_rounds(rounds: u64, tx_prefix: &str) -> Result<NodeState, AppError> {
         let tx = format!("{tx_prefix}-{index}");
         let block = build_block_for_tx(&state, &tx, &key_material)?;
         apply_block_proposal(&mut state, &tx, &block, &key_material);
+
+        let telemetry = RoundTelemetry {
+            round_index: index + 1,
+            tx_id: tx,
+            height: state.current_height,
+            produced_blocks: state.produced_blocks,
+            consensus_round: state.consensus.last_round,
+            section_count: state.consensus.last_section_count,
+            block_hash_hex: state.consensus.last_block_hash_hex.clone(),
+            parent_hash_hex: state.consensus.last_parent_hash_hex.clone(),
+            timestamp_unix: state.consensus.last_timestamp_unix,
+        };
+        observer(&telemetry);
     }
 
     persist_state(&state)?;
@@ -405,6 +442,7 @@ mod tests {
                 network_id: block.header.network_id,
                 epoch: block.header.era,
                 validator_set_root: [0u8; 32],
+                pq_attestation_root: [0u8; 32],
                 signature_scheme: 1,
             },
             signature: vec![0u8; 64],
