@@ -86,18 +86,33 @@ impl fmt::Display for PassportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidVersion => write!(f, "passport validation failed: unsupported version"),
-            Self::EmptyActorId => write!(f, "passport validation failed: actor_id must not be empty"),
-            Self::InvalidActorId => write!(f, "passport validation failed: actor_id format is invalid"),
+            Self::EmptyActorId => {
+                write!(f, "passport validation failed: actor_id must not be empty")
+            }
+            Self::InvalidActorId => {
+                write!(f, "passport validation failed: actor_id format is invalid")
+            }
             Self::EmptyRole => write!(f, "passport validation failed: role must not be empty"),
             Self::InvalidRole => write!(f, "passport validation failed: role format is invalid"),
             Self::EmptyZone => write!(f, "passport validation failed: zone must not be empty"),
             Self::InvalidZone => write!(f, "passport validation failed: zone format is invalid"),
-            Self::EmptyCertificate => write!(f, "passport validation failed: certificate must not be empty"),
-            Self::InvalidCertificate => write!(f, "passport validation failed: certificate format is invalid"),
+            Self::EmptyCertificate => write!(
+                f,
+                "passport validation failed: certificate must not be empty"
+            ),
+            Self::InvalidCertificate => write!(
+                f,
+                "passport validation failed: certificate format is invalid"
+            ),
             Self::InvalidIssuedAt => write!(f, "passport validation failed: issued_at is invalid"),
-            Self::InvalidExpiresAt => write!(f, "passport validation failed: expires_at is invalid"),
+            Self::InvalidExpiresAt => {
+                write!(f, "passport validation failed: expires_at is invalid")
+            }
             Self::InvalidValidityWindow => {
-                write!(f, "passport validation failed: expires_at must be greater than issued_at")
+                write!(
+                    f,
+                    "passport validation failed: expires_at must be greater than issued_at"
+                )
             }
             Self::SerializationFailed(error) => {
                 write!(f, "passport serialization failed: {}", error)
@@ -264,8 +279,7 @@ impl Passport {
         self.validate()
             .map_err(|error| format!("PASSPORT_VALIDATE_ERROR: {}", error.code()))?;
 
-        serde_json::to_string(self)
-            .map_err(|error| format!("PASSPORT_SERIALIZE_ERROR: {}", error))
+        serde_json::to_string(self).map_err(|error| format!("PASSPORT_SERIALIZE_ERROR: {}", error))
     }
 
     /// Restores a passport from JSON and validates it.
@@ -435,9 +449,18 @@ mod tests {
 
         assert!(passport.is_not_yet_valid_at(99));
         assert!(passport.is_valid_at(150));
-        assert_eq!(passport.validity_state_at(99), PassportValidityState::NotYetValid);
-        assert_eq!(passport.validity_state_at(150), PassportValidityState::Valid);
-        assert_eq!(passport.validity_state_at(200), PassportValidityState::Expired);
+        assert_eq!(
+            passport.validity_state_at(99),
+            PassportValidityState::NotYetValid
+        );
+        assert_eq!(
+            passport.validity_state_at(150),
+            PassportValidityState::Valid
+        );
+        assert_eq!(
+            passport.validity_state_at(200),
+            PassportValidityState::Expired
+        );
     }
 
     #[test]

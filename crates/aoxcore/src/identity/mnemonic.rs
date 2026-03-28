@@ -7,8 +7,8 @@
 //! This module provides a human-backup surface on top of `seed.rs`.
 //!
 //! Responsibility split:
-//! - `seed.rs`      => root secret generation / restore / custody handoff,
-//! - `mnemonic.rs`  => human-readable 24-word backup and restore,
+//! - `seed.rs`       => root secret generation / restore / custody handoff,
+//! - `mnemonic.rs`   => human-readable 24-word backup and restore,
 //! - `key_engine.rs` => deterministic derivation from the internal master seed.
 //!
 //! Security posture:
@@ -27,16 +27,15 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use zeroize::Zeroize;
 
-use super::seed::{
-    GeneratedSeed, RECOVERY_SEED_LEN, SEED_FINGERPRINT_LEN, SeedError, SeedKind,
-};
+use super::seed::{GeneratedSeed, RECOVERY_SEED_LEN, SeedError, SeedKind};
 
 /// Current AOXC mnemonic schema version.
 pub const AOXC_MNEMONIC_VERSION: u8 = 1;
 
 /// Canonical mnemonic language used by AOXC.
 ///
-/// Fixed language policy reduces ambiguity and operational mistakes.
+/// A fixed language policy reduces ambiguity during recovery, support,
+/// documentation, and operator handoff procedures.
 pub const AOXC_MNEMONIC_LANGUAGE: &str = "english";
 
 /// Canonical AOXC mnemonic word count.
@@ -90,7 +89,8 @@ pub enum MnemonicError {
 }
 
 impl MnemonicError {
-    /// Returns a stable symbolic error code suitable for logs and telemetry.
+    /// Returns a stable symbolic error code suitable for logs, metrics,
+    /// incident handling, and telemetry pipelines.
     #[must_use]
     pub const fn code(&self) -> &'static str {
         match self {
@@ -111,7 +111,10 @@ impl fmt::Display for MnemonicError {
             Self::InvalidPhrase => write!(f, "mnemonic restore failed: phrase is invalid"),
             Self::InvalidWordCount => write!(f, "mnemonic restore failed: word count is invalid"),
             Self::InvalidEntropyLength => {
-                write!(f, "mnemonic restore failed: decoded entropy length is invalid")
+                write!(
+                    f,
+                    "mnemonic restore failed: decoded entropy length is invalid"
+                )
             }
             Self::FingerprintMismatch => {
                 write!(f, "mnemonic validation failed: fingerprint mismatch")
@@ -149,6 +152,9 @@ impl MnemonicBackup {
     }
 
     /// Builds a mnemonic backup directly from a recovery seed.
+    ///
+    /// This helper preserves the same metadata and validation semantics as the
+    /// generated-seed path and is suitable for controlled import workflows.
     pub fn from_recovery_seed(
         kind: SeedKind,
         recovery_seed: &[u8; RECOVERY_SEED_LEN],
@@ -186,8 +192,9 @@ impl MnemonicBackup {
     ///
     /// Validation policy:
     /// - phrase must be canonical English BIP39,
-    /// - word count must be 24,
-    /// - restored seed fingerprint must match metadata.
+    /// - word count must be exactly 24,
+    /// - restored seed fingerprint must match metadata,
+    /// - metadata version and language must match AOXC policy.
     pub fn validate(&self) -> Result<(), MnemonicError> {
         if self.metadata.version != AOXC_MNEMONIC_VERSION {
             return Err(MnemonicError::InvalidPhrase);
@@ -218,7 +225,7 @@ impl MnemonicBackup {
 
 /// Generates a new AOXC seed and immediately returns its mnemonic backup.
 ///
-/// This is the preferred first-wallet bootstrap path.
+/// This is the preferred bootstrap path for first-use wallet and node flows.
 pub fn generate_seed_and_mnemonic(
     kind: SeedKind,
 ) -> Result<(GeneratedSeed, MnemonicBackup), MnemonicError> {
@@ -238,14 +245,19 @@ pub fn generate_seed_and_mnemonic_with_additional_entropy(
 }
 
 /// Restores an AOXC seed from a mnemonic phrase.
+///
+/// Security notes:
+/// - the outer phrase surface is validated before BIP39 parsing,
+/// - entropy length is enforced to match AOXC recovery-seed policy,
+/// - temporary decoded entropy is zeroized after use.
 pub fn restore_seed_from_phrase(
     kind: SeedKind,
     phrase: &str,
 ) -> Result<GeneratedSeed, MnemonicError> {
     validate_phrase_surface(phrase)?;
 
-    let mnemonic = Mnemonic::parse_in(Language::English, phrase)
-        .map_err(|_| MnemonicError::InvalidPhrase)?;
+    let mnemonic =
+        Mnemonic::parse_in(Language::English, phrase).map_err(|_| MnemonicError::InvalidPhrase)?;
 
     if mnemonic.word_count() != AOXC_MNEMONIC_WORD_COUNT {
         return Err(MnemonicError::InvalidWordCount);
@@ -284,7 +296,8 @@ pub fn encode_recovery_seed_as_phrase(
 /// - phrase must not be blank,
 /// - surrounding whitespace is rejected,
 /// - canonical separator is a single ASCII space,
-/// - word count must be exactly 24.
+/// - word count must be exactly 24,
+/// - empty word segments are rejected.
 fn validate_phrase_surface(phrase: &str) -> Result<(), MnemonicError> {
     if phrase.is_empty() || phrase.trim().is_empty() {
         return Err(MnemonicError::EmptyPhrase);
@@ -309,8 +322,8 @@ fn validate_phrase_surface(phrase: &str) -> Result<(), MnemonicError> {
 
 #[cfg(test)]
 mod tests {
+    use super::seed::SEED_FINGERPRINT_LEN;
     use super::*;
-    use super::{generate_seed_and_mnemonic, restore_seed_from_phrase};
 
     #[test]
     fn generated_mnemonic_is_24_words() {
@@ -321,7 +334,10 @@ mod tests {
             mnemonic.phrase().split(' ').count(),
             AOXC_MNEMONIC_WORD_COUNT
         );
-        assert_eq!(mnemonic.metadata().word_count as usize, AOXC_MNEMONIC_WORD_COUNT);
+        assert_eq!(
+            mnemonic.metadata().word_count as usize,
+            AOXC_MNEMONIC_WORD_COUNT
+        );
     }
 
     #[test]
@@ -351,8 +367,8 @@ mod tests {
     #[test]
     fn invalid_phrase_word_count_is_rejected() {
         let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon";
-        let error = restore_seed_from_phrase(SeedKind::WalletRoot, phrase)
-            .expect_err("restore must fail");
+        let error =
+            restore_seed_from_phrase(SeedKind::WalletRoot, phrase).expect_err("restore must fail");
 
         assert_eq!(error, MnemonicError::InvalidWordCount);
     }
@@ -360,8 +376,8 @@ mod tests {
     #[test]
     fn invalid_phrase_surface_is_rejected() {
         let phrase = " abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon ";
-        let error = restore_seed_from_phrase(SeedKind::WalletRoot, phrase)
-            .expect_err("restore must fail");
+        let error =
+            restore_seed_from_phrase(SeedKind::WalletRoot, phrase).expect_err("restore must fail");
 
         assert_eq!(error, MnemonicError::InvalidPhrase);
     }
@@ -396,7 +412,10 @@ mod tests {
 
         assert_eq!(wallet_seed.recovery_seed(), node_seed.recovery_seed());
         assert_ne!(wallet_seed.master_seed(), node_seed.master_seed());
-        assert_ne!(wallet_seed.metadata().fingerprint, node_seed.metadata().fingerprint);
+        assert_ne!(
+            wallet_seed.metadata().fingerprint,
+            node_seed.metadata().fingerprint
+        );
     }
 
     #[test]
@@ -404,6 +423,9 @@ mod tests {
         let (_seed, mnemonic) =
             generate_seed_and_mnemonic(SeedKind::WalletRoot).expect("generation must succeed");
 
-        assert_eq!(mnemonic.metadata().fingerprint.len(), SEED_FINGERPRINT_LEN * 2);
+        assert_eq!(
+            mnemonic.metadata().fingerprint.len(),
+            SEED_FINGERPRINT_LEN * 2
+        );
     }
 }

@@ -650,15 +650,21 @@ mod tests {
 
     #[test]
     fn policy_profiles_validate_successfully() {
-        assert!(NativeTokenPolicy::for_network(NativeTokenNetwork::Mainnet)
-            .validate()
-            .is_ok());
-        assert!(NativeTokenPolicy::for_network(NativeTokenNetwork::Testnet)
-            .validate()
-            .is_ok());
-        assert!(NativeTokenPolicy::for_network(NativeTokenNetwork::Devnet)
-            .validate()
-            .is_ok());
+        assert!(
+            NativeTokenPolicy::for_network(NativeTokenNetwork::Mainnet)
+                .validate()
+                .is_ok()
+        );
+        assert!(
+            NativeTokenPolicy::for_network(NativeTokenNetwork::Testnet)
+                .validate()
+                .is_ok()
+        );
+        assert!(
+            NativeTokenPolicy::for_network(NativeTokenNetwork::Devnet)
+                .validate()
+                .is_ok()
+        );
     }
 
     #[test]

@@ -236,8 +236,9 @@ impl CertificateAuthority {
         let message = self.self_test_message();
         let signature = detached_sign(&message, &sk);
 
-        verify_detached_signature(&signature, &message, &pk)
-            .map_err(|_| "CA_KEYPAIR_MISMATCH: public and private key material are inconsistent".to_string())
+        verify_detached_signature(&signature, &message, &pk).map_err(|_| {
+            "CA_KEYPAIR_MISMATCH: public and private key material are inconsistent".to_string()
+        })
     }
 
     /// Builds the deterministic self-test message used for keypair validation.

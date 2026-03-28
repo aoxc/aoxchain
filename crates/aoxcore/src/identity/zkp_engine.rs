@@ -101,8 +101,8 @@ impl ZkpProof {
 
     /// Restores the proof from JSON and validates it.
     pub fn from_json(data: &str) -> Result<Self, ZkpError> {
-        let proof: Self = serde_json::from_str(data)
-            .map_err(|error| ZkpError::ParseFailed(error.to_string()))?;
+        let proof: Self =
+            serde_json::from_str(data).map_err(|error| ZkpError::ParseFailed(error.to_string()))?;
 
         proof.validate()?;
         Ok(proof)
@@ -400,7 +400,11 @@ mod tests {
     struct AcceptAllBackend;
 
     impl ZkpBackend for AcceptAllBackend {
-        fn verify(&self, _proof: &ZkpProof, _expected_public_inputs: &[u8]) -> Result<(), ZkpError> {
+        fn verify(
+            &self,
+            _proof: &ZkpProof,
+            _expected_public_inputs: &[u8],
+        ) -> Result<(), ZkpError> {
             Ok(())
         }
     }
@@ -408,7 +412,11 @@ mod tests {
     struct RejectAllBackend;
 
     impl ZkpBackend for RejectAllBackend {
-        fn verify(&self, _proof: &ZkpProof, _expected_public_inputs: &[u8]) -> Result<(), ZkpError> {
+        fn verify(
+            &self,
+            _proof: &ZkpProof,
+            _expected_public_inputs: &[u8],
+        ) -> Result<(), ZkpError> {
             Err(ZkpError::BackendRejected)
         }
     }

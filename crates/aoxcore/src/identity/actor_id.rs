@@ -176,7 +176,10 @@ impl fmt::Display for ActorIdError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyPublicKey => {
-                write!(f, "actor-id generation failed: public key must not be empty")
+                write!(
+                    f,
+                    "actor-id generation failed: public key must not be empty"
+                )
             }
             Self::InvalidPublicKeyLength => {
                 write!(
@@ -203,13 +206,19 @@ impl fmt::Display for ActorIdError {
                 write!(f, "actor-id validation failed: serial component is invalid")
             }
             Self::InvalidChecksum => {
-                write!(f, "actor-id validation failed: checksum component is invalid")
+                write!(
+                    f,
+                    "actor-id validation failed: checksum component is invalid"
+                )
             }
             Self::ChecksumMismatch => {
                 write!(f, "actor-id validation failed: checksum mismatch detected")
             }
             Self::InvalidCharacter => {
-                write!(f, "actor-id validation failed: unsupported character detected")
+                write!(
+                    f,
+                    "actor-id validation failed: unsupported character detected"
+                )
             }
             Self::DerivationMismatch => {
                 write!(
@@ -493,7 +502,10 @@ fn encode_checksum(bytes: &[u8]) -> String {
 
 /// Validates the canonical role component.
 fn validate_role_component(role: &str) -> Result<(), ActorIdError> {
-    if role.len() != ROLE_LEN || !role.chars().all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
+    if role.len() != ROLE_LEN
+        || !role
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
     {
         return Err(ActorIdError::InvalidRole);
     }
@@ -503,7 +515,10 @@ fn validate_role_component(role: &str) -> Result<(), ActorIdError> {
 
 /// Validates the canonical zone component.
 fn validate_zone_component(zone: &str) -> Result<(), ActorIdError> {
-    if zone.len() != ZONE_LEN || !zone.chars().all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
+    if zone.len() != ZONE_LEN
+        || !zone
+            .chars()
+            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
     {
         return Err(ActorIdError::InvalidZone);
     }
@@ -517,7 +532,10 @@ fn validate_serial_component(serial: &str) -> Result<(), ActorIdError> {
         return Err(ActorIdError::InvalidSerial);
     }
 
-    if !serial.chars().all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_lowercase()) {
+    if !serial
+        .chars()
+        .all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_lowercase())
+    {
         return Err(ActorIdError::InvalidSerial);
     }
 
@@ -554,8 +572,7 @@ mod tests {
 
         let a = generate_actor_id(&pk, "validator", "europe")
             .expect("actor id generation must succeed");
-        let b = generate_actor_id(&pk, "VAL", "EU")
-            .expect("actor id generation must succeed");
+        let b = generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
 
         assert_eq!(a, b);
     }
@@ -563,8 +580,8 @@ mod tests {
     #[test]
     fn actor_id_contains_expected_structure() {
         let pk = sample_pubkey();
-        let actor_id =
-            generate_actor_id(&pk, "validator", "europe").expect("actor id generation must succeed");
+        let actor_id = generate_actor_id(&pk, "validator", "europe")
+            .expect("actor id generation must succeed");
 
         let parts: Vec<&str> = actor_id.split('-').collect();
         assert_eq!(parts.len(), 5);
@@ -699,8 +716,7 @@ mod tests {
 
         let a = generate_actor_id(&pk, "observer", "north-america")
             .expect("actor id generation must succeed");
-        let b = generate_actor_id(&pk, "OBS", "NA")
-            .expect("actor id generation must succeed");
+        let b = generate_actor_id(&pk, "OBS", "NA").expect("actor id generation must succeed");
 
         assert_eq!(a, b);
     }

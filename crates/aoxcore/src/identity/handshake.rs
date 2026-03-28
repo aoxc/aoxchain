@@ -308,10 +308,7 @@ mod tests {
 
         let result = verify_handshake_detailed(&cert, &verifying_ca, &crl);
 
-        assert_eq!(
-            result,
-            Err(HandshakeError::CryptographicVerificationFailed)
-        );
+        assert_eq!(result, Err(HandshakeError::CryptographicVerificationFailed));
     }
 
     #[test]

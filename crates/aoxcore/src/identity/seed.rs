@@ -31,7 +31,7 @@ use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::key_engine::{KeyEngine, MASTER_SEED_LEN};
-use super::keyfile::{encrypt_key_to_envelope, KeyfileEnvelope, KeyfileError};
+use super::keyfile::{KeyfileEnvelope, KeyfileError, encrypt_key_to_envelope};
 
 /// Current AOXC seed schema version.
 pub const AOXC_SEED_VERSION: u8 = 1;
@@ -172,10 +172,16 @@ impl fmt::Display for SeedError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EntropyUnavailable => {
-                write!(f, "seed generation failed: operating-system entropy is unavailable")
+                write!(
+                    f,
+                    "seed generation failed: operating-system entropy is unavailable"
+                )
             }
             Self::InvalidAdditionalEntropy => {
-                write!(f, "seed generation failed: additional entropy input is invalid")
+                write!(
+                    f,
+                    "seed generation failed: additional entropy input is invalid"
+                )
             }
             Self::InvalidRecoverySeedLength => {
                 write!(f, "seed restore failed: recovery seed length is invalid")
@@ -482,15 +488,16 @@ mod tests {
     #[test]
     fn recovery_seed_restore_is_deterministic() {
         let original = generate_seed(SeedKind::WalletRoot).expect("seed generation must succeed");
-        let restored = GeneratedSeed::from_recovery_seed(
-            SeedKind::WalletRoot,
-            *original.recovery_seed(),
-        )
-        .expect("seed restore must succeed");
+        let restored =
+            GeneratedSeed::from_recovery_seed(SeedKind::WalletRoot, *original.recovery_seed())
+                .expect("seed restore must succeed");
 
         assert_eq!(original.recovery_seed(), restored.recovery_seed());
         assert_eq!(original.master_seed(), restored.master_seed());
-        assert_eq!(original.metadata().fingerprint, restored.metadata().fingerprint);
+        assert_eq!(
+            original.metadata().fingerprint,
+            restored.metadata().fingerprint
+        );
     }
 
     #[test]
@@ -519,17 +526,11 @@ mod tests {
 
     #[test]
     fn additional_entropy_changes_the_output() {
-        let a = generate_seed_with_additional_entropy(
-            SeedKind::WalletRoot,
-            b"dice-roll-entropy-A",
-        )
-        .expect("seed generation must succeed");
+        let a = generate_seed_with_additional_entropy(SeedKind::WalletRoot, b"dice-roll-entropy-A")
+            .expect("seed generation must succeed");
 
-        let b = generate_seed_with_additional_entropy(
-            SeedKind::WalletRoot,
-            b"dice-roll-entropy-B",
-        )
-        .expect("seed generation must succeed");
+        let b = generate_seed_with_additional_entropy(SeedKind::WalletRoot, b"dice-roll-entropy-B")
+            .expect("seed generation must succeed");
 
         assert_ne!(a.recovery_seed(), b.recovery_seed());
         assert_ne!(a.master_seed(), b.master_seed());

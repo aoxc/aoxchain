@@ -458,7 +458,11 @@ mod tests {
         let mut crl = RevocationList::new();
 
         let error = crl
-            .revoke_at("AOXC-ACTOR-1", RevocationReason::Other("   ".to_string()), 100)
+            .revoke_at(
+                "AOXC-ACTOR-1",
+                RevocationReason::Other("   ".to_string()),
+                100,
+            )
             .unwrap_err();
 
         assert_eq!(error, RevocationError::InvalidReason);

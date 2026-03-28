@@ -396,10 +396,7 @@ mod tests {
         assert!(first);
         assert!(!second);
         assert_eq!(registry.len(), 1);
-        assert_eq!(
-            registry.get("AOXC-ACTOR-1").unwrap().registered_at,
-            100
-        );
+        assert_eq!(registry.get("AOXC-ACTOR-1").unwrap().registered_at, 100);
     }
 
     #[test]

@@ -34,6 +34,7 @@ pub mod hexa_quorum;
 pub mod key_bundle;
 pub mod key_engine;
 pub mod keyfile;
+pub mod mnemonic;
 pub mod passport;
 pub mod pq_keys;
 pub mod registry;
@@ -41,59 +42,30 @@ pub mod revocation;
 pub mod seed;
 pub mod threshold_sig;
 pub mod zkp_engine;
-pub mod mnemonic;
 
 pub use ed25519_keys::{
-    AOXC_ED25519_PUBLIC_KEY_LEN,
-    AOXC_ED25519_SEED_LEN,
-    derive_ed25519_seed,
-    derive_ed25519_signing_key,
-    derive_ed25519_verifying_key,
-    encode_ed25519_public_key_hex,
+    AOXC_ED25519_PUBLIC_KEY_LEN, AOXC_ED25519_SEED_LEN, derive_ed25519_seed,
+    derive_ed25519_signing_key, derive_ed25519_verifying_key, encode_ed25519_public_key_hex,
     fingerprint_ed25519_public_key,
 };
 
 pub use key_bundle::{
-    AOXC_PUBLIC_KEY_ENCODING,
-    CryptoProfile,
-    NodeKeyBundleError,
-    NodeKeyBundleV1,
-    NodeKeyRecord,
+    AOXC_PUBLIC_KEY_ENCODING, CryptoProfile, NodeKeyBundleError, NodeKeyBundleV1, NodeKeyRecord,
     NodeKeyRole,
 };
 
 pub use key_engine::{
-    AOXC_HD_BIP44_PURPOSE,
-    AOXC_HD_PURPOSE,
-    DERIVED_ENTROPY_LEN,
-    KeyEngine,
-    KeyEngineError,
-    MASTER_SEED_LEN,
-    ROLE_SEED_LEN,
-    derive_role_seed_from_material,
+    AOXC_HD_BIP44_PURPOSE, AOXC_HD_PURPOSE, DERIVED_ENTROPY_LEN, KeyEngine, KeyEngineError,
+    MASTER_SEED_LEN, ROLE_SEED_LEN, derive_role_seed_from_material,
 };
 
 pub use seed::{
-    AOXC_SEED_VERSION,
-    GeneratedSeed,
-    RECOVERY_SEED_LEN,
-    SEED_FINGERPRINT_LEN,
-    SeedError,
-    SeedKind,
-    SeedMetadata,
-    generate_seed,
-    generate_seed_with_additional_entropy,
+    AOXC_SEED_VERSION, GeneratedSeed, RECOVERY_SEED_LEN, SEED_FINGERPRINT_LEN, SeedError, SeedKind,
+    SeedMetadata, generate_seed, generate_seed_with_additional_entropy,
 };
 
 pub use mnemonic::{
-    AOXC_MNEMONIC_LANGUAGE,
-    AOXC_MNEMONIC_VERSION,
-    AOXC_MNEMONIC_WORD_COUNT,
-    MnemonicBackup,
-    MnemonicError,
-    MnemonicMetadata,
-    encode_recovery_seed_as_phrase,
-    generate_seed_and_mnemonic,
-    generate_seed_and_mnemonic_with_additional_entropy,
-    restore_seed_from_phrase,
+    AOXC_MNEMONIC_LANGUAGE, AOXC_MNEMONIC_VERSION, AOXC_MNEMONIC_WORD_COUNT, MnemonicBackup,
+    MnemonicError, MnemonicMetadata, encode_recovery_seed_as_phrase, generate_seed_and_mnemonic,
+    generate_seed_and_mnemonic_with_additional_entropy, restore_seed_from_phrase,
 };

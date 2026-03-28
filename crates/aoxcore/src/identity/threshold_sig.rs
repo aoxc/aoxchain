@@ -428,7 +428,9 @@ fn verify_threshold_session_signatures_internal<V: PartialSignatureVerifier>(
     now: u64,
     verifier: Option<&V>,
 ) -> Result<ThresholdVerificationReport, TssError> {
-    policy.validate().map_err(|_| TssError::InvalidSessionPolicy)?;
+    policy
+        .validate()
+        .map_err(|_| TssError::InvalidSessionPolicy)?;
     session.validate()?;
 
     if session.is_not_yet_valid_at(now) {
@@ -774,11 +776,7 @@ mod tests {
 
         let verifier = AcceptAllVerifier;
         let result = verify_threshold_session_signatures_with_verifier(
-            &policy,
-            &session,
-            &partials,
-            150,
-            &verifier,
+            &policy, &session, &partials, 150, &verifier,
         );
 
         assert!(result.is_ok());
@@ -795,11 +793,7 @@ mod tests {
 
         let verifier = RejectAllVerifier;
         let error = verify_threshold_session_signatures_with_verifier(
-            &policy,
-            &session,
-            &partials,
-            150,
-            &verifier,
+            &policy, &session, &partials, 150, &verifier,
         )
         .unwrap_err();
 

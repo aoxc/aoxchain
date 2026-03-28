@@ -7,7 +7,7 @@ use aes_gcm::{Aes256Gcm, Nonce};
 
 use argon2::{Algorithm, Argon2, Params, Version};
 
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
@@ -557,7 +557,10 @@ mod tests {
             encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
         envelope.version = 99;
 
-        assert_eq!(validate_envelope(&envelope), Err(KeyfileError::InvalidVersion));
+        assert_eq!(
+            validate_envelope(&envelope),
+            Err(KeyfileError::InvalidVersion)
+        );
     }
 
     #[test]

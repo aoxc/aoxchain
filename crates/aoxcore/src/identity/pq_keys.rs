@@ -16,7 +16,7 @@
 //! - uses deterministic domain-separated public-key fingerprints.
 
 use pqcrypto_dilithium::dilithium3::{
-    keypair, open, public_key_bytes, secret_key_bytes, sign, PublicKey, SecretKey, SignedMessage,
+    PublicKey, SecretKey, SignedMessage, keypair, open, public_key_bytes, secret_key_bytes, sign,
 };
 
 use pqcrypto_traits::sign::{PublicKey as _, SecretKey as _, SignedMessage as _};
@@ -130,17 +130,15 @@ pub fn sign_message_domain_separated(message: &[u8], sk: &SecretKey) -> Vec<u8> 
 /// Verifies an AOXC domain-separated signed message.
 ///
 /// Returns the original unwrapped message if verification succeeds.
-pub fn verify_message_domain_separated(
-    signed: &[u8],
-    pk: &PublicKey,
-) -> Result<Vec<u8>, String> {
+pub fn verify_message_domain_separated(signed: &[u8], pk: &PublicKey) -> Result<Vec<u8>, String> {
     let opened = verify_message_internal(signed, pk).map_err(|error| error.code().to_string())?;
     unwrap_verified_message(&opened).map_err(|error| error.code().to_string())
 }
 
 /// Internal verification helper shared by both signed-message surfaces.
 fn verify_message_internal(signed: &[u8], pk: &PublicKey) -> Result<Vec<u8>, PqKeyError> {
-    let signed_msg = SignedMessage::from_bytes(signed).map_err(|_| PqKeyError::InvalidSignedMessage)?;
+    let signed_msg =
+        SignedMessage::from_bytes(signed).map_err(|_| PqKeyError::InvalidSignedMessage)?;
 
     open(&signed_msg, pk).map_err(|_| PqKeyError::SignatureVerificationFailed)
 }
@@ -189,13 +187,15 @@ pub fn secret_key_from_bytes(bytes: &[u8]) -> Result<SecretKey, String> {
 
 /// Restores a public key from uppercase or lowercase hexadecimal.
 pub fn public_key_from_hex(encoded: &str) -> Result<PublicKey, String> {
-    let bytes = hex::decode(encoded).map_err(|_| PqKeyError::InvalidPublicKeyHex.code().to_string())?;
+    let bytes =
+        hex::decode(encoded).map_err(|_| PqKeyError::InvalidPublicKeyHex.code().to_string())?;
     public_key_from_bytes(&bytes)
 }
 
 /// Restores a secret key from uppercase or lowercase hexadecimal.
 pub fn secret_key_from_hex(encoded: &str) -> Result<SecretKey, String> {
-    let bytes = hex::decode(encoded).map_err(|_| PqKeyError::InvalidSecretKeyHex.code().to_string())?;
+    let bytes =
+        hex::decode(encoded).map_err(|_| PqKeyError::InvalidSecretKeyHex.code().to_string())?;
     secret_key_from_bytes(&bytes)
 }
 
@@ -238,7 +238,8 @@ fn unwrap_verified_message(wrapped: &[u8]) -> Result<Vec<u8>, PqKeyError> {
         return Err(PqKeyError::InvalidWrappedMessageDomain);
     }
 
-    if !wrapped.starts_with(AOXC_PQ_SIGNING_DOMAIN) || wrapped[AOXC_PQ_SIGNING_DOMAIN.len()] != 0x00 {
+    if !wrapped.starts_with(AOXC_PQ_SIGNING_DOMAIN) || wrapped[AOXC_PQ_SIGNING_DOMAIN.len()] != 0x00
+    {
         return Err(PqKeyError::InvalidWrappedMessageDomain);
     }
 

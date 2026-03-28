@@ -504,9 +504,18 @@ mod tests {
     fn error_codes_are_stable() {
         assert_eq!(HdPathError::EmptyInput.code(), "HD_PATH_EMPTY_INPUT");
         assert_eq!(HdPathError::InvalidFormat.code(), "HD_PATH_INVALID_FORMAT");
-        assert_eq!(HdPathError::InvalidPurpose.code(), "HD_PATH_INVALID_PURPOSE");
-        assert_eq!(HdPathError::InvalidComponent.code(), "HD_PATH_INVALID_COMPONENT");
-        assert_eq!(HdPathError::ComponentOverflow.code(), "HD_PATH_COMPONENT_OVERFLOW");
+        assert_eq!(
+            HdPathError::InvalidPurpose.code(),
+            "HD_PATH_INVALID_PURPOSE"
+        );
+        assert_eq!(
+            HdPathError::InvalidComponent.code(),
+            "HD_PATH_INVALID_COMPONENT"
+        );
+        assert_eq!(
+            HdPathError::ComponentOverflow.code(),
+            "HD_PATH_COMPONENT_OVERFLOW"
+        );
         assert_eq!(HdPathError::IndexOverflow.code(), "HD_PATH_INDEX_OVERFLOW");
     }
 }

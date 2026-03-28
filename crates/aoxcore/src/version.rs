@@ -87,13 +87,22 @@ impl fmt::Display for CoreIdentityError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidName => {
-                write!(f, "core identity validation failed: canonical name is invalid")
+                write!(
+                    f,
+                    "core identity validation failed: canonical name is invalid"
+                )
             }
             Self::InvalidLine => {
-                write!(f, "core identity validation failed: canonical line is invalid")
+                write!(
+                    f,
+                    "core identity validation failed: canonical line is invalid"
+                )
             }
             Self::InvalidBlockFormat => {
-                write!(f, "core identity validation failed: block format line is invalid")
+                write!(
+                    f,
+                    "core identity validation failed: block format line is invalid"
+                )
             }
             Self::InvalidGenesisAuthority => {
                 write!(

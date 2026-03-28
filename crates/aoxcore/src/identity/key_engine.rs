@@ -575,7 +575,10 @@ mod tests {
 
     #[test]
     fn error_codes_are_stable() {
-        assert_eq!(KeyEngineError::InvalidPath.code(), "KEY_ENGINE_INVALID_PATH");
+        assert_eq!(
+            KeyEngineError::InvalidPath.code(),
+            "KEY_ENGINE_INVALID_PATH"
+        );
         assert_eq!(
             KeyEngineError::InvalidEntropyLength.code(),
             "KEY_ENGINE_INVALID_ENTROPY_LENGTH"

@@ -27,28 +27,31 @@ const MAX_ISSUER_LEN: usize = 128;
 
 /// Maximum accepted public-key hex length.
 ///
-/// This bound is intentionally generous to support larger post-quantum public keys.
+/// This upper bound is intentionally generous to accommodate large
+/// post-quantum public-key representations while still enforcing a finite
+/// and reviewable input surface.
 const MAX_PUBKEY_HEX_LEN: usize = 8192;
 
 /// Maximum accepted detached-signature hex length.
 ///
-/// This bound is intentionally generous enough for large post-quantum signature
-/// surfaces while still rejecting obviously malformed or unbounded payloads.
+/// This upper bound is intentionally generous for large post-quantum
+/// signature material while still rejecting obviously malformed or
+/// unbounded payloads.
 const MAX_SIGNATURE_HEX_LEN: usize = 16384;
 
 /// Canonical domain separator for certificate fingerprints.
 ///
 /// Security rationale:
 /// - provides explicit namespace separation for operator-facing digest helpers,
-/// - avoids accidental cross-domain reuse of the same serialized bytes.
+/// - prevents accidental cross-domain reuse of the same serialized bytes.
 const CERTIFICATE_FINGERPRINT_DOMAIN: &[u8] = b"AOXC/IDENTITY/CERTIFICATE/FINGERPRINT/V1";
 
 /// Canonical certificate payload used for signing.
 ///
-/// The signature field is intentionally excluded from this structure so that:
-/// - signing input is deterministic,
-/// - verification input is stable,
-/// - domain-specific signing code can serialize this payload directly.
+/// The detached signature field is intentionally excluded so that:
+/// - signing input remains deterministic,
+/// - verification input remains stable,
+/// - domain-specific signing code can serialize this object directly.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct CertificateSigningPayload {
     pub version: u8,
@@ -65,10 +68,10 @@ pub struct CertificateSigningPayload {
 /// Canonical certificate object used by the AOXC identity layer.
 ///
 /// Compatibility notes:
-/// - Field names are preserved exactly as provided.
+/// - field names are preserved exactly as stored and serialized,
 /// - `issuer` and `signature` remain plain strings for compatibility with the
-///   existing CA and persistence model.
-/// - Validation and signing helpers are added without breaking the data shape.
+///   current certificate authority and persistence model,
+/// - validation and signing helpers extend behavior without changing shape.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Certificate {
     pub version: u8,
@@ -83,7 +86,7 @@ pub struct Certificate {
     pub signature: String,
 }
 
-/// Current lifecycle classification for a certificate at a specific timestamp.
+/// Lifecycle classification for a certificate at a specific timestamp.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CertificateValidityState {
     NotYetValid,
@@ -118,7 +121,8 @@ pub enum CertificateError {
 }
 
 impl CertificateError {
-    /// Returns a stable symbolic error code suitable for logging and telemetry.
+    /// Returns a stable symbolic error code suitable for logs, metrics,
+    /// incident correlation, and operator telemetry.
     #[must_use]
     pub const fn code(&self) -> &'static str {
         match self {
@@ -149,8 +153,12 @@ impl CertificateError {
 impl fmt::Display for CertificateError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidVersion => write!(f, "certificate validation failed: unsupported version"),
-            Self::EmptyChain => write!(f, "certificate validation failed: chain must not be empty"),
+            Self::InvalidVersion => {
+                write!(f, "certificate validation failed: unsupported version")
+            }
+            Self::EmptyChain => {
+                write!(f, "certificate validation failed: chain must not be empty")
+            }
             Self::InvalidChain => {
                 write!(f, "certificate validation failed: chain format is invalid")
             }
@@ -162,10 +170,18 @@ impl fmt::Display for CertificateError {
                 f,
                 "certificate validation failed: actor_id format is invalid"
             ),
-            Self::EmptyRole => write!(f, "certificate validation failed: role must not be empty"),
-            Self::InvalidRole => write!(f, "certificate validation failed: role format is invalid"),
-            Self::EmptyZone => write!(f, "certificate validation failed: zone must not be empty"),
-            Self::InvalidZone => write!(f, "certificate validation failed: zone format is invalid"),
+            Self::EmptyRole => {
+                write!(f, "certificate validation failed: role must not be empty")
+            }
+            Self::InvalidRole => {
+                write!(f, "certificate validation failed: role format is invalid")
+            }
+            Self::EmptyZone => {
+                write!(f, "certificate validation failed: zone must not be empty")
+            }
+            Self::InvalidZone => {
+                write!(f, "certificate validation failed: zone format is invalid")
+            }
             Self::EmptyPublicKey => write!(
                 f,
                 "certificate validation failed: public key must not be empty"
@@ -201,7 +217,9 @@ impl fmt::Display for CertificateError {
             Self::SerializationFailed(error) => {
                 write!(f, "certificate serialization failed: {}", error)
             }
-            Self::TimeError => write!(f, "certificate time check failed: system time is invalid"),
+            Self::TimeError => {
+                write!(f, "certificate time check failed: system time is invalid")
+            }
         }
     }
 }
@@ -225,7 +243,7 @@ impl Default for Certificate {
 impl CertificateSigningPayload {
     /// Validates the canonical certificate signing payload.
     ///
-    /// This helper is useful in cases where callers need to validate the exact
+    /// This helper is intended for workflows that must validate the exact
     /// object that will be serialized and signed.
     pub fn validate(&self) -> Result<(), CertificateError> {
         if self.version != CERTIFICATE_VERSION {
@@ -238,16 +256,17 @@ impl CertificateSigningPayload {
         validate_zone(&self.zone)?;
         validate_pubkey_hex(&self.pubkey)?;
         validate_issuer(&self.issuer)?;
+        validate_validity_window(self.issued_at, self.expires_at)?;
 
-        validate_validity_window(self.issued_at, self.expires_at)
+        Ok(())
     }
 }
 
 impl Certificate {
     /// Creates a new unsigned certificate.
     ///
-    /// The `issuer` and `signature` fields are initialized empty so that a CA
-    /// may later canonicalize and sign the certificate.
+    /// `issuer` and `signature` are initialized empty so that issuance
+    /// workflows may populate them later after canonical validation.
     #[must_use]
     pub fn new_unsigned(
         chain: String,
@@ -310,25 +329,25 @@ impl Certificate {
         cloned
     }
 
-    /// Returns true if the certificate currently carries a signature.
+    /// Returns whether the certificate currently carries a non-blank signature.
     #[must_use]
     pub fn is_signed(&self) -> bool {
         !self.signature.trim().is_empty()
     }
 
-    /// Returns true if the certificate issuer is present.
+    /// Returns whether the certificate currently carries a non-blank issuer.
     #[must_use]
     pub fn has_issuer(&self) -> bool {
         !self.issuer.trim().is_empty()
     }
 
-    /// Returns the decoded public key bytes.
+    /// Returns the decoded public-key bytes after validation.
     pub fn public_key_bytes(&self) -> Result<Vec<u8>, CertificateError> {
         validate_pubkey_hex(&self.pubkey)?;
         hex::decode(self.pubkey.trim()).map_err(|_| CertificateError::InvalidPublicKeyHex)
     }
 
-    /// Returns the decoded detached signature bytes.
+    /// Returns the decoded detached-signature bytes after validation.
     pub fn signature_bytes(&self) -> Result<Vec<u8>, CertificateError> {
         validate_signature_hex(&self.signature)?;
         hex::decode(self.signature.trim()).map_err(|_| CertificateError::InvalidSignatureHex)
@@ -337,7 +356,8 @@ impl Certificate {
     /// Returns a deterministic operator-facing fingerprint of the certificate.
     ///
     /// The fingerprint is derived from the full serialized certificate object,
-    /// including issuer and signature fields.
+    /// including issuer and signature fields. A domain separator is applied to
+    /// prevent accidental reuse across unrelated digest contexts.
     pub fn fingerprint(&self) -> Result<String, CertificateError> {
         let body = serde_json::to_vec(self)
             .map_err(|error| CertificateError::SerializationFailed(error.to_string()))?;
@@ -351,7 +371,7 @@ impl Certificate {
         Ok(hex::encode_upper(&digest[..8]))
     }
 
-    /// Returns the current validity state at the supplied UNIX timestamp.
+    /// Returns the certificate lifecycle classification at the supplied UNIX timestamp.
     #[must_use]
     pub fn validity_state_at(&self, unix_time: u64) -> CertificateValidityState {
         if self.is_not_yet_valid_at(unix_time) {
@@ -366,8 +386,8 @@ impl Certificate {
     /// Validates the certificate fields required before signing.
     ///
     /// This validation intentionally does not require `issuer` or `signature`
-    /// to be populated, because unsigned certificates are valid intermediate
-    /// objects during issuance workflows.
+    /// because unsigned certificates are valid intermediate objects during
+    /// issuance workflows.
     pub fn validate_unsigned(&self) -> Result<(), CertificateError> {
         if self.version != CERTIFICATE_VERSION {
             return Err(CertificateError::InvalidVersion);
@@ -393,40 +413,41 @@ impl Certificate {
         self.validate_unsigned()?;
         validate_issuer(&self.issuer)?;
         validate_signature_hex(&self.signature)?;
+
         Ok(())
     }
 
-    /// Returns true if the certificate is valid at the supplied UNIX timestamp.
+    /// Returns whether the certificate is valid at the supplied UNIX timestamp.
     #[must_use]
     pub fn is_valid_at(&self, unix_time: u64) -> bool {
         unix_time >= self.issued_at && unix_time < self.expires_at
     }
 
-    /// Returns true if the certificate is expired at the supplied UNIX timestamp.
+    /// Returns whether the certificate is expired at the supplied UNIX timestamp.
     #[must_use]
     pub fn is_expired_at(&self, unix_time: u64) -> bool {
         unix_time >= self.expires_at
     }
 
-    /// Returns true if the certificate is not yet valid at the supplied UNIX timestamp.
+    /// Returns whether the certificate is not yet valid at the supplied UNIX timestamp.
     #[must_use]
     pub fn is_not_yet_valid_at(&self, unix_time: u64) -> bool {
         unix_time < self.issued_at
     }
 
-    /// Returns true if the certificate is currently valid according to system time.
+    /// Returns whether the certificate is currently valid according to system time.
     pub fn is_currently_valid(&self) -> Result<bool, CertificateError> {
         let now = current_unix_time()?;
         Ok(self.is_valid_at(now))
     }
 
-    /// Returns true if the certificate is currently expired according to system time.
+    /// Returns whether the certificate is currently expired according to system time.
     pub fn is_currently_expired(&self) -> Result<bool, CertificateError> {
         let now = current_unix_time()?;
         Ok(self.is_expired_at(now))
     }
 
-    /// Returns true if the certificate is currently not yet valid according to system time.
+    /// Returns whether the certificate is currently not yet valid according to system time.
     pub fn is_currently_not_yet_valid(&self) -> Result<bool, CertificateError> {
         let now = current_unix_time()?;
         Ok(self.is_not_yet_valid_at(now))
@@ -442,6 +463,10 @@ fn current_unix_time() -> Result<u64, CertificateError> {
 }
 
 /// Validates the shared issued/expires window.
+///
+/// Security and correctness policy:
+/// - zero timestamps are rejected,
+/// - `expires_at` must be strictly greater than `issued_at`.
 fn validate_validity_window(issued_at: u64, expires_at: u64) -> Result<(), CertificateError> {
     if issued_at == 0 {
         return Err(CertificateError::InvalidIssuedAt);
@@ -458,12 +483,22 @@ fn validate_validity_window(issued_at: u64, expires_at: u64) -> Result<(), Certi
     Ok(())
 }
 
-/// Validates that a field does not contain surrounding whitespace and is not blank.
-fn validate_canonical_text_presence(
-    value: &str,
+/// Validates that a canonical text field is present, non-blank, and free from
+/// leading or trailing whitespace.
+///
+/// Error mapping policy:
+/// - empty string => `empty_error`,
+/// - whitespace-only string => `empty_error`,
+/// - leading/trailing whitespace => `invalid_error`.
+///
+/// Design note:
+/// `invalid_error` is borrowed rather than moved so the caller may reuse the
+/// same discriminator in subsequent validation branches without ownership loss.
+fn validate_canonical_text_presence<'a>(
+    value: &'a str,
     empty_error: CertificateError,
-    invalid_error: CertificateError,
-) -> Result<&str, CertificateError> {
+    invalid_error: &CertificateError,
+) -> Result<&'a str, CertificateError> {
     if value.is_empty() {
         return Err(empty_error);
     }
@@ -475,7 +510,7 @@ fn validate_canonical_text_presence(
     }
 
     if trimmed != value {
-        return Err(invalid_error);
+        return Err(invalid_error.clone());
     }
 
     Ok(trimmed)
@@ -483,8 +518,11 @@ fn validate_canonical_text_presence(
 
 /// Validates the chain field.
 fn validate_chain(value: &str) -> Result<(), CertificateError> {
-    let trimmed =
-        validate_canonical_text_presence(value, CertificateError::EmptyChain, CertificateError::InvalidChain)?;
+    let trimmed = validate_canonical_text_presence(
+        value,
+        CertificateError::EmptyChain,
+        &CertificateError::InvalidChain,
+    )?;
 
     if trimmed.len() > MAX_CHAIN_LEN {
         return Err(CertificateError::InvalidChain);
@@ -500,18 +538,18 @@ fn validate_chain(value: &str) -> Result<(), CertificateError> {
     Ok(())
 }
 
-/// Validates the actor_id field.
+/// Validates the actor identifier field.
 ///
 /// Compatibility note:
-/// this validator preserves a string-based certificate-layer contract rather
-/// than importing a stricter actor-id parser directly. That keeps the
-/// certificate object tolerant of legacy yet still bounded AOXC actor-id
-/// representations while rejecting malformed input.
+/// This validator intentionally preserves a string-based certificate-layer
+/// contract instead of importing a stricter actor-id parser directly. That
+/// keeps the certificate object tolerant of legacy yet bounded AOXC actor-id
+/// representations while still rejecting malformed input.
 fn validate_actor_id(value: &str) -> Result<(), CertificateError> {
     let trimmed = validate_canonical_text_presence(
         value,
         CertificateError::EmptyActorId,
-        CertificateError::InvalidActorId,
+        &CertificateError::InvalidActorId,
     )?;
 
     if trimmed.len() > MAX_ACTOR_ID_LEN {
@@ -534,8 +572,11 @@ fn validate_actor_id(value: &str) -> Result<(), CertificateError> {
 
 /// Validates the role field.
 fn validate_role(value: &str) -> Result<(), CertificateError> {
-    let trimmed =
-        validate_canonical_text_presence(value, CertificateError::EmptyRole, CertificateError::InvalidRole)?;
+    let trimmed = validate_canonical_text_presence(
+        value,
+        CertificateError::EmptyRole,
+        &CertificateError::InvalidRole,
+    )?;
 
     if trimmed.len() > MAX_ROLE_LEN {
         return Err(CertificateError::InvalidRole);
@@ -553,8 +594,11 @@ fn validate_role(value: &str) -> Result<(), CertificateError> {
 
 /// Validates the zone field.
 fn validate_zone(value: &str) -> Result<(), CertificateError> {
-    let trimmed =
-        validate_canonical_text_presence(value, CertificateError::EmptyZone, CertificateError::InvalidZone)?;
+    let trimmed = validate_canonical_text_presence(
+        value,
+        CertificateError::EmptyZone,
+        &CertificateError::InvalidZone,
+    )?;
 
     if trimmed.len() > MAX_ZONE_LEN {
         return Err(CertificateError::InvalidZone);
@@ -575,7 +619,7 @@ fn validate_issuer(value: &str) -> Result<(), CertificateError> {
     let trimmed = validate_canonical_text_presence(
         value,
         CertificateError::EmptyIssuer,
-        CertificateError::InvalidIssuer,
+        &CertificateError::InvalidIssuer,
     )?;
 
     if trimmed.len() > MAX_ISSUER_LEN {
@@ -592,16 +636,26 @@ fn validate_issuer(value: &str) -> Result<(), CertificateError> {
     Ok(())
 }
 
-/// Validates a hexadecimal field with bounded length and even-width encoding.
+/// Validates a bounded hexadecimal field with canonical text rules.
+///
+/// Validation policy:
+/// - value must first satisfy canonical text presence checks,
+/// - maximum length is enforced,
+/// - odd-length hex is rejected,
+/// - only ASCII hexadecimal characters are accepted.
 fn validate_hex_field(
     value: &str,
     empty_error: CertificateError,
     invalid_error: CertificateError,
     max_len: usize,
 ) -> Result<(), CertificateError> {
-    let trimmed = validate_canonical_text_presence(value, empty_error, invalid_error)?;
+    let trimmed = validate_canonical_text_presence(value, empty_error, &invalid_error)?;
 
-    if trimmed.len() > max_len || trimmed.len() % 2 != 0 {
+    if trimmed.len() > max_len {
+        return Err(invalid_error);
+    }
+
+    if trimmed.len() % 2 != 0 {
         return Err(invalid_error);
     }
 
@@ -612,7 +666,7 @@ fn validate_hex_field(
     Ok(())
 }
 
-/// Validates the public key hex field.
+/// Validates the public-key hex field.
 fn validate_pubkey_hex(value: &str) -> Result<(), CertificateError> {
     validate_hex_field(
         value,
@@ -747,7 +801,10 @@ mod tests {
             1_800_000_000,
         );
 
-        assert_eq!(cert.validate_unsigned(), Err(CertificateError::InvalidChain));
+        assert_eq!(
+            cert.validate_unsigned(),
+            Err(CertificateError::InvalidChain)
+        );
     }
 
     #[test]

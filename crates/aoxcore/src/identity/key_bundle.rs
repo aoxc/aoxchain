@@ -546,7 +546,10 @@ impl NodeKeyBundleV1 {
                 return Err(NodeKeyBundleError::EmptyFingerprint(record.role));
             }
 
-            if !record.public_key.chars().all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_lowercase())
+            if !record
+                .public_key
+                .chars()
+                .all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_lowercase())
             {
                 return Err(NodeKeyBundleError::InvalidPublicKeyHex(record.role));
             }
@@ -1034,7 +1037,10 @@ mod tests {
         record.hd_path = "m/44/2626/1/2/1/0".to_string();
 
         let result = bundle.validate();
-        assert!(matches!(result, Err(NodeKeyBundleError::HdPathMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(NodeKeyBundleError::HdPathMismatch { .. })
+        ));
     }
 
     #[test]
@@ -1083,7 +1089,9 @@ mod tests {
         let result = bundle.validate();
         assert!(matches!(
             result,
-            Err(NodeKeyBundleError::FingerprintMismatch(NodeKeyRole::Identity))
+            Err(NodeKeyBundleError::FingerprintMismatch(
+                NodeKeyRole::Identity
+            ))
         ));
     }
 

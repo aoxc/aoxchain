@@ -24,9 +24,7 @@ pub const MAX_SIGNATURE_HEX_LEN: usize = 16384;
 /// Each lane represents a distinct trust axis rather than a repeated signature.
 /// The goal is to prevent false confidence created by multiple signatures from
 /// the same trust source.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ApprovalLane {
     /// Primary cryptographic identity signature.
     IdentitySig,
