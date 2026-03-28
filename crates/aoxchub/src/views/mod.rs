@@ -1,9 +1,6 @@
-mod consensus_map;
-mod home;
-mod lane_monitor;
-mod zkp_audit;
+mod operations;
 
-pub use consensus_map::ConsensusMap;
-pub use home::{Explorer, Home, Nodes, NotFoundPage, Staking, Wallet};
-pub use lane_monitor::LaneMonitor;
-pub use zkp_audit::ZkpAudit;
+pub use operations::{
+    Consensus, ExecutionLanes, Explorer, GovernanceControl, NodesInfrastructure, NotFoundPage,
+    Overview, SettingsSecurity, TelemetryAudit, ValidatorsStaking, WalletTreasury,
+};
