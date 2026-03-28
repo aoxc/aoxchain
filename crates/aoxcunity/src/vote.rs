@@ -87,15 +87,6 @@ pub enum VoteAuthenticationError {
     #[error("vote requires post-quantum signature policy for this epoch")]
     PostQuantumPolicyRequired,
 
-    #[error("vote is missing post-quantum attestation commitment")]
-    MissingPostQuantumAttestation,
-
-    #[error("vote network context is invalid")]
-    InvalidNetworkContext,
-
-    #[error("vote is missing validator-set commitment")]
-    MissingValidatorSetCommitment,
-
     #[error("vote public key is malformed")]
     MalformedPublicKey,
 
@@ -149,14 +140,6 @@ impl AuthenticatedVote {
     }
 
     pub fn verify(&self) -> Result<VerifiedAuthenticatedVote, VoteAuthenticationError> {
-        if self.context.network_id == 0 {
-            return Err(VoteAuthenticationError::InvalidNetworkContext);
-        }
-
-        if self.context.validator_set_root == [0u8; 32] {
-            return Err(VoteAuthenticationError::MissingValidatorSetCommitment);
-        }
-
         if !is_known_signature_scheme(self.context.signature_scheme) {
             return Err(VoteAuthenticationError::UnknownSignatureScheme);
         }
@@ -165,12 +148,6 @@ impl AuthenticatedVote {
             && !is_post_quantum_hardened_scheme(self.context.signature_scheme)
         {
             return Err(VoteAuthenticationError::PostQuantumPolicyRequired);
-        }
-
-        if self.context.epoch >= PQ_MANDATORY_START_EPOCH
-            && self.context.pq_attestation_root == [0u8; 32]
-        {
-            return Err(VoteAuthenticationError::MissingPostQuantumAttestation);
         }
 
         if self.context.signature_scheme == SIGNATURE_SCHEME_DILITHIUM3 {
@@ -364,7 +341,6 @@ mod tests {
                 network_id: 2626,
                 epoch: 4,
                 validator_set_root: [5u8; 32],
-                pq_attestation_root: [11u8; 32],
                 signature_scheme: 999,
             },
             signature: Vec::new(),
@@ -396,7 +372,6 @@ mod tests {
                 network_id: 2626,
                 epoch: PQ_MANDATORY_START_EPOCH,
                 validator_set_root: [5u8; 32],
-                pq_attestation_root: [11u8; 32],
                 signature_scheme: SIGNATURE_SCHEME_ED25519,
             },
             signature: Vec::new(),
@@ -428,7 +403,6 @@ mod tests {
                 network_id: 2626,
                 epoch: PQ_MANDATORY_START_EPOCH,
                 validator_set_root: [5u8; 32],
-                pq_attestation_root: [11u8; 32],
                 signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
             },
             signature: Vec::new(),
@@ -439,101 +413,5 @@ mod tests {
             .to_vec();
 
         assert!(authenticated.verify().is_ok());
-    }
-
-    #[test]
-    fn authenticated_vote_requires_pq_attestation_after_cutover_epoch() {
-        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
-        let vote = Vote {
-            voter: signing_key.verifying_key().to_bytes(),
-            block_hash: [1u8; 32],
-            height: 9,
-            round: 2,
-            kind: VoteKind::Commit,
-        };
-        let mut authenticated = AuthenticatedVote {
-            vote,
-            context: VoteAuthenticationContext {
-                network_id: 2626,
-                epoch: PQ_MANDATORY_START_EPOCH,
-                validator_set_root: [5u8; 32],
-                pq_attestation_root: [0u8; 32],
-                signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
-            },
-            signature: Vec::new(),
-        };
-        authenticated.signature = signing_key
-            .sign(&authenticated.signing_bytes())
-            .to_bytes()
-            .to_vec();
-
-        assert_eq!(
-            authenticated.verify(),
-            Err(VoteAuthenticationError::MissingPostQuantumAttestation)
-        );
-    }
-
-    #[test]
-    fn authenticated_vote_rejects_zero_network_id_context() {
-        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
-        let vote = Vote {
-            voter: signing_key.verifying_key().to_bytes(),
-            block_hash: [1u8; 32],
-            height: 9,
-            round: 2,
-            kind: VoteKind::Commit,
-        };
-        let mut authenticated = AuthenticatedVote {
-            vote,
-            context: VoteAuthenticationContext {
-                network_id: 0,
-                epoch: 4,
-                validator_set_root: [5u8; 32],
-                pq_attestation_root: [11u8; 32],
-                signature_scheme: 1,
-            },
-            signature: Vec::new(),
-        };
-        authenticated.signature = signing_key
-            .sign(&authenticated.signing_bytes())
-            .to_bytes()
-            .to_vec();
-
-        assert_eq!(
-            authenticated.verify(),
-            Err(VoteAuthenticationError::InvalidNetworkContext)
-        );
-    }
-
-    #[test]
-    fn authenticated_vote_rejects_missing_validator_set_commitment() {
-        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
-        let vote = Vote {
-            voter: signing_key.verifying_key().to_bytes(),
-            block_hash: [1u8; 32],
-            height: 9,
-            round: 2,
-            kind: VoteKind::Commit,
-        };
-        let mut authenticated = AuthenticatedVote {
-            vote,
-            context: VoteAuthenticationContext {
-                network_id: 2626,
-                epoch: 4,
-                validator_set_root: [0u8; 32],
-                pq_attestation_root: [11u8; 32],
-                signature_scheme: 1,
-            },
-            signature: Vec::new(),
-        };
-        authenticated.signature = signing_key
-            .sign(&authenticated.signing_bytes())
-            .to_bytes()
-            .to_vec();
-
-        assert_eq!(
-            authenticated.verify(),
-            Err(VoteAuthenticationError::MissingValidatorSetCommitment)
-        );
     }
 }
