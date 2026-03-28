@@ -65,6 +65,7 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
             network_id: 2626,
             epoch: 1,
             validator_set_root: [9u8; 32],
+            pq_attestation_root: [9u8; 32],
             signature_scheme: 1,
         };
 

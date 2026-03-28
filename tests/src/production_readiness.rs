@@ -10,6 +10,10 @@ use aoxcnet::{
 };
 use aoxcore::{
     block::{Capability, TargetOutpost},
+    identity::{
+        actor_id::{ActorIdError, generate_actor_id, parse_actor_id, validate_actor_id},
+        hd_path::{HdPath, HdPathError, MAX_HD_INDEX},
+    },
     transaction::{
         MAX_TRANSACTION_PAYLOAD_BYTES, Transaction, TransactionError, calculate_transaction_root,
         hash_transaction, hash_transaction_intent,
@@ -21,6 +25,7 @@ use aoxcunity::{
     Vote, VoteKind,
 };
 use ed25519_dalek::SigningKey;
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 #[test]
 fn transaction_root_and_hashes_remain_stable_under_signature_rotation() {
@@ -203,6 +208,93 @@ fn resilience_harness_preserves_integrity_metadata_under_chaos() {
             "chaos simulation must not mutate payload integrity metadata"
         );
     }
+}
+
+#[test]
+fn identity_surface_stays_stable_under_randomized_roundtrip_pressure() {
+    let mut rng = StdRng::seed_from_u64(0xA0C1_1D3A_u64);
+
+    for _ in 0..1_500 {
+        let seed = ((rng.next_u32() as u64) << 32) | (rng.next_u32() as u64);
+        let mut secret = [0u8; 32];
+        secret[..8].copy_from_slice(&seed.to_le_bytes());
+        if secret.iter().all(|b| *b == 0) {
+            secret[0] = 1;
+        }
+        let signer = SigningKey::from_bytes(&secret);
+        let pubkey = signer.verifying_key().to_bytes();
+
+        let role = if (rng.next_u32() & 1) == 0 {
+            "validator"
+        } else {
+            "observer"
+        };
+        let zone = if (rng.next_u32() & 1) == 0 {
+            "eu"
+        } else {
+            "na"
+        };
+
+        let actor_id = generate_actor_id(&pubkey, role, zone).expect("actor-id should generate");
+        assert_eq!(validate_actor_id(&actor_id), Ok(()));
+
+        let parsed = parse_actor_id(&actor_id).expect("actor-id should parse");
+        assert_eq!(parsed.prefix, "AOXC");
+
+        let chain = rng.next_u32();
+        let role_idx = rng.next_u32();
+        let zone_idx = rng.next_u32();
+        let index = rng.next_u32() & MAX_HD_INDEX;
+
+        let hd = HdPath::new(chain, role_idx, zone_idx, index).expect("hd path should build");
+        let serialized = hd.to_string();
+        let reparsed: HdPath = serialized.parse().expect("hd path should parse");
+        assert_eq!(reparsed, hd);
+    }
+}
+
+#[test]
+fn identity_surface_rejects_large_malformed_input_corpus() {
+    let malformed_actor_ids = [
+        "",
+        " ",
+        "AOXC-VA-EU-ABCDEF-K9",
+        "AOXC-VAL-E-ABCDEF-K9",
+        "AOXC-VAL-EU-ABC DEF-K9",
+        "AOXC-VAL-EU-ABCDEF🙂-K9",
+        "NOPE-VAL-EU-AAAAAAAAAAAAAAAAAAAAAAAA-K9",
+        "AOXC-VAL-EU-AAAAAAAAAAAAAAAAAAAAAAAA-IO",
+    ];
+
+    for candidate in malformed_actor_ids {
+        assert!(
+            validate_actor_id(candidate).is_err(),
+            "expected malformed actor id to fail: {candidate:?}"
+        );
+    }
+
+    let malformed_hd_paths = [
+        "",
+        "m/44/2626/1/2/3",
+        "root/44/2626/1/2/3/4",
+        "m/44/2626/1/2/3/-1",
+        "m/44/9999/1/2/3/4",
+        "m/43/2626/1/2/3/4",
+        " m/44/2626/1/2/3/4 ",
+    ];
+
+    for candidate in malformed_hd_paths {
+        assert!(
+            candidate.parse::<HdPath>().is_err(),
+            "expected malformed hd path to fail: {candidate:?}"
+        );
+    }
+
+    let overflow = format!("m/44/2626/1/2/3/{}", MAX_HD_INDEX + 1);
+    assert_eq!(overflow.parse::<HdPath>(), Err(HdPathError::IndexOverflow));
+
+    let non_empty_error = validate_actor_id("AOXC-VAL-EU-ABCD").expect_err("must fail");
+    assert!(!matches!(non_empty_error, ActorIdError::EmptyActorId));
 }
 
 fn build_block(

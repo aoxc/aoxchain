@@ -16,5 +16,6 @@ aoxcdata = { path = "../crates/aoxcdata" }
 aoxcsdk = { path = "../crates/aoxcsdk" }
 aoxcvm = { path = "../crates/aoxcvm" }
 serde_json = { workspace = true }
+rand = { workspace = true }
 hex = "0.4"
 ed25519-dalek = "2"
