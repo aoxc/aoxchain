@@ -18,7 +18,7 @@ use crate::safety::{
 use crate::seal::AuthenticatedQuorumCertificate;
 use crate::state::ConsensusState;
 use crate::store::ConsensusEvidence;
-use crate::validator::ValidatorId;
+use crate::validator::{SlashFault, ValidatorId};
 use crate::vote::{VerifiedAuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,10 +50,24 @@ pub enum ConsensusEvent {
     AdmitVerifiedVote(VerifiedVote),
     AdmitTimeoutVote(VerifiedTimeoutVote),
     ObserveLegitimacy(LegitimacyCertificate),
-    AdvanceRound { height: u64, round: u64 },
-    EvaluateFinality { block_hash: [u8; 32] },
-    PruneFinalizedState { finalized_height: u64 },
-    RecoverPersistedEvent { event_hash: [u8; 32] },
+    ReportLeaderFailure {
+        height: u64,
+        round: u64,
+        leader: ValidatorId,
+    },
+    AdvanceRound {
+        height: u64,
+        round: u64,
+    },
+    EvaluateFinality {
+        block_hash: [u8; 32],
+    },
+    PruneFinalizedState {
+        finalized_height: u64,
+    },
+    RecoverPersistedEvent {
+        event_hash: [u8; 32],
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -238,6 +252,11 @@ impl ConsensusEngine {
             ConsensusEvent::ObserveLegitimacy(certificate) => {
                 self.apply_legitimacy_certificate(certificate)
             }
+            ConsensusEvent::ReportLeaderFailure {
+                height,
+                round,
+                leader,
+            } => self.apply_leader_failure(height, round, leader),
             ConsensusEvent::AdvanceRound { height, round } => {
                 self.apply_advance_round(height, round)
             }
@@ -305,6 +324,12 @@ impl ConsensusEngine {
             }
             Err(error) => {
                 if matches!(error, ConsensusError::EquivocatingVote) {
+                    let _ = self.state.slash_validator(
+                        verified_vote.authenticated_vote.vote.voter,
+                        5,
+                        100,
+                        SlashFault::Equivocation,
+                    );
                     self.evidence_buffer.push(equivocation_evidence(
                         verified_vote.authenticated_vote.vote.block_hash,
                         "vote",
@@ -395,6 +420,33 @@ impl ConsensusEngine {
         }
 
         result
+    }
+
+    fn apply_leader_failure(
+        &mut self,
+        height: u64,
+        round: u64,
+        leader: ValidatorId,
+    ) -> TransitionResult {
+        self.current_height = self.current_height.max(height);
+        let step = self.state.round.on_leader_failure();
+        if step.next_round < round {
+            self.state.round.advance_to(round);
+        }
+
+        if let Some(validator) = self.state.rotation.validator_mut(leader) {
+            validator.register_liveness_miss(3, self.state.round.round.saturating_add(3));
+            if !validator.active {
+                let _ = self
+                    .state
+                    .slash_validator(leader, 1, 100, SlashFault::Liveness);
+            }
+        }
+
+        TransitionResult::accepted(KernelEffect::RoundAdvanced {
+            height,
+            round: self.state.round.round,
+        })
     }
 
     fn apply_legitimacy_certificate(
@@ -579,6 +631,7 @@ impl ConsensusEngine {
             network_id: self.network_id,
             epoch: self.current_epoch,
             validator_set_root: self.state.rotation.validator_set_hash(),
+            pq_attestation_root: self.state.rotation.pq_attestation_root(),
             signature_scheme: self.signature_scheme,
         }
     }
@@ -720,6 +773,7 @@ mod tests {
             network_id: 2626,
             epoch,
             validator_set_root: engine.state.rotation.validator_set_hash(),
+            pq_attestation_root: engine.state.rotation.pq_attestation_root(),
             signature_scheme: 1,
         }
     }
@@ -959,6 +1013,7 @@ mod tests {
                         network_id: 4040,
                         epoch: 0,
                         validator_set_root: engine.state.rotation.validator_set_hash(),
+                        pq_attestation_root: engine.state.rotation.pq_attestation_root(),
                         signature_scheme: 42,
                     },
                 },

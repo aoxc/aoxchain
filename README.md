@@ -4,10 +4,11 @@
   <img src="./logos/aoxc.png" alt="AOXChain Logo" width="180" />
 </p>
 
-AOXChain repository portalına hoş geldiniz.
+Welcome to the AOXChain repository portal.
 
-- Zincirin tam teknik tanımı: [READ.md](./READ.md)
-- Tek resmi yol haritası: [ROADMAP.md](./ROADMAP.md)
-- Lisans: [LICENSE](./LICENSE)
+- Canonical technical specification: [READ.md](./READ.md)
+- Architecture and operations references: [`docs/`](./docs)
+- Environment and network profiles: [`configs/`](./configs)
+- License: [LICENSE](./LICENSE)
 
-> Not: Alt klasör READ/README dosyaları sadece ilgili kodun ne yaptığını açıklar; roadmap içermez.
+> Note: Subdirectory `READ.md`/`README.md` files describe scoped implementation behavior and ownership boundaries; they do not define roadmap policy.

@@ -1,111 +1,140 @@
-# AOXChain — Advanced Omnichain Execution Chain (Canonical Definition)
+# AOXChain — Canonical Technical Definition
 
 <p align="center">
   <img src="./logos/aoxc.png" alt="AOXChain Logo" width="220" />
 </p>
 
-> Status: `Engineering Mainnet Program`  
-> Domain: `Deterministic L1 + Multi-VM Execution + Operator-Grade Control Plane`  
-> Canonical Scope: `This document is the single technical definition of the chain at repository level.`
+> **Status:** Engineering Mainnet Program  
+> **System Class:** Deterministic L1 + Multi-VM Execution + Operator-Grade Control Plane  
+> **Scope:** This document is the canonical, repository-level technical definition of AOXChain.
 
 ---
 
-## 1) AOXChain nedir?
+## 1. System identity and mission
 
-AOXChain; deterministik state-transition çekirdeği, modüler yürütme motoru, servis katmanı ve operasyon düzlemini ayrıştıran kurumsal seviye bir zincir mimarisidir.
+AOXChain is a modular blockchain architecture designed around deterministic state transitions, auditable execution, and production-grade operations. The system separates consensus-critical logic from execution routing, network services, and operator tooling in order to preserve safety boundaries and simplify verifiable evolution.
 
-Temel hedef:
-- güvenli finalite,
-- tekrar üretilebilir (replay-stable) yürütme,
-- ölçülebilir operasyon kalitesi,
-- kontrollü protokol evrimi.
+Primary objectives:
+
+1. **Safety-preserving finality** under explicit consensus rules.
+2. **Deterministic replay** for identical canonical inputs.
+3. **Operational measurability** via reproducible runbooks and evidence trails.
+4. **Controlled protocol evolution** through versioned policy and activation discipline.
 
 ---
 
-## 2) Mimari katmanlar (single source of truth)
+## 2. Layered architecture (single source of truth)
 
-### 2.1 Kernel (konsensüs-kritik alan)
-- `crates/aoxcore`: blok/tx/state/receipt gibi çekirdek veri modeli ve state-transition temelleri.
-- `crates/aoxcunity`: konsensüs, finality, quorum ve safety kuralları.
+### 2.1 Kernel (consensus-critical domain)
 
-**Kural:** Kanonik zincir durumunu sadece kernel kararları değiştirebilir.
+- `crates/aoxcore`: canonical primitives for blocks, transactions, receipts, identity objects, and state-transition structure.
+- `crates/aoxcunity`: consensus/finality/voting/quorum/safety mechanisms.
 
-### 2.2 Execution plane (VM ve lane orkestrasyonu)
-- `crates/aoxcexec`: deterministik yürütme politikaları, lane envelope, execution accounting.
-- `crates/aoxcvm`: çoklu yürütme lane yönlendirmesi (native / EVM / WASM / uyumluluk lane’leri).
-- `crates/aoxcenergy`: maliyetlendirme/gas/ekonomi kuralları.
+**Invariant K-1:** Only kernel decisions are authorized to mutate canonical chain state.
 
-**Kural:** Aynı kanonik girdi için aynı yürütme sonucu üretilmelidir.
+### 2.2 Execution plane (VM and lane orchestration)
+
+- `crates/aoxcexec`: deterministic execution policies, lane envelope handling, and accounting constraints.
+- `crates/aoxcvm`: multi-lane dispatch and compatibility paths (native, EVM, WASM, and other lanes).
+- `crates/aoxcenergy`: gas and economic metering rules.
+
+**Invariant E-1:** Canonical input equality must imply canonical output equality.
 
 ### 2.3 System services
-- `crates/aoxcnet`: p2p, gossip, discovery, sync.
-- `crates/aoxcrpc`: RPC/API yüzeyi.
-- `crates/aoxcdata`: persistence, index, data lifecycle.
-- `crates/aoxconfig`: tip güvenli konfigürasyon ve doğrulama.
+
+- `crates/aoxcnet`: P2P, gossip, discovery, synchronization, resilience workflows.
+- `crates/aoxcrpc`: external API surfaces (HTTP, gRPC, WebSocket).
+- `crates/aoxcdata`: persistence/indexing/state-storage facilities.
+- `crates/aoxconfig`: type-safe configuration and validation mechanisms.
 
 ### 2.4 Operator plane
-- `crates/aoxcmd`: CLI operasyon yönetimi.
-- `crates/aoxckit`: key/crypto araçları.
-- `crates/aoxchub`: desktop control-plane arayüzü.
 
-**Kural:** UI/CLI konsensüs otoritesi değildir; yalnızca kontrol ve gözlemlenebilirlik yüzeyidir.
+- `crates/aoxcmd`: node and lifecycle operations via CLI.
+- `crates/aoxckit`: keying and cryptographic operational toolchain.
+- `crates/aoxchub`: desktop control-plane interface.
+- `scripts/`: operational automation, readiness gates, and release evidence workflows.
 
----
-
-## 3) Zincirin deterministik çalışma sözleşmesi
-
-1. Non-deterministic girdiler normalize edilmeden kernel’e etkide bulunamaz.
-2. Malformed/policy-invalid payload’lar state mutation öncesi reddedilir.
-3. Policy değişimleri versiyonlu ve aktivasyon kapsamı tanımlı yapılır.
-4. Release iddiaları commit’e bağlı test/evidence paketiyle doğrulanır.
-5. Belirsizlikte sistem fail-closed davranır.
-
-### 5.3 Yerel zincir / operasyon akışı
-
-## 4) Mainnet kalite kapıları
-
-Bir sürüm “mainnet adayı” sayılmadan önce:
-
-- Deterministic replay testleri (çoklu lane) geçmeli,
-- Konsensüs ve ağ dayanıklılık senaryoları raporlanmalı,
-- Snapshot/restore bütünlük testi kanıtlanmalı,
-- API ve config uyumluluk etkisi açıklanmalı,
-- Güvenlik ve operasyon runbook’ları güncel olmalı,
-- Release artifact zinciri (binary hash, sbom, provenance, signatures) tamamlanmalı.
+**Invariant O-1:** Operator and UX surfaces are control/observability interfaces, not consensus authorities.
 
 ---
 
-## 5) Konfigürasyon ve ortam modeli
+## 3. Deterministic execution contract
 
-`configs/` altında localnet, devnet, testnet, validation, mainnet ve sovereign template ortamları bulunur.
-Her ortam için profile/genesis/validator/release-policy seti sürümlü tutulur.
+AOXChain follows a fail-closed deterministic contract:
 
-**İlke:** Ortamlar arası farklar açık olmalı; gizli varsayım bırakılmamalı.
+1. Non-deterministic inputs cannot affect kernel state unless normalized.
+2. Malformed or policy-invalid payloads are rejected before state mutation.
+3. Policy changes are versioned and activation-scoped.
+4. Release claims require commit-bound evidence artifacts.
+5. Ambiguous states default to fail-closed behavior.
 
-Desktop etkileşim hedefleri:
-
-## 6) Güvenlik, anahtar ve denetlenebilirlik
-
-- Anahtar yaşam döngüsü (üretim, saklama, rotasyon, iptal) denetlenebilir olmalıdır.
-- Konsensüs-kritik kod değişimleri risk notu ile merge edilir.
-- Olay müdahalesi ölçülebilir ve runbook tabanlı yürütülür.
-- Operator action -> evidence mapping kırılmamalıdır.
+This contract is the baseline for replay stability, auditability, and environment parity.
 
 ---
 
-## 7) Geliştirme prensipleri
+## 4. Environment model and network parity
 
-- Minimal, açık, testlenebilir değişiklik.
-- Dokümantasyon ve kod birlikte güncellenir.
-- Geriye dönük uyumluluk etkisi açıkça yazılır.
-- Klasör READ/README dosyaları yalnızca “kodun ne yaptığı”nı anlatır; roadmap içermez.
+The environment surface under `configs/` defines reproducible network contexts:
+
+- `localnet`
+- `devnet`
+- `testnet`
+- `validation`
+- `mainnet`
+- `sovereign` templates
+
+Each environment carries versioned identity and policy material (`genesis`, `validators`, `profile`, `release-policy`, and auxiliary metadata where relevant).
+
+**Environment principle:** Cross-environment differences must be explicit, reviewable, and documented; hidden assumptions are disallowed.
 
 ---
 
-## 8) Resmi referanslar
+## 5. Mainnet-readiness quality gates
 
-- Tek roadmap: [ROADMAP.md](./ROADMAP.md)
-- Lisans: [LICENSE](./LICENSE)
-- Mimari: `docs/ARCHITECTURE.md`
-- Execution modeli: `docs/EXECUTION_MODEL.md`
-- İnvariantlar: `docs/SYSTEM_INVARIANTS.md`
+A release candidate is not considered mainnet-eligible unless the following are satisfied:
+
+1. Deterministic replay validation across supported execution lanes.
+2. Consensus and network resilience scenarios are executed and documented.
+3. Snapshot/restore integrity is demonstrated.
+4. API/config compatibility impact is explicitly stated.
+5. Security and operations runbooks are current.
+6. Release artifact chain is complete (hashes, SBOM, provenance, signatures, and audit output where required).
+
+**Maturity statement:** AOXChain does not claim “absolute defect-free security.” It claims measurable assurance based on explicit gates and evidence.
+
+---
+
+## 6. Security and key lifecycle principles
+
+1. Key lifecycle operations (generation, storage, rotation, revocation) must remain auditable.
+2. Consensus-critical changes require explicit risk annotation in review flow.
+3. Incident response is runbook-driven and evidence-linked.
+4. Operator action → evidence mapping must remain intact across tooling.
+
+---
+
+## 7. Engineering and documentation governance
+
+- Prefer minimal, testable, clearly scoped changes.
+- Update code and documentation together.
+- State backward-compatibility implications explicitly.
+- Subdirectory `READ.md`/`README.md` files define *what a scope does*; they do not define roadmap authority.
+
+---
+
+## 8. Repository navigation
+
+- Top-level portal: `README.md`
+- Architecture reference: `docs/ARCHITECTURE.md`
+- Execution model: `docs/EXECUTION_MODEL.md`
+- State model: `docs/STATE_MODEL.md`
+- Security model: `docs/SECURITY_MODEL.md`
+- System invariants: `docs/SYSTEM_INVARIANTS.md`
+- Environment catalog: `configs/environments/`
+- Operations scripts: `scripts/`
+
+---
+
+## 9. Compliance note
+
+This repository is an engineering codebase under active development. Statements in this document are technical definitions and process commitments, not legal or investment representations.

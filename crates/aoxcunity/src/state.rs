@@ -16,7 +16,7 @@ use crate::quorum::QuorumThreshold;
 use crate::rotation::ValidatorRotation;
 use crate::round::RoundState;
 use crate::seal::{AuthenticatedQuorumCertificate, BlockSeal, QuorumCertificate};
-use crate::validator::ValidatorId;
+use crate::validator::{SlashFault, ValidatorId};
 use crate::vote::{
     SignedVote, VerifiedAuthenticatedVote, VerifiedVote, Vote, VoteAuthenticationContext,
     VoteAuthenticationError, VoteKind,
@@ -230,11 +230,10 @@ impl ConsensusState {
             .validator(vote.voter)
             .ok_or(ConsensusError::ValidatorNotFound)?;
 
-        if !validator.active {
-            return Err(ConsensusError::InactiveValidator);
-        }
-
         if !validator.is_eligible_for_vote() {
+            if !validator.active {
+                return Err(ConsensusError::InactiveValidator);
+            }
             return Err(ConsensusError::NonVotingValidator);
         }
 
@@ -314,6 +313,87 @@ impl ConsensusState {
     #[must_use]
     pub fn proposer_for_height(&self, height: u64) -> Option<ValidatorId> {
         self.rotation.proposer(height)
+    }
+
+    /// Returns the proposer selected for `(height, round)` using deterministic
+    /// weight-aware lottery and caller-supplied entropy.
+    #[must_use]
+    pub fn proposer_for_round(
+        &self,
+        height: u64,
+        round: u64,
+        entropy: [u8; 32],
+    ) -> Option<ValidatorId> {
+        self.rotation.proposer_with_round(height, round, entropy)
+    }
+
+    /// Bonds additional self stake for the validator and increases its voting power.
+    pub fn bond_validator(
+        &mut self,
+        validator_id: ValidatorId,
+        amount: u64,
+    ) -> Result<(), ConsensusError> {
+        let validator = self
+            .rotation
+            .validator_mut(validator_id)
+            .ok_or(ConsensusError::ValidatorNotFound)?;
+        validator.bond(amount);
+        Ok(())
+    }
+
+    /// Starts unbonding and removes stake from immediate voting power.
+    pub fn unbond_validator(
+        &mut self,
+        validator_id: ValidatorId,
+        amount: u64,
+    ) -> Result<u64, ConsensusError> {
+        let validator = self
+            .rotation
+            .validator_mut(validator_id)
+            .ok_or(ConsensusError::ValidatorNotFound)?;
+        Ok(validator.unbond(amount))
+    }
+
+    /// Adds delegated stake to validator effective voting power.
+    pub fn delegate_to_validator(
+        &mut self,
+        validator_id: ValidatorId,
+        amount: u64,
+    ) -> Result<(), ConsensusError> {
+        let validator = self
+            .rotation
+            .validator_mut(validator_id)
+            .ok_or(ConsensusError::ValidatorNotFound)?;
+        validator.delegate(amount);
+        Ok(())
+    }
+
+    /// Removes delegated stake from validator effective voting power.
+    pub fn undelegate_from_validator(
+        &mut self,
+        validator_id: ValidatorId,
+        amount: u64,
+    ) -> Result<u64, ConsensusError> {
+        let validator = self
+            .rotation
+            .validator_mut(validator_id)
+            .ok_or(ConsensusError::ValidatorNotFound)?;
+        Ok(validator.undelegate(amount))
+    }
+
+    /// Applies slashing to a validator under a supplied fault model.
+    pub fn slash_validator(
+        &mut self,
+        validator_id: ValidatorId,
+        numerator: u64,
+        denominator: u64,
+        fault: SlashFault,
+    ) -> Result<u64, ConsensusError> {
+        let validator = self
+            .rotation
+            .validator_mut(validator_id)
+            .ok_or(ConsensusError::ValidatorNotFound)?;
+        Ok(validator.slash(numerator, denominator, fault))
     }
 
     /// Returns the highest round for which the target block currently satisfies
@@ -1104,6 +1184,7 @@ mod tests {
                         network_id: 2626,
                         epoch: 7,
                         validator_set_root: [9u8; 32],
+                        pq_attestation_root: [9u8; 32],
                         signature_scheme: 1,
                     },
                 },
@@ -1111,6 +1192,7 @@ mod tests {
                     network_id: 2626,
                     epoch: 0,
                     validator_set_root: state.rotation.validator_set_hash(),
+                    pq_attestation_root: state.rotation.pq_attestation_root(),
                     signature_scheme: 1,
                 },
             )

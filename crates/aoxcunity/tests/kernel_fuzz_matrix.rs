@@ -32,6 +32,7 @@ fn context(engine: &ConsensusEngine, epoch: u64) -> VoteAuthenticationContext {
         network_id: 2626,
         epoch,
         validator_set_root: engine.state.rotation.validator_set_hash(),
+        pq_attestation_root: engine.state.rotation.pq_attestation_root(),
         signature_scheme: 1,
     }
 }

@@ -33,10 +33,15 @@ Usage:
   ./scripts/aoxc_easy.sh help
   ./scripts/aoxc_easy.sh doctor
   ./scripts/aoxc_easy.sh start <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh start-dual
   ./scripts/aoxc_easy.sh once <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh once-dual
   ./scripts/aoxc_easy.sh stop <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh stop-dual
   ./scripts/aoxc_easy.sh status <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh status-dual
   ./scripts/aoxc_easy.sh restart <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh restart-dual
   ./scripts/aoxc_easy.sh logs <mainnet|testnet|devnet>
   ./scripts/aoxc_easy.sh menu
 EOF
@@ -74,6 +79,11 @@ require_env() {
   esac
 }
 
+run_dual() {
+  local cmd="${1:?missing-cmd}"
+  "${SCRIPT_DIR}/network_stack.sh" "${cmd}"
+}
+
 cmd="${1:-help}"
 env="${2:-}"
 
@@ -88,10 +98,25 @@ case "${cmd}" in
     require_env "${env}"
     "${DAEMON_SCRIPT}" "${cmd}" "${env}"
     ;;
+  start-dual)
+    run_dual start
+    ;;
+  once-dual)
+    run_dual once
+    ;;
+  stop-dual)
+    run_dual stop
+    ;;
+  status-dual)
+    run_dual status
+    ;;
   restart)
     require_env "${env}"
     "${DAEMON_SCRIPT}" stop "${env}" || true
     "${DAEMON_SCRIPT}" start "${env}"
+    ;;
+  restart-dual)
+    run_dual restart
     ;;
   logs)
     require_env "${env}"
@@ -104,15 +129,18 @@ AOXC EASY MENU
 2) make ops-start-mainnet
 3) make ops-start-testnet
 4) make ops-start-devnet
-5) make ops-status-mainnet
-6) make ops-status-testnet
-7) make ops-status-devnet
-8) make ops-stop-mainnet
-9) make ops-stop-testnet
-10) make ops-stop-devnet
-11) make ops-logs-mainnet
-12) make ops-logs-testnet
-13) make ops-logs-devnet
+5) make ops-start-dual
+6) make ops-status-mainnet
+7) make ops-status-testnet
+8) make ops-status-devnet
+9) make ops-status-dual
+10) make ops-stop-mainnet
+11) make ops-stop-testnet
+12) make ops-stop-devnet
+13) make ops-stop-dual
+14) make ops-logs-mainnet
+15) make ops-logs-testnet
+16) make ops-logs-devnet
 EOF
     ;;
   *)
