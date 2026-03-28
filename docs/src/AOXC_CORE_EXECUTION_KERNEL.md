@@ -82,3 +82,89 @@ The `kernel.rs` module includes:
   - deterministic out-of-fuel failure.
 
 Compatibility lanes (EVM/WASM) should implement `LaneAdapter` and remain outside the sovereign core semantic surface.
+
+## 9) VM-agnostic + adapter standard (new)
+
+Kernel surface is kept VM-blind and only reasons on:
+
+- canonical tx envelope,
+- deterministic receipt,
+- state transition commitment,
+- deterministic failure,
+- finality proof payload.
+
+Execution extension is now modeled with a strict adapter contract (`ExecutionAdapter`):
+
+- `validate()`
+- `execute()`
+- `query()`
+- `export_receipt()`
+- `export_state_commitment()`
+
+This means EVM/WASM/Move support can be added as lane adapters without changing kernel semantics.
+
+## 10) Canonical envelope + unified receipts (new)
+
+Canonical envelope now carries a normalized shape for all external lane types:
+
+- `sender`
+- `nonce`
+- `fee`
+- `payload`
+- `lane`
+- `auth_proof`
+- `intent_flags`
+
+Unified receipt output remains lane-independent:
+
+- success/fail
+- gas used
+- events
+- output
+- state diff hash
+- receipt hash
+
+## 11) Lane capability manifest + compatibility tiers (new)
+
+Each adapter is expected to expose a capability manifest describing:
+
+- account model
+- state model
+- gas model
+- event model
+- contract lifecycle
+- cross-lane support
+- determinism level
+- compatibility tier
+
+Compatibility tiers are explicit:
+
+- Tier 1: native/full compatibility
+- Tier 2: high compatibility
+- Tier 3: adapter compatibility
+- Tier 4: settlement-only compatibility
+
+## 12) Cross-lane bus + deterministic sandbox policy (new)
+
+Cross-lane message bus (`CrossLaneBus`) enforces:
+
+- deterministic message keying,
+- versioned messages,
+- replay protection,
+- receipt-linked routing keys.
+
+Host determinism hardening is expressed with `DeterministicSandboxPolicy`:
+
+- no wall clock dependence,
+- no random host calls,
+- bounded memory/gas/syscalls,
+- deterministic IO-only policy.
+
+## 13) Replay + conformance evidence hooks (new)
+
+`CoreKernel::conformance_replay` checks two critical properties:
+
+1. same input -> same receipt,
+2. same receipt -> same state commitment.
+
+This is a baseline for malformed-input corpus testing, cross-platform determinism checks, and cross-version replay evidence.
