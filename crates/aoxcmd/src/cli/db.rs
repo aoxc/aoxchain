@@ -199,7 +199,34 @@ mod tests {
     use super::{cmd_db_get_hash, cmd_db_get_height, cmd_db_init, cmd_db_put_block, parse_backend};
     use crate::test_support::TestHome;
     use sha2::{Digest, Sha256};
-    use std::fs;
+    use std::{
+        env, fs,
+        sync::{Mutex, OnceLock},
+    };
+
+    fn test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn with_test_home<T>(label: &str, test: impl FnOnce(TestHome) -> T) -> T {
+        let _guard = test_lock()
+            .lock()
+            .expect("db test mutex should not be poisoned");
+
+        let home = TestHome::new(label);
+        let previous_home = env::var_os("AOXC_HOME");
+        env::set_var("AOXC_HOME", home.path());
+
+        let result = test(home);
+
+        match previous_home {
+            Some(value) => env::set_var("AOXC_HOME", value),
+            None => env::remove_var("AOXC_HOME"),
+        }
+
+        result
+    }
 
     fn sample_hash(height: u64, parent_hash: &str, payload: &[u8]) -> String {
         let mut hasher = Sha256::new();
@@ -222,28 +249,74 @@ mod tests {
 
     #[test]
     fn db_roundtrip_flow_with_cli_commands() {
-        let home = TestHome::new("db-roundtrip");
-        let parent = "00".repeat(32);
-        let payload = b"{\"tx\":\"db-smoke\"}";
-        let block_hash = sample_hash(1, &parent, payload);
-        let block_file = home.path().join("support").join("sample-block.json");
-        let block_json = format!(
-            "{{\"height\":1,\"block_hash_hex\":\"{block_hash}\",\"parent_hash_hex\":\"{parent}\",\"payload\":[123,34,116,120,34,58,34,100,98,45,115,109,111,107,101,34,125]}}"
-        );
-        fs::create_dir_all(
-            block_file
-                .parent()
-                .expect("sample block parent directory must exist"),
-        )
-        .expect("sample block directory should be created");
-        fs::write(&block_file, block_json).expect("sample block should be written");
+        with_test_home("db-roundtrip", |home| {
+            let parent = "00".repeat(32);
+            let payload = b"{\"tx\":\"db-smoke\"}";
+            let block_hash = sample_hash(1, &parent, payload);
+            let block_file = home.path().join("support").join("sample-block.json");
+            let block_json = format!(
+                "{{\"height\":1,\"block_hash_hex\":\"{block_hash}\",\"parent_hash_hex\":\"{parent}\",\"payload\":[123,34,116,120,34,58,34,100,98,45,115,109,111,107,101,34,125]}}"
+            );
+            fs::create_dir_all(
+                block_file
+                    .parent()
+                    .expect("sample block parent directory must exist"),
+            )
+            .expect("sample block directory should be created");
+            fs::write(&block_file, block_json).expect("sample block should be written");
 
-        cmd_db_init(&[]).expect("db init should succeed");
-        cmd_db_put_block(&["--block-file".to_string(), block_file.display().to_string()])
-            .expect("db put should succeed");
-        cmd_db_get_height(&["--height".to_string(), "1".to_string()])
-            .expect("db get by height should succeed");
-        cmd_db_get_hash(&["--hash".to_string(), block_hash])
-            .expect("db get by hash should succeed");
+            cmd_db_init(&[]).expect("db init should succeed");
+            cmd_db_put_block(&["--block-file".to_string(), block_file.display().to_string()])
+                .expect("db put should succeed");
+            cmd_db_get_height(&["--height".to_string(), "1".to_string()])
+                .expect("db get by height should succeed");
+            cmd_db_get_hash(&["--hash".to_string(), block_hash])
+                .expect("db get by hash should succeed");
+        });
+    }
+
+    #[test]
+    fn backend_parser_rejects_unknown_values() {
+        let args = vec!["--backend".to_string(), "rocksdb".to_string()];
+        let error = parse_backend(&args).expect_err("unknown backend should fail");
+        let rendered = format!("{error}");
+
+        assert_eq!(error.code(), "AOXC-USG-002");
+        assert!(
+            rendered.contains("Invalid --backend value"),
+            "unexpected error message: {}",
+            rendered
+        );
+    }
+
+    #[test]
+    fn db_put_requires_block_file_argument() {
+        with_test_home("db-put-missing-arg", |_home| {
+            let error = cmd_db_put_block(&[]).expect_err("missing block-file argument must fail");
+            assert_eq!(error.code(), "AOXC-USG-002");
+            assert!(format!("{error}").contains("--block-file"));
+        });
+    }
+
+    #[test]
+    fn db_put_rejects_invalid_block_json() {
+        with_test_home("db-put-invalid-json", |home| {
+            let block_file = home.path().join("support").join("invalid-block.json");
+            fs::create_dir_all(
+                block_file
+                    .parent()
+                    .expect("invalid block parent directory must exist"),
+            )
+            .expect("invalid block directory should be created");
+            fs::write(&block_file, "{\"height\":not-a-number}")
+                .expect("invalid block fixture should be written");
+
+            let error =
+                cmd_db_put_block(&["--block-file".to_string(), block_file.display().to_string()])
+                    .expect_err("invalid block json must be rejected");
+
+            assert_eq!(error.code(), "AOXC-USG-002");
+            assert!(format!("{error}").contains("Invalid block JSON"));
+        });
     }
 }
