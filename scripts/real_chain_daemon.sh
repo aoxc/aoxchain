@@ -10,8 +10,8 @@ resolve_bin_path() {
     return 0
   fi
 
-  if [[ -x "${HOME}/.aoxc/bin/aoxc" ]]; then
-    printf "%s" "${HOME}/.aoxc/bin/aoxc"
+  if [[ -x "${HOME}/.AOXCData/bin/aoxc" ]]; then
+    printf "%s" "${HOME}/.AOXCData/bin/aoxc"
     return 0
   fi
 
@@ -24,8 +24,9 @@ resolve_bin_path() {
 }
 
 BIN_PATH="$(resolve_bin_path || true)"
-AOXC_HOME_DIR="${AOXC_HOME_DIR:-./.aoxc-real}"
-LOG_DIR="${LOG_DIR:-./logs/real-chain}"
+AOXC_DATA_ROOT="${AOXC_DATA_ROOT:-${HOME}/.AOXCData}"
+AOXC_HOME_DIR="${AOXC_HOME_DIR:-${AOXC_DATA_ROOT}/home/real}"
+LOG_DIR="${LOG_DIR:-${AOXC_DATA_ROOT}/logs/real-chain}"
 MAX_CYCLES="${MAX_CYCLES:-0}"   # 0 means infinite
 ROUND_PER_CYCLE="${ROUND_PER_CYCLE:-60}"
 SLEEP_MS="${SLEEP_MS:-1000}"
@@ -35,7 +36,7 @@ NETWORK_PAUSE_MS="${NETWORK_PAUSE_MS:-250}"
 
 if [[ -z "${BIN_PATH}" || ! -x "${BIN_PATH}" ]]; then
   echo "[real-chain][error] binary is not executable: ${BIN_PATH}" >&2
-  echo "[real-chain][hint] run: make package-bin (installs \$HOME/.aoxc/bin/aoxc)" >&2
+  echo "[real-chain][hint] run: make package-bin (installs \$HOME/.AOXCData/bin/aoxc)" >&2
   exit 2
 fi
 

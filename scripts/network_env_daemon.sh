@@ -29,8 +29,8 @@ resolve_bin_path() {
     return 0
   fi
 
-  if [[ -x "${HOME}/.aoxc/bin/aoxc" ]]; then
-    printf "%s" "${HOME}/.aoxc/bin/aoxc"
+  if [[ -x "${HOME}/.AOXCData/bin/aoxc" ]]; then
+    printf "%s" "${HOME}/.AOXCData/bin/aoxc"
     return 0
   fi
 
@@ -43,13 +43,14 @@ resolve_bin_path() {
 }
 
 BIN_PATH="$(resolve_bin_path || true)"
+AOXC_DATA_ROOT="${AOXC_DATA_ROOT:-${HOME}/.AOXCData}"
 if [[ -z "${BIN_PATH}" ]]; then
   echo "[network-env][error] AOXC binary not found. run: make package-bin" >&2
   exit 4
 fi
 
-AOXC_HOME_DIR="${AOXC_HOME_DIR:-${ROOT_DIR}/.aoxc-${TARGET_ENV}}"
-LOG_DIR="${LOG_DIR:-${ROOT_DIR}/logs/network/${TARGET_ENV}}"
+AOXC_HOME_DIR="${AOXC_HOME_DIR:-${AOXC_DATA_ROOT}/home/${TARGET_ENV}}"
+LOG_DIR="${LOG_DIR:-${AOXC_DATA_ROOT}/logs/network/${TARGET_ENV}}"
 PID_FILE="${LOG_DIR}/daemon.pid"
 RUNTIME_LOG="${LOG_DIR}/runtime.log"
 

@@ -11,7 +11,7 @@ use std::{
 /// Returns the canonical default AOXC operator home directory.
 ///
 /// The default path is intentionally namespaced under:
-/// `$HOME/.aoxc/default`
+/// `$HOME/.AOXCData/home/default`
 ///
 /// This avoids mixing AOXC state with unrelated hidden folders and makes it
 /// operationally clearer that a single home directory should represent a
@@ -25,7 +25,7 @@ pub fn default_home_dir() -> Result<PathBuf, AppError> {
         )
     })?;
 
-    Ok(home.join(".aoxc").join("default"))
+    Ok(home.join(".AOXCData").join("home").join("default"))
 }
 
 /// Resolves the effective AOXC operator home directory.
@@ -51,6 +51,7 @@ pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
         "keys",
         "ledger",
         "runtime",
+        "runtime/db",
         "telemetry",
         "reports",
         "support",
@@ -166,9 +167,9 @@ mod tests {
     use std::{env, path::PathBuf};
 
     #[test]
-    fn default_home_dir_is_namespaced_under_dot_aoxc() {
+    fn default_home_dir_is_namespaced_under_hidden_aoxcdata_home() {
         let home = env::var("HOME").expect("HOME must be set for tests");
-        let expected = PathBuf::from(home).join(".aoxc").join("default");
+        let expected = PathBuf::from(home).join(".AOXCData").join("home").join("default");
 
         assert_eq!(
             default_home_dir().expect("default home should resolve"),
@@ -201,6 +202,7 @@ mod tests {
             "keys",
             "ledger",
             "runtime",
+            "runtime/db",
             "telemetry",
             "reports",
             "support",

@@ -1,5 +1,6 @@
-AOXC_HOME ?= $(HOME)/.aoxc
-AOXC_BIN_DIR ?= $(AOXC_HOME)/bin
+AOXC_DATA_ROOT ?= $(HOME)/.AOXCData
+AOXC_HOME ?= $(AOXC_DATA_ROOT)/home/default
+AOXC_BIN_DIR ?= $(AOXC_DATA_ROOT)/bin
 AOXC_BIN_PATH ?= $(AOXC_BIN_DIR)/aoxc
 
 .PHONY: help build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local audit-install produce-loop real-chain-prep real-chain-run real-chain-run-once real-chain-health real-chain-tail version manifest policy dev-bootstrap net-mainnet-start net-mainnet-once net-mainnet-status net-mainnet-stop net-testnet-start net-testnet-once net-testnet-status net-testnet-stop net-devnet-start net-devnet-once net-devnet-status net-devnet-stop ops-help ops-doctor ops-start-mainnet ops-start-testnet ops-start-devnet ops-stop-mainnet ops-stop-testnet ops-stop-devnet ops-status-mainnet ops-status-testnet ops-status-devnet ops-restart-mainnet ops-restart-testnet ops-restart-devnet ops-logs-mainnet ops-logs-testnet ops-logs-devnet
@@ -15,7 +16,7 @@ help:
 	@printf "Build and release identity\n"
 	@printf "  make quality-release  - release-oriented quality gate\n"
 	@printf "  make build-release    - build the release AOXC CLI\n"
-	@printf "  make package-bin      - install release binary into $$HOME/.aoxc/bin (+ compat symlink ./bin/aoxc)\n"
+	@printf "  make package-bin      - install release binary into $$HOME/.AOXCData/bin (+ compat symlink ./bin/aoxc)\n"
 	@printf "  make version          - show AOXC build/version metadata\n"
 	@printf "  make manifest         - print build manifest and supply-chain policy\n"
 	@printf "  make policy           - print node connection policy\n\n"
@@ -114,7 +115,7 @@ policy:
 	cargo run -p aoxcmd -- node-connection-policy
 
 dev-bootstrap:
-	@printf "export AOXC_HOME=$$PWD/.aoxc-local\n"
+	@printf "export AOXC_HOME=$$HOME/.AOXCData/home/local-dev\n"
 	@printf "make fmt && make check && make test\n"
 	@printf "cargo run -p aoxcmd -- key-bootstrap --home \"$$AOXC_HOME\" --profile testnet --name validator-01 --password 'TEST#Secure2026!'\n"
 	@printf "cargo run -p aoxcmd -- genesis-init --home \"$$AOXC_HOME\" --chain-num 1001 --block-time 6 --treasury 1000000000000\n"
@@ -134,20 +135,20 @@ produce-loop: package-bin
 	./scripts/continuous_producer.sh
 
 real-chain-prep: package-bin
-	@mkdir -p .aoxc-real logs/real-chain
-	@echo "prepared AOXC_HOME=.aoxc-real and logs under logs/real-chain"
+	@mkdir -p "$(AOXC_DATA_ROOT)/home/real" "$(AOXC_DATA_ROOT)/logs/real-chain"
+	@echo "prepared AOXC_HOME=$(AOXC_DATA_ROOT)/home/real and logs under $(AOXC_DATA_ROOT)/logs/real-chain"
 
 real-chain-run: real-chain-prep
-	AOXC_HOME_DIR=./.aoxc-real LOG_DIR=./logs/real-chain ./scripts/real_chain_daemon.sh
+	AOXC_HOME_DIR="$(AOXC_DATA_ROOT)/home/real" LOG_DIR="$(AOXC_DATA_ROOT)/logs/real-chain" ./scripts/real_chain_daemon.sh
 
 real-chain-run-once: real-chain-prep
-	MAX_CYCLES=1 AOXC_HOME_DIR=./.aoxc-real LOG_DIR=./logs/real-chain ./scripts/real_chain_daemon.sh
+	MAX_CYCLES=1 AOXC_HOME_DIR="$(AOXC_DATA_ROOT)/home/real" LOG_DIR="$(AOXC_DATA_ROOT)/logs/real-chain" ./scripts/real_chain_daemon.sh
 
 real-chain-health: package-bin
 	"$(AOXC_BIN_PATH)" network-smoke --timeout-ms 3000 --bind-host 127.0.0.1 --port 0 --payload AOXC_REAL_HEALTH
 
 real-chain-tail:
-	tail -n 120 -f logs/real-chain/runtime.log logs/real-chain/health.log
+	tail -n 120 -f "$(AOXC_DATA_ROOT)/logs/real-chain/runtime.log" "$(AOXC_DATA_ROOT)/logs/real-chain/health.log"
 
 net-mainnet-start: package-bin
 	./scripts/network_env_daemon.sh start mainnet

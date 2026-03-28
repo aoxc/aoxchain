@@ -10,8 +10,8 @@ resolve_bin_path() {
     return 0
   fi
 
-  if [[ -x "${HOME}/.aoxc/bin/aoxc" ]]; then
-    printf "%s" "${HOME}/.aoxc/bin/aoxc"
+  if [[ -x "${HOME}/.AOXCData/bin/aoxc" ]]; then
+    printf "%s" "${HOME}/.AOXCData/bin/aoxc"
     return 0
   fi
 
@@ -24,10 +24,11 @@ resolve_bin_path() {
 }
 
 BIN_PATH="$(resolve_bin_path || true)"
+AOXC_DATA_ROOT="${AOXC_DATA_ROOT:-${HOME}/.AOXCData}"
 TX_PREFIX="${TX_PREFIX:-auto-tx}"
 SLEEP_SECS="${SLEEP_SECS:-2}"
 MAX_ROUNDS="${MAX_ROUNDS:-0}"
-LOG_FILE="${LOG_FILE:-./logs/continuous-producer.log}"
+LOG_FILE="${LOG_FILE:-${AOXC_DATA_ROOT}/logs/continuous-producer.log}"
 
 if [[ -z "${BIN_PATH}" || ! -x "${BIN_PATH}" ]]; then
   echo "[error] binary is not executable: ${BIN_PATH}" >&2

@@ -10,8 +10,8 @@ resolve_bin_path() {
     return 0
   fi
 
-  if [[ -x "${HOME}/.aoxc/bin/aoxc" ]]; then
-    printf "%s" "${HOME}/.aoxc/bin/aoxc"
+  if [[ -x "${HOME}/.AOXCData/bin/aoxc" ]]; then
+    printf "%s" "${HOME}/.AOXCData/bin/aoxc"
     return 0
   fi
 
@@ -26,7 +26,7 @@ resolve_bin_path() {
 BIN_PATH="$(resolve_bin_path || true)"
 if [[ -z "${BIN_PATH}" ]]; then
   echo "Missing AOXC binary. Run: make package-bin"
-  echo "Expected paths: \$HOME/.aoxc/bin/aoxc or ./bin/aoxc"
+  echo "Expected paths: \$HOME/.AOXCData/bin/aoxc or ./bin/aoxc"
   exit 1
 fi
 
