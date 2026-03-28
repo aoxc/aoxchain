@@ -669,6 +669,7 @@ fn evaluate_full_surface_readiness(
         .join("network-production-closure");
     let mainnet_config = repo_root.join("configs").join("mainnet.toml");
     let testnet_config = repo_root.join("configs").join("testnet.toml");
+    let devnet_config = repo_root.join("configs").join("devnet.toml");
     let aoxhub_mainnet = repo_root.join("configs").join("aoxhub-mainnet.toml");
     let aoxhub_testnet = repo_root.join("configs").join("aoxhub-testnet.toml");
     let testnet_fixture_v1 = repo_root
@@ -680,6 +681,11 @@ fn evaluate_full_surface_readiness(
         .join("deterministic-testnet")
         .join("genesis.json");
     let testnet_fixture_exists = testnet_fixture_v1.exists() || testnet_fixture_legacy.exists();
+    let devnet_fixture = repo_root
+        .join("configs")
+        .join("environments")
+        .join("devnet")
+        .join("genesis.v1.json");
     let testnet_launch = repo_root
         .join("configs")
         .join("deterministic-testnet")
@@ -805,6 +811,41 @@ fn evaluate_full_surface_readiness(
                 aoxhub_testnet.display().to_string(),
                 closure_dir
                     .join("aoxhub-rollout.json")
+                    .display()
+                    .to_string(),
+            ],
+        ),
+        build_surface(
+            "devnet",
+            "engineering-platform",
+            vec![
+                surface_check(
+                    "devnet-config-present",
+                    devnet_config.exists(),
+                    format!("expected config at {}", devnet_config.display()),
+                ),
+                surface_check(
+                    "devnet-fixture-present",
+                    devnet_fixture.exists(),
+                    format!(
+                        "expected deterministic devnet fixture at {}",
+                        devnet_fixture.display()
+                    ),
+                ),
+                surface_check(
+                    "telemetry-snapshot",
+                    closure_dir.join("telemetry-snapshot.json").exists(),
+                    format!(
+                        "expected telemetry snapshot at {}",
+                        closure_dir.join("telemetry-snapshot.json").display()
+                    ),
+                ),
+            ],
+            vec![
+                devnet_config.display().to_string(),
+                devnet_fixture.display().to_string(),
+                closure_dir
+                    .join("telemetry-snapshot.json")
                     .display()
                     .to_string(),
             ],
@@ -2231,7 +2272,7 @@ mod tests {
     #[test]
     fn surface_builder_reports_blocked_surface_when_checks_fail() {
         let surface = build_surface(
-            "wallet",
+            "desktop-wallet",
             "client-platform",
             vec![
                 surface_check("desktop-wallet-compat", true, "compat present".to_string()),
@@ -2292,6 +2333,10 @@ mod tests {
         assert!(full
             .surfaces
             .iter()
+            .any(|surface| surface.surface == "devnet"));
+        assert!(full
+            .surfaces
+            .iter()
             .any(|surface| surface.surface == "desktop-wallet"));
         assert!(full
             .surfaces
@@ -2316,6 +2361,42 @@ mod tests {
         assert!(report.contains("Release line: `aoxc.v.0.1.1-akdeniz`"));
         assert!(report.contains("## Surface summary"));
         assert!(report.contains("**mainnet** / owner `protocol-release`"));
+    }
+
+    #[test]
+    fn surface_builder_reports_ready_surface_when_all_checks_pass() {
+        let surface = build_surface(
+            "devnet",
+            "engineering-platform",
+            vec![
+                surface_check("config", true, "config found".to_string()),
+                surface_check("fixture", true, "fixture found".to_string()),
+            ],
+            vec!["configs/devnet.toml".to_string()],
+        );
+
+        assert_eq!(surface.surface, "devnet");
+        assert_eq!(surface.status, "ready");
+        assert_eq!(surface.score, 100);
+        assert!(surface.blockers.is_empty());
+    }
+
+    #[test]
+    fn surface_builder_reports_blocked_surface_when_majority_checks_fail() {
+        let surface = build_surface(
+            "telemetry",
+            "sre-observability",
+            vec![
+                surface_check("metrics", false, "disabled".to_string()),
+                surface_check("snapshot", false, "missing".to_string()),
+                surface_check("alerts", true, "present".to_string()),
+            ],
+            vec!["artifacts/network-production-closure/alert-rules.md".to_string()],
+        );
+
+        assert_eq!(surface.status, "blocked");
+        assert_eq!(surface.score, 33);
+        assert_eq!(surface.blockers.len(), 2);
     }
 
     #[test]
