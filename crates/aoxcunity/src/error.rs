@@ -28,6 +28,15 @@ pub enum ConsensusError {
     #[error("duplicate block hash")]
     DuplicateBlock,
 
+    #[error("block hash does not match canonical header hash")]
+    InvalidBlockHash,
+
+    #[error("block header commitments do not match canonical body commitments")]
+    InvalidBlockBodyCommitments,
+
+    #[error("block body violates semantic policy invariants")]
+    InvalidBlockSemantics,
+
     #[error("validator set is empty")]
     EmptyValidatorSet,
 
