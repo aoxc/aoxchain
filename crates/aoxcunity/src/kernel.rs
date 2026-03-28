@@ -618,6 +618,9 @@ fn map_consensus_error(error: &ConsensusError) -> KernelRejection {
         | ConsensusError::HeightRegression
         | ConsensusError::InvalidParentHeight
         | ConsensusError::InvalidGenesisParent => KernelRejection::StaleArtifact,
+        ConsensusError::InvalidBlockHash
+        | ConsensusError::InvalidBlockBodyCommitments
+        | ConsensusError::InvalidBlockSemantics => KernelRejection::InvalidSignature,
         ConsensusError::ValidatorNotFound
         | ConsensusError::InactiveValidator
         | ConsensusError::NonVotingValidator
