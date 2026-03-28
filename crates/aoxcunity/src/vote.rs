@@ -6,10 +6,14 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::block::PQ_MANDATORY_START_EPOCH;
 use crate::validator::ValidatorId;
 
 const VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_VOTE_SIGNING_V1";
 const AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_AUTHENTICATED_VOTE_V1";
+const SIGNATURE_SCHEME_ED25519: u16 = 1;
+const SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3: u16 = 2;
+const SIGNATURE_SCHEME_DILITHIUM3: u16 = 3;
 
 /// Vote kind classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -73,6 +77,15 @@ pub struct VerifiedAuthenticatedVote {
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum VoteAuthenticationError {
+    #[error("vote signature scheme is unknown")]
+    UnknownSignatureScheme,
+
+    #[error("vote signature verifier does not support the claimed scheme")]
+    UnsupportedVerifierForSignatureScheme,
+
+    #[error("vote requires post-quantum signature policy for this epoch")]
+    PostQuantumPolicyRequired,
+
     #[error("vote public key is malformed")]
     MalformedPublicKey,
 
@@ -125,6 +138,20 @@ impl AuthenticatedVote {
     }
 
     pub fn verify(&self) -> Result<VerifiedAuthenticatedVote, VoteAuthenticationError> {
+        if !is_known_signature_scheme(self.context.signature_scheme) {
+            return Err(VoteAuthenticationError::UnknownSignatureScheme);
+        }
+
+        if self.context.epoch >= PQ_MANDATORY_START_EPOCH
+            && !is_post_quantum_hardened_scheme(self.context.signature_scheme)
+        {
+            return Err(VoteAuthenticationError::PostQuantumPolicyRequired);
+        }
+
+        if self.context.signature_scheme == SIGNATURE_SCHEME_DILITHIUM3 {
+            return Err(VoteAuthenticationError::UnsupportedVerifierForSignatureScheme);
+        }
+
         let key = VerifyingKey::from_bytes(&self.vote.voter)
             .map_err(|_| VoteAuthenticationError::MalformedPublicKey)?;
         let signature = Signature::from_slice(&self.signature)
@@ -136,6 +163,22 @@ impl AuthenticatedVote {
             context: self.context,
         })
     }
+}
+
+fn is_known_signature_scheme(signature_scheme: u16) -> bool {
+    matches!(
+        signature_scheme,
+        SIGNATURE_SCHEME_ED25519
+            | SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3
+            | SIGNATURE_SCHEME_DILITHIUM3
+    )
+}
+
+fn is_post_quantum_hardened_scheme(signature_scheme: u16) -> bool {
+    matches!(
+        signature_scheme,
+        SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 | SIGNATURE_SCHEME_DILITHIUM3
+    )
 }
 
 impl SignedVote {
@@ -276,5 +319,95 @@ mod tests {
             authenticated.verify(),
             Err(VoteAuthenticationError::InvalidSignature)
         );
+    }
+
+    #[test]
+    fn authenticated_vote_rejects_unknown_signature_scheme() {
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let vote = Vote {
+            voter: signing_key.verifying_key().to_bytes(),
+            block_hash: [1u8; 32],
+            height: 9,
+            round: 2,
+            kind: VoteKind::Commit,
+        };
+        let mut authenticated = AuthenticatedVote {
+            vote,
+            context: VoteAuthenticationContext {
+                network_id: 2626,
+                epoch: 4,
+                validator_set_root: [5u8; 32],
+                signature_scheme: 999,
+            },
+            signature: Vec::new(),
+        };
+        authenticated.signature = signing_key
+            .sign(&authenticated.signing_bytes())
+            .to_bytes()
+            .to_vec();
+
+        assert_eq!(
+            authenticated.verify(),
+            Err(VoteAuthenticationError::UnknownSignatureScheme)
+        );
+    }
+
+    #[test]
+    fn authenticated_vote_requires_pq_hardened_scheme_after_cutover_epoch() {
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let vote = Vote {
+            voter: signing_key.verifying_key().to_bytes(),
+            block_hash: [1u8; 32],
+            height: 9,
+            round: 2,
+            kind: VoteKind::Commit,
+        };
+        let mut authenticated = AuthenticatedVote {
+            vote,
+            context: VoteAuthenticationContext {
+                network_id: 2626,
+                epoch: PQ_MANDATORY_START_EPOCH,
+                validator_set_root: [5u8; 32],
+                signature_scheme: SIGNATURE_SCHEME_ED25519,
+            },
+            signature: Vec::new(),
+        };
+        authenticated.signature = signing_key
+            .sign(&authenticated.signing_bytes())
+            .to_bytes()
+            .to_vec();
+
+        assert_eq!(
+            authenticated.verify(),
+            Err(VoteAuthenticationError::PostQuantumPolicyRequired)
+        );
+    }
+
+    #[test]
+    fn authenticated_vote_accepts_hybrid_scheme_after_cutover_epoch() {
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let vote = Vote {
+            voter: signing_key.verifying_key().to_bytes(),
+            block_hash: [1u8; 32],
+            height: 9,
+            round: 2,
+            kind: VoteKind::Commit,
+        };
+        let mut authenticated = AuthenticatedVote {
+            vote,
+            context: VoteAuthenticationContext {
+                network_id: 2626,
+                epoch: PQ_MANDATORY_START_EPOCH,
+                validator_set_root: [5u8; 32],
+                signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
+            },
+            signature: Vec::new(),
+        };
+        authenticated.signature = signing_key
+            .sign(&authenticated.signing_bytes())
+            .to_bytes()
+            .to_vec();
+
+        assert!(authenticated.verify().is_ok());
     }
 }
