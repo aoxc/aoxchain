@@ -199,7 +199,11 @@ mod tests {
     use super::{
         default_home_dir, ensure_layout, file_permissions_are_hardened, read_file, write_file,
     };
-    use std::{env, path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+    use std::{
+        env,
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     fn unique_test_root(label: &str) -> PathBuf {
         let nanos = SystemTime::now()
