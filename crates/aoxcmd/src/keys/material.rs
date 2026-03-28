@@ -11,6 +11,8 @@ use aoxcore::identity::{
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+const OPERATIONAL_STATE_ACTIVE: &str = "active";
+
 /// Canonical persisted AOXC operator key material.
 ///
 /// This structure intentionally stores the full AOXC node key bundle and
@@ -42,27 +44,37 @@ pub struct KeyMaterialSummary {
 impl KeyMaterial {
     /// Generates canonical AOXC key material for a node/operator surface.
     ///
-    /// The resulting bundle:
-    /// - uses a fresh deterministic engine root seed,
-    /// - encrypts the root seed into a keyfile envelope,
-    /// - derives canonical role-scoped public keys,
-    /// - stores only public bundle metadata plus encrypted seed custody.
+    /// Generation contract:
+    /// - `name` must not be blank.
+    /// - `profile` must resolve to a canonical AOXC profile.
+    /// - `password` must not be blank.
+    /// - The encrypted root-seed envelope is persisted inside the generated
+    ///   node key bundle.
+    ///
+    /// Security rationale:
+    /// - Only encrypted seed custody is retained.
+    /// - The generated bundle is validated before it is returned.
     pub fn generate(name: &str, profile: &str, password: &str) -> Result<Self, AppError> {
+        let normalized_name = normalize_required_text(name, "name")?;
         let normalized_profile = normalize_profile(profile)?;
+        let normalized_password = normalize_required_text(password, "password")?;
         let created_at = Utc::now().to_rfc3339();
+
         let engine = KeyEngine::new(None);
 
         let encrypted_root_seed =
-            encrypt_key_to_envelope(engine.master_seed(), password).map_err(|error| {
-                AppError::with_source(
-                    ErrorCode::KeyMaterialInvalid,
-                    "Failed to encrypt AOXC root seed into canonical keyfile envelope",
-                    error,
-                )
-            })?;
+            encrypt_key_to_envelope(engine.master_seed(), &normalized_password).map_err(
+                |error| {
+                    AppError::with_source(
+                        ErrorCode::KeyMaterialInvalid,
+                        "Failed to encrypt AOXC root seed into canonical keyfile envelope",
+                        error,
+                    )
+                },
+            )?;
 
         let bundle = NodeKeyBundleV1::generate(
-            name,
+            &normalized_name,
             normalized_profile,
             created_at,
             infer_crypto_profile(normalized_profile),
@@ -77,7 +89,9 @@ impl KeyMaterial {
             )
         })?;
 
-        Ok(Self { bundle })
+        let material = Self { bundle };
+        material.validate()?;
+        Ok(material)
     }
 
     /// Returns the canonical bundle fingerprint.
@@ -90,15 +104,53 @@ impl KeyMaterial {
         &self.bundle.encrypted_root_seed
     }
 
-    /// Builds an operational summary from the canonical node key bundle.
-    pub fn summary(&self) -> Result<KeyMaterialSummary, AppError> {
+    /// Performs canonical semantic validation over persisted AOXC key material.
+    ///
+    /// Validation policy:
+    /// - The bundle must satisfy its own structural validation contract.
+    /// - The profile must remain inside the canonical AOXC profile vocabulary.
+    /// - Mandatory role records required by the operator plane must exist.
+    pub fn validate(&self) -> Result<(), AppError> {
         self.bundle.validate().map_err(|error| {
             AppError::with_source(
                 ErrorCode::KeyMaterialInvalid,
-                "Failed to validate AOXC node key bundle while building key summary",
+                "Failed to validate AOXC node key bundle",
                 error,
             )
         })?;
+
+        normalize_profile(&self.bundle.profile)?;
+
+        let has_consensus = self
+            .bundle
+            .keys
+            .iter()
+            .any(|record| matches!(record.role, NodeKeyRole::Consensus));
+        if !has_consensus {
+            return Err(AppError::new(
+                ErrorCode::KeyMaterialInvalid,
+                "Consensus key record is missing from AOXC node key bundle",
+            ));
+        }
+
+        let has_transport = self
+            .bundle
+            .keys
+            .iter()
+            .any(|record| matches!(record.role, NodeKeyRole::Transport));
+        if !has_transport {
+            return Err(AppError::new(
+                ErrorCode::KeyMaterialInvalid,
+                "Transport key record is missing from AOXC node key bundle",
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Builds an operational summary from the canonical node key bundle.
+    pub fn summary(&self) -> Result<KeyMaterialSummary, AppError> {
+        self.validate()?;
 
         let consensus_record = self
             .bundle
@@ -127,7 +179,7 @@ impl KeyMaterial {
         Ok(KeyMaterialSummary {
             profile: self.bundle.profile.clone(),
             bundle_fingerprint: self.bundle.bundle_fingerprint.clone(),
-            operational_state: "active".to_string(),
+            operational_state: OPERATIONAL_STATE_ACTIVE.to_string(),
             consensus_public_key: consensus_record.public_key.clone(),
             consensus_key_fingerprint: consensus_record.fingerprint.clone(),
             transport_public_key: transport_record.public_key.clone(),
@@ -142,13 +194,11 @@ impl KeyMaterial {
 /// Current policy:
 /// - mainnet => hybrid surface reservation,
 /// - testnet / validation / devnet / localnet => classic Ed25519 operational mode.
-///
-/// This policy can be tightened later without changing the consumer contract.
 fn infer_crypto_profile(profile: &str) -> CryptoProfile {
     match profile {
         "mainnet" => CryptoProfile::HybridEd25519Dilithium3,
         "testnet" | "validation" | "devnet" | "localnet" => CryptoProfile::ClassicEd25519,
-        _ => CryptoProfile::HybridEd25519Dilithium3,
+        _ => unreachable!("profile must be normalized before crypto profile inference"),
     }
 }
 
@@ -171,8 +221,31 @@ fn normalize_profile(profile: &str) -> Result<&'static str, AppError> {
     }
 }
 
+/// Enforces non-blank normalized operator-facing text input.
+fn normalize_required_text(value: &str, field: &str) -> Result<String, AppError> {
+    let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("AOXC key-material {} must not be blank", field),
+        ));
+    }
+    Ok(normalized)
+}
+
 /// Validates a serialized AOXC keyfile envelope.
+///
+/// Validation policy:
+/// - The serialized payload must not be blank.
+/// - The payload must decode into the canonical keyfile envelope schema.
 pub fn validate_key_envelope(serialized: &str) -> Result<KeyfileEnvelope, AppError> {
+    if serialized.trim().is_empty() {
+        return Err(AppError::new(
+            ErrorCode::KeyMaterialInvalid,
+            "Stored operator key envelope must not be blank",
+        ));
+    }
+
     serde_json::from_str(serialized).map_err(|error| {
         AppError::with_source(
             ErrorCode::KeyMaterialInvalid,
@@ -236,5 +309,31 @@ mod tests {
     fn unsupported_profile_is_rejected() {
         let result = KeyMaterial::generate("validator-04", "staging", "Fail#2026!");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn blank_name_is_rejected() {
+        let result = KeyMaterial::generate("   ", "testnet", "Test#2026!");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn blank_password_is_rejected() {
+        let result = KeyMaterial::generate("validator-05", "testnet", "   ");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn validate_key_envelope_rejects_blank_payload() {
+        let result = validate_key_envelope("   ");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn validate_method_accepts_generated_material() {
+        let material = KeyMaterial::generate("validator-06", "devnet", "Test#2026!")
+            .expect("key generation should succeed");
+
+        assert!(material.validate().is_ok());
     }
 }

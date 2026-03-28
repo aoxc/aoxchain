@@ -241,9 +241,7 @@ mod tests {
         let content = read_file(&path).expect("written file should be readable");
         assert_eq!(content, "{\"profile\":\"mainnet\"}");
 
-        assert!(
-            file_permissions_are_hardened(&path).expect("metadata should be readable")
-        );
+        assert!(file_permissions_are_hardened(&path).expect("metadata should be readable"));
 
         let _ = std::fs::remove_dir_all(root);
     }

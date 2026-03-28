@@ -8,7 +8,7 @@ use crate::{
         shutdown::graceful_shutdown,
     },
     cli_support::{arg_value, emit_serialized, has_flag, output_format, text_envelope},
-    config::loader::load_or_init,
+    config::{loader::load, settings::Settings},
     economy::ledger,
     error::{AppError, ErrorCode},
     node::{engine, lifecycle},
@@ -159,13 +159,15 @@ struct NetworkProfileConfig {
 }
 
 pub fn cmd_load_benchmark(args: &[String]) -> Result<(), AppError> {
-    let rounds = arg_value(args, "--rounds").unwrap_or_else(|| "100".to_string());
+    let rounds = parse_positive_u64_arg(args, "--rounds", 100, "load benchmark")?;
+
     let mut details = BTreeMap::new();
-    details.insert("benchmark_rounds".to_string(), rounds);
+    details.insert("benchmark_rounds".to_string(), rounds.to_string());
     details.insert(
         "result".to_string(),
         "baseline-local-benchmark-recorded".to_string(),
     );
+
     emit_serialized(
         &text_envelope("load-benchmark", "ok", details),
         output_format(args),
@@ -181,11 +183,12 @@ pub fn cmd_testnet_readiness(args: &[String]) -> Result<(), AppError> {
 }
 
 fn cmd_profile_readiness(args: &[String], target_profile: &'static str) -> Result<(), AppError> {
-    let settings = load_or_init()?;
+    let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key().ok();
     let genesis_ok = crate::cli::bootstrap::genesis_ready();
     let node_ok = lifecycle::load_state().is_ok();
     let config_validation = settings.validate();
+
     let readiness = evaluate_profile_readiness(
         target_profile,
         &settings,
@@ -197,7 +200,7 @@ fn cmd_profile_readiness(args: &[String], target_profile: &'static str) -> Resul
         node_ok,
     );
 
-    if let Some(path) = arg_value(args, "--write-report") {
+    if let Some(path) = parse_optional_text_arg(args, "--write-report", false) {
         write_readiness_markdown_report(
             Path::new(&path),
             &readiness,
@@ -226,23 +229,26 @@ fn cmd_profile_readiness(args: &[String], target_profile: &'static str) -> Resul
 }
 
 pub fn cmd_full_surface_readiness(args: &[String]) -> Result<(), AppError> {
-    let settings = load_or_init()?;
+    let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key().ok();
     let genesis_ok = crate::cli::bootstrap::genesis_ready();
     let node_ok = lifecycle::load_state().is_ok();
-    let mainnet_readiness = evaluate_profile_readiness(
-        "mainnet",
-        &settings,
-        settings.validate().err(),
-        key_summary
-            .as_ref()
-            .map(|summary| summary.operational_state.as_str()),
-        genesis_ok,
-        node_ok,
-    );
-    let full = evaluate_full_surface_readiness(&settings, &mainnet_readiness);
 
-    if let Some(path) = arg_value(args, "--write-report") {
+    let full = evaluate_full_surface_readiness(
+        &settings,
+        &evaluate_profile_readiness(
+            "mainnet",
+            &settings,
+            settings.validate().err(),
+            key_summary
+                .as_ref()
+                .map(|summary| summary.operational_state.as_str()),
+            genesis_ok,
+            node_ok,
+        ),
+    );
+
+    if let Some(path) = parse_optional_text_arg(args, "--write-report", false) {
         write_full_surface_markdown_report(Path::new(&path), &full)?;
     }
 
@@ -261,7 +267,7 @@ pub fn cmd_full_surface_readiness(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_level_score(args: &[String]) -> Result<(), AppError> {
-    let settings = load_or_init()?;
+    let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key().ok();
     let genesis_ok = crate::cli::bootstrap::genesis_ready();
     let node_state = lifecycle::load_state().ok();
@@ -522,7 +528,7 @@ fn evaluate_profile_readiness(
             "release",
             has_matching_artifact(&release_dir, "compat-matrix-", ".json"),
             3,
-                "Compatibility matrix evidence must be generated for the candidate release".to_string(),
+            "Compatibility matrix evidence must be generated for the candidate release".to_string(),
         ),
         readiness_check(
             "signature-evidence",
@@ -558,6 +564,7 @@ fn load_full_surface_matrix(
         .join("models")
         .join("full_surface_readiness_matrix_v1.yaml");
     let matrix_path_string = matrix_path.display().to_string();
+
     let raw = match fs::read_to_string(&matrix_path) {
         Ok(raw) => raw,
         Err(error) => {
@@ -948,6 +955,7 @@ fn evaluate_full_surface_readiness(
                 .map(move |blocker| format!("{}: {}", surface.surface, blocker))
         })
         .collect::<Vec<_>>();
+
     let total_score = surfaces
         .iter()
         .map(|surface| surface.score as u16)
@@ -970,6 +978,7 @@ fn evaluate_full_surface_readiness(
             )
         })
         .collect::<Vec<_>>();
+
     let (matrix_loaded, matrix_release_line, matrix_surface_count, validation_warnings) =
         validate_full_surface_matrix(matrix_model.as_ref(), &surfaces, release_line);
     matrix_warnings.extend(validation_warnings);
@@ -1247,11 +1256,11 @@ fn write_readiness_markdown_report(
     aoxhub_baseline: Option<&ProfileBaselineReport>,
 ) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| {
+        fs::create_dir_all(parent).map_err(|error| {
             AppError::with_source(
                 ErrorCode::FilesystemIoFailed,
                 format!("Failed to create report directory {}", parent.display()),
-                e,
+                error,
             )
         })?;
     }
@@ -1260,11 +1269,11 @@ fn write_readiness_markdown_report(
         path,
         readiness_markdown_report(readiness, embedded_baseline, aoxhub_baseline),
     )
-    .map_err(|e| {
+    .map_err(|error| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
             format!("Failed to write readiness report {}", path.display()),
-            e,
+            error,
         )
     })
 }
@@ -1274,23 +1283,23 @@ fn write_full_surface_markdown_report(
     readiness: &FullSurfaceReadiness,
 ) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| {
+        fs::create_dir_all(parent).map_err(|error| {
             AppError::with_source(
                 ErrorCode::FilesystemIoFailed,
                 format!(
                     "Failed to create full-surface report directory {}",
                     parent.display()
                 ),
-                e,
+                error,
             )
         })?;
     }
 
-    fs::write(path, full_surface_markdown_report(readiness)).map_err(|e| {
+    fs::write(path, full_surface_markdown_report(readiness)).map_err(|error| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
             format!("Failed to write full-surface report {}", path.display()),
-            e,
+            error,
         )
     })
 }
@@ -1777,13 +1786,14 @@ fn open_checklist_items(path: &Path) -> Vec<String> {
 }
 
 fn parse_network_profile(path: &Path) -> Result<NetworkProfileConfig, AppError> {
-    let raw = fs::read_to_string(path).map_err(|e| {
+    let raw = fs::read_to_string(path).map_err(|error| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
             format!("Failed to read network profile {}", path.display()),
-            e,
+            error,
         )
     })?;
+
     let mut config = NetworkProfileConfig::default();
     let mut in_peers = false;
 
@@ -1798,7 +1808,7 @@ fn parse_network_profile(path: &Path) -> Result<NetworkProfileConfig, AppError> 
                 in_peers = false;
                 continue;
             }
-            let peer = trimmed.trim_end_matches(',').trim_matches('"');
+            let peer = trimmed.trim_end_matches(',').trim_matches('"').trim();
             if !peer.is_empty() {
                 config.peers.push(peer.to_string());
             }
@@ -1875,21 +1885,19 @@ pub fn cmd_node_bootstrap(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_produce_once(args: &[String]) -> Result<(), AppError> {
-    let tx = arg_value(args, "--tx").unwrap_or_else(|| "boot-sequence-1".to_string());
+    let tx = parse_required_or_default_text_arg(args, "--tx", "boot-sequence-1", false)?;
     let state = engine::produce_once(&tx)?;
     let _ = refresh_runtime_metrics().ok();
     emit_serialized(&state, output_format(args))
 }
 
 pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
-    let rounds = arg_value(args, "--rounds")
-        .unwrap_or_else(|| "10".to_string())
-        .parse::<u64>()
-        .map_err(|_| AppError::new(ErrorCode::UsageInvalidArguments, "Invalid --rounds value"))?;
-    let tx_prefix = arg_value(args, "--tx-prefix").unwrap_or_else(|| "AOXC-RUN".to_string());
+    let rounds = parse_positive_u64_arg(args, "--rounds", 10, "node run")?;
+    let tx_prefix = parse_required_or_default_text_arg(args, "--tx-prefix", "AOXC-RUN", false)?;
     let format = output_format(args);
     let live_log_enabled = !has_flag(args, "--no-live-log");
-    let log_level = arg_value(args, "--log-level").unwrap_or_else(|| "info".to_string());
+    let log_level = parse_required_or_default_text_arg(args, "--log-level", "info", true)?;
+
     if !matches!(log_level.as_str(), "info" | "debug") {
         return Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
@@ -1908,6 +1916,7 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     } else {
         engine::run_rounds(rounds, &tx_prefix)?
     };
+
     let _ = refresh_runtime_metrics().ok();
     let _ = graceful_shutdown();
 
@@ -1925,6 +1934,7 @@ fn print_node_live_log_header(
 ) -> Result<(), AppError> {
     let now = chrono::Utc::now().to_rfc3339();
     let db_path = lifecycle::state_path()?;
+
     println!("🚀 [{}] node-run startup", now);
     println!(
         "🧭 mode=live rounds={} tx_prefix={} log_level={}",
@@ -1945,6 +1955,7 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
     let timestamp = chrono::DateTime::<chrono::Utc>::from_timestamp(entry.timestamp_unix as i64, 0)
         .map(|dt| dt.to_rfc3339())
         .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+
     println!(
         "✅ {:>5} | {:<25} | {:>8} | {:>8} | {:>8} | {:<12}",
         entry.round_index,
@@ -1987,6 +1998,7 @@ pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
     let health = health_status()?;
     let mut details = BTreeMap::new();
     details.insert("health".to_string(), health.to_string());
+
     emit_serialized(
         &text_envelope("node-health", "ok", details),
         output_format(args),
@@ -1994,8 +2006,9 @@ pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
-    let settings = load_or_init()?;
+    let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key()?;
+
     let mut details = BTreeMap::new();
     details.insert("bind_host".to_string(), settings.network.bind_host);
     details.insert(
@@ -2014,6 +2027,7 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
         "key_operational_state".to_string(),
         key_summary.operational_state,
     );
+
     emit_serialized(
         &text_envelope("network-smoke", "ok", details),
         output_format(args),
@@ -2021,8 +2035,9 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_real_network(args: &[String]) -> Result<(), AppError> {
-    let settings = load_or_init()?;
+    let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key()?;
+
     let mut details = BTreeMap::new();
     details.insert("mode".to_string(), "deterministic-local".to_string());
     details.insert(
@@ -2037,6 +2052,7 @@ pub fn cmd_real_network(args: &[String]) -> Result<(), AppError> {
         "transport_public_key".to_string(),
         key_summary.transport_public_key,
     );
+
     emit_serialized(
         &text_envelope("real-network", "ok", details),
         output_format(args),
@@ -2048,10 +2064,153 @@ pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
     let mut details = BTreeMap::new();
     details.insert("home_dir".to_string(), context.settings.home_dir);
     details.insert("storage".to_string(), "writable".to_string());
+
     emit_serialized(
         &text_envelope("storage-smoke", "ok", details),
         output_format(args),
     )
+}
+
+pub fn cmd_economy_init(args: &[String]) -> Result<(), AppError> {
+    let ledger = ledger::init()?;
+    let _ = refresh_runtime_metrics().ok();
+    emit_serialized(&ledger, output_format(args))
+}
+
+pub fn cmd_treasury_transfer(args: &[String]) -> Result<(), AppError> {
+    let to = parse_required_or_default_text_arg(args, "--to", "ops", false)?;
+    let amount = parse_positive_u64_arg(args, "--amount", 1000, "treasury transfer")?;
+
+    let ledger = ledger::transfer(&to, amount)?;
+    let _ = refresh_runtime_metrics().ok();
+    emit_serialized(&ledger, output_format(args))
+}
+
+pub fn cmd_stake_delegate(args: &[String]) -> Result<(), AppError> {
+    let validator = parse_required_or_default_text_arg(args, "--validator", "validator-01", false)?;
+    let amount = parse_positive_u64_arg(args, "--amount", 1000, "stake delegation")?;
+
+    let ledger = ledger::delegate(&validator, amount)?;
+    let _ = refresh_runtime_metrics().ok();
+    emit_serialized(&ledger, output_format(args))
+}
+
+pub fn cmd_stake_undelegate(args: &[String]) -> Result<(), AppError> {
+    let validator = parse_required_or_default_text_arg(args, "--validator", "validator-01", false)?;
+    let amount = parse_positive_u64_arg(args, "--amount", 1000, "stake undelegation")?;
+
+    let ledger = ledger::undelegate(&validator, amount)?;
+    let _ = refresh_runtime_metrics().ok();
+    emit_serialized(&ledger, output_format(args))
+}
+
+pub fn cmd_economy_status(args: &[String]) -> Result<(), AppError> {
+    let ledger = ledger::load()?;
+    emit_serialized(&ledger, output_format(args))
+}
+
+pub fn cmd_runtime_status(args: &[String]) -> Result<(), AppError> {
+    let context = runtime_context()?;
+    let handles = default_handles();
+    let unity = unity_status();
+    let ai = crate::ai::runtime::report();
+
+    #[derive(serde::Serialize)]
+    struct RuntimeStatus {
+        context: crate::runtime::context::RuntimeContext,
+        handles: crate::runtime::handles::RuntimeHandleSet,
+        unity: crate::runtime::unity::UnityStatus,
+        ai: crate::ai::runtime::AiRuntimeReport,
+    }
+
+    let status = RuntimeStatus {
+        context,
+        handles,
+        unity,
+        ai,
+    };
+
+    emit_serialized(&status, output_format(args))
+}
+
+/// Resolves effective settings for read-oriented ops surfaces without creating
+/// configuration files on disk.
+fn effective_settings_for_ops() -> Result<Settings, AppError> {
+    match load() {
+        Ok(settings) => Ok(settings),
+        Err(error) if error.code() == ErrorCode::ConfigMissing.as_str() => {
+            let home = crate::data_home::resolve_home()?;
+            Ok(Settings::default_for(home.display().to_string()))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn parse_positive_u64_arg(
+    args: &[String],
+    flag: &str,
+    default: u64,
+    context: &str,
+) -> Result<u64, AppError> {
+    let value = match arg_value(args, flag) {
+        Some(value) => normalize_text(&value, false).ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                format!("Flag {flag} must not be blank for {context}"),
+            )
+        })?,
+        None => default.to_string(),
+    };
+
+    let parsed = value.parse::<u64>().map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Invalid numeric value for {flag}"),
+        )
+    })?;
+
+    if parsed == 0 {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Flag {flag} must be greater than zero"),
+        ));
+    }
+
+    Ok(parsed)
+}
+
+fn parse_required_or_default_text_arg(
+    args: &[String],
+    flag: &str,
+    default: &str,
+    lowercase: bool,
+) -> Result<String, AppError> {
+    match arg_value(args, flag) {
+        Some(value) => normalize_text(&value, lowercase).ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                format!("Flag {flag} must not be blank"),
+            )
+        }),
+        None => Ok(default.to_string()),
+    }
+}
+
+fn parse_optional_text_arg(args: &[String], flag: &str, lowercase: bool) -> Option<String> {
+    arg_value(args, flag).and_then(|value| normalize_text(&value, lowercase))
+}
+
+fn normalize_text(value: &str, lowercase: bool) -> Option<String> {
+    let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return None;
+    }
+
+    if lowercase {
+        Some(normalized.to_ascii_lowercase())
+    } else {
+        Some(normalized)
+    }
 }
 
 #[cfg(test)]
@@ -2063,8 +2222,8 @@ mod tests {
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
         locate_repo_artifact_dir, open_checklist_items, parse_network_profile,
-        ports_are_shifted_consistently, readiness_markdown_report, surface_check,
-        write_readiness_markdown_report,
+        parse_positive_u64_arg, parse_required_or_default_text_arg, ports_are_shifted_consistently,
+        readiness_markdown_report, surface_check, write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -2086,6 +2245,25 @@ mod tests {
             fs::create_dir_all(parent).expect("parent directory should be created");
         }
         fs::write(path, "{}").expect("fixture artifact should be written");
+    }
+
+    fn args(items: &[&str]) -> Vec<String> {
+        items.iter().map(|item| (*item).to_string()).collect()
+    }
+
+    #[test]
+    fn parse_positive_u64_arg_rejects_zero() {
+        let error = parse_positive_u64_arg(&args(&["--rounds", "0"]), "--rounds", 10, "node run")
+            .expect_err("zero rounds must fail");
+        assert_eq!(error.code(), "AOXC-USG-002");
+    }
+
+    #[test]
+    fn parse_required_or_default_text_arg_rejects_blank_value() {
+        let error =
+            parse_required_or_default_text_arg(&args(&["--to", "   "]), "--to", "ops", false)
+                .expect_err("blank target must fail");
+        assert_eq!(error.code(), "AOXC-USG-002");
     }
 
     #[test]
@@ -2521,69 +2699,4 @@ security_mode = "audit_strict"
             &testnet_profile
         ));
     }
-}
-
-pub fn cmd_economy_init(args: &[String]) -> Result<(), AppError> {
-    let ledger = ledger::init()?;
-    let _ = refresh_runtime_metrics().ok();
-    emit_serialized(&ledger, output_format(args))
-}
-
-pub fn cmd_treasury_transfer(args: &[String]) -> Result<(), AppError> {
-    let to = arg_value(args, "--to").unwrap_or_else(|| "ops".to_string());
-    let amount = arg_value(args, "--amount")
-        .unwrap_or_else(|| "1000".to_string())
-        .parse::<u64>()
-        .map_err(|_| AppError::new(ErrorCode::UsageInvalidArguments, "Invalid --amount value"))?;
-    let ledger = ledger::transfer(&to, amount)?;
-    let _ = refresh_runtime_metrics().ok();
-    emit_serialized(&ledger, output_format(args))
-}
-
-pub fn cmd_stake_delegate(args: &[String]) -> Result<(), AppError> {
-    let validator = arg_value(args, "--validator").unwrap_or_else(|| "validator-01".to_string());
-    let amount = arg_value(args, "--amount")
-        .unwrap_or_else(|| "1000".to_string())
-        .parse::<u64>()
-        .map_err(|_| AppError::new(ErrorCode::UsageInvalidArguments, "Invalid --amount value"))?;
-    let ledger = ledger::delegate(&validator, amount)?;
-    let _ = refresh_runtime_metrics().ok();
-    emit_serialized(&ledger, output_format(args))
-}
-
-pub fn cmd_stake_undelegate(args: &[String]) -> Result<(), AppError> {
-    let validator = arg_value(args, "--validator").unwrap_or_else(|| "validator-01".to_string());
-    let amount = arg_value(args, "--amount")
-        .unwrap_or_else(|| "1000".to_string())
-        .parse::<u64>()
-        .map_err(|_| AppError::new(ErrorCode::UsageInvalidArguments, "Invalid --amount value"))?;
-    let ledger = ledger::undelegate(&validator, amount)?;
-    let _ = refresh_runtime_metrics().ok();
-    emit_serialized(&ledger, output_format(args))
-}
-
-pub fn cmd_economy_status(args: &[String]) -> Result<(), AppError> {
-    let ledger = ledger::load()?;
-    emit_serialized(&ledger, output_format(args))
-}
-
-pub fn cmd_runtime_status(args: &[String]) -> Result<(), AppError> {
-    let context = runtime_context()?;
-    let handles = default_handles();
-    let unity = unity_status();
-    let ai = crate::ai::runtime::report();
-    #[derive(serde::Serialize)]
-    struct RuntimeStatus {
-        context: crate::runtime::context::RuntimeContext,
-        handles: crate::runtime::handles::RuntimeHandleSet,
-        unity: crate::runtime::unity::UnityStatus,
-        ai: crate::ai::runtime::AiRuntimeReport,
-    }
-    let status = RuntimeStatus {
-        context,
-        handles,
-        unity,
-        ai,
-    };
-    emit_serialized(&status, output_format(args))
 }

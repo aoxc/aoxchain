@@ -6,7 +6,7 @@ use crate::{
     cli_support::{arg_value, detect_language, localized_unknown_command, print_usage},
     error::AppError,
 };
-use std::env;
+use std::{env, ffi::OsString};
 
 pub(crate) mod audit;
 pub(crate) mod bootstrap;
@@ -24,10 +24,73 @@ pub(crate) const TESTNET_FIXTURE_MEMBERS: [(&str, &str, u16, u16, u16, &str); 5]
     ("ember", "Ember Validator", 39005, 19105, 5, "ember-seed"),
 ];
 
+/// Process-scoped guard that installs an optional `AOXC_HOME` override and
+/// restores the prior environment state when command dispatch exits.
+///
+/// Security and correctness rationale:
+/// - `AOXC_HOME` is process-global mutable state.
+/// - A command-scoped override must never leak into later commands, tests,
+///   or unrelated execution paths that share the same process.
+/// - Restoration must occur on every exit path, including early returns
+///   and command failures.
+struct CliHomeOverrideGuard {
+    previous_home: Option<OsString>,
+    override_applied: bool,
+}
+
+impl CliHomeOverrideGuard {
+    /// Installs a scoped `AOXC_HOME` override derived from `--home`, when present.
+    ///
+    /// Behavioral contract:
+    /// - Captures the pre-existing `AOXC_HOME` value before mutation.
+    /// - Applies the override only when `--home` is present and non-blank.
+    /// - Leaves the process environment untouched when no explicit override exists.
+    fn install(args: &[String]) -> Self {
+        let previous_home = env::var_os("AOXC_HOME");
+
+        match arg_value(args, "--home") {
+            Some(home) if !home.trim().is_empty() => {
+                env::set_var("AOXC_HOME", home);
+                Self {
+                    previous_home,
+                    override_applied: true,
+                }
+            }
+            _ => Self {
+                previous_home,
+                override_applied: false,
+            },
+        }
+    }
+}
+
+impl Drop for CliHomeOverrideGuard {
+    fn drop(&mut self) {
+        if !self.override_applied {
+            return;
+        }
+
+        match self.previous_home.take() {
+            Some(previous_home) => env::set_var("AOXC_HOME", previous_home),
+            None => env::remove_var("AOXC_HOME"),
+        }
+    }
+}
+
+/// Executes the AOXC operator CLI command surface.
+///
+/// Operational objectives:
+/// - Preserve deterministic command routing from the raw process argument vector.
+/// - Detect language preference before usage or unknown-command handling.
+/// - Scope `--home` overrides strictly to the current CLI execution.
 pub fn run_cli() -> Result<(), AppError> {
     let args: Vec<String> = env::args().collect();
     let lang = detect_language(&args[1..]);
-    apply_home_override(&args[1..]);
+
+    // The guard intentionally remains alive for the full dispatch scope so
+    // every downstream module resolves a consistent effective AOXC home while
+    // still guaranteeing restoration on every exit path.
+    let _home_override_guard = CliHomeOverrideGuard::install(&args[1..]);
 
     if args.len() < 2 {
         print_usage(lang);
@@ -97,8 +160,131 @@ pub fn run_cli() -> Result<(), AppError> {
     }
 }
 
-fn apply_home_override(args: &[String]) {
-    if let Some(home) = arg_value(args, "--home") {
-        env::set_var("AOXC_HOME", home);
+#[cfg(test)]
+mod tests {
+    use super::CliHomeOverrideGuard;
+    use std::{
+        env,
+        ffi::OsString,
+        sync::{Mutex, MutexGuard, OnceLock},
+    };
+
+    /// Serializes tests that mutate process-global environment state.
+    ///
+    /// Rationale:
+    /// - Environment variables are shared across the entire process.
+    /// - Tests that mutate `AOXC_HOME` must not race each other.
+    fn env_lock() -> MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn cli_args(items: &[&str]) -> Vec<String> {
+        items.iter().map(|item| (*item).to_string()).collect()
+    }
+
+    /// Restores `AOXC_HOME` to its pre-test state.
+    fn restore_aoxc_home(previous: Option<OsString>) {
+        match previous {
+            Some(value) => env::set_var("AOXC_HOME", value),
+            None => env::remove_var("AOXC_HOME"),
+        }
+    }
+
+    /// Returns the current `AOXC_HOME` in an OS-string-safe form.
+    fn current_aoxc_home() -> Option<OsString> {
+        env::var_os("AOXC_HOME")
+    }
+
+    #[test]
+    fn home_override_guard_applies_override_for_scope_and_restores_previous_value() {
+        let _lock = env_lock();
+        let previous = current_aoxc_home();
+
+        env::set_var("AOXC_HOME", "/tmp/aoxc-original-home");
+
+        {
+            let _guard =
+                CliHomeOverrideGuard::install(&cli_args(&["--home", "/tmp/aoxc-temporary-home"]));
+
+            assert_eq!(
+                current_aoxc_home(),
+                Some(OsString::from("/tmp/aoxc-temporary-home"))
+            );
+        }
+
+        assert_eq!(
+            current_aoxc_home(),
+            Some(OsString::from("/tmp/aoxc-original-home"))
+        );
+
+        restore_aoxc_home(previous);
+    }
+
+    #[test]
+    fn home_override_guard_removes_temporary_value_when_no_previous_value_existed() {
+        let _lock = env_lock();
+        let previous = current_aoxc_home();
+
+        env::remove_var("AOXC_HOME");
+
+        {
+            let _guard =
+                CliHomeOverrideGuard::install(&cli_args(&["--home", "/tmp/aoxc-ephemeral-home"]));
+
+            assert_eq!(
+                current_aoxc_home(),
+                Some(OsString::from("/tmp/aoxc-ephemeral-home"))
+            );
+        }
+
+        assert_eq!(current_aoxc_home(), None);
+
+        restore_aoxc_home(previous);
+    }
+
+    #[test]
+    fn home_override_guard_does_not_mutate_environment_when_home_flag_is_absent() {
+        let _lock = env_lock();
+        let previous = current_aoxc_home();
+
+        env::set_var("AOXC_HOME", "/tmp/aoxc-stable-home");
+
+        {
+            let _guard = CliHomeOverrideGuard::install(&cli_args(&["db-status"]));
+
+            assert_eq!(
+                current_aoxc_home(),
+                Some(OsString::from("/tmp/aoxc-stable-home"))
+            );
+        }
+
+        assert_eq!(
+            current_aoxc_home(),
+            Some(OsString::from("/tmp/aoxc-stable-home"))
+        );
+
+        restore_aoxc_home(previous);
+    }
+
+    #[test]
+    fn home_override_guard_ignores_blank_home_values() {
+        let _lock = env_lock();
+        let previous = current_aoxc_home();
+
+        env::set_var("AOXC_HOME", "/tmp/aoxc-existing-home");
+        let expected = current_aoxc_home();
+
+        {
+            let _guard = CliHomeOverrideGuard::install(&cli_args(&["--home", "   "]));
+
+            assert_eq!(current_aoxc_home(), expected);
+        }
+
+        assert_eq!(current_aoxc_home(), expected);
+
+        restore_aoxc_home(previous);
     }
 }
