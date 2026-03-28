@@ -2,10 +2,29 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
+//! core/src/block/report.rs
+//!
+//! Canonical operator-facing block validation reporting module.
+//!
+//! This module converts block-domain validation outcomes into stable,
+//! serializable, operator-readable reports suitable for CLI surfaces,
+//! desktop control planes, observability pipelines, and audit evidence.
+//!
+//! Design objectives:
+//! - Stable machine-readable event codes
+//! - Plain-language operator guidance
+//! - Deterministic serialization behavior
+//! - Clear separation between protocol errors and presentation descriptors
+//! - Forward-compatible event reporting structure
+
 use super::{Block, BlockError, BlockType};
 use serde::{Deserialize, Serialize};
 
-/// Stable event types emitted by block validation workflows.
+/// Stable severity categories emitted by block validation workflows.
+///
+/// Audit rationale:
+/// Event severity must remain stable across integrations so that external
+/// tooling can classify operational outcomes without parsing human text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValidationEventType {
     Info,
@@ -13,7 +32,12 @@ pub enum ValidationEventType {
     Error,
 }
 
-/// Human-readable descriptor for a block-domain error.
+/// Stable plain-language descriptor for a block-domain error.
+///
+/// Audit rationale:
+/// The descriptor layer decouples protocol errors from operator-facing
+/// explanation. This allows a stable error contract while preserving
+/// human-readable operational guidance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorDescriptor {
     pub code: &'static str,
@@ -23,7 +47,11 @@ pub struct ErrorDescriptor {
     pub operator_action: &'static str,
 }
 
-/// Single serializable event entry inside a validation report.
+/// Single serializable event entry emitted during validation reporting.
+///
+/// Audit rationale:
+/// Events are intentionally normalized into strings so they can be rendered
+/// consistently across CLI, desktop, JSON APIs, and external log pipelines.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValidationEvent {
     pub event_type: ValidationEventType,
@@ -33,7 +61,12 @@ pub struct ValidationEvent {
     pub action: String,
 }
 
-/// Serializable, operator-friendly validation report.
+/// Serializable operator-facing validation report.
+///
+/// Security rationale:
+/// This structure is intended for diagnostics and operator guidance. It does
+/// not replace canonical protocol validation, but it should remain stable and
+/// unambiguous for production monitoring.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlockValidationReport {
     pub accepted: bool,
@@ -46,161 +79,259 @@ pub struct BlockValidationReport {
 }
 
 impl BlockValidationReport {
-    /// Returns a stable pretty JSON document for desktop/CLI rendering.
+    /// Serializes the report into a stable pretty-printed JSON document.
+    ///
+    /// Operational rationale:
+    /// This helper is intended for desktop panels, CLI inspection, incident
+    /// attachment, and audit evidence generation.
     pub fn to_pretty_json(&self) -> Result<String, BlockError> {
         serde_json::to_string_pretty(self).map_err(|_| BlockError::SerializationFailed)
     }
+
+    /// Serializes the report into a compact JSON document.
+    ///
+    /// Operational rationale:
+    /// This helper is intended for log forwarding, telemetry pipelines, and
+    /// network transfer paths where compact representation is preferred.
+    pub fn to_json(&self) -> Result<String, BlockError> {
+        serde_json::to_string(self).map_err(|_| BlockError::SerializationFailed)
+    }
+
+    /// Returns `true` when the report contains at least one error event.
+    #[must_use]
+    pub fn has_error_events(&self) -> bool {
+        self.events
+            .iter()
+            .any(|event| event.event_type == ValidationEventType::Error)
+    }
+
+    /// Returns `true` when the report contains at least one warning event.
+    #[must_use]
+    pub fn has_warning_events(&self) -> bool {
+        self.events
+            .iter()
+            .any(|event| event.event_type == ValidationEventType::Warning)
+    }
 }
 
-/// Converts a block-domain error into a plain-language descriptor.
+/// Converts a block-domain error into a stable operator-facing descriptor.
+///
+/// Audit rationale:
+/// This mapping intentionally uses stable codes and formal English operator
+/// guidance. Integrators must not depend on title or message wording for
+/// protocol-critical behavior; they should rely on the stable error code.
 #[must_use]
 pub fn describe_block_error(err: BlockError) -> ErrorDescriptor {
     match err {
         BlockError::InvalidSystemTime => ErrorDescriptor {
             code: err.code(),
-            title: "Sistem saati geçersiz",
-            plain_message: "Node saati doğru çalışmadığı için güvenli zaman damgası üretilemedi.",
-            probable_cause: "Sunucu saati geri gitmiş olabilir veya NTP/saat senkronu bozuk olabilir.",
-            operator_action: "NTP senkronunu düzeltin ve node saatini doğrulayıp işlemi tekrar deneyin.",
+            title: "Invalid System Time",
+            plain_message:
+                "The node could not derive a trustworthy system timestamp for block processing.",
+            probable_cause:
+                "The host clock may be drifting, misconfigured, or not synchronized through a reliable time source.",
+            operator_action:
+                "Verify host time synchronization, confirm NTP integrity, and re-run the block workflow after remediation.",
         },
         BlockError::ActiveBlockRequiresTasks => ErrorDescriptor {
             code: err.code(),
-            title: "Aktif blok boş olamaz",
-            plain_message: "Aktif blokta en az bir işlem/görev bulunmalıdır.",
-            probable_cause: "Blok üretim hattı boş görev listesi ile çağrıldı.",
-            operator_action: "Mempool ve blok üretim çağrısını kontrol edin; boş liste ile üretimi engelleyin.",
+            title: "Active Block Requires Tasks",
+            plain_message:
+                "An active block must contain at least one canonical task.",
+            probable_cause:
+                "The block production path was invoked with an empty task set.",
+            operator_action:
+                "Inspect mempool selection and block assembly inputs, and prevent empty task sets from reaching active block construction.",
         },
         BlockError::HeartbeatBlockMustNotContainTasks => ErrorDescriptor {
             code: err.code(),
-            title: "Heartbeat blok görev içeremez",
-            plain_message: "Heartbeat blok sadece canlılık sinyali içindir, işlem taşıyamaz.",
-            probable_cause: "Heartbeat türü yanlışlıkla normal işlem bloğu gibi üretildi.",
-            operator_action: "Blok türü seçimini düzeltin; işlemler için Active blok kullanın.",
+            title: "Heartbeat Block Contains Tasks",
+            plain_message:
+                "A heartbeat block is a liveness artifact and must not contain execution tasks.",
+            probable_cause:
+                "The block type may have been selected incorrectly during production.",
+            operator_action:
+                "Ensure heartbeat emission is isolated from active transaction packaging and validate block-type routing.",
         },
         BlockError::EpochPruneBlockMustNotContainTasks => ErrorDescriptor {
             code: err.code(),
-            title: "Epoch-prune blok görev içeremez",
-            plain_message: "Bakım/temizlik bloğunda kullanıcı işlemi yer alamaz.",
-            probable_cause: "Bakım bloğuna transaction eklenmiş.",
-            operator_action: "Bakım akışını işlem akışından ayırın ve blok tipini doğrulayın.",
+            title: "Epoch-Prune Block Contains Tasks",
+            plain_message:
+                "An epoch-prune block is reserved for maintenance operations and must not contain user tasks.",
+            probable_cause:
+                "Maintenance and transaction execution flows may have been mixed.",
+            operator_action:
+                "Separate pruning workflows from active block packaging and enforce block-type validation before construction.",
         },
         BlockError::HeartbeatBlockMustUseZeroStateRoot => ErrorDescriptor {
             code: err.code(),
-            title: "Heartbeat state-root hatalı",
-            plain_message: "Heartbeat blok için state_root sıfır kök olmalıdır.",
-            probable_cause: "State root alanı yanlış dolduruldu.",
-            operator_action: "Heartbeat üretiminde ZERO_STATE_ROOT sabitini zorunlu kullanın.",
+            title: "Heartbeat Block Uses Invalid State Root",
+            plain_message:
+                "A heartbeat block must commit to the canonical zero state root.",
+            probable_cause:
+                "The state-root field was populated with a non-heartbeat value.",
+            operator_action:
+                "Force heartbeat production to use ZERO_STATE_ROOT and verify heartbeat-specific construction paths.",
         },
         BlockError::EmptyTaskPayload => ErrorDescriptor {
             code: err.code(),
-            title: "Boş payload",
-            plain_message: "Bir görevin veri alanı boş olamaz.",
-            probable_cause: "İşlem verisi serialize edilmeden gönderilmiş olabilir.",
-            operator_action: "İşlem oluşturma katmanında payload varlığını zorunlu kılın.",
+            title: "Empty Task Payload",
+            plain_message:
+                "A canonical task payload must not be empty.",
+            probable_cause:
+                "The task may have been serialized incorrectly or constructed without execution data.",
+            operator_action:
+                "Enforce non-empty payload checks at task creation boundaries and validate serialization prior to block inclusion.",
         },
         BlockError::TaskPayloadTooLarge { .. } => ErrorDescriptor {
             code: err.code(),
-            title: "Tek görev payload çok büyük",
-            plain_message: "Tek bir görevin veri boyutu izin verilen sınırı geçti.",
-            probable_cause: "Uygulama büyük veri blob'unu tek işlemde göndermiş.",
-            operator_action: "Veriyi parçalara bölün veya zincir dışı depolama + referans yaklaşımı kullanın.",
+            title: "Task Payload Too Large",
+            plain_message:
+                "A single task payload exceeded the permitted canonical size limit.",
+            probable_cause:
+                "A large binary blob or oversized execution request was packed into one task.",
+            operator_action:
+                "Split the data into smaller units or move large content off-chain and reference it indirectly.",
         },
         BlockError::TooManyTasks { .. } => ErrorDescriptor {
             code: err.code(),
-            title: "Blokta çok fazla görev var",
-            plain_message: "Bloktaki görev sayısı güvenli işlem limitini aştı.",
-            probable_cause: "Mempool paketleme limiti yanlış ayarlanmış olabilir.",
-            operator_action: "Blok paketleme sırasında görev sayısı üst limitini uygulayın.",
+            title: "Too Many Tasks",
+            plain_message:
+                "The block exceeded the maximum permitted task count.",
+            probable_cause:
+                "Task packaging limits may not have been enforced during block assembly.",
+            operator_action:
+                "Apply the maximum task-count gate prior to block construction and review mempool batch selection policy.",
         },
         BlockError::TotalPayloadTooLarge { .. } => ErrorDescriptor {
             code: err.code(),
-            title: "Toplam blok payload sınırı aşıldı",
-            plain_message: "Blok içindeki toplam veri boyutu güvenlik limitini geçti.",
-            probable_cause: "Çok sayıda büyük payload aynı blokta birikti.",
-            operator_action: "Paketleme politikasını sıkılaştırın ve payload toplamını blok öncesi hesaplayın.",
+            title: "Total Block Payload Too Large",
+            plain_message:
+                "The aggregate payload size of the block exceeded the permitted canonical limit.",
+            probable_cause:
+                "Too many large tasks were aggregated into the same block.",
+            operator_action:
+                "Tighten payload-based block packaging policy and enforce aggregate-size checks before finalization.",
         },
         BlockError::LengthOverflow => ErrorDescriptor {
             code: err.code(),
-            title: "Boyut hesaplaması taştı",
-            plain_message: "Toplam boyut hesaplanırken sayı taşması tespit edildi.",
-            probable_cause: "Beklenmeyen/bozuk veri büyüklüğü veya saldırı trafiği.",
-            operator_action: "Girdi limitlerini daraltın, anomali kaydını inceleyin.",
+            title: "Length Calculation Overflow",
+            plain_message:
+                "A size or length calculation overflow was detected during block validation.",
+            probable_cause:
+                "Unexpected input dimensions, malformed data, or adversarial input may have triggered an arithmetic boundary.",
+            operator_action:
+                "Inspect input dimensions, review upstream limit enforcement, and investigate the event as a possible anomaly.",
         },
         BlockError::InvalidBlockHeight => ErrorDescriptor {
             code: err.code(),
-            title: "Blok yüksekliği hatalı",
-            plain_message: "Blok yüksekliği beklenen sıra ile uyumlu değil.",
-            probable_cause: "Fork, replay veya yanlış parent bağlantısı olabilir.",
-            operator_action: "Parent zinciri ve fork-choice kararını yeniden doğrulayın.",
+            title: "Invalid Block Height",
+            plain_message:
+                "The block height does not match the expected canonical sequence.",
+            probable_cause:
+                "The block may reference an incorrect parent or may be part of a replay or fork inconsistency.",
+            operator_action:
+                "Re-validate parent selection, fork-choice output, and chain-link continuity before accepting the block.",
         },
         BlockError::InvalidPreviousHash => ErrorDescriptor {
             code: err.code(),
-            title: "Önceki hash uyuşmuyor",
-            plain_message: "Blok, parent blok hash’i ile tutarlı değil.",
-            probable_cause: "Yanlış parent seçimi veya veri bozulması.",
-            operator_action: "Blok link doğrulamasını ve network kaynaklarını kontrol edin.",
+            title: "Invalid Previous Hash",
+            plain_message:
+                "The block previous-hash field is inconsistent with the expected parent block hash.",
+            probable_cause:
+                "An incorrect parent may have been selected or the block linkage may have been corrupted.",
+            operator_action:
+                "Verify canonical parent linkage and inspect the upstream network or storage source for corruption.",
         },
         BlockError::DuplicateTaskId => ErrorDescriptor {
             code: err.code(),
-            title: "Tekrarlanan görev kimliği",
-            plain_message: "Aynı task_id bir blokta birden fazla kez kullanılmış.",
-            probable_cause: "Mempool deduplikasyon katmanı atlanmış olabilir.",
-            operator_action: "Task ekleme sırasında task_id tekilliğini zorunlu denetleyin.",
+            title: "Duplicate Task Identifier",
+            plain_message:
+                "The block contains the same task identifier more than once.",
+            probable_cause:
+                "Task deduplication may have been skipped or bypassed prior to block construction.",
+            operator_action:
+                "Enforce task-id uniqueness during admission and packaging, and inspect mempool deduplication controls.",
         },
         BlockError::InvalidTimestamp => ErrorDescriptor {
             code: err.code(),
-            title: "Geçersiz zaman damgası",
-            plain_message: "Blok zaman damgası sıfır veya geçersiz bir değerde.",
-            probable_cause: "Saat kaynağı bozuk veya üretim kodunda yanlış timestamp kullanılmış.",
-            operator_action: "Timestamp üretimini merkezi yardımcı fonksiyona sabitleyin.",
+            title: "Invalid Timestamp",
+            plain_message:
+                "The block timestamp is zero or otherwise invalid for canonical processing.",
+            probable_cause:
+                "The timestamp source may be broken or the block was constructed with an invalid explicit value.",
+            operator_action:
+                "Centralize timestamp derivation and verify time-source integrity before block production.",
         },
         BlockError::InvalidProducer => ErrorDescriptor {
             code: err.code(),
-            title: "Geçersiz üretici kimliği",
-            plain_message: "Blok üreticisi kimliği boş/geçersiz veya beklenen anahtarla uyuşmuyor.",
-            probable_cause: "Anahtar yönetimi veya imzalama kimliği yanlış olabilir.",
-            operator_action: "Validator anahtar setini ve role mapping yapılandırmasını doğrulayın.",
+            title: "Invalid Producer Identity",
+            plain_message:
+                "The block producer identity is empty, invalid, or inconsistent with the expected validator key material.",
+            probable_cause:
+                "Validator role mapping, key management, or signing identity selection may be incorrect.",
+            operator_action:
+                "Validate validator key configuration, role binding, and producer identity derivation before retrying.",
         },
         BlockError::InvalidStateRoot => ErrorDescriptor {
             code: err.code(),
-            title: "Geçersiz state root",
-            plain_message: "Blok state_root değeri beklenen taahhütle uyumlu değil.",
-            probable_cause: "State hesaplama adımı hatalı veya veri bozulmuş.",
-            operator_action: "State transition ve Merkle hesaplama zincirini tekrar çalıştırın.",
+            title: "Invalid State Root",
+            plain_message:
+                "The block state root does not match the expected canonical state commitment.",
+            probable_cause:
+                "State transition computation may be incorrect or state commitment derivation may be inconsistent.",
+            operator_action:
+                "Re-run state transition and state-root derivation, and compare the resulting commitment against the block header.",
         },
         BlockError::InvalidTaskRoot => ErrorDescriptor {
             code: err.code(),
-            title: "Geçersiz task root",
-            plain_message: "Görev kök hash'i beklenen değerle uyuşmuyor.",
-            probable_cause: "Task sırası/serializasyonu değişmiş olabilir.",
-            operator_action: "Task canonical sıralama ve hash pipeline'ını doğrulayın.",
+            title: "Invalid Task Root",
+            plain_message:
+                "The block task root does not match the expected canonical task commitment.",
+            probable_cause:
+                "Task ordering, task hashing, or root aggregation may have diverged from canonical rules.",
+            operator_action:
+                "Recompute task hashing and ordered root derivation, and verify canonical task ordering inputs.",
         },
         BlockError::HashingFailed => ErrorDescriptor {
             code: err.code(),
-            title: "Hash hesaplama hatası",
-            plain_message: "Kriptografik hash üretimi güvenli şekilde tamamlanamadı.",
-            probable_cause: "Hash pipeline girişleri beklenen formatta değil.",
-            operator_action: "Hash öncesi canonical encoding ve giriş boyutlarını denetleyin.",
+            title: "Hashing Failed",
+            plain_message:
+                "A cryptographic hashing operation did not complete successfully.",
+            probable_cause:
+                "The hashing pipeline may have received malformed or non-canonical input.",
+            operator_action:
+                "Inspect canonical encoding, input preparation, and hash-preimage boundaries before retrying.",
         },
         BlockError::SerializationFailed => ErrorDescriptor {
             code: err.code(),
-            title: "Serileştirme hatası",
-            plain_message: "Rapor/çıktı güvenli biçimde serialize edilemedi.",
-            probable_cause: "Beklenmeyen veri alanı veya format uyuşmazlığı.",
-            operator_action: "Serileştirme şemasını ve alan uyumluluğunu kontrol edin.",
+            title: "Serialization Failed",
+            plain_message:
+                "The report or related output could not be serialized successfully.",
+            probable_cause:
+                "The serialization schema or downstream formatting expectations may be inconsistent.",
+            operator_action:
+                "Inspect report serialization boundaries and confirm schema compatibility across consumers.",
         },
     }
 }
 
-/// Produces a full, user-friendly report for block validation outcomes.
+/// Produces a stable operator-facing block validation report.
+///
+/// Reporting policy:
+/// - a start event is always emitted,
+/// - successful validation emits an acceptance event,
+/// - failed validation emits one primary error event,
+/// - report acceptance is derived exclusively from the absence of a primary error.
 #[must_use]
 pub fn build_block_validation_report(block: &Block) -> BlockValidationReport {
     let mut events = vec![ValidationEvent {
         event_type: ValidationEventType::Info,
         code: "BLOCK_VALIDATION_STARTED".to_string(),
-        title: "Doğrulama başlatıldı".to_string(),
-        message: "Blok protokol kurallarına göre doğrulanıyor.".to_string(),
-        action: "İşlem tamamlanana kadar bekleyin.".to_string(),
+        title: "Block Validation Started".to_string(),
+        message: "The block is being validated against canonical protocol rules.".to_string(),
+        action: "Wait for validation to complete before proceeding with downstream processing."
+            .to_string(),
     }];
 
     let result = block.validate();
@@ -211,20 +342,35 @@ pub fn build_block_validation_report(block: &Block) -> BlockValidationReport {
             events.push(ValidationEvent {
                 event_type: ValidationEventType::Info,
                 code: "BLOCK_VALIDATION_ACCEPTED".to_string(),
-                title: "Blok kabul edildi".to_string(),
-                message: "Blok doğrulama kontrollerinden başarıyla geçti.".to_string(),
-                action: "Bloku zincire dahil etme aşamasına devam edebilirsiniz.".to_string(),
+                title: "Block Accepted".to_string(),
+                message: "The block passed canonical validation successfully.".to_string(),
+                action: "The block may proceed to the next pipeline stage.".to_string(),
             });
+
+            if block.task_count() == 0 {
+                events.push(ValidationEvent {
+                    event_type: ValidationEventType::Warning,
+                    code: "BLOCK_CONTAINS_NO_TASKS".to_string(),
+                    title: "Block Contains No Tasks".to_string(),
+                    message:
+                        "The validated block contains no tasks. This may be expected for non-active block types."
+                            .to_string(),
+                    action:
+                        "Confirm that the block type is intentional and consistent with the surrounding workflow."
+                            .to_string(),
+                });
+            }
         }
         Err(err) => {
             let desc = describe_block_error(err);
             primary_error_code = Some(desc.code.to_string());
+
             events.push(ValidationEvent {
                 event_type: ValidationEventType::Error,
                 code: desc.code.to_string(),
                 title: desc.title.to_string(),
                 message: format!(
-                    "{} Olası neden: {}",
+                    "{} Probable cause: {}",
                     desc.plain_message, desc.probable_cause
                 ),
                 action: desc.operator_action.to_string(),
@@ -253,38 +399,86 @@ mod tests {
     }
 
     #[test]
-    fn report_is_human_readable_for_invalid_block() {
-        let block =
-            Block::new_active_with_timestamp(7, 1, bytes32(1), bytes32(2), bytes32(3), vec![])
-                .expect_err("active block without tasks should fail");
+    fn error_descriptor_is_operator_readable_for_invalid_block_error() {
+        let err = BlockError::ActiveBlockRequiresTasks;
+        let desc = describe_block_error(err);
 
-        let desc = describe_block_error(block);
         assert_eq!(desc.code, "BLOCK_ACTIVE_REQUIRES_TASKS");
+        assert_eq!(desc.title, "Active Block Requires Tasks");
         assert!(!desc.plain_message.is_empty());
         assert!(!desc.operator_action.is_empty());
     }
 
     #[test]
-    fn validation_report_serializes_for_desktop_panels() {
+    fn validation_report_serializes_for_operator_panels() {
         let task = Task::new(
             bytes32(9),
             Capability::UserSigned,
             TargetOutpost::AovmNative,
             vec![1, 2, 3],
         )
-        .expect("task should build");
+        .expect("task should construct successfully");
 
         let block =
             Block::new_active_with_timestamp(2, 100, ZERO_HASH, bytes32(8), bytes32(7), vec![task])
-                .expect("block should build");
+                .expect("block should construct successfully");
 
         let report = block.validate_with_report();
         assert!(report.accepted);
+        assert!(!report.has_error_events());
 
         let json = report
             .to_pretty_json()
-            .expect("json serialization must succeed");
+            .expect("pretty JSON serialization must succeed");
         assert!(json.contains("BLOCK_VALIDATION_ACCEPTED"));
         assert!(json.contains("\"accepted\": true"));
+    }
+
+    #[test]
+    fn compact_json_serialization_succeeds() {
+        let report = BlockValidationReport {
+            accepted: false,
+            block_height: 7,
+            block_type: BlockType::Active,
+            task_count: 0,
+            total_payload_bytes: 0,
+            primary_error_code: Some("BLOCK_ACTIVE_REQUIRES_TASKS".to_string()),
+            events: vec![ValidationEvent {
+                event_type: ValidationEventType::Error,
+                code: "BLOCK_ACTIVE_REQUIRES_TASKS".to_string(),
+                title: "Active Block Requires Tasks".to_string(),
+                message: "An active block must contain at least one canonical task.".to_string(),
+                action: "Inspect block assembly inputs.".to_string(),
+            }],
+        };
+
+        let json = report
+            .to_json()
+            .expect("compact JSON serialization must succeed");
+
+        assert!(json.contains("\"accepted\":false"));
+        assert!(json.contains("BLOCK_ACTIVE_REQUIRES_TASKS"));
+    }
+
+    #[test]
+    fn report_detects_warning_events() {
+        let report = BlockValidationReport {
+            accepted: true,
+            block_height: 1,
+            block_type: BlockType::Heartbeat,
+            task_count: 0,
+            total_payload_bytes: 0,
+            primary_error_code: None,
+            events: vec![ValidationEvent {
+                event_type: ValidationEventType::Warning,
+                code: "BLOCK_CONTAINS_NO_TASKS".to_string(),
+                title: "Block Contains No Tasks".to_string(),
+                message: "The block contains no tasks.".to_string(),
+                action: "Confirm the block type.".to_string(),
+            }],
+        };
+
+        assert!(report.has_warning_events());
+        assert!(!report.has_error_events());
     }
 }

@@ -4,27 +4,32 @@
 
 //! core/src/block/error.rs
 //!
-//! AOVM Block Domain Error Definitions.
+//! Canonical AOVM block-domain error definitions.
 //!
-//! This module defines the canonical error surface for block, task, validation,
-//! chain-link, and hashing-related operations inside the AOVM block domain.
+//! This module defines the stable, auditable, operator-facing error surface for
+//! block, task, validation, chain-link, hashing, and serialization workflows
+//! within the AOVM block domain.
 //!
 //! Design objectives:
-//! - Preserve a stable and auditable symbolic error surface.
-//! - Support production-grade telemetry, logging, and incident triage.
-//! - Distinguish protocol invariant violations from environmental/runtime issues.
-//! - Remain lightweight and dependency-minimal for core domain usage.
+//! - Preserve a stable symbolic error contract for logs, telemetry, dashboards,
+//!   CLI surfaces, incident pipelines, and audit tooling.
+//! - Distinguish protocol invariant failures from runtime, validation, and
+//!   cryptographic failures.
+//! - Provide lightweight, dependency-minimal domain errors suitable for core
+//!   protocol usage.
+//! - Support deterministic classification helpers for production observability.
 
 use core::fmt;
+use serde::{Deserialize, Serialize};
 
 /// Stable severity classification for block-domain failures.
 ///
-/// This classification is intended for:
-/// - operational logging,
-/// - metrics tagging,
+/// Intended operational uses:
+/// - log enrichment,
+/// - metrics dimensions,
 /// - alert routing,
 /// - incident triage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockErrorSeverity {
     /// Informational condition. Typically not used for hard validation failures.
     Info,
@@ -54,8 +59,9 @@ impl BlockErrorSeverity {
 
 /// Stable category classification for block-domain failures.
 ///
-/// This category is suitable for telemetry dimensions and forensic grouping.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// This category is suitable for telemetry labels, forensic grouping,
+/// dashboard filtering, and alert aggregation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockErrorCategory {
     /// Failure related to block header semantics or chain linkage.
     Chain,
@@ -63,13 +69,13 @@ pub enum BlockErrorCategory {
     /// Failure related to task structure, payload, or task identity.
     Task,
 
-    /// Failure related to block structure or block composition.
+    /// Failure related to block composition or block-wide invariants.
     Block,
 
     /// Failure related to hashing, encoding, or commitment generation.
     Hashing,
 
-    /// Failure related to local runtime or environment conditions.
+    /// Failure related to local runtime or environmental conditions.
     Runtime,
 }
 
@@ -87,8 +93,8 @@ impl BlockErrorCategory {
     }
 }
 
-/// Stable operational classification indicating where the failure originated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Stable operational classification indicating the origin of the failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockErrorClass {
     /// Failure originated from a protocol invariant violation.
     InvariantViolation,
@@ -116,16 +122,34 @@ impl BlockErrorClass {
     }
 }
 
+/// Structured descriptor for production-facing error reporting.
+///
+/// Audit rationale:
+/// This descriptor is presentation-friendly while remaining derived from the
+/// canonical symbolic error surface. It is suitable for UI, logs, JSON reports,
+/// and operator evidence bundles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct BlockErrorDescriptor {
+    pub domain: &'static str,
+    pub code: &'static str,
+    pub category: &'static str,
+    pub class: &'static str,
+    pub severity: &'static str,
+    pub message: &'static str,
+}
+
 /// Canonical error type for AOVM block-domain operations.
 ///
-/// The error surface is intentionally explicit and stable. Variants should not
-/// be removed casually because symbolic codes may be consumed by:
+/// Stability note:
+/// Variants should not be removed casually. Symbolic error codes may be
+/// consumed by:
 /// - node logs,
+/// - observability pipelines,
 /// - dashboards,
 /// - alerting rules,
 /// - audit tooling,
-/// - forensic pipelines.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// - forensic systems.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum BlockError {
     /// The local system clock is invalid for block timestamp generation.
@@ -202,7 +226,7 @@ pub enum BlockError {
 }
 
 impl BlockError {
-    /// Returns a stable symbolic error code suitable for logs, telemetry, and dashboards.
+    /// Returns a stable symbolic error code suitable for production logs and telemetry.
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
@@ -321,19 +345,19 @@ impl BlockError {
         matches!(self.class(), BlockErrorClass::InvariantViolation)
     }
 
-    /// Returns `true` if the error is likely to be environmental or runtime-derived.
+    /// Returns `true` if the failure is runtime or environment derived.
     #[must_use]
     pub const fn is_runtime_error(self) -> bool {
         matches!(self.class(), BlockErrorClass::RuntimeFailure)
     }
 
-    /// Returns `true` if the failure should be considered security-relevant.
+    /// Returns `true` if the failure is security relevant.
     ///
     /// Security-relevant failures are suitable for:
     /// - elevated telemetry,
     /// - security dashboards,
-    /// - incident review,
-    /// - abnormal chain-state monitoring.
+    /// - abnormal state monitoring,
+    /// - incident review.
     #[must_use]
     pub const fn is_security_relevant(self) -> bool {
         matches!(
@@ -351,7 +375,7 @@ impl BlockError {
         )
     }
 
-    /// Returns `true` if the error is safe to classify as deterministic under the same input.
+    /// Returns `true` if the failure is deterministic for the same logical input.
     #[must_use]
     pub const fn is_deterministic(self) -> bool {
         !matches!(self, Self::InvalidSystemTime)
@@ -370,10 +394,87 @@ impl BlockError {
         )
     }
 
-    /// Returns a stable chain-domain namespace string for routing and observability.
+    /// Returns the stable domain namespace for routing and observability.
     #[must_use]
     pub const fn domain(self) -> &'static str {
         "AOVM_BLOCK_DOMAIN"
+    }
+
+    /// Returns a structured descriptor suitable for reporting and UI layers.
+    #[must_use]
+    pub const fn descriptor(self) -> BlockErrorDescriptor {
+        BlockErrorDescriptor {
+            domain: self.domain(),
+            code: self.code(),
+            category: self.category().as_str(),
+            class: self.class().as_str(),
+            severity: self.severity().as_str(),
+            message: self.static_message(),
+        }
+    }
+
+    /// Returns a stable human-readable message template.
+    #[must_use]
+    pub const fn static_message(self) -> &'static str {
+        match self {
+            Self::InvalidSystemTime => {
+                "System time is earlier than UNIX_EPOCH; canonical block timestamp generation is invalid."
+            }
+            Self::ActiveBlockRequiresTasks => {
+                "Active block validation failed: an active block must contain at least one task."
+            }
+            Self::HeartbeatBlockMustNotContainTasks => {
+                "Heartbeat block validation failed: heartbeat blocks must not contain tasks."
+            }
+            Self::EpochPruneBlockMustNotContainTasks => {
+                "Epoch-prune block validation failed: epoch-prune blocks must not contain tasks."
+            }
+            Self::HeartbeatBlockMustUseZeroStateRoot => {
+                "Heartbeat block validation failed: heartbeat blocks must use the protocol-defined zero state root."
+            }
+            Self::EmptyTaskPayload => {
+                "Task validation failed: task payload must not be empty."
+            }
+            Self::TaskPayloadTooLarge { .. } => {
+                "Task validation failed: task payload exceeds the maximum permitted size."
+            }
+            Self::TooManyTasks { .. } => {
+                "Block validation failed: task count exceeds the maximum permitted bound."
+            }
+            Self::TotalPayloadTooLarge { .. } => {
+                "Block validation failed: aggregate payload size exceeds the maximum permitted bound."
+            }
+            Self::LengthOverflow => {
+                "Canonical encoding or hashing failed: input length exceeds the supported fixed-width boundary."
+            }
+            Self::InvalidBlockHeight => {
+                "Chain-link validation failed: block height relationship is invalid."
+            }
+            Self::InvalidPreviousHash => {
+                "Chain-link validation failed: previous block hash relationship is invalid."
+            }
+            Self::DuplicateTaskId => {
+                "Task validation failed: duplicate task identifier detected."
+            }
+            Self::InvalidTimestamp => {
+                "Block validation failed: timestamp is outside protocol-accepted bounds."
+            }
+            Self::InvalidProducer => {
+                "Block validation failed: producer identity is invalid or unauthorized."
+            }
+            Self::InvalidStateRoot => {
+                "Block validation failed: state root is invalid for the requested operation."
+            }
+            Self::InvalidTaskRoot => {
+                "Block validation failed: task-root commitment is invalid for the requested operation."
+            }
+            Self::HashingFailed => {
+                "Hashing operation failed under current protocol constraints."
+            }
+            Self::SerializationFailed => {
+                "Canonical serialization failed under current protocol constraints."
+            }
+        }
     }
 
     /// Builds a concise, stable, single-line log prefix for production use.
@@ -396,8 +497,8 @@ impl BlockError {
 
     /// Builds a structured human-readable incident string.
     ///
-    /// This helper is intentionally allocation-based because it is intended for
-    /// logging, diagnostics, and telemetry surfaces rather than hot inner loops.
+    /// This helper is allocation-based by design because it targets logging,
+    /// diagnostics, and operator-facing telemetry, rather than hot inner loops.
     #[must_use]
     pub fn incident_message(self) -> String {
         format!("{} message=\"{}\"", self.log_prefix(), self)
@@ -493,7 +594,9 @@ impl std::error::Error for BlockError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{BlockError, BlockErrorCategory, BlockErrorClass, BlockErrorSeverity};
+    use super::{
+        BlockError, BlockErrorCategory, BlockErrorClass, BlockErrorSeverity,
+    };
 
     #[test]
     fn symbolic_error_code_is_stable() {
@@ -590,6 +693,18 @@ mod tests {
 
         assert!(message.contains("BLOCK_INVALID_TASK_ROOT"));
         assert!(message.contains("task-root commitment is invalid"));
+    }
+
+    #[test]
+    fn descriptor_is_stable_and_structured() {
+        let desc = BlockError::InvalidPreviousHash.descriptor();
+
+        assert_eq!(desc.domain, "AOVM_BLOCK_DOMAIN");
+        assert_eq!(desc.code, "BLOCK_INVALID_PREVIOUS_HASH");
+        assert_eq!(desc.category, "CHAIN");
+        assert_eq!(desc.class, "INVARIANT_VIOLATION");
+        assert_eq!(desc.severity, "ERROR");
+        assert!(!desc.message.is_empty());
     }
 
     #[test]

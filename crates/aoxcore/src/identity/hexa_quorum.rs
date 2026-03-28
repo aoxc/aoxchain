@@ -3,8 +3,20 @@
 // This file is part of the AOXC pre-release codebase.
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+
+/// Maximum accepted actor identifier length inside the HexaQuorum engine.
+///
+/// The bound is intentionally conservative and suitable for operator,
+/// validator, governance, or DAO-facing actor identifiers.
+pub const MAX_ACTOR_ID_LEN: usize = 128;
+
+/// Maximum accepted signature payload length in hexadecimal characters.
+///
+/// This bound is intentionally generous enough for large post-quantum or
+/// composite signature surfaces while rejecting obviously malformed input.
+pub const MAX_SIGNATURE_HEX_LEN: usize = 16384;
 
 /// Canonical proof lanes used by the AOXC HexaQuorum engine.
 ///
@@ -12,7 +24,7 @@ use std::fmt;
 /// Each lane represents a distinct trust axis rather than a repeated signature.
 /// The goal is to prevent false confidence created by multiple signatures from
 /// the same trust source.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ApprovalLane {
     /// Primary cryptographic identity signature.
     IdentitySig,
@@ -46,6 +58,19 @@ impl ApprovalLane {
             Self::DaoCosign => "DAO_COSIGN",
         }
     }
+
+    /// Returns all canonical lanes in deterministic evaluation order.
+    #[must_use]
+    pub const fn all() -> [ApprovalLane; 6] {
+        [
+            ApprovalLane::IdentitySig,
+            ApprovalLane::DeviceSig,
+            ApprovalLane::TimeLockSig,
+            ApprovalLane::StakeLock,
+            ApprovalLane::RoleProof,
+            ApprovalLane::DaoCosign,
+        ]
+    }
 }
 
 /// Canonical proof submitted by an actor into the HexaQuorum engine.
@@ -63,6 +88,22 @@ pub struct ApprovalProof {
     pub timestamp: u64,
     pub weight: u64,
     pub stake: u128,
+}
+
+impl ApprovalProof {
+    /// Performs local semantic validation for a proof.
+    pub fn validate(&self) -> Result<(), HexaQuorumError> {
+        validate_proof(self)
+    }
+
+    /// Returns whether the proof currently carries a non-empty signature.
+    #[must_use]
+    pub fn has_signature(&self) -> bool {
+        self.signature
+            .as_ref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false)
+    }
 }
 
 /// Policy definition for a HexaQuorum decision.
@@ -155,6 +196,30 @@ impl QuorumPolicy {
             ApprovalLane::DaoCosign => self.min_dao,
         }
     }
+
+    /// Validates the policy as a self-consistent decision contract.
+    ///
+    /// Validation policy:
+    /// - at least one security threshold must be active,
+    /// - distinct actor threshold must be non-zero.
+    pub fn validate(&self) -> Result<(), HexaQuorumError> {
+        let has_any_lane_requirement = ApprovalLane::all()
+            .into_iter()
+            .any(|lane| self.min_for_lane(lane) > 0);
+
+        let has_any_global_requirement =
+            self.min_distinct_actors > 0 || self.min_total_stake > 0 || self.min_total_score > 0;
+
+        if self.min_distinct_actors == 0 {
+            return Err(HexaQuorumError::InvalidPolicy);
+        }
+
+        if !(has_any_lane_requirement || has_any_global_requirement) {
+            return Err(HexaQuorumError::InvalidPolicy);
+        }
+
+        Ok(())
+    }
 }
 
 /// Detailed evaluation result for a HexaQuorum decision.
@@ -212,9 +277,14 @@ impl LaneCounts {
 #[non_exhaustive]
 pub enum HexaQuorumError {
     EmptyActorId,
+    InvalidActorId,
     MissingSignatureForSignedLane,
+    InvalidSignatureFormat,
     DuplicateActorLaneProof,
     InvalidWeight,
+    InvalidTimestamp,
+    InvalidStake,
+    InvalidPolicy,
 }
 
 impl HexaQuorumError {
@@ -222,9 +292,14 @@ impl HexaQuorumError {
     pub const fn code(&self) -> &'static str {
         match self {
             Self::EmptyActorId => "HEXA_QUORUM_EMPTY_ACTOR_ID",
+            Self::InvalidActorId => "HEXA_QUORUM_INVALID_ACTOR_ID",
             Self::MissingSignatureForSignedLane => "HEXA_QUORUM_MISSING_SIGNATURE_FOR_SIGNED_LANE",
+            Self::InvalidSignatureFormat => "HEXA_QUORUM_INVALID_SIGNATURE_FORMAT",
             Self::DuplicateActorLaneProof => "HEXA_QUORUM_DUPLICATE_ACTOR_LANE_PROOF",
             Self::InvalidWeight => "HEXA_QUORUM_INVALID_WEIGHT",
+            Self::InvalidTimestamp => "HEXA_QUORUM_INVALID_TIMESTAMP",
+            Self::InvalidStake => "HEXA_QUORUM_INVALID_STAKE",
+            Self::InvalidPolicy => "HEXA_QUORUM_INVALID_POLICY",
         }
     }
 }
@@ -238,10 +313,22 @@ impl fmt::Display for HexaQuorumError {
                     "hexa quorum proof validation failed: actor_id must not be empty"
                 )
             }
+            Self::InvalidActorId => {
+                write!(
+                    f,
+                    "hexa quorum proof validation failed: actor_id is not canonical"
+                )
+            }
             Self::MissingSignatureForSignedLane => {
                 write!(
                     f,
                     "hexa quorum proof validation failed: signature is required for this lane"
+                )
+            }
+            Self::InvalidSignatureFormat => {
+                write!(
+                    f,
+                    "hexa quorum proof validation failed: signature format is invalid"
                 )
             }
             Self::DuplicateActorLaneProof => {
@@ -255,6 +342,21 @@ impl fmt::Display for HexaQuorumError {
                     f,
                     "hexa quorum proof validation failed: proof weight must be greater than zero"
                 )
+            }
+            Self::InvalidTimestamp => {
+                write!(
+                    f,
+                    "hexa quorum proof validation failed: timestamp must be greater than zero"
+                )
+            }
+            Self::InvalidStake => {
+                write!(
+                    f,
+                    "hexa quorum proof validation failed: stake value is invalid for this lane"
+                )
+            }
+            Self::InvalidPolicy => {
+                write!(f, "hexa quorum policy validation failed")
             }
         }
     }
@@ -314,14 +416,33 @@ impl HexaQuorum {
     }
 
     /// Adds multiple proofs atomically.
+    ///
+    /// Atomicity policy:
+    /// - if any proof is invalid, no proof is added,
+    /// - if any duplicate `(actor_id, lane)` exists either against the current
+    ///   basket or inside the supplied batch, no proof is added.
     pub fn add_proofs<I>(&mut self, proofs: I) -> Result<(), HexaQuorumError>
     where
         I: IntoIterator<Item = ApprovalProof>,
     {
-        for proof in proofs {
-            self.add_proof(proof)?;
+        let incoming: Vec<ApprovalProof> = proofs.into_iter().collect();
+
+        let mut seen: BTreeSet<(String, ApprovalLane)> = self
+            .proofs
+            .iter()
+            .map(|proof| (proof.actor_id.clone(), proof.lane))
+            .collect();
+
+        for proof in &incoming {
+            validate_proof(proof)?;
+
+            let key = (proof.actor_id.clone(), proof.lane);
+            if !seen.insert(key) {
+                return Err(HexaQuorumError::DuplicateActorLaneProof);
+            }
         }
 
+        self.proofs.extend(incoming);
         Ok(())
     }
 
@@ -337,8 +458,8 @@ impl HexaQuorum {
         let mut missing_lanes = Vec::new();
         let mut rejection_reasons = Vec::new();
 
-        let mut distinct_actors: HashSet<&str> = HashSet::new();
-        let mut unique_stake_actors: HashMap<&str, u128> = HashMap::new();
+        let mut distinct_actors: BTreeSet<&str> = BTreeSet::new();
+        let mut unique_stake_actors: BTreeMap<&str, u128> = BTreeMap::new();
 
         for proof in &self.proofs {
             distinct_actors.insert(proof.actor_id.as_str());
@@ -363,14 +484,21 @@ impl HexaQuorum {
             .values()
             .fold(0u128, |acc, stake| acc.saturating_add(*stake));
 
-        for lane in [
-            ApprovalLane::IdentitySig,
-            ApprovalLane::DeviceSig,
-            ApprovalLane::TimeLockSig,
-            ApprovalLane::StakeLock,
-            ApprovalLane::RoleProof,
-            ApprovalLane::DaoCosign,
-        ] {
+        if let Err(error) = policy.validate() {
+            rejection_reasons.push(format!("policy invalid: {}", error.code()));
+
+            return QuorumResult {
+                passed: false,
+                distinct_actors: distinct_actors.len(),
+                total_score,
+                total_stake,
+                lane_counts,
+                missing_lanes,
+                rejection_reasons,
+            };
+        }
+
+        for lane in ApprovalLane::all() {
             let observed = lane_counts.get(lane);
             let required = policy.min_for_lane(lane);
 
@@ -423,22 +551,76 @@ impl HexaQuorum {
 
 /// Validates a single proof before it is added to the accumulator.
 fn validate_proof(proof: &ApprovalProof) -> Result<(), HexaQuorumError> {
-    if proof.actor_id.trim().is_empty() {
-        return Err(HexaQuorumError::EmptyActorId);
+    validate_actor_id(&proof.actor_id)?;
+
+    if proof.timestamp == 0 {
+        return Err(HexaQuorumError::InvalidTimestamp);
     }
 
     if proof.weight == 0 {
         return Err(HexaQuorumError::InvalidWeight);
     }
 
-    if lane_requires_signature(proof.lane)
-        && proof
+    if lane_requires_signature(proof.lane) {
+        let signature = proof
             .signature
             .as_ref()
-            .map(|value| value.trim().is_empty())
-            .unwrap_or(true)
+            .ok_or(HexaQuorumError::MissingSignatureForSignedLane)?;
+
+        validate_signature_hex(signature)?;
+    }
+
+    if proof.lane == ApprovalLane::StakeLock && proof.stake == 0 {
+        return Err(HexaQuorumError::InvalidStake);
+    }
+
+    Ok(())
+}
+
+/// Validates the actor identifier accepted by the quorum engine.
+///
+/// Compatibility note:
+/// This module preserves a bounded string-based actor identifier contract
+/// rather than importing a stricter actor-id parser directly.
+fn validate_actor_id(actor_id: &str) -> Result<(), HexaQuorumError> {
+    if actor_id.is_empty() || actor_id.trim().is_empty() {
+        return Err(HexaQuorumError::EmptyActorId);
+    }
+
+    if actor_id != actor_id.trim() {
+        return Err(HexaQuorumError::InvalidActorId);
+    }
+
+    if actor_id.len() > MAX_ACTOR_ID_LEN {
+        return Err(HexaQuorumError::InvalidActorId);
+    }
+
+    if !actor_id
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.')
     {
+        return Err(HexaQuorumError::InvalidActorId);
+    }
+
+    Ok(())
+}
+
+/// Validates a signature payload as bounded hexadecimal text.
+fn validate_signature_hex(signature: &str) -> Result<(), HexaQuorumError> {
+    if signature.is_empty() || signature.trim().is_empty() {
         return Err(HexaQuorumError::MissingSignatureForSignedLane);
+    }
+
+    if signature != signature.trim() {
+        return Err(HexaQuorumError::InvalidSignatureFormat);
+    }
+
+    if signature.len() > MAX_SIGNATURE_HEX_LEN || signature.len() % 2 != 0 {
+        return Err(HexaQuorumError::InvalidSignatureFormat);
+    }
+
+    if !signature.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        return Err(HexaQuorumError::InvalidSignatureFormat);
     }
 
     Ok(())
@@ -471,7 +653,7 @@ mod tests {
             actor_id: actor_id.to_string(),
             lane,
             signature: if with_sig {
-                Some("ABCDEF".to_string())
+                Some("ABCDEF12".to_string())
             } else {
                 None
             },
@@ -501,6 +683,67 @@ mod tests {
         let result = quorum.add_proof(proof("actor-1", ApprovalLane::IdentitySig, 5, 100, false));
 
         assert_eq!(result, Err(HexaQuorumError::MissingSignatureForSignedLane));
+    }
+
+    #[test]
+    fn invalid_signature_format_is_rejected() {
+        let mut quorum = HexaQuorum::new();
+
+        let result = quorum.add_proof(ApprovalProof {
+            actor_id: "actor-1".to_string(),
+            lane: ApprovalLane::IdentitySig,
+            signature: Some("NOT_HEX!".to_string()),
+            timestamp: 1_700_000_000,
+            weight: 5,
+            stake: 100,
+        });
+
+        assert_eq!(result, Err(HexaQuorumError::InvalidSignatureFormat));
+    }
+
+    #[test]
+    fn zero_timestamp_is_rejected() {
+        let mut quorum = HexaQuorum::new();
+
+        let result = quorum.add_proof(ApprovalProof {
+            actor_id: "actor-1".to_string(),
+            lane: ApprovalLane::StakeLock,
+            signature: None,
+            timestamp: 0,
+            weight: 5,
+            stake: 100,
+        });
+
+        assert_eq!(result, Err(HexaQuorumError::InvalidTimestamp));
+    }
+
+    #[test]
+    fn zero_stake_for_stake_lane_is_rejected() {
+        let mut quorum = HexaQuorum::new();
+
+        let result = quorum.add_proof(ApprovalProof {
+            actor_id: "actor-1".to_string(),
+            lane: ApprovalLane::StakeLock,
+            signature: None,
+            timestamp: 1_700_000_000,
+            weight: 5,
+            stake: 0,
+        });
+
+        assert_eq!(result, Err(HexaQuorumError::InvalidStake));
+    }
+
+    #[test]
+    fn add_proofs_is_atomic() {
+        let mut quorum = HexaQuorum::new();
+
+        let result = quorum.add_proofs([
+            proof("actor-1", ApprovalLane::IdentitySig, 5, 100, true),
+            proof("actor-1", ApprovalLane::IdentitySig, 5, 100, true),
+        ]);
+
+        assert_eq!(result, Err(HexaQuorumError::DuplicateActorLaneProof));
+        assert_eq!(quorum.len(), 0);
     }
 
     #[test]
@@ -571,5 +814,59 @@ mod tests {
 
         assert!(result.passed);
         assert_eq!(result.total_stake, 120);
+    }
+
+    #[test]
+    fn invalid_policy_is_reported_as_rejection() {
+        let quorum = HexaQuorum::new();
+        let policy = QuorumPolicy {
+            min_identity: 0,
+            min_device: 0,
+            min_timelock: 0,
+            min_stake_lock: 0,
+            min_role: 0,
+            min_dao: 0,
+            min_distinct_actors: 0,
+            min_total_stake: 0,
+            min_total_score: 0,
+        };
+
+        let result = quorum.evaluate(&policy);
+
+        assert!(!result.passed);
+        assert_eq!(
+            result.rejection_reasons,
+            vec!["policy invalid: HEXA_QUORUM_INVALID_POLICY".to_string()]
+        );
+    }
+
+    #[test]
+    fn lane_counts_are_recorded_correctly() {
+        let mut quorum = HexaQuorum::new();
+        let policy = QuorumPolicy {
+            min_identity: 1,
+            min_device: 1,
+            min_timelock: 0,
+            min_stake_lock: 0,
+            min_role: 0,
+            min_dao: 0,
+            min_distinct_actors: 1,
+            min_total_stake: 0,
+            min_total_score: 2,
+        };
+
+        quorum
+            .add_proofs([
+                proof("actor-1", ApprovalLane::IdentitySig, 1, 0, true),
+                proof("actor-1", ApprovalLane::DeviceSig, 1, 0, true),
+            ])
+            .expect("proof basket must be valid");
+
+        let result = quorum.evaluate(&policy);
+
+        assert!(result.passed);
+        assert_eq!(result.lane_counts.identity, 1);
+        assert_eq!(result.lane_counts.device, 1);
+        assert_eq!(result.lane_counts.timelock, 0);
     }
 }

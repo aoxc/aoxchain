@@ -4,10 +4,17 @@
 
 //! core/src/block/mod.rs
 //!
-//! AOVM Block Domain Module.
+//! Canonical AOVM block-domain module.
 //!
 //! This module defines the canonical block-domain data structures, invariants,
-//! constructors, and validation rules for AOVM.
+//! constructors, validation rules, and reporting entry points for AOVM.
+//!
+//! Design objectives:
+//! - Stable and auditable block-domain data structures
+//! - Deterministic validation behavior across nodes
+//! - Explicit separation between block types and lifecycle semantics
+//! - Production-friendly helpers for hashing, reporting, and parent-link checks
+//! - Panic-free validation paths for consensus-relevant logic
 
 pub mod assembly;
 pub mod error;
@@ -32,18 +39,38 @@ use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Maximum number of tasks allowed inside a single active block.
+///
+/// Security rationale:
+/// This bound limits memory pressure, validation amplification, and block-level
+/// execution fan-out during consensus and scheduling workflows.
 pub const MAX_TASKS_PER_BLOCK: usize = 1_024;
 
 /// Maximum payload size allowed for a single task in bytes.
+///
+/// Security rationale:
+/// This limit constrains task-level resource abuse and prevents oversized
+/// execution envelopes from entering the canonical block domain.
 pub const MAX_TASK_PAYLOAD_BYTES: usize = 64 * 1024;
 
 /// Maximum aggregate payload size allowed in a single active block.
+///
+/// Security rationale:
+/// This bound limits worst-case block processing cost and prevents excessive
+/// payload aggregation from degrading validation or execution performance.
 pub const MAX_BLOCK_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 
 /// Canonical zero state root used by heartbeat blocks.
+///
+/// Operational note:
+/// Heartbeat blocks do not carry execution semantics and therefore must commit
+/// to the protocol-defined zero state root.
 pub const ZERO_STATE_ROOT: [u8; 32] = [0u8; 32];
 
 /// Enumerates the lifecycle role of a block within the protocol.
+///
+/// Audit rationale:
+/// Block type is a policy-bearing field. Validation behavior, task admissibility,
+/// and state-root expectations depend directly on this classification.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockType {
@@ -66,6 +93,10 @@ impl BlockType {
 }
 
 /// Enumerates the authorization or attestation class of a task.
+///
+/// Audit rationale:
+/// Capability expresses the trust path under which a task entered the system
+/// and may influence downstream policy or execution interpretation.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Capability {
@@ -88,6 +119,10 @@ impl Capability {
 }
 
 /// Enumerates the logical destination for routed task execution.
+///
+/// Audit rationale:
+/// Target outpost participates in canonical hashing and assembly-lane routing.
+/// Its numeric representation must therefore remain stable.
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TargetOutpost {
@@ -113,6 +148,10 @@ impl TargetOutpost {
 }
 
 /// Canonical block header.
+///
+/// Security rationale:
+/// The block header binds height, time, parent linkage, state commitment,
+/// producer identity, and semantic block type into a consensus-relevant object.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BlockHeader {
     /// Monotonically increasing block height.
@@ -135,6 +174,10 @@ pub struct BlockHeader {
 }
 
 /// Canonical task object.
+///
+/// Security rationale:
+/// Tasks are consensus-visible execution carriers. Their identifiers, routing
+/// targets, and payload bytes are validated before they enter block construction.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Task {
     /// Unique task identifier.
@@ -152,6 +195,10 @@ pub struct Task {
 
 impl Task {
     /// Creates a validated task.
+    ///
+    /// Validation contract:
+    /// - payload must be non-empty,
+    /// - payload must not exceed the canonical task-level limit.
     pub fn new(
         task_id: [u8; 32],
         capability: Capability,
@@ -192,12 +239,21 @@ impl Task {
     }
 
     /// Returns the canonical task hash.
+    ///
+    /// Production note:
+    /// The underlying hashing path is currently infallible for validated tasks,
+    /// but the result remains wrapped to preserve API symmetry with other
+    /// fallible commitment operations.
     pub fn hash(&self) -> Result<[u8; 32], BlockError> {
         Ok(hash::hash_task(self))
     }
 }
 
 /// Canonical block object.
+///
+/// Security rationale:
+/// A block is admitted into the canonical domain only through validated
+/// constructors or explicit validation of externally assembled data.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Block {
     pub header: BlockHeader,
@@ -205,7 +261,7 @@ pub struct Block {
 }
 
 impl Block {
-    /// Creates a validated active block.
+    /// Creates a validated active block using the current system timestamp.
     pub fn new_active(
         height: u64,
         prev_hash: [u8; 32],
@@ -224,6 +280,8 @@ impl Block {
         )
     }
 
+    /// Validates the block against a node key bundle by requiring the
+    /// consensus-role public key to match the producer field.
     pub fn validate_with_key_bundle(
         &self,
         bundle: &crate::identity::key_bundle::NodeKeyBundleV1,
@@ -231,9 +289,11 @@ impl Block {
         let consensus_key = bundle
             .public_key_bytes_for_role(crate::identity::key_bundle::NodeKeyRole::Consensus)
             .map_err(|_| BlockError::InvalidProducer)?;
+
         if self.header.producer != consensus_key {
             return Err(BlockError::InvalidProducer);
         }
+
         self.validate()
     }
 
@@ -257,7 +317,7 @@ impl Block {
         )
     }
 
-    /// Creates a validated heartbeat block.
+    /// Creates a validated heartbeat block using the current system timestamp.
     pub fn new_heartbeat(
         height: u64,
         prev_hash: [u8; 32],
@@ -292,7 +352,7 @@ impl Block {
         )
     }
 
-    /// Creates a validated epoch-prune block.
+    /// Creates a validated epoch-prune block using the current system timestamp.
     pub fn new_epoch_prune(
         height: u64,
         prev_hash: [u8; 32],
@@ -356,6 +416,13 @@ impl Block {
     }
 
     /// Validates block-level invariants.
+    ///
+    /// Validation policy:
+    /// - header semantics are validated first,
+    /// - task count is globally bounded,
+    /// - active blocks must contain tasks and enforce uniqueness and payload bounds,
+    /// - heartbeat and epoch-prune blocks must not contain tasks,
+    /// - heartbeat blocks must use the canonical zero state root.
     pub fn validate(&self) -> Result<(), BlockError> {
         self.validate_header_semantics()?;
 
@@ -367,66 +434,21 @@ impl Block {
         }
 
         match self.header.block_type {
-            BlockType::Active => {
-                if self.tasks.is_empty() {
-                    return Err(BlockError::ActiveBlockRequiresTasks);
-                }
-
-                let mut seen_ids: HashSet<[u8; 32]> = HashSet::with_capacity(self.tasks.len());
-                let mut total_payload = 0usize;
-
-                for task in &self.tasks {
-                    task.validate()?;
-
-                    if !seen_ids.insert(task.task_id) {
-                        return Err(BlockError::DuplicateTaskId);
-                    }
-
-                    total_payload = total_payload
-                        .checked_add(task.payload_len())
-                        .ok_or(BlockError::LengthOverflow)?;
-                }
-
-                if total_payload > MAX_BLOCK_PAYLOAD_BYTES {
-                    return Err(BlockError::TotalPayloadTooLarge {
-                        size: total_payload,
-                        max: MAX_BLOCK_PAYLOAD_BYTES,
-                    });
-                }
-            }
-            BlockType::Heartbeat => {
-                if !self.tasks.is_empty() {
-                    return Err(BlockError::HeartbeatBlockMustNotContainTasks);
-                }
-
-                if self.header.state_root != ZERO_STATE_ROOT {
-                    return Err(BlockError::HeartbeatBlockMustUseZeroStateRoot);
-                }
-            }
-            BlockType::EpochPrune => {
-                if !self.tasks.is_empty() {
-                    return Err(BlockError::EpochPruneBlockMustNotContainTasks);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validates basic header semantics that are independent of chain context.
-    fn validate_header_semantics(&self) -> Result<(), BlockError> {
-        if self.header.timestamp == 0 {
-            return Err(BlockError::InvalidTimestamp);
-        }
-
-        if self.header.producer == ZERO_HASH {
-            return Err(BlockError::InvalidProducer);
+            BlockType::Active => self.validate_active_block_policy()?,
+            BlockType::Heartbeat => self.validate_heartbeat_block_policy()?,
+            BlockType::EpochPrune => self.validate_epoch_prune_block_policy()?,
         }
 
         Ok(())
     }
 
     /// Validates direct parent linkage against an expected parent block.
+    ///
+    /// Validation contract:
+    /// - both blocks must independently validate,
+    /// - child height must equal parent height + 1,
+    /// - child previous hash must equal parent header hash,
+    /// - child timestamp must not precede the parent timestamp.
     pub fn validate_parent_link(&self, parent: &Block) -> Result<(), BlockError> {
         self.validate()?;
         parent.validate()?;
@@ -454,6 +476,10 @@ impl Block {
     }
 
     /// Returns the aggregated payload size in bytes using saturating arithmetic.
+    ///
+    /// Operational rationale:
+    /// This helper is intended for reporting and dashboards. Consensus-critical
+    /// validation uses checked arithmetic in the validation path.
     #[must_use]
     pub fn total_payload_bytes(&self) -> usize {
         let mut total = 0usize;
@@ -483,7 +509,7 @@ impl Block {
         self.header.block_type == BlockType::EpochPrune
     }
 
-    /// Returns the compact numeric block type code.
+    /// Returns the compact numeric block-type code.
     #[must_use]
     pub fn block_type_code(&self) -> u8 {
         self.header.block_type.code()
@@ -505,7 +531,7 @@ impl Block {
         self.task_root()
     }
 
-    /// Validates the block and returns a serializable, operator-friendly report.
+    /// Validates the block and returns a serializable operator-friendly report.
     #[must_use]
     pub fn validate_with_report(&self) -> BlockValidationReport {
         build_block_validation_report(self)
@@ -513,8 +539,8 @@ impl Block {
 
     /// Returns `true` if the block contains duplicate task identifiers.
     ///
-    /// This helper is exposed for production callers that want stricter policy
-    /// enforcement without changing the current `BlockError` contract.
+    /// This helper is exposed for production callers that want a quick
+    /// diagnostic signal without changing the current `BlockError` contract.
     #[must_use]
     pub fn has_duplicate_task_ids(&self) -> bool {
         let mut seen: HashSet<[u8; 32]> = HashSet::with_capacity(self.tasks.len());
@@ -532,6 +558,68 @@ impl Block {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.tasks.is_empty()
+    }
+
+    fn validate_header_semantics(&self) -> Result<(), BlockError> {
+        if self.header.timestamp == 0 {
+            return Err(BlockError::InvalidTimestamp);
+        }
+
+        if self.header.producer == ZERO_HASH {
+            return Err(BlockError::InvalidProducer);
+        }
+
+        Ok(())
+    }
+
+    fn validate_active_block_policy(&self) -> Result<(), BlockError> {
+        if self.tasks.is_empty() {
+            return Err(BlockError::ActiveBlockRequiresTasks);
+        }
+
+        let mut seen_ids: HashSet<[u8; 32]> = HashSet::with_capacity(self.tasks.len());
+        let mut total_payload = 0usize;
+
+        for task in &self.tasks {
+            task.validate()?;
+
+            if !seen_ids.insert(task.task_id) {
+                return Err(BlockError::DuplicateTaskId);
+            }
+
+            total_payload = total_payload
+                .checked_add(task.payload_len())
+                .ok_or(BlockError::LengthOverflow)?;
+        }
+
+        if total_payload > MAX_BLOCK_PAYLOAD_BYTES {
+            return Err(BlockError::TotalPayloadTooLarge {
+                size: total_payload,
+                max: MAX_BLOCK_PAYLOAD_BYTES,
+            });
+        }
+
+        Ok(())
+    }
+
+    fn validate_heartbeat_block_policy(&self) -> Result<(), BlockError> {
+        if !self.tasks.is_empty() {
+            return Err(BlockError::HeartbeatBlockMustNotContainTasks);
+        }
+
+        if self.header.state_root != ZERO_STATE_ROOT {
+            return Err(BlockError::HeartbeatBlockMustUseZeroStateRoot);
+        }
+
+        Ok(())
+    }
+
+    fn validate_epoch_prune_block_policy(&self) -> Result<(), BlockError> {
+        if !self.tasks.is_empty() {
+            return Err(BlockError::EpochPruneBlockMustNotContainTasks);
+        }
+
+        Ok(())
     }
 }
 
@@ -692,9 +780,11 @@ mod tests {
             envelope,
         )
         .expect("bundle generation must succeed");
+
         let producer = bundle
             .public_key_bytes_for_role(NodeKeyRole::Consensus)
             .expect("consensus key must decode");
+
         let task = Task::new(
             bytes32(1),
             Capability::UserSigned,
@@ -702,6 +792,7 @@ mod tests {
             vec![1, 2, 3],
         )
         .expect("task must build");
+
         let block = Block::new_active(1, ZERO_HASH, bytes32(9), producer, vec![task])
             .expect("block must build");
 

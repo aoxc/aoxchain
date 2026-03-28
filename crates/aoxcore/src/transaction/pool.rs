@@ -15,6 +15,7 @@
 //! - Bounded admission policy
 //! - Clean compatibility with canonical transaction hashing
 //! - Clear extension path for fee-aware or reputation-aware scheduling
+//! - Explicit internal index consistency checks
 
 use core::fmt;
 use std::collections::HashMap;
@@ -53,6 +54,64 @@ impl Default for TransactionPoolConfig {
     }
 }
 
+impl TransactionPoolConfig {
+    /// Validates the pool configuration under canonical pool rules.
+    pub fn validate(self) -> Result<Self, TransactionPoolError> {
+        if self.max_transactions == 0 {
+            return Err(TransactionPoolError::InvalidConfig(
+                InvalidPoolConfig::ZeroMaxTransactions,
+            ));
+        }
+
+        if self.max_transactions_per_sender == 0 {
+            return Err(TransactionPoolError::InvalidConfig(
+                InvalidPoolConfig::ZeroMaxTransactionsPerSender,
+            ));
+        }
+
+        if self.max_transactions_per_sender > self.max_transactions {
+            return Err(TransactionPoolError::InvalidConfig(
+                InvalidPoolConfig::PerSenderLimitExceedsGlobalLimit {
+                    per_sender: self.max_transactions_per_sender,
+                    global: self.max_transactions,
+                },
+            ));
+        }
+
+        Ok(self)
+    }
+}
+
+/// Canonical invalid configuration reasons.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvalidPoolConfig {
+    ZeroMaxTransactions,
+    ZeroMaxTransactionsPerSender,
+    PerSenderLimitExceedsGlobalLimit { per_sender: usize, global: usize },
+}
+
+impl fmt::Display for InvalidPoolConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ZeroMaxTransactions => {
+                f.write_str("transaction pool max_transactions must be greater than zero")
+            }
+            Self::ZeroMaxTransactionsPerSender => {
+                f.write_str(
+                    "transaction pool max_transactions_per_sender must be greater than zero",
+                )
+            }
+            Self::PerSenderLimitExceedsGlobalLimit { per_sender, global } => write!(
+                f,
+                "transaction pool max_transactions_per_sender ({}) exceeds max_transactions ({})",
+                per_sender, global
+            ),
+        }
+    }
+}
+
+impl std::error::Error for InvalidPoolConfig {}
+
 /// Pool-domain error type.
 ///
 /// This error type wraps transaction validation failures and pool-specific
@@ -60,6 +119,9 @@ impl Default for TransactionPoolConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TransactionPoolError {
+    /// The pool configuration is invalid.
+    InvalidConfig(InvalidPoolConfig),
+
     /// The transaction failed structural or cryptographic validation before
     /// pool admission.
     TransactionRejected(TransactionError),
@@ -104,6 +166,9 @@ pub enum TransactionPoolError {
         /// Missing transaction identifier.
         tx_id: TransactionId,
     },
+
+    /// Internal indexes became inconsistent with the primary storage map.
+    IndexInconsistency,
 }
 
 impl TransactionPoolError {
@@ -111,12 +176,14 @@ impl TransactionPoolError {
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
+            Self::InvalidConfig(_) => "TX_POOL_INVALID_CONFIG",
             Self::TransactionRejected(_) => "TX_POOL_TRANSACTION_REJECTED",
             Self::DuplicateTransactionId { .. } => "TX_POOL_DUPLICATE_TRANSACTION_ID",
             Self::SenderNonceConflict { .. } => "TX_POOL_SENDER_NONCE_CONFLICT",
             Self::PoolFull { .. } => "TX_POOL_FULL",
             Self::SenderPoolLimitExceeded { .. } => "TX_POOL_SENDER_LIMIT_EXCEEDED",
             Self::TransactionNotFound { .. } => "TX_POOL_TRANSACTION_NOT_FOUND",
+            Self::IndexInconsistency => "TX_POOL_INDEX_INCONSISTENCY",
         }
     }
 }
@@ -124,6 +191,9 @@ impl TransactionPoolError {
 impl fmt::Display for TransactionPoolError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidConfig(err) => {
+                write!(f, "transaction pool configuration is invalid ({})", err)
+            }
             Self::TransactionRejected(err) => write!(
                 f,
                 "transaction pool admission failed: transaction validation rejected the candidate ({})",
@@ -162,6 +232,9 @@ impl fmt::Display for TransactionPoolError {
                 "transaction pool operation failed: transaction identifier not found ({:02x?})",
                 tx_id
             ),
+            Self::IndexInconsistency => {
+                f.write_str("transaction pool internal indexes are inconsistent")
+            }
         }
     }
 }
@@ -204,17 +277,19 @@ impl TransactionPool {
     #[must_use]
     pub fn new() -> Self {
         Self::with_config(TransactionPoolConfig::default())
+            .expect("default transaction pool configuration must be valid")
     }
 
     /// Creates an empty transaction pool using the provided configuration.
-    #[must_use]
-    pub fn with_config(config: TransactionPoolConfig) -> Self {
-        Self {
+    pub fn with_config(config: TransactionPoolConfig) -> Result<Self, TransactionPoolError> {
+        let config = config.validate()?;
+
+        Ok(Self {
             config,
             pending: HashMap::new(),
             sender_nonces: HashMap::new(),
             sender_counts: HashMap::new(),
-        }
+        })
     }
 
     /// Returns the active pool configuration.
@@ -263,6 +338,63 @@ impl TransactionPool {
     #[must_use]
     pub fn tx_id_by_sender_nonce(&self, sender: &SenderId, nonce: u64) -> Option<TransactionId> {
         self.sender_nonces.get(&(*sender, nonce)).copied()
+    }
+
+    /// Validates internal index consistency.
+    ///
+    /// This function is intended for tests, invariant assertions, recovery
+    /// tooling, and debug or audit-oriented verification paths.
+    pub fn validate(&self) -> Result<(), TransactionPoolError> {
+        if self.pending.len() > self.config.max_transactions {
+            return Err(TransactionPoolError::IndexInconsistency);
+        }
+
+        let mut derived_sender_counts: HashMap<SenderId, usize> = HashMap::new();
+
+        for (tx_id, tx) in &self.pending {
+            let sender_nonce = (tx.sender, tx.nonce);
+
+            match self.sender_nonces.get(&sender_nonce) {
+                Some(observed_tx_id) if observed_tx_id == tx_id => {}
+                _ => return Err(TransactionPoolError::IndexInconsistency),
+            }
+
+            let count = derived_sender_counts.entry(tx.sender).or_insert(0);
+            *count += 1;
+        }
+
+        if self.sender_nonces.len() != self.pending.len() {
+            return Err(TransactionPoolError::IndexInconsistency);
+        }
+
+        for ((sender, _nonce), tx_id) in &self.sender_nonces {
+            let tx = self
+                .pending
+                .get(tx_id)
+                .ok_or(TransactionPoolError::IndexInconsistency)?;
+
+            if tx.sender != *sender {
+                return Err(TransactionPoolError::IndexInconsistency);
+            }
+        }
+
+        if self.sender_counts.len() != derived_sender_counts.len() {
+            return Err(TransactionPoolError::IndexInconsistency);
+        }
+
+        for (sender, derived_count) in derived_sender_counts {
+            let observed = self
+                .sender_counts
+                .get(&sender)
+                .copied()
+                .ok_or(TransactionPoolError::IndexInconsistency)?;
+
+            if observed != derived_count || observed > self.config.max_transactions_per_sender {
+                return Err(TransactionPoolError::IndexInconsistency);
+            }
+        }
+
+        Ok(())
     }
 
     /// Validates a transaction and inserts it into the pool.
@@ -316,6 +448,7 @@ impl TransactionPool {
         self.sender_nonces.insert(sender_nonce, tx_id);
         self.sender_counts.insert(tx.sender, sender_count + 1);
 
+        debug_assert!(self.validate().is_ok(), "pool invariants must hold after add");
         Ok(tx_id)
     }
 
@@ -327,18 +460,24 @@ impl TransactionPool {
             .ok_or(TransactionPoolError::TransactionNotFound { tx_id: *tx_id })?;
 
         let sender_nonce = (tx.sender, tx.nonce);
-        self.sender_nonces.remove(&sender_nonce);
+
+        match self.sender_nonces.remove(&sender_nonce) {
+            Some(observed_tx_id) if observed_tx_id == *tx_id => {}
+            _ => return Err(TransactionPoolError::IndexInconsistency),
+        }
 
         match self.sender_counts.get_mut(&tx.sender) {
             Some(count) if *count > 1 => {
                 *count -= 1;
             }
-            Some(_) => {
+            Some(count) if *count == 1 => {
+                let _ = count;
                 self.sender_counts.remove(&tx.sender);
             }
-            None => {}
+            _ => return Err(TransactionPoolError::IndexInconsistency),
         }
 
+        debug_assert!(self.validate().is_ok(), "pool invariants must hold after remove");
         Ok(tx)
     }
 
@@ -368,11 +507,7 @@ impl TransactionPool {
     /// model is introduced.
     #[must_use]
     pub fn snapshot_ordered(&self) -> Vec<(TransactionId, &Transaction)> {
-        let mut entries: Vec<_> = self
-            .pending
-            .iter()
-            .map(|(tx_id, tx)| (*tx_id, tx))
-            .collect();
+        let mut entries: Vec<_> = self.pending.iter().map(|(tx_id, tx)| (*tx_id, tx)).collect();
 
         entries.sort_unstable_by(|(a_id, a_tx), (b_id, b_tx)| {
             a_tx.sender
@@ -402,7 +537,13 @@ impl TransactionPool {
                 break;
             }
 
-            let next_payload = accumulated_payload.saturating_add(tx.payload_len());
+            let payload_len = tx.payload_len();
+
+            let next_payload = match accumulated_payload.checked_add(payload_len) {
+                Some(value) => value,
+                None => continue,
+            };
+
             if next_payload > max_total_payload_bytes {
                 continue;
             }
@@ -421,7 +562,7 @@ impl TransactionPool {
         &mut self,
         max_count: usize,
         max_total_payload_bytes: usize,
-    ) -> Vec<(TransactionId, Transaction)> {
+    ) -> Result<Vec<(TransactionId, Transaction)>, TransactionPoolError> {
         let selected_ids: Vec<_> = self
             .select_for_block(max_count, max_total_payload_bytes)
             .into_iter()
@@ -431,12 +572,11 @@ impl TransactionPool {
         let mut drained = Vec::with_capacity(selected_ids.len());
 
         for tx_id in selected_ids {
-            if let Ok(tx) = self.remove(&tx_id) {
-                drained.push((tx_id, tx));
-            }
+            let tx = self.remove(&tx_id)?;
+            drained.push((tx_id, tx));
         }
 
-        drained
+        Ok(drained)
     }
 }
 
@@ -473,6 +613,27 @@ mod tests {
     }
 
     #[test]
+    fn default_config_is_valid() {
+        let config = TransactionPoolConfig::default();
+        assert_eq!(config.validate(), Ok(config));
+    }
+
+    #[test]
+    fn invalid_config_is_rejected() {
+        let result = TransactionPool::with_config(TransactionPoolConfig {
+            max_transactions: 0,
+            max_transactions_per_sender: 1,
+        });
+
+        assert_eq!(
+            result,
+            Err(TransactionPoolError::InvalidConfig(
+                InvalidPoolConfig::ZeroMaxTransactions
+            ))
+        );
+    }
+
+    #[test]
     fn pool_accepts_valid_transaction() {
         let mut pool = TransactionPool::new();
         let tx = signed_transaction(1, 1, vec![1, 2, 3]);
@@ -481,6 +642,7 @@ mod tests {
 
         assert_eq!(pool.len(), 1);
         assert!(pool.contains_tx_id(&tx_id));
+        assert!(pool.validate().is_ok());
     }
 
     #[test]
@@ -526,10 +688,10 @@ mod tests {
     fn pool_rejects_when_global_capacity_is_reached() {
         let config = TransactionPoolConfig {
             max_transactions: 1,
-            max_transactions_per_sender: 16,
+            max_transactions_per_sender: 1,
         };
 
-        let mut pool = TransactionPool::with_config(config);
+        let mut pool = TransactionPool::with_config(config).expect("config must be valid");
         pool.add(signed_transaction(1, 1, vec![1]))
             .expect("first transaction must be admitted");
 
@@ -547,7 +709,7 @@ mod tests {
             max_transactions_per_sender: 1,
         };
 
-        let mut pool = TransactionPool::with_config(config);
+        let mut pool = TransactionPool::with_config(config).expect("config must be valid");
         let sender_seed = 9;
 
         pool.add(signed_transaction(sender_seed, 1, vec![1]))
@@ -580,6 +742,7 @@ mod tests {
         assert!(pool.is_empty());
         assert!(!pool.contains_sender_nonce(&removed.sender, removed.nonce));
         assert_eq!(pool.sender_transaction_count(&removed.sender), 0);
+        assert!(pool.validate().is_ok());
     }
 
     #[test]
@@ -596,10 +759,7 @@ mod tests {
         let selected = pool.select_for_block(2, 6);
         assert_eq!(selected.len(), 2);
         assert_eq!(
-            selected
-                .iter()
-                .map(|(_, tx)| tx.payload_len())
-                .sum::<usize>(),
+            selected.iter().map(|(_, tx)| tx.payload_len()).sum::<usize>(),
             6
         );
     }
@@ -613,9 +773,12 @@ mod tests {
         pool.add(signed_transaction(2, 1, vec![2]))
             .expect("tx2 must be admitted");
 
-        let drained = pool.drain_for_block(1, 1024);
+        let drained = pool
+            .drain_for_block(1, 1024)
+            .expect("drain must succeed");
 
         assert_eq!(drained.len(), 1);
         assert_eq!(pool.len(), 1);
+        assert!(pool.validate().is_ok());
     }
 }

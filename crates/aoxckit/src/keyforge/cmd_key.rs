@@ -4,75 +4,193 @@
 
 use crate::keyforge::cli::{KeyCommand, KeySubcommand};
 use crate::keyforge::util::read_text_file;
-use aoxcore::identity::{key_bundle::NodeKeyBundleV1, pq_keys};
+use aoxcore::identity::key_bundle::NodeKeyBundleV1;
+use serde::Serialize;
 
+/// Dispatches supported `keyforge` subcommands.
+///
+/// Design note:
+/// - This dispatcher MUST remain strictly aligned with the canonical
+///   `KeySubcommand` definition declared in `cli.rs`.
+/// - Any CLI contract change at the enum layer MUST be reflected here
+///   immediately to preserve compile-time correctness and operational clarity.
+/// - Unsupported variants are rejected explicitly instead of being handled
+///   implicitly, which provides a clearer operator-facing failure mode.
 pub fn handle(command: KeyCommand) -> Result<(), String> {
     match command.command {
-        KeySubcommand::Generate => generate(),
-        KeySubcommand::InspectBundle { file } => inspect_bundle(&file),
+        KeySubcommand::InspectBundle { file, .. } => inspect_bundle(&file),
+        other => Err(format!(
+            "UNSUPPORTED_KEY_SUBCOMMAND: {:?}. The command dispatcher is not wired for this variant.",
+            other
+        )),
     }
 }
 
-fn generate() -> Result<(), String> {
-    let (pk, sk) = pq_keys::generate_keypair();
-
-    let public_hex = hex::encode_upper(pq_keys::serialize_public_key(&pk));
-    let secret_hex = hex::encode_upper(pq_keys::serialize_secret_key(&sk));
-    let fingerprint = pq_keys::fingerprint(&pk);
-
-    let output = serde_json::json!({
-        "algorithm": "dilithium3",
-        "fingerprint": fingerprint,
-        "public_key": public_hex,
-        "secret_key": secret_hex
-    });
-
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&output)
-            .map_err(|e| format!("JSON_SERIALIZE_ERROR: {}", e))?
-    );
-
+/// Reads, validates, and reprints a canonical AOXC node key bundle.
+///
+/// Validation contract:
+/// - The input file MUST be readable as UTF-8 text.
+/// - The payload MUST deserialize into `NodeKeyBundleV1`.
+/// - The decoded bundle MUST satisfy the bundle's semantic validation rules.
+/// - Only validated bundle content is emitted back to the operator.
+fn inspect_bundle(file: &str) -> Result<(), String> {
+    let bundle = load_bundle_from_file(file)?;
+    let body = serialize_pretty_json(&bundle)?;
+    println!("{}", body);
     Ok(())
 }
 
-fn inspect_bundle(file: &str) -> Result<(), String> {
+/// Loads and validates a node key bundle from disk.
+///
+/// Failure model:
+/// - I/O failures are surfaced as string errors from the underlying reader.
+/// - Deserialization and semantic validation failures are normalized into
+///   deterministic string errors suitable for CLI presentation.
+fn load_bundle_from_file(file: &str) -> Result<NodeKeyBundleV1, String> {
     let data = read_text_file(file)?;
-    let bundle = NodeKeyBundleV1::from_json(&data).map_err(|error| error.to_string())?;
+    NodeKeyBundleV1::from_json(&data).map_err(|error| error.to_string())
+}
 
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&bundle)
-            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error))?
-    );
-
-    Ok(())
+/// Serializes a value into canonical pretty JSON for operator-facing output.
+///
+/// Serialization errors are wrapped with a stable prefix to support
+/// downstream log inspection and troubleshooting workflows.
+fn serialize_pretty_json<T>(value: &T) -> Result<String, String>
+where
+    T: Serialize,
+{
+    serde_json::to_string_pretty(value)
+        .map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aoxcore::identity::{
+        key_bundle::{AOXC_PUBLIC_KEY_ENCODING, CryptoProfile, NodeKeyBundleV1},
+        key_engine::{KeyEngine, MASTER_SEED_LEN},
+        keyfile::encrypt_key_to_envelope,
+    };
+
+    fn make_bundle_json() -> String {
+        let engine = KeyEngine::from_seed([0x41; MASTER_SEED_LEN]);
+        let envelope = encrypt_key_to_envelope(engine.master_seed(), "Test#2026!")
+            .expect("encryption must succeed");
+
+        let bundle = NodeKeyBundleV1::generate(
+            "validator-01",
+            "testnet",
+            "2026-01-01T00:00:00Z".to_string(),
+            CryptoProfile::HybridEd25519Dilithium3,
+            &engine,
+            envelope,
+        )
+        .expect("bundle generation must succeed");
+
+        bundle
+            .to_json()
+            .expect("bundle JSON encoding must succeed")
+    }
 
     #[test]
-    fn test_generate_outputs_valid_json() {
-        // stdout'u yakalamak birim testlerde zordur, ancak ana fonksiyonun
-        // çökmeden (panic olmadan) çalıştığını ve Ok(()) döndüğünü test edebiliriz.
-        let result = generate();
+    fn load_bundle_from_file_accepts_valid_bundle_json() {
+        let path =
+            std::env::temp_dir().join(format!("aoxc-valid-key-bundle-{}.json", std::process::id()));
+
+        let body = make_bundle_json();
+        std::fs::write(&path, body).expect("temp bundle file write must succeed");
+
+        let bundle = load_bundle_from_file(path.to_str().expect("path must be valid UTF-8"))
+            .expect("valid bundle JSON must load successfully");
+
+        assert_eq!(bundle.version, 2);
+        assert_eq!(bundle.profile, "testnet");
+        assert_eq!(bundle.keys.len(), 6);
         assert!(
-            result.is_ok(),
-            "Key generation should succeed without errors"
+            bundle
+                .keys
+                .iter()
+                .all(|record| record.public_key_encoding == AOXC_PUBLIC_KEY_ENCODING)
         );
+
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]
     fn inspect_bundle_rejects_invalid_json() {
-        let path = std::env::temp_dir().join("aoxc-invalid-key-bundle.json");
+        let path = std::env::temp_dir().join(format!(
+            "aoxc-invalid-key-bundle-{}.json",
+            std::process::id()
+        ));
+
         std::fs::write(&path, "{not-json").expect("temp file write must succeed");
 
-        let result = inspect_bundle(path.to_str().expect("path must be valid utf-8"));
+        let result = inspect_bundle(path.to_str().expect("path must be valid UTF-8"));
 
-        assert!(result.is_err());
+        assert!(result.is_err(), "invalid JSON input must be rejected");
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn load_bundle_from_file_rejects_semantically_invalid_bundle() {
+        let path = std::env::temp_dir().join(format!(
+            "aoxc-semantic-invalid-key-bundle-{}.json",
+            std::process::id()
+        ));
+
+        let invalid_bundle = serde_json::json!({
+            "version": 2,
+            "node_name": "validator-02",
+            "profile": "testnet",
+            "created_at": "2026-01-01T00:00:00Z",
+            "crypto_profile": "classic-ed25519",
+            "custody_model": "encrypted-root-seed-envelope",
+            "engine_fingerprint": "ABCDEF0123456789ABCDEF0123456789",
+            "bundle_fingerprint": "ABCDEF0123456789ABCDEF0123456789",
+            "encrypted_root_seed": {
+                "version": 1,
+                "kdf": {
+                    "algorithm": "argon2id",
+                    "memory_cost_kib": 65536,
+                    "time_cost": 3,
+                    "parallelism": 1,
+                    "output_len": 32
+                },
+                "salt_b64": "AAAAAAAAAAAAAAAAAAAAAA==",
+                "nonce_b64": "AAAAAAAAAAAAAAAA",
+                "ciphertext_b64": "AQ=="
+            },
+            "keys": []
+        });
+
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&invalid_bundle)
+                .expect("fixture serialization must succeed"),
+        )
+        .expect("temp file write must succeed");
+
+        let result = load_bundle_from_file(path.to_str().expect("path must be valid UTF-8"));
+
+        assert!(
+            result.is_err(),
+            "semantically invalid bundle must be rejected"
+        );
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn serialize_pretty_json_returns_valid_json_document() {
+        let body = serialize_pretty_json(&serde_json::json!({
+            "status": "ok"
+        }))
+        .expect("JSON serialization must succeed");
+
+        let parsed: serde_json::Value =
+            serde_json::from_str(&body).expect("output must be valid JSON");
+
+        assert_eq!(parsed["status"], "ok");
     }
 }
