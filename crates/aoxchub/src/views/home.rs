@@ -3,6 +3,7 @@ use dioxus::prelude::*;
 use crate::components::glass::GlassSurface;
 use crate::services::telemetry::latest_snapshot;
 use crate::state::GlobalChainState;
+use crate::types::LaneStatus;
 
 #[derive(Clone, Copy, PartialEq)]
 enum NetworkProfile {
@@ -105,32 +106,69 @@ const AOXC_CLI_COMMANDS: [CommandSpec; 6] = [
 #[component]
 pub fn Home() -> Element {
     let chain = use_context::<Signal<GlobalChainState>>();
-    let mut profile = use_signal(|| NetworkProfile::Mainnet);
-    let chain_snapshot = chain.read().clone();
-    let total_tps: f32 = chain_snapshot.lanes.iter().map(|lane| lane.tps).sum();
-    let offline_nodes = chain_snapshot
+    let snapshot = chain.read().clone();
+
+    let total_tps: f32 = snapshot.lanes.iter().map(|lane| lane.tps).sum();
+    let offline_nodes = snapshot
         .nodes
         .iter()
         .filter(|node| !node.online)
         .count();
-    let explorer_chain = chain_snapshot.clone();
-    let telemetry = latest_snapshot();
 
     rsx! {
         div { class: "space-y-6",
-            h2 { class: "text-2xl font-bold text-white", "AOXCHUB Desktop Control Plane" }
-            p { class: "text-sm text-slate-300", "Mainnet/Devnet/Testnet arasında hızlı geçiş, wallet, explorer ve telemetry tek panelde." }
+            div { class: "space-y-2",
+                h2 { class: "text-2xl font-bold text-white", "AOXCHUB Overview" }
+                p {
+                    class: "text-sm text-slate-300",
+                    "Unified visibility into block production, execution lanes, validator health, and network operating posture."
+                }
+            }
 
-            div { class: "flex flex-wrap gap-2",
-                for item in [NetworkProfile::Mainnet, NetworkProfile::Devnet, NetworkProfile::Testnet] {
-                    button {
-                        class: if profile() == item {
-                            "rounded-xl border border-blue-400 bg-blue-500/20 px-3 py-2 text-sm text-white transition"
-                        } else {
-                            "rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-slate-300 transition hover:border-blue-400/40"
-                        },
-                        onclick: move |_| profile.set(item),
-                        "{item.title()}"
+            div { class: "grid gap-4 md:grid-cols-2 xl:grid-cols-4",
+                MetricCard {
+                    title: "Current Block",
+                    value: format!("#{}", snapshot.height),
+                    hint: "Latest finalized L1 height".to_string()
+                }
+                MetricCard {
+                    title: "Aggregate TPS",
+                    value: format!("{total_tps:.1}"),
+                    hint: "Combined throughput across execution lanes".to_string()
+                }
+                MetricCard {
+                    title: "Network Health",
+                    value: format!("{:.2}%", snapshot.network_health),
+                    hint: format!("{offline_nodes} offline / {} active", snapshot.active_nodes)
+                }
+                MetricCard {
+                    title: "Total Staked",
+                    value: format!("{} AOXC", snapshot.total_staked),
+                    hint: "Assets committed to network security".to_string()
+                }
+            }
+
+            GlassSurface { class: Some("p-5".to_string()), intensity: Some("low"),
+                div { class: "space-y-4",
+                    div { class: "space-y-1",
+                        h3 { class: "text-lg font-semibold text-white", "Execution Lanes" }
+                        p {
+                            class: "text-sm text-slate-300",
+                            "Lane-level throughput, load distribution, checkpoint continuity, and runtime activity status."
+                        }
+                    }
+
+                    if snapshot.lanes.is_empty() {
+                        div {
+                            class: "rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-sm text-slate-400",
+                            "No lane telemetry is currently available."
+                        }
+                    } else {
+                        div { class: "space-y-3",
+                            for lane in snapshot.lanes {
+                                LaneRow { lane: lane }
+                            }
+                        }
                     }
                 }
             }
@@ -156,8 +194,33 @@ pub fn Home() -> Element {
 pub fn Wallet() -> Element {
     rsx! {
         div { class: "space-y-4",
-            h2 { class: "text-2xl font-bold text-white", "Wallet & Treasury" }
-            WalletPanel {}
+            div { class: "space-y-2",
+                h2 { class: "text-2xl font-bold text-white", "Wallet & Treasury" }
+                p {
+                    class: "text-sm text-slate-300",
+                    "Operational visibility for treasury custody, reward distribution cadence, and controlled hot-wallet exposure."
+                }
+            }
+
+            GlassSurface { class: Some("p-5".to_string()),
+                div { class: "space-y-3",
+                    TreasuryRow {
+                        title: "Treasury Balance",
+                        value: "143,920,000 AOXC",
+                        hint: "Primary reserve under multisig custody"
+                    }
+                    TreasuryRow {
+                        title: "Reward Distribution Window",
+                        value: "Every 6 hours",
+                        hint: "Scheduled validator reward settlement period"
+                    }
+                    TreasuryRow {
+                        title: "Hot Wallet Exposure",
+                        value: "4.2%",
+                        hint: "Controlled operational liquidity relative to total funds"
+                    }
+                }
+            }
         }
     }
 }
@@ -165,28 +228,54 @@ pub fn Wallet() -> Element {
 #[component]
 pub fn Nodes() -> Element {
     let chain = use_context::<Signal<GlobalChainState>>();
+    let snapshot = chain.read().clone();
 
     rsx! {
         div { class: "space-y-4",
-            h2 { class: "text-2xl font-bold text-white", "Validator Nodes" }
-            p { class: "text-slate-300", "Active nodes: {chain.read().active_nodes}" }
+            div { class: "space-y-2",
+                h2 { class: "text-2xl font-bold text-white", "Validator Nodes" }
+                p {
+                    class: "text-sm text-slate-300",
+                    "Current validator footprint, regional placement, latency posture, and online status."
+                }
+            }
+
             GlassSurface { class: Some("p-5".to_string()),
-                table { class: "w-full text-left text-sm",
-                    thead { class: "text-slate-400",
-                        tr {
-                            th { class: "pb-2", "Node" }
-                            th { class: "pb-2", "Region" }
-                            th { class: "pb-2", "Latency" }
-                            th { class: "pb-2", "Status" }
-                        }
+                div { class: "mb-4 flex flex-wrap items-center justify-between gap-3",
+                    p { class: "text-sm text-slate-300", "Active nodes: {snapshot.active_nodes}" }
+                    p { class: "text-xs uppercase tracking-wide text-slate-500", "Consensus participant registry" }
+                }
+
+                if snapshot.nodes.is_empty() {
+                    div {
+                        class: "rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-sm text-slate-400",
+                        "No validator node data is currently available."
                     }
-                    tbody {
-                        for node in chain.read().nodes.clone() {
-                            tr { class: "border-t border-white/10",
-                                td { class: "py-2", "{node.id}" }
-                                td { class: "py-2", "{node.region}" }
-                                td { class: "py-2", "{node.latency_ms} ms" }
-                                td { class: "py-2", if node.online { "online" } else { "offline" } }
+                } else {
+                    table { class: "w-full text-left text-sm",
+                        thead { class: "text-slate-400",
+                            tr { class: "border-b border-white/10",
+                                th { class: "pb-3", "Node" }
+                                th { class: "pb-3", "Region" }
+                                th { class: "pb-3", "Latency" }
+                                th { class: "pb-3", "Status" }
+                            }
+                        }
+                        tbody {
+                            for node in snapshot.nodes {
+                                tr { class: "border-t border-white/10",
+                                    td { class: "py-3 text-white", "{node.id}" }
+                                    td { class: "py-3 text-slate-300", "{node.region}" }
+                                    td { class: "py-3 text-slate-300", "{node.latency_ms} ms" }
+                                    td {
+                                        class: if node.online {
+                                            "py-3 text-emerald-300"
+                                        } else {
+                                            "py-3 text-rose-300"
+                                        },
+                                        if node.online { "Online" } else { "Offline" }
+                                    }
+                                }
                             }
                         }
                     }
@@ -197,7 +286,7 @@ pub fn Nodes() -> Element {
 }
 
 #[component]
-pub fn NotFound(segments: Vec<String>) -> Element {
+pub fn NotFoundPage(segments: Vec<String>) -> Element {
     let path = if segments.is_empty() {
         "/".to_string()
     } else {
@@ -206,142 +295,67 @@ pub fn NotFound(segments: Vec<String>) -> Element {
 
     rsx! {
         GlassSurface { class: Some("p-8".to_string()),
-            h2 { class: "text-2xl font-bold text-white", "Sayfa bulunamadı" }
-            p { class: "mt-2 text-slate-300", "İstenen rota: {path}" }
-            p { class: "mt-1 text-slate-400", "Yan menüden geçerli bir modül seçebilirsiniz." }
-        }
-    }
-}
-
-#[component]
-fn CompatibilityPanel() -> Element {
-    let matrix = [
-        (
-            "desktop-linux-x86_64",
-            "mainnet ✅",
-            "devnet ✅",
-            "testnet ✅",
-        ),
-        (
-            "desktop-macos-arm64",
-            "mainnet ✅",
-            "devnet ✅",
-            "testnet ✅",
-        ),
-        (
-            "desktop-windows-x86_64",
-            "mainnet ✅",
-            "devnet ✅",
-            "testnet ⚠ review",
-        ),
-    ];
-
-    rsx! {
-        GlassSurface { class: Some("p-5".to_string()),
-            h3 { class: "text-lg font-semibold text-white", "Binary Uyumluluk Matrisi" }
-            p { class: "mt-2 text-sm text-slate-300", "Mainnet/Devnet/Testnet hedefleri için release profile durumu." }
-            div { class: "mt-4 space-y-2",
-                for (target, main, dev, test) in matrix {
-                    div { class: "rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200",
-                        "{target} • {main} • {dev} • {test}"
-                    }
-                }
+            div { class: "space-y-2",
+                h2 { class: "text-2xl font-bold text-white", "Page Not Found" }
+                p { class: "text-sm text-slate-300", "Requested route: {path}" }
+                p { class: "text-sm text-slate-400", "Please select a valid module from the navigation menu." }
             }
         }
     }
 }
 
 #[component]
-fn TelemetryPanel(telemetry_source: String, telemetry_ok: bool) -> Element {
-    let status = if telemetry_ok { "healthy" } else { "degraded" };
-
-    rsx! {
-        GlassSurface { class: Some("p-5".to_string()),
-            h3 { class: "text-lg font-semibold text-white", "Telemetry" }
-            p { class: "mt-2 text-sm text-slate-300", "Kaynak: {telemetry_source} • Durum: {status}" }
-            div { class: "mt-4 grid gap-3 md:grid-cols-3",
-                MetricCard { title: "Ingest/sec", value: "12,490".to_string(), hint: "events".to_string() }
-                MetricCard { title: "Error rate", value: "0.03%".to_string(), hint: "last 15m".to_string() }
-                MetricCard { title: "Trace backlog", value: "3".to_string(), hint: "pending".to_string() }
-            }
-        }
-    }
-}
-
-#[component]
-fn WalletPanel() -> Element {
-    let accounts = [
-        ("Treasury", "143,920,000 AOXC", "multisig: 4/7"),
-        ("Hot Wallet", "6,051,200 AOXC", "ops limit: 250,000 AOXC"),
-        ("Bridge Reserve", "24,410,000 AOXC", "locked"),
-    ];
-
-    rsx! {
-        GlassSurface { class: Some("p-5".to_string()),
-            h3 { class: "text-lg font-semibold text-white", "Wallet Operasyonları" }
-            div { class: "mt-4 space-y-2",
-                for (name, balance, policy) in accounts {
-                    div { class: "rounded-xl border border-white/10 bg-white/5 px-4 py-3",
-                        p { class: "font-medium text-white", "{name}" }
-                        p { class: "text-sm text-slate-300", "{balance}" }
-                        p { class: "text-xs text-slate-400", "{policy}" }
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[component]
-fn ExplorerPanel(chain: GlobalChainState) -> Element {
-    rsx! {
-        GlassSurface { class: Some("p-5".to_string()),
-            h3 { class: "text-lg font-semibold text-white", "Explorer" }
-            p { class: "mt-2 text-sm text-slate-300", "Son blok ve validator durumları." }
-            div { class: "mt-4 space-y-2",
-                for lane in chain.lanes {
-                    div { class: "rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200",
-                        "{lane.kind:?} lane • {lane.tps} TPS • checkpoint {lane.last_checkpoint}"
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[component]
-fn CommandPanel(title: String, commands: Vec<CommandSpec>) -> Element {
-    rsx! {
-        GlassSurface { class: Some("p-5".to_string()),
-            h3 { class: "text-lg font-semibold text-white", "{title}" }
-            div { class: "mt-4 space-y-2",
-                for cmd in commands {
-                    div { class: "rounded-xl border border-white/10 bg-white/5 px-4 py-3",
-                        div { class: "flex items-center justify-between gap-3",
-                            code { class: "text-xs text-blue-200", "{cmd.command}" }
-                            span {
-                                class: if cmd.status == "stable" {
-                                    "rounded-full border border-emerald-400/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-200"
-                                } else {
-                                    "rounded-full border border-amber-400/40 bg-amber-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-200"
-                                },
-                                "{cmd.status}"
-                            }
-                        }
-                        p { class: "mt-2 text-sm text-slate-300", "{cmd.purpose}" }
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[component]
-fn MetricCard(title: String, value: String, hint: String) -> Element {
+fn MetricCard(title: &'static str, value: String, hint: String) -> Element {
     rsx! {
         GlassSurface { class: Some("p-4".to_string()), intensity: Some("low"),
             p { class: "text-xs uppercase tracking-wide text-slate-400", "{title}" }
             p { class: "mt-2 text-xl font-semibold text-white break-all", "{value}" }
+            p { class: "mt-1 text-xs text-slate-400", "{hint}" }
+        }
+    }
+}
+
+#[component]
+fn LaneRow(lane: LaneStatus) -> Element {
+    let load_width = format!("{}%", lane.load_percent);
+    let activity_label = if lane.is_active { "Active" } else { "Idle" };
+    let activity_class = if lane.is_active {
+        "text-emerald-300"
+    } else {
+        "text-amber-300"
+    };
+
+    rsx! {
+        div { class: "rounded-xl border border-white/10 bg-white/5 p-4",
+            div { class: "flex flex-col gap-3 md:flex-row md:items-center md:justify-between",
+                div { class: "space-y-1",
+                    p { class: "font-semibold text-white", "{lane.kind:?}" }
+                    p { class: "text-xs text-slate-400", "Checkpoint: {lane.last_checkpoint}" }
+                }
+
+                div { class: "flex flex-wrap items-center gap-3",
+                    p { class: "text-sm text-slate-300", "{lane.tps:.1} TPS" }
+                    p { class: "text-sm text-slate-300", "Load: {lane.load_percent}%" }
+                    p { class: "text-sm {activity_class}", "{activity_label}" }
+                }
+            }
+
+            div { class: "mt-3 h-2 rounded-full bg-slate-800",
+                div {
+                    class: "h-full rounded-full bg-blue-500 transition-all",
+                    style: "width: {load_width}"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn TreasuryRow(title: &'static str, value: &'static str, hint: &'static str) -> Element {
+    rsx! {
+        div { class: "rounded-xl border border-white/10 bg-white/5 px-4 py-4",
+            p { class: "text-xs uppercase tracking-wide text-slate-400", "{title}" }
+            p { class: "mt-2 text-lg font-semibold text-white", "{value}" }
             p { class: "mt-1 text-xs text-slate-400", "{hint}" }
         }
     }

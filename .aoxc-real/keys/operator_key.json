@@ -1,0 +1,75 @@
+{
+  "bundle": {
+    "version": 2,
+    "node_name": "validator-real-01",
+    "profile": "testnet",
+    "created_at": "2026-03-27T23:46:10.503490657+00:00",
+    "crypto_profile": "classic-ed25519",
+    "custody_model": "encrypted-root-seed-envelope",
+    "engine_fingerprint": "2774DE54AE9316EC1786EDEDBED78B75",
+    "bundle_fingerprint": "7A95ED465E0FFFCC24B0BA63A18360C0",
+    "encrypted_root_seed": {
+      "version": 1,
+      "kdf": {
+        "algorithm": "argon2id",
+        "memory_cost_kib": 65536,
+        "time_cost": 3,
+        "parallelism": 1,
+        "output_len": 32
+      },
+      "salt_b64": "+bQuvNhqXBzsSfHtcgZS3g==",
+      "nonce_b64": "rGDd6IZeHO+fLPyf",
+      "ciphertext_b64": "f6Je4V2O7K8n7LPrQ6QLLmnJRm74aI3w3nh5HokFMV35q1XqxRG4tPqKWfAKEVdeEq5OU9ZghBXmvW+9EjDZg7WbSBargJ6Cq6ULUAxHdZE="
+    },
+    "keys": [
+      {
+        "role": "identity",
+        "hd_path": "m/44/2626/2626010001/1/1/0",
+        "algorithm": "ed25519",
+        "public_key_encoding": "hex",
+        "public_key": "19950D652EE75CFE9C9797CC8778B837C7A39B530F1F8489309E9C2BF9EA5CDF",
+        "fingerprint": "A4987EBDAA22A690"
+      },
+      {
+        "role": "consensus",
+        "hd_path": "m/44/2626/2626010001/2/1/0",
+        "algorithm": "ed25519",
+        "public_key_encoding": "hex",
+        "public_key": "172B4F7F08A4E81BB6E49462DD820408B77C1AFB3352CB207921C9CB1040D1DB",
+        "fingerprint": "E9391A259CE91C71"
+      },
+      {
+        "role": "transport",
+        "hd_path": "m/44/2626/2626010001/3/1/0",
+        "algorithm": "ed25519",
+        "public_key_encoding": "hex",
+        "public_key": "F0BFAD77DAEDEE7D95B334B5E2DE2E901D4F87445ABB42503B687845DBD992B7",
+        "fingerprint": "27FE0138FCC75A0B"
+      },
+      {
+        "role": "operator",
+        "hd_path": "m/44/2626/2626010001/4/1/0",
+        "algorithm": "ed25519",
+        "public_key_encoding": "hex",
+        "public_key": "5343CBDF907E7A21F7C23F6CBB2C07DE5E12E06177D8484E2F07ED7C1549D74A",
+        "fingerprint": "10348150565AB401"
+      },
+      {
+        "role": "recovery",
+        "hd_path": "m/44/2626/2626010001/5/1/0",
+        "algorithm": "ed25519",
+        "public_key_encoding": "hex",
+        "public_key": "4C1A4B4138CECCFF80A8FBB8BDB305C623A8542841F40485FC9DD51067DB07E6",
+        "fingerprint": "0AC44D9F27EF84A3"
+      },
+      {
+        "role": "pq_attestation",
+        "hd_path": "m/44/2626/2626010001/6/1/0",
+        "algorithm": "ed25519",
+        "public_key_encoding": "hex",
+        "public_key": "31793A69DCF35CC65C4016BF921E43E99E7640AC8CB5794B7CE17218A707FC3B",
+        "fingerprint": "E09ADC8910337549"
+      }
+    ]
+  }
+}
