@@ -66,7 +66,7 @@ pub fn load_ledger_redb() -> Result<LedgerState, AppError> {
 
     let read_txn = db.begin_read().map_err(|error| {
         AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
+            ErrorCode::LedgerInvalid,
             "Failed to begin ledger redb read transaction",
             error,
         )
@@ -74,15 +74,15 @@ pub fn load_ledger_redb() -> Result<LedgerState, AppError> {
 
     let table = read_txn.open_table(LEDGER_TABLE).map_err(|error| {
         AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            "Failed to open ledger redb table",
+            ErrorCode::LedgerInvalid,
+            "Ledger redb table is missing or unreadable",
             error,
         )
     })?;
 
     let value = table.get(LEDGER_KEY).map_err(|error| {
         AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
+            ErrorCode::LedgerInvalid,
             "Failed to read ledger from redb",
             error,
         )

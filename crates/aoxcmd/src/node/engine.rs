@@ -352,7 +352,7 @@ mod tests {
         apply_block_proposal_with_message, build_block_for_tx, decode_hash32,
         proposer_key_from_material, run_rounds_with_observer, snapshot_from_message,
     };
-    use crate::{keys::material::KeyMaterial, node::state::NodeState};
+    use crate::{error::ErrorCode, keys::material::KeyMaterial, node::state::NodeState};
     use aoxcore::identity::key_bundle::NodeKeyRole;
     use aoxcunity::{
         AuthenticatedVote, ConsensusMessage, Vote, VoteAuthenticationContext, VoteKind,

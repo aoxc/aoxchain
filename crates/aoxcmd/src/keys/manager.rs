@@ -194,7 +194,7 @@ fn normalize_required_text(value: &str, field: &str) -> Result<String, AppError>
 fn validate_loaded_key_material(material: &KeyMaterial) -> Result<(), AppError> {
     material
         .validate()
-        .map_err(|error| AppError::new(ErrorCode::KeyMaterialInvalid, error))
+        .map_err(|error| AppError::new(ErrorCode::KeyMaterialInvalid, error.to_string()))
 }
 
 #[cfg(test)]

@@ -7,7 +7,7 @@ use crate::{
     economy::ledger::LedgerState,
     error::{AppError, ErrorCode},
 };
-use std::{io::ErrorKind, path::PathBuf};
+use std::path::PathBuf;
 
 /// Returns the canonical legacy JSON ledger path.
 ///
@@ -33,7 +33,7 @@ pub fn ledger_json_path() -> Result<PathBuf, AppError> {
 pub fn load_ledger_json() -> Result<LedgerState, AppError> {
     let path = ledger_json_path()?;
     let raw = read_file(&path).map_err(|error| {
-        if error.kind() == ErrorKind::NotFound {
+        if error.has_io_error_kind(std::io::ErrorKind::NotFound) {
             AppError::new(
                 ErrorCode::LedgerInvalid,
                 format!("Legacy ledger JSON is missing at {}", path.display()),
@@ -57,7 +57,7 @@ pub fn load_ledger_json() -> Result<LedgerState, AppError> {
 
     ledger
         .validate()
-        .map_err(|error| AppError::new(ErrorCode::LedgerInvalid, error))?;
+        .map_err(|error| AppError::new(ErrorCode::LedgerInvalid, error.to_string()))?;
 
     Ok(ledger)
 }
@@ -70,7 +70,7 @@ pub fn load_ledger_json() -> Result<LedgerState, AppError> {
 pub fn persist_ledger_json(ledger: &LedgerState) -> Result<(), AppError> {
     ledger
         .validate()
-        .map_err(|error| AppError::new(ErrorCode::LedgerInvalid, error))?;
+        .map_err(|error| AppError::new(ErrorCode::LedgerInvalid, error.to_string()))?;
 
     let path = ledger_json_path()?;
     let content = serde_json::to_string_pretty(ledger).map_err(|error| {

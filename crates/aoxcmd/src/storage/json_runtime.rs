@@ -8,7 +8,7 @@ use crate::{
     node::state::NodeState,
     storage::RuntimeStateStore,
 };
-use std::{io::ErrorKind, path::PathBuf};
+use std::path::PathBuf;
 
 /// Returns the canonical legacy JSON runtime-state path.
 ///
@@ -44,7 +44,7 @@ impl RuntimeStateStore for JsonRuntimeStateStore {
     fn load_state(&self) -> Result<NodeState, AppError> {
         let path = runtime_state_json_path()?;
         let raw = read_file(&path).map_err(|error| {
-            if error.kind() == ErrorKind::NotFound {
+            if error.has_io_error_kind(std::io::ErrorKind::NotFound) {
                 AppError::new(
                     ErrorCode::NodeStateInvalid,
                     format!("Legacy node state file is missing at {}", path.display()),
@@ -68,7 +68,7 @@ impl RuntimeStateStore for JsonRuntimeStateStore {
 
         state
             .validate()
-            .map_err(|error| AppError::new(ErrorCode::NodeStateInvalid, error))?;
+            .map_err(|error| AppError::new(ErrorCode::NodeStateInvalid, error.to_string()))?;
 
         Ok(state)
     }
@@ -81,7 +81,7 @@ impl RuntimeStateStore for JsonRuntimeStateStore {
     fn persist_state(&self, state: &NodeState) -> Result<(), AppError> {
         state
             .validate()
-            .map_err(|error| AppError::new(ErrorCode::NodeStateInvalid, error))?;
+            .map_err(|error| AppError::new(ErrorCode::NodeStateInvalid, error.to_string()))?;
 
         let path = runtime_state_json_path()?;
         let content = serde_json::to_string_pretty(state).map_err(|error| {

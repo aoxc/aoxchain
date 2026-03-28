@@ -7,7 +7,7 @@ use crate::{
     data_home::{read_file, resolve_home, write_file},
     error::{AppError, ErrorCode},
 };
-use std::{io::ErrorKind, path::PathBuf};
+use std::path::PathBuf;
 
 /// Returns the canonical AOXC CLI settings path.
 ///
@@ -71,7 +71,7 @@ pub fn init_for_profile(profile: &str) -> Result<Settings, AppError> {
 pub fn load() -> Result<Settings, AppError> {
     let path = settings_path()?;
     let raw = read_file(&path).map_err(|error| {
-        if error.kind() == ErrorKind::NotFound {
+        if error.has_io_error_kind(std::io::ErrorKind::NotFound) {
             AppError::new(
                 ErrorCode::ConfigMissing,
                 format!("Configuration file is missing at {}", path.display()),

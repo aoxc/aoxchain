@@ -14,7 +14,7 @@ use crate::{
 };
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const CHAIN_LOG_TABLE: TableDefinition<u64, &str> = TableDefinition::new("chain_log");
 
@@ -40,6 +40,31 @@ pub struct ChainLogEntry {
 /// - The authoritative path definition remains delegated to `redb_runtime`.
 pub fn main_redb_path() -> Result<PathBuf, AppError> {
     runtime_state_redb_path()
+}
+
+/// Opens or creates the canonical runtime redb database backing chain-log
+/// compatibility surfaces.
+fn open_or_create_runtime_db(path: &Path) -> Result<Database, AppError> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!("Failed to create runtime redb parent {}", parent.display()),
+                error,
+            )
+        })?;
+    }
+
+    Database::create(path).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!(
+                "Failed to open or create canonical runtime redb database {}",
+                path.display()
+            ),
+            error,
+        )
+    })
 }
 
 /// Loads the canonical node state through the dedicated runtime redb store.
@@ -106,16 +131,7 @@ pub fn append_chain_log(domain: &str, action: &str, details: &str) -> Result<(),
     }
 
     let path = main_redb_path()?;
-    let db = Database::create(&path).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!(
-                "Failed to open or create canonical runtime redb database {}",
-                path.display()
-            ),
-            error,
-        )
-    })?;
+    let db = open_or_create_runtime_db(&path)?;
 
     let write_txn = db.begin_write().map_err(|error| {
         AppError::with_source(
@@ -203,16 +219,7 @@ pub fn load_chain_logs(
     category: Option<&str>,
 ) -> Result<Vec<ChainLogEntry>, AppError> {
     let path = main_redb_path()?;
-    let db = Database::create(&path).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!(
-                "Failed to open or create canonical runtime redb database {}",
-                path.display()
-            ),
-            error,
-        )
-    })?;
+    let db = open_or_create_runtime_db(&path)?;
 
     let read_txn = db.begin_read().map_err(|error| {
         AppError::with_source(

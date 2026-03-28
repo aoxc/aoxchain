@@ -5,6 +5,7 @@
 use std::{
     error::Error as StdError,
     fmt::{Display, Formatter},
+    io::ErrorKind,
 };
 
 /// Canonical AOXC application error code taxonomy.
@@ -135,6 +136,15 @@ impl AppError {
     /// Returns the human-readable operator message.
     pub fn message(&self) -> &str {
         &self.message
+    }
+
+    /// Returns whether this error wraps an underlying `std::io::Error` with the
+    /// provided `ErrorKind`.
+    pub fn has_io_error_kind(&self, kind: ErrorKind) -> bool {
+        self.source
+            .as_deref()
+            .and_then(|error| error.downcast_ref::<std::io::Error>())
+            .is_some_and(|io_error| io_error.kind() == kind)
     }
 }
 

@@ -7,7 +7,6 @@ use crate::{
     error::{AppError, ErrorCode},
     keys::{material::KeyMaterial, paths::operator_key_path},
 };
-use std::io::ErrorKind;
 
 /// Loads operator key material from the canonical AOXC operator-key path.
 ///
@@ -23,7 +22,7 @@ use std::io::ErrorKind;
 pub fn load_operator_key() -> Result<KeyMaterial, AppError> {
     let path = operator_key_path()?;
     let raw = read_file(&path).map_err(|error| {
-        if error.kind() == ErrorKind::NotFound {
+        if error.has_io_error_kind(std::io::ErrorKind::NotFound) {
             AppError::new(
                 ErrorCode::KeyMaterialMissing,
                 format!("Operator key material is missing at {}", path.display()),
@@ -87,7 +86,7 @@ pub fn persist_operator_key(material: &KeyMaterial) -> Result<(), AppError> {
 fn validate_key_material(material: &KeyMaterial) -> Result<(), AppError> {
     material
         .validate()
-        .map_err(|error| AppError::new(ErrorCode::KeyMaterialInvalid, error))
+        .map_err(|error| AppError::new(ErrorCode::KeyMaterialInvalid, error.to_string()))
 }
 
 #[cfg(test)]
