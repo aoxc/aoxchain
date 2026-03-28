@@ -304,7 +304,7 @@ mod tests {
             epoch: 4,
             validator_set_root: [5u8; 32],
             pq_attestation_root: [11u8; 32],
-            signature_scheme: 1,
+            signature_scheme: SIGNATURE_SCHEME_ED25519,
         };
         let mut authenticated = AuthenticatedVote {
             vote,
@@ -341,6 +341,7 @@ mod tests {
                 network_id: 2626,
                 epoch: 4,
                 validator_set_root: [5u8; 32],
+                pq_attestation_root: [11u8; 32],
                 signature_scheme: 999,
             },
             signature: Vec::new(),
@@ -372,6 +373,7 @@ mod tests {
                 network_id: 2626,
                 epoch: PQ_MANDATORY_START_EPOCH,
                 validator_set_root: [5u8; 32],
+                pq_attestation_root: [11u8; 32],
                 signature_scheme: SIGNATURE_SCHEME_ED25519,
             },
             signature: Vec::new(),
@@ -403,6 +405,7 @@ mod tests {
                 network_id: 2626,
                 epoch: PQ_MANDATORY_START_EPOCH,
                 validator_set_root: [5u8; 32],
+                pq_attestation_root: [11u8; 32],
                 signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
             },
             signature: Vec::new(),
