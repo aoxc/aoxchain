@@ -4,7 +4,7 @@
   <img src="./logos/aoxc.png" alt="AOXChain Logo" width="220" />
 </p>
 
-> **Status:** Engineering Mainnet Program  
+> **Status:** Experimental engineering program (active development)  
 > **System Class:** Deterministic L1 + Multi-VM Execution + Operator-Grade Control Plane  
 > **Scope:** This document is the canonical, repository-level technical definition of AOXChain.
 
@@ -12,7 +12,7 @@
 
 ## 1. System identity and mission
 
-AOXChain is a modular blockchain architecture designed around deterministic state transitions, auditable execution, and production-grade operations. The system separates consensus-critical logic from execution routing, network services, and operator tooling in order to preserve safety boundaries and simplify verifiable evolution.
+AOXChain is a modular blockchain architecture designed around deterministic state transitions, auditable execution, and production-oriented operations. The system separates consensus-critical logic from execution routing, network services, and operator tooling to preserve safety boundaries and support verifiable evolution.
 
 Primary objectives:
 
@@ -45,7 +45,7 @@ Primary objectives:
 - `crates/aoxcnet`: P2P, gossip, discovery, synchronization, resilience workflows.
 - `crates/aoxcrpc`: external API surfaces (HTTP, gRPC, WebSocket).
 - `crates/aoxcdata`: persistence/indexing/state-storage facilities.
-- `crates/aoxconfig`: type-safe configuration and validation mechanisms.
+- `crates/aoxconfig`: typed configuration and validation mechanisms.
 
 ### 2.4 Operator plane
 
@@ -98,9 +98,9 @@ A release candidate is not considered mainnet-eligible unless the following are 
 3. Snapshot/restore integrity is demonstrated.
 4. API/config compatibility impact is explicitly stated.
 5. Security and operations runbooks are current.
-6. Release artifact chain is complete (hashes, SBOM, provenance, signatures, and audit output where required).
+6. Release artifact chain is complete (hashes, SBOM, provenance, signatures, and audit outputs where required).
 
-**Maturity statement:** AOXChain does not claim “absolute defect-free security.” It claims measurable assurance based on explicit gates and evidence.
+**Maturity statement:** AOXChain does not claim absolute defect-free security. It claims measurable assurance based on explicit gates and evidence.
 
 ---
 
@@ -109,7 +109,7 @@ A release candidate is not considered mainnet-eligible unless the following are 
 1. Key lifecycle operations (generation, storage, rotation, revocation) must remain auditable.
 2. Consensus-critical changes require explicit risk annotation in review flow.
 3. Incident response is runbook-driven and evidence-linked.
-4. Operator action → evidence mapping must remain intact across tooling.
+4. Operator action-to-evidence mapping must remain intact across tooling.
 
 ---
 
@@ -118,7 +118,7 @@ A release candidate is not considered mainnet-eligible unless the following are 
 - Prefer minimal, testable, clearly scoped changes.
 - Update code and documentation together.
 - State backward-compatibility implications explicitly.
-- Subdirectory `READ.md`/`README.md` files define *what a scope does*; they do not define roadmap authority.
+- Subdirectory `READ.md`/`README.md` files define implementation scope; they do not define roadmap authority.
 
 ---
 
@@ -130,11 +130,17 @@ A release candidate is not considered mainnet-eligible unless the following are 
 - State model: `docs/STATE_MODEL.md`
 - Security model: `docs/SECURITY_MODEL.md`
 - System invariants: `docs/SYSTEM_INVARIANTS.md`
+- Licensing policy: `docs/LICENSING.md`
+- Experimental notice: `docs/EXPERIMENTAL_NOTICE.md`
 - Environment catalog: `configs/environments/`
 - Operations scripts: `scripts/`
 
 ---
 
-## 9. Compliance note
+## 9. Experimental status, disclaimer, and change notice
 
-This repository is an engineering codebase under active development. Statements in this document are technical definitions and process commitments, not legal or investment representations.
+AOXChain is an experimental engineering codebase. Design choices, APIs, operational runbooks, and documentation may change without notice as validation progresses.
+
+All repository content is provided for informational and engineering collaboration purposes only. It is provided "as is," without warranties of any kind, and without an assumption of liability by maintainers or contributors.
+
+Nothing in this repository should be interpreted as legal, financial, compliance, or production-readiness advice.
