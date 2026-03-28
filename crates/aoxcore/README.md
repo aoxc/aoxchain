@@ -2,10 +2,10 @@
 
 > Scope: `crates/aoxcore`
 
-## Bu klasör ne yapar?
-Çekirdek zincir veri modellerini (blok, tx, receipt, state) ve deterministik state-transition temellerini sağlar.
+## Purpose
+Provides core chain data models (block, tx, receipt, state) and deterministic state-transition foundations.
 
-## İçerik özeti
-- Bu klasördeki kod/dosyalar ilgili alanın çalışma davranışını tanımlar.
-- Klasör, kendi sorumluluk alanındaki modülleri ve yardımcı dosyaları içerir.
-- Değişiklik yapılırken ilgili test/uyumluluk etkisi birlikte değerlendirilmelidir.
+## Contents at a glance
+- The code and files in this directory define the runtime behavior of this scope.
+- The folder contains modules and supporting assets bounded by this responsibility domain.
+- Any change should be evaluated together with its testing and compatibility impact.
