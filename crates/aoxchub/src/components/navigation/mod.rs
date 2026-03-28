@@ -1,9 +1,19 @@
 use dioxus::prelude::*;
 
+use crate::i18n::Language;
 use crate::route::Route;
 
 #[component]
 pub fn Header() -> Element {
+    let language = match std::env::var("AOXCHUB_LANG").ok().as_deref() {
+        Some("tr") | Some("TR") => Language::TR,
+        _ => Language::EN,
+    };
+    let language_label = match language {
+        Language::TR => "Language: TR",
+        Language::EN => "Language: EN",
+    };
+
     rsx! {
         header { class: "flex items-center justify-between border-b border-white/10 bg-[#060a13]/90 px-6 py-4 backdrop-blur-md",
             div {
@@ -13,6 +23,7 @@ pub fn Header() -> Element {
             div { class: "flex items-center gap-3 text-sm",
                 span { class: "rounded-full bg-emerald-500/20 px-3 py-1 text-emerald-300 border border-emerald-400/30", "Network: Healthy" }
                 span { class: "rounded-full bg-blue-500/20 px-3 py-1 text-blue-200 border border-blue-400/30", "Mode: Mainnet Preview" }
+                span { class: "rounded-full bg-violet-500/20 px-3 py-1 text-violet-200 border border-violet-400/30", "{language_label}" }
             }
         }
     }
@@ -32,7 +43,9 @@ pub fn Sidebar() -> Element {
                 SidebarLink { to: Route::LaneMonitor {}, label: "Lane Monitor" }
                 SidebarLink { to: Route::ConsensusMap {}, label: "Consensus Map" }
                 SidebarLink { to: Route::ZkpAudit {}, label: "ZKP Audit" }
+                SidebarLink { to: Route::Explorer {}, label: "Explorer" }
                 SidebarLink { to: Route::Wallet {}, label: "Wallet" }
+                SidebarLink { to: Route::Staking {}, label: "Staking" }
                 SidebarLink { to: Route::Nodes {}, label: "Nodes" }
             }
 

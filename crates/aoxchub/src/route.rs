@@ -1,7 +1,9 @@
 use dioxus::prelude::*;
 
 use crate::layouts::AdminLayout;
-use crate::views::{ConsensusMap, Home, LaneMonitor, Nodes, NotFoundPage, Wallet, ZkpAudit};
+use crate::views::{
+    ConsensusMap, Explorer, Home, LaneMonitor, Nodes, NotFoundPage, Staking, Wallet, ZkpAudit,
+};
 
 /// Defines the routing topology for the AOXCHUB control plane.
 ///
@@ -55,6 +57,20 @@ pub enum Route {
         /// fund management views.
         #[route("/wallet")]
         Wallet {},
+
+        /// Explorer operations surface.
+        ///
+        /// Provides chain-level search entry points and latest finalized
+        /// summaries for operators who need block and transaction visibility.
+        #[route("/explorer")]
+        Explorer {},
+
+        /// Staking and validator economics surface.
+        ///
+        /// Exposes delegation, validator weight, and reward posture metrics
+        /// derived from the authoritative in-memory chain state.
+        #[route("/staking")]
+        Staking {},
 
         /// Validator inventory surface.
         ///
