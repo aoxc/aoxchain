@@ -22,7 +22,7 @@ use crate::{
         loader::{init_default, load, persist},
         settings::Settings,
     },
-    data_home::{ensure_layout, read_file, resolve_home, write_file},
+    data_home::{ensure_layout, read_file, resolve_home, write_file, ScopedHomeOverride},
     error::{AppError, ErrorCode},
     keys::manager::{
         bootstrap_operator_key, consensus_public_key_hex, inspect_operator_key,
@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env, fs,
+    fs,
     path::{Path, PathBuf},
     process,
     time::{SystemTime, UNIX_EPOCH},
@@ -283,35 +283,6 @@ impl EnvironmentProfile {
     }
 }
 
-/// Process-scoped guard that installs a temporary AOXC home override and
-/// restores the previous value when the scoped bootstrap operation ends.
-///
-/// Rationale:
-/// - Several lower-level key and node helpers resolve paths from `AOXC_HOME`.
-/// - Dual-profile bootstrap must execute those helpers inside the target home
-///   rather than against the ambient operator environment.
-/// - Restoration must occur on every exit path.
-struct ScopedHomeOverride {
-    previous_home: Option<std::ffi::OsString>,
-}
-
-impl ScopedHomeOverride {
-    fn install(home: &Path) -> Self {
-        let previous_home = env::var_os("AOXC_HOME");
-        env::set_var("AOXC_HOME", home);
-        Self { previous_home }
-    }
-}
-
-impl Drop for ScopedHomeOverride {
-    fn drop(&mut self) {
-        match self.previous_home.take() {
-            Some(value) => env::set_var("AOXC_HOME", value),
-            None => env::remove_var("AOXC_HOME"),
-        }
-    }
-}
-
 fn genesis_path() -> Result<PathBuf, AppError> {
     Ok(resolve_home()?.join("identity").join("genesis.json"))
 }
@@ -535,7 +506,7 @@ fn bootstrap_root() -> PathBuf {
         .expect("system time should be after unix epoch")
         .as_nanos();
 
-    env::temp_dir().join(format!("aoxc-bootstrap-pid{}-{}", process::id(), nanos))
+    std::env::temp_dir().join(format!("aoxc-bootstrap-pid{}-{}", process::id(), nanos))
 }
 
 pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {

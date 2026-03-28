@@ -11,14 +11,28 @@ use aoxcontract::{
     SourceTrustLevel, VmTarget,
 };
 
+/// Builder-level failure surface for AOXC contract manifest construction.
+///
+/// Error policy:
+/// - Structural and semantic contract-domain failures are propagated from
+///   `aoxcontract` as transparent `Contract` errors.
+/// - Missing required builder inputs are normalized into deterministic
+///   `MissingField` errors so callers can fail early with stable diagnostics.
 #[derive(Debug, Error)]
 pub enum BuilderError {
     #[error(transparent)]
     Contract(#[from] ContractError),
+
     #[error("missing field: {0}")]
     MissingField(&'static str),
 }
 
+/// Fluent builder for AOXC contract manifests.
+///
+/// Design objectives:
+/// - Provide deterministic defaults for non-critical fields.
+/// - Preserve explicit caller intent for compatibility and policy overrides.
+/// - Fail closed when required construction inputs are absent.
 #[derive(Debug, Clone)]
 pub struct ContractManifestBuilder {
     pub name: Option<String>,
@@ -77,14 +91,17 @@ impl Default for ContractManifestBuilder {
 }
 
 impl ContractManifestBuilder {
+    /// Returns a builder with canonical AOXC defaults.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Returns a builder preconfigured for WASM artifacts.
     pub fn wasm() -> Self {
         Self::default().with_vm_target(VmTarget::Wasm)
     }
 
+    /// Returns a builder preconfigured for EVM artifacts.
     pub fn evm() -> Self {
         Self::default().with_vm_target(VmTarget::Evm)
     }
@@ -204,23 +221,22 @@ impl ContractManifestBuilder {
         self
     }
 
+    /// Builds a validated contract manifest.
+    ///
+    /// Validation discipline:
+    /// - Mandatory builder inputs are extracted in deterministic order.
+    /// - Runtime-family and network-class compatibility defaults are filled only
+    ///   when the caller did not provide explicit values.
+    /// - Downstream semantic validation remains delegated to `aoxcontract`.
     pub fn build(self) -> Result<ContractManifest, BuilderError> {
-        let name = self.name.ok_or(BuilderError::MissingField("name"))?;
-        let package = self.package.ok_or(BuilderError::MissingField("package"))?;
-        let version = self.version.ok_or(BuilderError::MissingField("version"))?;
-        let contract_version = ContractVersion(
-            self.contract_version
-                .ok_or(BuilderError::MissingField("contract_version"))?,
-        );
-        let vm_target = self
-            .vm_target
-            .ok_or(BuilderError::MissingField("vm_target"))?;
-        let digest = self
-            .artifact_digest
-            .ok_or(BuilderError::MissingField("artifact_digest"))?;
-        let artifact_location = self
-            .artifact_location
-            .ok_or(BuilderError::MissingField("artifact_location"))?;
+        let name = required(self.name, "name")?;
+        let package = required(self.package, "package")?;
+        let version = required(self.version, "version")?;
+        let contract_version =
+            ContractVersion(required(self.contract_version, "contract_version")?);
+        let vm_target = required(self.vm_target, "vm_target")?;
+        let digest = required(self.artifact_digest, "artifact_digest")?;
+        let artifact_location = required(self.artifact_location, "artifact_location")?;
 
         let artifact_format = artifact_format_for_vm(&vm_target);
         let artifact_media_type = default_media_type_for_format(&artifact_format).to_string();
@@ -292,10 +308,16 @@ impl ContractManifestBuilder {
         )?)
     }
 
+    /// Builds a validated descriptor by wrapping the built manifest.
     pub fn build_descriptor(self) -> Result<ContractDescriptor, BuilderError> {
         let manifest = self.build()?;
         Ok(ContractDescriptor::new(manifest)?)
     }
+}
+
+/// Returns a required builder field or a deterministic `MissingField` error.
+fn required<T>(value: Option<T>, field: &'static str) -> Result<T, BuilderError> {
+    value.ok_or(BuilderError::MissingField(field))
 }
 
 fn normalize_supported_runtime_families(
@@ -388,7 +410,10 @@ mod tests {
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             ))
             .with_artifact_location("ipfs://hello/contract.wasm")
-            .add_entrypoint(Entrypoint::new("execute", VmTarget::Wasm, None, vec![]).unwrap())
+            .add_entrypoint(
+                Entrypoint::new("execute", VmTarget::Wasm, None, vec![])
+                    .expect("entrypoint should build"),
+            )
             .allow_capability(ContractCapability::StorageRead)
             .build()
             .expect("manifest should be built");
@@ -398,14 +423,14 @@ mod tests {
         assert_eq!(manifest.schema_version, 1);
         assert_eq!(
             manifest.compatibility.supported_runtime_families,
-            vec![aoxcontract::RuntimeFamily::Wasm]
+            vec![RuntimeFamily::Wasm]
         );
         assert_eq!(
             manifest.compatibility.supported_network_classes,
             vec![
-                aoxcontract::NetworkClass::Mainnet,
-                aoxcontract::NetworkClass::Testnet,
-                aoxcontract::NetworkClass::Devnet
+                NetworkClass::Mainnet,
+                NetworkClass::Testnet,
+                NetworkClass::Devnet
             ]
         );
     }
@@ -419,7 +444,10 @@ mod tests {
                 "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             ))
             .with_artifact_location("ipfs://evm/contract.bin")
-            .add_entrypoint(Entrypoint::new("execute", VmTarget::Evm, None, vec![]).unwrap())
+            .add_entrypoint(
+                Entrypoint::new("execute", VmTarget::Evm, None, vec![])
+                    .expect("entrypoint should build"),
+            )
             .build_descriptor()
             .expect("descriptor should be built");
 
@@ -427,13 +455,46 @@ mod tests {
     }
 
     #[test]
-    fn missing_required_field_returns_error() {
+    fn missing_required_field_returns_package_error_when_package_is_absent() {
         let err = ContractManifestBuilder::new()
             .with_name("incomplete")
             .build()
             .expect_err("builder should fail");
 
+        assert!(matches!(err, BuilderError::MissingField("package")));
+    }
+
+    #[test]
+    fn missing_required_field_returns_vm_target_error_when_prior_fields_exist() {
+        let err = ContractManifestBuilder::new()
+            .with_name("incomplete")
+            .with_package("aox.incomplete")
+            .with_version("1.0.0")
+            .with_contract_version("1.0.0")
+            .build()
+            .expect_err("builder should fail");
+
         assert!(matches!(err, BuilderError::MissingField("vm_target")));
+    }
+
+    #[test]
+    fn missing_required_field_returns_artifact_location_error_after_vm_and_digest_are_set() {
+        let err = ContractManifestBuilder::new()
+            .with_name("incomplete")
+            .with_package("aox.incomplete")
+            .with_version("1.0.0")
+            .with_contract_version("1.0.0")
+            .with_vm_target(VmTarget::Wasm)
+            .with_artifact_digest(digest(
+                "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            ))
+            .build()
+            .expect_err("builder should fail");
+
+        assert!(matches!(
+            err,
+            BuilderError::MissingField("artifact_location")
+        ));
     }
 
     #[test]

@@ -2,6 +2,7 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
+use crate::data_home::ScopedHomeOverride;
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -41,11 +42,11 @@ fn unique_test_home(label: &str) -> PathBuf {
         .join(format!("aoxcmd-{label}-pid{}-{nanos}", process::id()))
 }
 
-/// Returns the shared process-wide lock used by tests that mutate `AOXC_HOME`.
+/// Returns the shared process-wide lock used by tests that install an AOXC home override.
 ///
 /// Security and determinism rationale:
-/// - `AOXC_HOME` is process-global mutable state.
-/// - Any test that mutates it must serialize access across the crate.
+/// - The AOXC home override is process-local shared state.
+/// - Any test that changes it must serialize access across the crate.
 /// - Poisoned state is explicitly tolerated so one panic does not cascade into
 ///   unrelated failures in later tests.
 pub(crate) fn aoxc_home_test_lock() -> MutexGuard<'static, ()> {
@@ -55,30 +56,25 @@ pub(crate) fn aoxc_home_test_lock() -> MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// RAII guard that installs and restores `AOXC_HOME`.
+/// RAII guard that installs and restores the in-process AOXC home override.
 ///
 /// Usage contract:
 /// - Acquire `aoxc_home_test_lock()` first.
 /// - Install this guard for the duration of the test body.
 /// - Allow automatic restoration on drop.
+///
+/// Rust 2024 compatibility:
+/// - This guard does not mutate process environment variables.
+/// - It relies on the in-process scoped home override provided by `data_home`.
 pub(crate) struct AoxcHomeGuard {
-    previous: Option<std::ffi::OsString>,
+    _override_guard: ScopedHomeOverride,
 }
 
 impl AoxcHomeGuard {
     /// Installs a temporary AOXC home override for the current process.
     pub(crate) fn install(root: &Path) -> Self {
-        let previous = env::var_os("AOXC_HOME");
-        env::set_var("AOXC_HOME", root);
-        Self { previous }
-    }
-}
-
-impl Drop for AoxcHomeGuard {
-    fn drop(&mut self) {
-        match self.previous.take() {
-            Some(value) => env::set_var("AOXC_HOME", value),
-            None => env::remove_var("AOXC_HOME"),
+        Self {
+            _override_guard: ScopedHomeOverride::install(root),
         }
     }
 }

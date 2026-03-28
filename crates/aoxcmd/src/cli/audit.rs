@@ -501,8 +501,6 @@ mod tests {
 
     #[test]
     fn native_verdict_is_determined_only_by_native_checks() {
-        std::env::set_var("AOXC_AI_DISABLE", "1");
-
         let checks = vec![
             Check {
                 name: "config-valid",
@@ -517,8 +515,6 @@ mod tests {
         ];
 
         assert_eq!(native_verdict(&checks), "fail");
-
-        std::env::remove_var("AOXC_AI_DISABLE");
         assert_eq!(native_verdict(&checks), "fail");
     }
 

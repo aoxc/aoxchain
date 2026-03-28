@@ -6,7 +6,72 @@ use crate::error::{AppError, ErrorCode};
 use std::{
     env, fs,
     path::{Path, PathBuf},
+    sync::{OnceLock, RwLock},
 };
+
+/// Process-local AOXC home override registry.
+///
+/// Design rationale:
+/// - Rust 2024 treats process environment mutation as unsafe because it is
+///   shared mutable process-wide state.
+/// - AOXC CLI still requires command-scoped home redirection for bootstrap
+///   and test isolation.
+/// - A guarded in-process override preserves deterministic path resolution
+///   without mutating the operating-system environment.
+///
+/// Concurrency model:
+/// - Reads are lock-protected and clone the effective path before use.
+/// - Writes are serialized through the same lock.
+/// - The override is intended for short-lived command-scoped use.
+fn home_override_registry() -> &'static RwLock<Option<PathBuf>> {
+    static REGISTRY: OnceLock<RwLock<Option<PathBuf>>> = OnceLock::new();
+    REGISTRY.get_or_init(|| RwLock::new(None))
+}
+
+/// Process-scoped guard that installs a temporary AOXC home override and
+/// restores the previous override state when dropped.
+pub struct ScopedHomeOverride {
+    previous_home: Option<PathBuf>,
+}
+
+impl ScopedHomeOverride {
+    /// Installs a scoped AOXC home override for the current process.
+    ///
+    /// Behavioral contract:
+    /// - Captures the previously active in-process override.
+    /// - Does not mutate the operating-system environment.
+    /// - Restores the prior override on drop.
+    pub fn install(home: &Path) -> Self {
+        let registry = home_override_registry();
+        let mut guard = registry
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        let previous_home = guard.clone();
+        *guard = Some(home.to_path_buf());
+
+        Self { previous_home }
+    }
+}
+
+impl Drop for ScopedHomeOverride {
+    fn drop(&mut self) {
+        let registry = home_override_registry();
+        let mut guard = registry
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        *guard = self.previous_home.take();
+    }
+}
+
+/// Returns the active process-local AOXC home override, when present.
+pub fn active_home_override() -> Option<PathBuf> {
+    home_override_registry()
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone()
+}
 
 /// Returns the canonical AOXC data root for the current user.
 ///
@@ -43,9 +108,14 @@ pub fn default_home_dir() -> Result<PathBuf, AppError> {
 /// Resolves the effective AOXC operator home.
 ///
 /// Resolution order:
-/// 1. `AOXC_HOME` when present and non-empty
-/// 2. canonical default returned by `default_home_dir()`
+/// 1. in-process scoped override when present
+/// 2. `AOXC_HOME` when present and non-empty
+/// 3. canonical default returned by `default_home_dir()`
 pub fn resolve_home() -> Result<PathBuf, AppError> {
+    if let Some(home) = active_home_override() {
+        return Ok(home);
+    }
+
     match env::var("AOXC_HOME") {
         Ok(value) if !value.trim().is_empty() => Ok(PathBuf::from(value)),
         _ => default_home_dir(),
@@ -172,8 +242,8 @@ fn harden_file_permissions(path: &Path) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        default_data_root, default_home_dir, ensure_layout, file_permissions_are_hardened,
-        read_file, write_file,
+        ScopedHomeOverride, active_home_override, default_data_root, default_home_dir,
+        ensure_layout, file_permissions_are_hardened, read_file, resolve_home, write_file,
     };
     use std::env;
 
@@ -196,6 +266,19 @@ mod tests {
                 .join("home")
                 .join("default")
         );
+    }
+
+    #[test]
+    fn scoped_home_override_redirects_resolution_without_mutating_environment() {
+        let target = std::env::temp_dir().join("aoxc-scoped-home-resolution");
+        let previous = active_home_override();
+
+        {
+            let _guard = ScopedHomeOverride::install(&target);
+            assert_eq!(resolve_home().expect("home should resolve"), target);
+        }
+
+        assert_eq!(active_home_override(), previous);
     }
 
     #[test]
