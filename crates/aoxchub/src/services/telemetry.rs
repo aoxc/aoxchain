@@ -5,17 +5,12 @@ use crate::services::rpc_client::RpcClient;
 
 /// Represents the most recent control-plane telemetry snapshot derived from the
 /// chain-access layer.
-///
-/// Security and Reliability Notes:
-/// - The snapshot is intentionally minimal and deterministic.
-/// - Health is inferred from a successful JSON-RPC round-trip and the presence
-///   of a valid block number result.
-/// - The source field always reflects the effective RPC endpoint used by the probe.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TelemetrySnapshot {
     pub healthy: bool,
     pub source: String,
     pub latest_block: Option<u64>,
+    pub peer_count: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,16 +30,6 @@ struct JsonRpcErrorResponse {
 }
 
 /// Retrieves the latest telemetry snapshot from the configured chain RPC.
-///
-/// Operational Behavior:
-/// - Executes a lightweight `eth_blockNumber` probe against the configured endpoint.
-/// - Marks the snapshot as healthy only when the endpoint returns a valid hex block number.
-/// - Treats transport failures, malformed payloads, and RPC error objects as unhealthy.
-///
-/// Return Model:
-/// - This function never propagates an error to callers.
-/// - Failures are collapsed into a deterministic unhealthy snapshot so that UI surfaces
-///   can render safely without introducing control-flow instability.
 pub async fn latest_snapshot() -> TelemetrySnapshot {
     let endpoint = RpcClient::endpoint().to_string();
 
@@ -55,6 +40,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
                 healthy: false,
                 source: endpoint,
                 latest_block: None,
+                peer_count: None,
             };
         }
     };
@@ -73,6 +59,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
                 healthy: false,
                 source: endpoint,
                 latest_block: None,
+                peer_count: None,
             };
         }
     };
@@ -82,6 +69,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
             healthy: false,
             source: endpoint,
             latest_block: None,
+            peer_count: None,
         };
     }
 
@@ -92,6 +80,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
                 healthy: false,
                 source: endpoint,
                 latest_block: None,
+                peer_count: None,
             };
         }
     };
@@ -104,8 +93,9 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
 
         return TelemetrySnapshot {
             healthy: latest_block.is_some(),
-            source: endpoint,
+            source: endpoint.clone(),
             latest_block,
+            peer_count: latest_peer_count(&client, &endpoint).await,
         };
     }
 
@@ -117,6 +107,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
             healthy: false,
             source: endpoint,
             latest_block: None,
+            peer_count: None,
         };
     }
 
@@ -124,5 +115,28 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
         healthy: false,
         source: endpoint,
         latest_block: None,
+        peer_count: None,
     }
+}
+
+async fn latest_peer_count(client: &reqwest::Client, endpoint: &str) -> Option<usize> {
+    let payload = json!({
+        "jsonrpc": "2.0",
+        "method": "net_peerCount",
+        "params": [],
+        "id": 2
+    });
+
+    let response = client.post(endpoint).json(&payload).send().await.ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+
+    let body = response.text().await.ok()?;
+    let success = serde_json::from_str::<JsonRpcSuccessResponse>(&body).ok()?;
+
+    success
+        .result
+        .strip_prefix("0x")
+        .and_then(|value| usize::from_str_radix(value, 16).ok())
 }
