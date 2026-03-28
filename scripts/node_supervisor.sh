@@ -13,8 +13,8 @@ resolve_bin_path() {
     return 0
   fi
 
-  if [[ -x "${HOME}/.aoxc/bin/aoxc" ]]; then
-    printf "%s" "${HOME}/.aoxc/bin/aoxc"
+  if [[ -x "${HOME}/.AOXCData/bin/aoxc" ]]; then
+    printf "%s" "${HOME}/.AOXCData/bin/aoxc"
     return 0
   fi
 

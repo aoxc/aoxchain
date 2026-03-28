@@ -38,7 +38,7 @@ Use Make targets for environment operations:
 
 ## Operational Safety Notes
 
-- Scripts resolve `aoxc` binary from `$BIN_PATH`, `$HOME/.aoxc/bin/aoxc`, or `./bin/aoxc`.
-- Each environment uses isolated state directory: `./.aoxc-<env>`.
-- Each environment logs to: `./logs/network/<env>/runtime.log`.
+- Scripts resolve `aoxc` binary from `$BIN_PATH`, `$HOME/.AOXCData/bin/aoxc`, or `./bin/aoxc`.
+- Each environment uses isolated state directory: `$HOME/.AOXCData/home/<env>` (or `$AOXC_HOME_DIR`).
+- Each environment logs to: `$HOME/.AOXCData/logs/network/<env>/runtime.log` (or `$LOG_DIR`).
 - `start` is idempotent and avoids duplicate daemons via PID checks.

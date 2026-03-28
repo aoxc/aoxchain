@@ -7,14 +7,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DAEMON_SCRIPT="${SCRIPT_DIR}/network_env_daemon.sh"
+AOXC_DATA_ROOT="${AOXC_DATA_ROOT:-${HOME}/.AOXCData}"
 
 resolve_bin_path() {
   if [[ -n "${BIN_PATH:-}" && -x "${BIN_PATH}" ]]; then
     printf "%s" "${BIN_PATH}"
     return 0
   fi
-  if [[ -x "${HOME}/.aoxc/bin/aoxc" ]]; then
-    printf "%s" "${HOME}/.aoxc/bin/aoxc"
+  if [[ -x "${HOME}/.AOXCData/bin/aoxc" ]]; then
+    printf "%s" "${HOME}/.AOXCData/bin/aoxc"
     return 0
   fi
   if [[ -x "${ROOT_DIR}/bin/aoxc" ]]; then
@@ -57,7 +58,7 @@ doctor() {
     echo "[doctor][ok] AOXC binary: ${bin}"
   fi
 
-  mkdir -p "${ROOT_DIR}/logs/network/mainnet" "${ROOT_DIR}/logs/network/testnet" "${ROOT_DIR}/logs/network/devnet"
+  mkdir -p "${AOXC_DATA_ROOT}/logs/network/mainnet" "${AOXC_DATA_ROOT}/logs/network/testnet" "${AOXC_DATA_ROOT}/logs/network/devnet"
   echo "[doctor][ok] log directories prepared"
   echo "[doctor] done"
 }
@@ -94,7 +95,7 @@ case "${cmd}" in
     ;;
   logs)
     require_env "${env}"
-    tail -n 120 -f "${ROOT_DIR}/logs/network/${env}/runtime.log"
+    tail -n 120 -f "${AOXC_DATA_ROOT}/logs/network/${env}/runtime.log"
     ;;
   menu)
     cat <<'EOF'
