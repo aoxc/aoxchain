@@ -1,48 +1,43 @@
-# AOXChain Licensing Strategy
+# AOXChain Licensing
 
-## 1) Chosen repository license model (implemented now)
+## 1) Repository license (current)
 
-**Current repository code license:** `AGPL-3.0-only`.
+**Repository code license:** `MIT`.
 
-This repository currently applies a single top-level license (`LICENSE`) to avoid contradictory legal messaging during architecture normalization.
+The root `LICENSE` file is the controlling source for repository-wide licensing unless a specific file or directory explicitly states otherwise.
 
-## 2) Why AGPL-3.0-only was chosen now
+## 2) What the MIT license allows
 
-- Aligns with reciprocity goals for sovereign protocol, runtime, and operator stack components.
-- Preserves source inspectability and modification rights while requiring network-use sharing obligations.
-- Removes prior permissive-MIT mismatch with stated anti-extractive goals.
+Under MIT terms, users may:
 
-## 3) Surface coverage under current model
+- use the code,
+- copy and modify it,
+- distribute original or modified versions,
+- sublicense or sell derived distributions.
 
-Under current implementation, AGPL-3.0-only applies to repository code including:
+The required condition is preserving the copyright and permission notice.
 
-- kernel and consensus crates,
-- runtime crates,
-- system service crates,
-- operator/control-plane crates,
-- SDK and peripheral crates.
+## 3) Warranty and liability
 
-## 4) Planned split-license direction (target state, not implemented yet)
+The MIT license provides the software **"as is"** without warranties and limits author/copyright-holder liability.
 
-A future split model may be considered after contributor-provenance/legal review:
+For an engineering-focused summary, see [EXPERIMENTAL_NOTICE.md](./EXPERIMENTAL_NOTICE.md).
 
-- core protocol/runtime/system/operator: `AGPL-3.0-only`,
-- SDK-only external integration surfaces: potential `Apache-2.0` subset where strategically justified.
+## 4) Scope and non-code rights
 
-This split is **target-state discussion only** until implemented with explicit per-surface license files, SPDX metadata, and contributor sign-off.
+Code licensing does **not** grant rights to:
 
-## 5) Contribution expectations
+- trademarks,
+- logos,
+- branding claims,
+- certification or endorsement statements.
 
-- Contributions are accepted under repository license terms (`AGPL-3.0-only`) unless explicit alternative terms are later documented.
-- Contributors should not submit code they cannot license under these terms.
-- Pull requests should preserve SPDX and licensing clarity when adding new files.
+Brand usage remains governed by [TRADEMARK_POLICY.md](./TRADEMARK_POLICY.md).
 
-## 6) What code license does not cover
+## 5) Contribution expectation
 
-- Trademarks, logos, and brand identity are not granted by AGPL code rights.
-- Name/logo usage is governed by `docs/TRADEMARK_POLICY.md`.
-- Separate legal agreements may be required for official branding, endorsements, or certification claims.
+By submitting a contribution, you confirm you have the right to provide that contribution under MIT licensing terms used by this repository.
 
-## 7) Legal ambiguity and history note
+## 6) Change notice
 
-This document is an engineering-facing normalization artifact, not legal advice. Historical contributions authored under prior terms may require formal legal review before downstream relicensing assertions beyond this repository state.
+Licensing and policy documents may evolve over time. Always review the current `LICENSE` and related policy files at the commit/tag you consume.
