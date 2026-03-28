@@ -4,7 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 use crate::asset::SupplyModel;
 use crate::receipts::{Event, HASH_SIZE, Receipt};
@@ -12,11 +13,26 @@ use crate::receipts::{Event, HASH_SIZE, Receipt};
 /// Native AOXC token symbol.
 pub const NATIVE_TOKEN_SYMBOL: &str = "AOXC";
 
-/// Receipt event emitted for native token transfers.
+/// Canonical policy schema version for the native token module.
+pub const NATIVE_TOKEN_POLICY_VERSION: u8 = 1;
+
+/// Canonical quantum transfer event payload version.
+pub const NATIVE_TOKEN_QUANTUM_EVENT_VERSION: u8 = 1;
+
+/// Canonical digest size used by replay commitments and receipt digests.
+pub const NATIVE_TOKEN_COMMITMENT_SIZE: usize = 32;
+
+/// Receipt event emitted for legacy/native token transfers.
 pub const EVENT_NATIVE_TRANSFER: u16 = 0x1001;
 
 /// Receipt event emitted for native token minting.
 pub const EVENT_NATIVE_MINT: u16 = 0x1002;
+
+/// Receipt event emitted for quantum-aware native token transfers.
+///
+/// This event type is distinct from `EVENT_NATIVE_TRANSFER` because the payload
+/// carries replay-binding metadata and should remain explicitly versioned.
+pub const EVENT_NATIVE_TRANSFER_QUANTUM_V1: u16 = 0x1003;
 
 /// Error codes returned inside native token receipts.
 pub const ERROR_CODE_SUPPLY_OVERFLOW: u16 = 0x2001;
@@ -27,6 +43,9 @@ pub const ERROR_CODE_INVALID_AMOUNT: u16 = 0x2005;
 pub const ERROR_CODE_TRANSFER_LIMIT_EXCEEDED: u16 = 0x2006;
 pub const ERROR_CODE_NONCE_REGRESSION: u16 = 0x2007;
 pub const ERROR_CODE_REPLAY_DETECTED: u16 = 0x2008;
+pub const ERROR_CODE_INVALID_PROOF_TAG: u16 = 0x2009;
+pub const ERROR_CODE_PROOF_TAG_TOO_LARGE: u16 = 0x200A;
+pub const ERROR_CODE_INVALID_POLICY: u16 = 0x200B;
 
 /// Domain errors for the native token ledger.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,10 +58,51 @@ pub enum NativeTokenError {
     TransferLimitExceeded,
     NonceRegression,
     ReplayDetected,
+    InvalidProofTag,
+    ProofTagTooLarge,
+    InvalidPolicy,
 }
 
-impl std::fmt::Display for NativeTokenError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl NativeTokenError {
+    /// Returns a stable symbolic error code suitable for logs and telemetry.
+    #[must_use]
+    pub const fn code(&self) -> &'static str {
+        match self {
+            Self::SupplyOverflow => "NATIVE_TOKEN_SUPPLY_OVERFLOW",
+            Self::BalanceOverflow => "NATIVE_TOKEN_BALANCE_OVERFLOW",
+            Self::InsufficientBalance => "NATIVE_TOKEN_INSUFFICIENT_BALANCE",
+            Self::MintDisabledPolicy => "NATIVE_TOKEN_MINT_DISABLED",
+            Self::InvalidAmount => "NATIVE_TOKEN_INVALID_AMOUNT",
+            Self::TransferLimitExceeded => "NATIVE_TOKEN_TRANSFER_LIMIT_EXCEEDED",
+            Self::NonceRegression => "NATIVE_TOKEN_NONCE_REGRESSION",
+            Self::ReplayDetected => "NATIVE_TOKEN_REPLAY_DETECTED",
+            Self::InvalidProofTag => "NATIVE_TOKEN_INVALID_PROOF_TAG",
+            Self::ProofTagTooLarge => "NATIVE_TOKEN_PROOF_TAG_TOO_LARGE",
+            Self::InvalidPolicy => "NATIVE_TOKEN_INVALID_POLICY",
+        }
+    }
+
+    /// Returns the canonical receipt error code for this domain error.
+    #[must_use]
+    pub const fn receipt_error_code(&self) -> u16 {
+        match self {
+            Self::SupplyOverflow => ERROR_CODE_SUPPLY_OVERFLOW,
+            Self::BalanceOverflow => ERROR_CODE_BALANCE_OVERFLOW,
+            Self::InsufficientBalance => ERROR_CODE_INSUFFICIENT_BALANCE,
+            Self::MintDisabledPolicy => ERROR_CODE_MINT_DISABLED,
+            Self::InvalidAmount => ERROR_CODE_INVALID_AMOUNT,
+            Self::TransferLimitExceeded => ERROR_CODE_TRANSFER_LIMIT_EXCEEDED,
+            Self::NonceRegression => ERROR_CODE_NONCE_REGRESSION,
+            Self::ReplayDetected => ERROR_CODE_REPLAY_DETECTED,
+            Self::InvalidProofTag => ERROR_CODE_INVALID_PROOF_TAG,
+            Self::ProofTagTooLarge => ERROR_CODE_PROOF_TAG_TOO_LARGE,
+            Self::InvalidPolicy => ERROR_CODE_INVALID_POLICY,
+        }
+    }
+}
+
+impl fmt::Display for NativeTokenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SupplyOverflow => write!(f, "native token supply overflow"),
             Self::BalanceOverflow => write!(f, "native token balance overflow"),
@@ -54,21 +114,20 @@ impl std::fmt::Display for NativeTokenError {
                 write!(f, "native token transfer nonce is not strictly increasing")
             }
             Self::ReplayDetected => write!(f, "native token transfer replay detected"),
+            Self::InvalidProofTag => {
+                write!(f, "native token proof tag must not be empty")
+            }
+            Self::ProofTagTooLarge => {
+                write!(f, "native token proof tag exceeds policy limit")
+            }
+            Self::InvalidPolicy => {
+                write!(f, "native token policy is internally invalid")
+            }
         }
     }
 }
 
 impl std::error::Error for NativeTokenError {}
-
-/// Static metadata describing the canonical AOXC native token.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NativeTokenPolicy {
-    pub symbol: String,
-    pub decimals: u8,
-    pub supply_model: SupplyModel,
-    pub network: NativeTokenNetwork,
-    pub quantum_policy: NativeTokenQuantumPolicy,
-}
 
 /// Canonical AOXC deployment profiles for native token policy.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
@@ -81,45 +140,75 @@ pub enum NativeTokenNetwork {
 }
 
 /// Post-quantum and anti-replay transfer policy.
+///
+/// Versioning rationale:
+/// this structure is part of the public/persisted policy surface and therefore
+/// benefits from an explicit schema generation strategy.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NativeTokenQuantumPolicy {
+pub struct NativeTokenQuantumPolicyV1 {
     pub signature_suite: String,
     pub anti_replay_domain: String,
     pub max_transfer_amount: u128,
     pub max_total_supply: u128,
+    pub max_proof_tag_len: u32,
 }
 
-impl Default for NativeTokenPolicy {
+/// Static metadata describing the canonical AOXC native token.
+///
+/// Versioning rationale:
+/// this policy is a long-lived, externally meaningful configuration contract.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NativeTokenPolicyV1 {
+    pub version: u8,
+    pub symbol: String,
+    pub decimals: u8,
+    pub supply_model: SupplyModel,
+    pub network: NativeTokenNetwork,
+    pub quantum_policy: NativeTokenQuantumPolicyV1,
+}
+
+/// Backward-compatible alias for the current canonical policy schema.
+pub type NativeTokenPolicy = NativeTokenPolicyV1;
+
+/// Backward-compatible alias for the current canonical quantum policy schema.
+pub type NativeTokenQuantumPolicy = NativeTokenQuantumPolicyV1;
+
+impl Default for NativeTokenPolicyV1 {
     fn default() -> Self {
         Self::for_network(NativeTokenNetwork::Mainnet)
     }
 }
 
-impl NativeTokenPolicy {
+impl NativeTokenPolicyV1 {
+    /// Returns the canonical policy for the requested AOXC deployment profile.
     #[must_use]
     pub fn for_network(network: NativeTokenNetwork) -> Self {
         let quantum_policy = match network {
-            NativeTokenNetwork::Mainnet => NativeTokenQuantumPolicy {
+            NativeTokenNetwork::Mainnet => NativeTokenQuantumPolicyV1 {
                 signature_suite: "ML-DSA-87+Ed25519".to_string(),
                 anti_replay_domain: "AOXC/NATIVE_TOKEN/MAINNET/V1".to_string(),
                 max_transfer_amount: 10_000_000 * 10_u128.pow(18),
                 max_total_supply: 10_000_000_000 * 10_u128.pow(18),
+                max_proof_tag_len: 4096,
             },
-            NativeTokenNetwork::Testnet => NativeTokenQuantumPolicy {
+            NativeTokenNetwork::Testnet => NativeTokenQuantumPolicyV1 {
                 signature_suite: "ML-DSA-65+Ed25519".to_string(),
                 anti_replay_domain: "AOXC/NATIVE_TOKEN/TESTNET/V1".to_string(),
                 max_transfer_amount: 500_000_000 * 10_u128.pow(18),
                 max_total_supply: 100_000_000_000 * 10_u128.pow(18),
+                max_proof_tag_len: 4096,
             },
-            NativeTokenNetwork::Devnet => NativeTokenQuantumPolicy {
+            NativeTokenNetwork::Devnet => NativeTokenQuantumPolicyV1 {
                 signature_suite: "ML-DSA-44+Ed25519".to_string(),
                 anti_replay_domain: "AOXC/NATIVE_TOKEN/DEVNET/V1".to_string(),
                 max_transfer_amount: u128::MAX,
                 max_total_supply: u128::MAX,
+                max_proof_tag_len: 16_384,
             },
         };
 
         Self {
+            version: NATIVE_TOKEN_POLICY_VERSION,
             symbol: NATIVE_TOKEN_SYMBOL.to_string(),
             decimals: 18,
             supply_model: SupplyModel::GovernedEmission,
@@ -128,6 +217,7 @@ impl NativeTokenPolicy {
         }
     }
 
+    /// Returns whether the configured supply model allows minting.
     #[must_use]
     pub const fn allows_mint(&self) -> bool {
         matches!(
@@ -138,7 +228,35 @@ impl NativeTokenPolicy {
         )
     }
 
-    fn validate_amount(&self, amount: u128) -> Result<(), NativeTokenError> {
+    /// Validates the policy as a self-consistent public contract.
+    pub fn validate(&self) -> Result<(), NativeTokenError> {
+        if self.version != NATIVE_TOKEN_POLICY_VERSION {
+            return Err(NativeTokenError::InvalidPolicy);
+        }
+
+        if self.symbol.trim() != NATIVE_TOKEN_SYMBOL {
+            return Err(NativeTokenError::InvalidPolicy);
+        }
+
+        if self.decimals != 18 {
+            return Err(NativeTokenError::InvalidPolicy);
+        }
+
+        if self.quantum_policy.signature_suite.trim().is_empty()
+            || self.quantum_policy.anti_replay_domain.trim().is_empty()
+            || self.quantum_policy.max_transfer_amount == 0
+            || self.quantum_policy.max_total_supply == 0
+            || self.quantum_policy.max_transfer_amount > self.quantum_policy.max_total_supply
+            || self.quantum_policy.max_proof_tag_len == 0
+        {
+            return Err(NativeTokenError::InvalidPolicy);
+        }
+
+        Ok(())
+    }
+
+    /// Validates a transfer amount against the active token policy.
+    fn validate_transfer_amount(&self, amount: u128) -> Result<(), NativeTokenError> {
         if amount == 0 {
             return Err(NativeTokenError::InvalidAmount);
         }
@@ -149,68 +267,138 @@ impl NativeTokenPolicy {
 
         Ok(())
     }
+
+    /// Validates a mint amount against the active token policy.
+    ///
+    /// Current policy:
+    /// - non-zero amount,
+    /// - cannot exceed the transfer upper bound in order to preserve a single
+    ///   issuance safety ceiling for operator and governance flows.
+    fn validate_mint_amount(&self, amount: u128) -> Result<(), NativeTokenError> {
+        self.validate_transfer_amount(amount)
+    }
+
+    /// Validates a proof tag according to the active quantum policy.
+    fn validate_proof_tag(&self, proof_tag: &[u8]) -> Result<(), NativeTokenError> {
+        if proof_tag.is_empty() {
+            return Err(NativeTokenError::InvalidProofTag);
+        }
+
+        if proof_tag.len() > self.quantum_policy.max_proof_tag_len as usize {
+            return Err(NativeTokenError::ProofTagTooLarge);
+        }
+
+        Ok(())
+    }
+}
+
+/// Versioned digest envelope for quantum transfer anti-replay binding.
+///
+/// This structure provides a stable, explicitly versioned representation of the
+/// commitment used by the anti-replay logic and event payload surface.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NativeQuantumTransferDigestV1 {
+    pub version: u8,
+    pub digest: [u8; NATIVE_TOKEN_COMMITMENT_SIZE],
 }
 
 /// Minimal in-memory native token ledger.
+///
+/// Security notes:
+/// - this structure tracks last-seen sender nonces,
+/// - it also tracks consumed quantum commitments to harden replay detection
+///   beyond strict nonce monotonicity,
+/// - it remains intentionally minimal and in-memory, leaving durable state
+///   management to higher layers.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct NativeTokenLedger {
     pub policy: NativeTokenPolicy,
     pub total_supply: u128,
     pub balances: HashMap<[u8; 32], u128>,
     pub latest_nonce: HashMap<[u8; 32], u64>,
+    pub consumed_quantum_commitments: HashSet<[u8; NATIVE_TOKEN_COMMITMENT_SIZE]>,
 }
 
 impl NativeTokenLedger {
-    #[must_use]
+    /// Constructs a new ledger from the supplied policy.
     pub fn new(policy: NativeTokenPolicy) -> Self {
+        debug_assert!(policy.validate().is_ok());
+
         Self {
             policy,
             total_supply: 0,
             balances: HashMap::new(),
             latest_nonce: HashMap::new(),
+            consumed_quantum_commitments: HashSet::new(),
         }
     }
 
+    /// Constructs a new ledger using the canonical policy for the selected network.
     #[must_use]
     pub fn new_for_network(network: NativeTokenNetwork) -> Self {
         Self::new(NativeTokenPolicy::for_network(network))
     }
 
+    /// Returns the balance for the requested address.
     #[must_use]
     pub fn balance_of(&self, address: &[u8; 32]) -> u128 {
         self.balances.get(address).copied().unwrap_or(0)
     }
 
+    /// Returns the last accepted sender nonce, when present.
+    #[must_use]
+    pub fn latest_nonce_of(&self, address: &[u8; 32]) -> Option<u64> {
+        self.latest_nonce.get(address).copied()
+    }
+
+    /// Returns whether the supplied quantum commitment was already consumed.
+    #[must_use]
+    pub fn has_consumed_quantum_commitment(
+        &self,
+        digest: &[u8; NATIVE_TOKEN_COMMITMENT_SIZE],
+    ) -> bool {
+        self.consumed_quantum_commitments.contains(digest)
+    }
+
+    /// Mints native tokens into the supplied destination account.
     pub fn mint(&mut self, to: [u8; 32], amount: u128) -> Result<(), NativeTokenError> {
+        self.policy.validate()?;
+
         if !self.policy.allows_mint() {
             return Err(NativeTokenError::MintDisabledPolicy);
         }
-        self.policy.validate_amount(amount)?;
 
-        self.total_supply = self
+        self.policy.validate_mint_amount(amount)?;
+
+        let updated_supply = self
             .total_supply
             .checked_add(amount)
             .ok_or(NativeTokenError::SupplyOverflow)?;
 
-        if self.total_supply > self.policy.quantum_policy.max_total_supply {
+        if updated_supply > self.policy.quantum_policy.max_total_supply {
             return Err(NativeTokenError::SupplyOverflow);
         }
 
-        let balance = self.balances.entry(to).or_insert(0);
-        *balance = balance
+        let current_balance = self.balance_of(&to);
+        let updated_balance = current_balance
             .checked_add(amount)
             .ok_or(NativeTokenError::BalanceOverflow)?;
+
+        self.total_supply = updated_supply;
+        self.balances.insert(to, updated_balance);
 
         Ok(())
     }
 
+    /// Transfers native tokens between two accounts.
     pub fn transfer(
         &mut self,
         from: [u8; 32],
         to: [u8; 32],
         amount: u128,
     ) -> Result<(), NativeTokenError> {
-        self.policy.validate_amount(amount)?;
+        self.policy.validate()?;
+        self.policy.validate_transfer_amount(amount)?;
 
         let current_from_balance = self.balance_of(&from);
         if current_from_balance < amount {
@@ -233,8 +421,13 @@ impl NativeTokenLedger {
         Ok(())
     }
 
-    /// Transfer with nonce and proof tag, designed for anti-replay
-    /// and future post-quantum signature attestation integration.
+    /// Executes a replay-hardened transfer with explicit quantum-proof binding.
+    ///
+    /// Replay protection currently includes:
+    /// - strict sender nonce monotonicity,
+    /// - non-empty proof tag validation,
+    /// - proof-tag size enforcement,
+    /// - full commitment digest tracking under the configured replay domain.
     pub fn transfer_quantum(
         &mut self,
         from: [u8; 32],
@@ -243,9 +436,8 @@ impl NativeTokenLedger {
         nonce: u64,
         proof_tag: &[u8],
     ) -> Result<(), NativeTokenError> {
-        if proof_tag.is_empty() {
-            return Err(NativeTokenError::ReplayDetected);
-        }
+        self.policy.validate()?;
+        self.policy.validate_proof_tag(proof_tag)?;
 
         match self.latest_nonce.get(&from).copied() {
             Some(last_nonce) if nonce < last_nonce => {
@@ -257,11 +449,47 @@ impl NativeTokenLedger {
             _ => {}
         }
 
+        let commitment = self.quantum_transfer_digest(from, to, amount, nonce, proof_tag);
+
+        if self
+            .consumed_quantum_commitments
+            .contains(&commitment.digest)
+        {
+            return Err(NativeTokenError::ReplayDetected);
+        }
+
         self.transfer(from, to, amount)?;
+
         self.latest_nonce.insert(from, nonce);
+        self.consumed_quantum_commitments.insert(commitment.digest);
+
         Ok(())
     }
 
+    /// Computes the canonical quantum transfer digest under the active policy domain.
+    #[must_use]
+    pub fn quantum_transfer_digest(
+        &self,
+        from: [u8; 32],
+        to: [u8; 32],
+        amount: u128,
+        nonce: u64,
+        proof_tag: &[u8],
+    ) -> NativeQuantumTransferDigestV1 {
+        NativeQuantumTransferDigestV1 {
+            version: NATIVE_TOKEN_QUANTUM_EVENT_VERSION,
+            digest: compute_quantum_transfer_digest(
+                &self.policy.quantum_policy.anti_replay_domain,
+                from,
+                to,
+                amount,
+                nonce,
+                proof_tag,
+            ),
+        }
+    }
+
+    /// Builds a receipt for a successful mint operation.
     #[must_use]
     pub fn mint_receipt(&self, tx_hash: [u8; HASH_SIZE], to: [u8; 32], amount: u128) -> Receipt {
         let mut receipt = Receipt::success(tx_hash, 0);
@@ -272,6 +500,7 @@ impl NativeTokenLedger {
         receipt
     }
 
+    /// Builds a receipt for a successful classic/native transfer operation.
     #[must_use]
     pub fn transfer_receipt(
         &self,
@@ -288,21 +517,13 @@ impl NativeTokenLedger {
         receipt
     }
 
+    /// Builds a receipt for a failed native token operation.
     #[must_use]
     pub fn error_receipt(&self, tx_hash: [u8; HASH_SIZE], error: NativeTokenError) -> Receipt {
-        let error_code = match error {
-            NativeTokenError::SupplyOverflow => ERROR_CODE_SUPPLY_OVERFLOW,
-            NativeTokenError::BalanceOverflow => ERROR_CODE_BALANCE_OVERFLOW,
-            NativeTokenError::InsufficientBalance => ERROR_CODE_INSUFFICIENT_BALANCE,
-            NativeTokenError::MintDisabledPolicy => ERROR_CODE_MINT_DISABLED,
-            NativeTokenError::InvalidAmount => ERROR_CODE_INVALID_AMOUNT,
-            NativeTokenError::TransferLimitExceeded => ERROR_CODE_TRANSFER_LIMIT_EXCEEDED,
-            NativeTokenError::NonceRegression => ERROR_CODE_NONCE_REGRESSION,
-            NativeTokenError::ReplayDetected => ERROR_CODE_REPLAY_DETECTED,
-        };
-        Receipt::failure(tx_hash, 0, error_code)
+        Receipt::failure(tx_hash, 0, error.receipt_error_code())
     }
 
+    /// Builds a receipt for a successful replay-hardened quantum transfer.
     #[must_use]
     pub fn transfer_quantum_receipt(
         &self,
@@ -315,8 +536,8 @@ impl NativeTokenLedger {
     ) -> Receipt {
         let mut receipt = Receipt::success(tx_hash, 0);
         receipt.push_event(Event {
-            event_type: EVENT_NATIVE_TRANSFER,
-            data: encode_quantum_transfer_event(
+            event_type: EVENT_NATIVE_TRANSFER_QUANTUM_V1,
+            data: encode_quantum_transfer_event_v1(
                 &self.policy.quantum_policy.anti_replay_domain,
                 from,
                 to,
@@ -329,6 +550,12 @@ impl NativeTokenLedger {
     }
 }
 
+/// Encodes a classic transfer-like event payload.
+///
+/// Layout:
+/// - from: 32 bytes
+/// - to: 32 bytes
+/// - amount: 16 bytes LE
 #[must_use]
 pub fn encode_transfer_like_event(from: [u8; 32], to: [u8; 32], amount: u128) -> Vec<u8> {
     let mut payload = Vec::with_capacity(80);
@@ -338,6 +565,39 @@ pub fn encode_transfer_like_event(from: [u8; 32], to: [u8; 32], amount: u128) ->
     payload
 }
 
+/// Encodes a versioned quantum transfer event payload.
+///
+/// Layout:
+/// - version: 1 byte
+/// - from: 32 bytes
+/// - to: 32 bytes
+/// - amount: 16 bytes LE
+/// - nonce: 8 bytes LE
+/// - digest: 32 bytes
+#[must_use]
+pub fn encode_quantum_transfer_event_v1(
+    domain: &str,
+    from: [u8; 32],
+    to: [u8; 32],
+    amount: u128,
+    nonce: u64,
+    proof_tag: &[u8],
+) -> Vec<u8> {
+    let digest = compute_quantum_transfer_digest(domain, from, to, amount, nonce, proof_tag);
+
+    let mut payload = Vec::with_capacity(89);
+    payload.push(NATIVE_TOKEN_QUANTUM_EVENT_VERSION);
+    payload.extend_from_slice(&from);
+    payload.extend_from_slice(&to);
+    payload.extend_from_slice(&amount.to_le_bytes());
+    payload.extend_from_slice(&nonce.to_le_bytes());
+    payload.extend_from_slice(&digest);
+    payload
+}
+
+/// Backward-compatible alias for callers still using the previous helper name.
+///
+/// The new implementation now emits the versioned V1 quantum event layout.
 #[must_use]
 pub fn encode_quantum_transfer_event(
     domain: &str,
@@ -347,23 +607,37 @@ pub fn encode_quantum_transfer_event(
     nonce: u64,
     proof_tag: &[u8],
 ) -> Vec<u8> {
+    encode_quantum_transfer_event_v1(domain, from, to, amount, nonce, proof_tag)
+}
+
+/// Computes the canonical replay-binding digest for a quantum transfer.
+#[must_use]
+pub fn compute_quantum_transfer_digest(
+    domain: &str,
+    from: [u8; 32],
+    to: [u8; 32],
+    amount: u128,
+    nonce: u64,
+    proof_tag: &[u8],
+) -> [u8; NATIVE_TOKEN_COMMITMENT_SIZE] {
     let mut hasher = Sha3_256::new();
     hasher.update(domain.as_bytes());
     hasher.update([0x00]);
     hasher.update(from);
+    hasher.update([0x00]);
     hasher.update(to);
+    hasher.update([0x00]);
     hasher.update(amount.to_le_bytes());
+    hasher.update([0x00]);
     hasher.update(nonce.to_le_bytes());
+    hasher.update([0x00]);
     hasher.update(proof_tag);
+
     let digest = hasher.finalize();
 
-    let mut payload = Vec::with_capacity(120);
-    payload.extend_from_slice(&from);
-    payload.extend_from_slice(&to);
-    payload.extend_from_slice(&amount.to_le_bytes());
-    payload.extend_from_slice(&nonce.to_le_bytes());
-    payload.extend_from_slice(&digest);
-    payload
+    let mut out = [0u8; NATIVE_TOKEN_COMMITMENT_SIZE];
+    out.copy_from_slice(&digest[..NATIVE_TOKEN_COMMITMENT_SIZE]);
+    out
 }
 
 #[cfg(test)]
@@ -372,6 +646,19 @@ mod tests {
 
     fn addr(byte: u8) -> [u8; 32] {
         [byte; 32]
+    }
+
+    #[test]
+    fn policy_profiles_validate_successfully() {
+        assert!(NativeTokenPolicy::for_network(NativeTokenNetwork::Mainnet)
+            .validate()
+            .is_ok());
+        assert!(NativeTokenPolicy::for_network(NativeTokenNetwork::Testnet)
+            .validate()
+            .is_ok());
+        assert!(NativeTokenPolicy::for_network(NativeTokenNetwork::Devnet)
+            .validate()
+            .is_ok());
     }
 
     #[test]
@@ -437,7 +724,7 @@ mod tests {
     }
 
     #[test]
-    fn network_profiles_are_mainnet_testnet_devnet_compatible() {
+    fn network_profiles_are_distinct_and_quantum_domains_do_not_overlap() {
         let mainnet = NativeTokenPolicy::for_network(NativeTokenNetwork::Mainnet);
         let testnet = NativeTokenPolicy::for_network(NativeTokenNetwork::Testnet);
         let devnet = NativeTokenPolicy::for_network(NativeTokenNetwork::Devnet);
@@ -456,6 +743,18 @@ mod tests {
     }
 
     #[test]
+    fn quantum_transfer_rejects_empty_proof_tag() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet);
+        ledger.mint(addr(1), 1_000).unwrap();
+
+        let error = ledger
+            .transfer_quantum(addr(1), addr(2), 100, 1, b"")
+            .unwrap_err();
+
+        assert_eq!(error, NativeTokenError::InvalidProofTag);
+    }
+
+    #[test]
     fn quantum_transfer_rejects_replay_and_nonce_regression() {
         let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet);
         ledger.mint(addr(1), 1_000).unwrap();
@@ -470,14 +769,44 @@ mod tests {
         assert_eq!(replay_err, NativeTokenError::ReplayDetected);
 
         let regression_err = ledger
-            .transfer_quantum(addr(1), addr(2), 100, 0, b"sig-proof")
+            .transfer_quantum(addr(1), addr(2), 100, 0, b"other-proof")
             .unwrap_err();
         assert_eq!(regression_err, NativeTokenError::NonceRegression);
     }
 
     #[test]
+    fn quantum_transfer_rejects_duplicate_commitment_even_if_nonce_path_is_bypassed() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet);
+        ledger.mint(addr(1), 1_000).unwrap();
+
+        let digest = ledger.quantum_transfer_digest(addr(1), addr(2), 100, 9, b"proof");
+        ledger.consumed_quantum_commitments.insert(digest.digest);
+
+        let error = ledger
+            .transfer_quantum(addr(1), addr(2), 100, 9, b"proof")
+            .unwrap_err();
+
+        assert_eq!(error, NativeTokenError::ReplayDetected);
+    }
+
+    #[test]
+    fn quantum_transfer_updates_nonce_and_commitment_store() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet);
+        ledger.mint(addr(1), 500).unwrap();
+
+        let digest = ledger.quantum_transfer_digest(addr(1), addr(2), 50, 3, b"proof");
+
+        ledger
+            .transfer_quantum(addr(1), addr(2), 50, 3, b"proof")
+            .unwrap();
+
+        assert_eq!(ledger.latest_nonce_of(&addr(1)), Some(3));
+        assert!(ledger.has_consumed_quantum_commitment(&digest.digest));
+    }
+
+    #[test]
     fn quantum_transfer_event_encoding_contains_expected_layout() {
-        let payload = encode_quantum_transfer_event(
+        let payload = encode_quantum_transfer_event_v1(
             "AOXC/NATIVE_TOKEN/TESTNET/V1",
             addr(1),
             addr(2),
@@ -486,6 +815,29 @@ mod tests {
             b"proof",
         );
 
-        assert_eq!(payload.len(), 120);
+        assert_eq!(payload[0], NATIVE_TOKEN_QUANTUM_EVENT_VERSION);
+        assert_eq!(payload.len(), 89);
+    }
+
+    #[test]
+    fn computed_quantum_transfer_digest_is_deterministic() {
+        let a = compute_quantum_transfer_digest(
+            "AOXC/NATIVE_TOKEN/MAINNET/V1",
+            addr(1),
+            addr(2),
+            10,
+            7,
+            b"proof",
+        );
+        let b = compute_quantum_transfer_digest(
+            "AOXC/NATIVE_TOKEN/MAINNET/V1",
+            addr(1),
+            addr(2),
+            10,
+            7,
+            b"proof",
+        );
+
+        assert_eq!(a, b);
     }
 }

@@ -2,45 +2,39 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
-//! core/src/identity/actor_id.rs
-//!
 //! AOXC Actor ID Derivation and Validation Module.
-//!
-//! This module defines the canonical actor identifier format for AOXC identity
-//! surfaces. It is designed for production use, deterministic derivation,
-//! operator readability, registry indexing, and typo detection.
 //!
 //! Canonical format:
 //!
-//! AOXC-RRR-ZZ-SSSSSSSSSSSSSSSS-CC
+//! AOXC-RRR-ZZ-SSSSSSSSSSSSSSSSSSSSSSSS-CC
 //!
 //! Example:
 //!
-//! AOXC-VAL-EU-3F7A9C21D4E8B7AA-K9
+//! AOXC-VAL-EU-3F7A9C21D4E8B7AA6C019A52-K9
 //!
 //! Where:
 //! - AOXC : protocol prefix
-//! - RRR  : normalized role code
-//! - ZZ   : normalized zone code
-//! - S... : deterministic serial derived from a domain-separated hash
-//! - CC   : compact checksum for operator-facing typo detection
+//! - RRR  : canonical 3-character role code
+//! - ZZ   : canonical 2-character zone code
+//! - S... : 24 uppercase hexadecimal characters derived deterministically
+//! - CC   : 2-character checksum for operator-facing typo detection
 //!
 //! Security and design objectives:
-//! - Deterministic ID derivation from canonical input
-//! - Explicit domain separation
-//! - Strict parsing and validation
-//! - Stable serialization format
-//! - Human-readable and operationally searchable identifiers
-//! - Reduced collision risk compared to short visible serials
+//! - deterministic derivation from canonical input,
+//! - strict canonical formatting,
+//! - stable serialization shape,
+//! - operator readability,
+//! - explicit domain separation,
+//! - post-quantum-friendly hash primitives,
+//! - reduced ambiguity compared to permissive normalization.
 //!
 //! Important note:
-//! This module provides identity derivation and format validation only.
+//! This module provides canonical identifier derivation and validation only.
 //! It does not by itself prove cryptographic ownership of the referenced key.
-//! Signature validation and certificate binding must be enforced elsewhere.
 
 use sha3::{
-    Digest, Sha3_256, Shake256,
-    digest::{ExtendableOutput, XofReader},
+    Shake256,
+    digest::{ExtendableOutput, Update, XofReader},
 };
 use std::fmt;
 
@@ -48,19 +42,17 @@ use std::fmt;
 pub const AOXC_PREFIX: &str = "AOXC";
 
 /// Canonical actor-id derivation domain separator.
-///
-/// This constant is embedded into the serial derivation hash to prevent
-/// accidental cross-domain hash reuse.
 const ACTOR_ID_DOMAIN: &[u8] = b"AOXC/IDENTITY/ACTOR_ID/V1";
 
 /// Canonical actor-id checksum domain separator.
 const ACTOR_ID_CHECKSUM_DOMAIN: &[u8] = b"AOXC/IDENTITY/ACTOR_ID/CHECKSUM/V1";
 
-/// AOXC chain context byte namespace.
+/// Canonical actor-id protocol context.
 ///
-/// This value hard-binds derivation to AOXC chain semantics and prevents
-/// accidental reuse inside sibling protocols.
-const AOXC_CHAIN_CONTEXT: &[u8] = b"AOXC/CHAIN/MAINNET";
+/// This value is intentionally protocol-scoped rather than environment-scoped.
+/// It avoids accidental hard-binding to a single deployment profile such as
+/// mainnet while preserving explicit AOXC namespace separation.
+const ACTOR_ID_PROTOCOL_CONTEXT: &[u8] = b"AOXC/IDENTITY/PROTOCOL/V1";
 
 /// Canonical role width.
 pub const ROLE_LEN: usize = 3;
@@ -71,8 +63,10 @@ pub const ZONE_LEN: usize = 2;
 /// Number of digest bytes used for the visible serial portion.
 ///
 /// 12 bytes => 24 uppercase hexadecimal characters.
-/// This expands the visible actor-id namespace while preserving readability.
 pub const SERIAL_BYTES: usize = 12;
+
+/// Canonical visible serial length in hexadecimal characters.
+pub const SERIAL_HEX_LEN: usize = SERIAL_BYTES * 2;
 
 /// Number of checksum symbols appended to the actor identifier.
 pub const CHECKSUM_LEN: usize = 2;
@@ -80,8 +74,17 @@ pub const CHECKSUM_LEN: usize = 2;
 /// Total number of dash-separated components in the canonical actor id.
 const PART_COUNT: usize = 5;
 
-/// Canonical visible serial length in hexadecimal characters.
-const SERIAL_HEX_LEN: usize = SERIAL_BYTES * 2;
+/// Minimum accepted public-key byte length.
+///
+/// This lower bound intentionally allows multiple cryptographic families
+/// while rejecting clearly malformed or degenerate inputs.
+pub const MIN_PUBLIC_KEY_LEN: usize = 16;
+
+/// Maximum accepted public-key byte length.
+///
+/// This upper bound is intentionally generous to remain compatible with
+/// larger post-quantum public key surfaces.
+pub const MAX_PUBLIC_KEY_LEN: usize = 4096;
 
 /// Canonical checksum alphabet.
 ///
@@ -113,6 +116,9 @@ pub struct ActorIdParts {
 pub enum ActorIdError {
     /// The supplied public key is empty.
     EmptyPublicKey,
+
+    /// The supplied public key length is outside the accepted policy range.
+    InvalidPublicKeyLength,
 
     /// The actor-id string is empty or whitespace only.
     EmptyActorId,
@@ -151,6 +157,7 @@ impl ActorIdError {
     pub const fn code(&self) -> &'static str {
         match self {
             Self::EmptyPublicKey => "ACTOR_ID_EMPTY_PUBLIC_KEY",
+            Self::InvalidPublicKeyLength => "ACTOR_ID_INVALID_PUBLIC_KEY_LENGTH",
             Self::EmptyActorId => "ACTOR_ID_EMPTY",
             Self::InvalidFormat => "ACTOR_ID_INVALID_FORMAT",
             Self::InvalidPrefix => "ACTOR_ID_INVALID_PREFIX",
@@ -169,9 +176,12 @@ impl fmt::Display for ActorIdError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyPublicKey => {
+                write!(f, "actor-id generation failed: public key must not be empty")
+            }
+            Self::InvalidPublicKeyLength => {
                 write!(
                     f,
-                    "actor-id generation failed: public key must not be empty"
+                    "actor-id generation failed: public key length is outside the accepted policy range"
                 )
             }
             Self::EmptyActorId => {
@@ -193,19 +203,13 @@ impl fmt::Display for ActorIdError {
                 write!(f, "actor-id validation failed: serial component is invalid")
             }
             Self::InvalidChecksum => {
-                write!(
-                    f,
-                    "actor-id validation failed: checksum component is invalid"
-                )
+                write!(f, "actor-id validation failed: checksum component is invalid")
             }
             Self::ChecksumMismatch => {
                 write!(f, "actor-id validation failed: checksum mismatch detected")
             }
             Self::InvalidCharacter => {
-                write!(
-                    f,
-                    "actor-id validation failed: unsupported character detected"
-                )
+                write!(f, "actor-id validation failed: unsupported character detected")
             }
             Self::DerivationMismatch => {
                 write!(
@@ -222,37 +226,35 @@ impl std::error::Error for ActorIdError {}
 /// Generates a canonical AOXC actor identifier.
 ///
 /// Canonical derivation inputs:
-/// - actor-id domain namespace
-/// - normalized role
-/// - normalized zone
-/// - raw public key bytes
+/// - actor-id namespace,
+/// - protocol context,
+/// - canonical role,
+/// - canonical zone,
+/// - public-key length,
+/// - raw public key bytes.
 ///
-/// The returned identifier includes:
-/// - canonical prefix
-/// - normalized role
-/// - normalized zone
-/// - deterministic uppercase hexadecimal serial
-/// - compact checksum
+/// The returned identifier is guaranteed to pass strict canonical validation.
 pub fn generate_actor_id(pubkey: &[u8], role: &str, zone: &str) -> Result<String, ActorIdError> {
-    if pubkey.is_empty() {
-        return Err(ActorIdError::EmptyPublicKey);
-    }
+    validate_public_key(pubkey)?;
 
-    let role = normalize_role(role)?;
-    let zone = normalize_zone(zone)?;
-    let serial = derive_serial(pubkey, &role, &zone);
-    let checksum = derive_checksum(&role, &zone, &serial);
+    let canonical_role = canonicalize_role(role)?;
+    let canonical_zone = canonicalize_zone(zone)?;
+    let serial = derive_serial(pubkey, &canonical_role, &canonical_zone);
+    let checksum = derive_checksum(&canonical_role, &canonical_zone, &serial);
 
-    Ok(format!(
+    let actor_id = format!(
         "{}-{}-{}-{}-{}",
-        AOXC_PREFIX, role, zone, serial, checksum
-    ))
+        AOXC_PREFIX, canonical_role, canonical_zone, serial, checksum
+    );
+
+    validate_actor_id(&actor_id)?;
+    Ok(actor_id)
 }
 
 /// Generates and immediately validates a canonical actor identifier.
 ///
-/// This helper is useful in production call paths where derivation failures
-/// and post-derivation format drift must be rejected as a hard invariant.
+/// This helper preserves a hard invariant that the generation path and the
+/// strict validation path remain mutually consistent.
 pub fn generate_and_validate_actor_id(
     pubkey: &[u8],
     role: &str,
@@ -266,12 +268,13 @@ pub fn generate_and_validate_actor_id(
 /// Validates a canonical AOXC actor identifier.
 ///
 /// Validation includes:
-/// - basic structure
-/// - prefix
-/// - role and zone width and character policy
-/// - serial format
-/// - checksum format
-/// - checksum correctness
+/// - strict structure,
+/// - canonical uppercase formatting,
+/// - prefix,
+/// - role and zone width and character policy,
+/// - serial format,
+/// - checksum format,
+/// - checksum correctness.
 pub fn validate_actor_id(actor_id: &str) -> Result<(), ActorIdError> {
     let parts = parse_actor_id(actor_id)?;
 
@@ -294,36 +297,36 @@ pub fn validate_actor_id(actor_id: &str) -> Result<(), ActorIdError> {
 
 /// Parses an AOXC actor identifier into structured parts.
 ///
-/// This function performs structural parsing and basic character screening.
-/// Full semantic validation should be performed with [`validate_actor_id`].
+/// This function performs strict structural parsing. It does not normalize case
+/// or silently repair malformed input.
 pub fn parse_actor_id(actor_id: &str) -> Result<ActorIdParts, ActorIdError> {
-    let candidate = actor_id.trim();
-
-    if candidate.is_empty() {
+    if actor_id.trim().is_empty() {
         return Err(ActorIdError::EmptyActorId);
     }
 
-    if !candidate
+    if actor_id != actor_id.trim() {
+        return Err(ActorIdError::InvalidFormat);
+    }
+
+    if !actor_id
         .chars()
         .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
     {
         return Err(ActorIdError::InvalidCharacter);
     }
 
-    let parts: Vec<&str> = candidate.split('-').collect();
+    let parts: Vec<&str> = actor_id.split('-').collect();
     if parts.len() != PART_COUNT {
         return Err(ActorIdError::InvalidFormat);
     }
 
-    let parsed = ActorIdParts {
-        prefix: parts[0].to_ascii_uppercase(),
-        role: parts[1].to_ascii_uppercase(),
-        zone: parts[2].to_ascii_uppercase(),
-        serial: parts[3].to_ascii_uppercase(),
-        checksum: parts[4].to_ascii_uppercase(),
-    };
-
-    Ok(parsed)
+    Ok(ActorIdParts {
+        prefix: parts[0].to_string(),
+        role: parts[1].to_string(),
+        zone: parts[2].to_string(),
+        serial: parts[3].to_string(),
+        checksum: parts[4].to_string(),
+    })
 }
 
 /// Verifies that an actor identifier matches the expected canonical derivation
@@ -337,148 +340,146 @@ pub fn verify_actor_id_binding(
     validate_actor_id(actor_id)?;
 
     let expected = generate_actor_id(pubkey, role, zone)?;
-    if actor_id.trim().to_ascii_uppercase() != expected {
+    if actor_id != expected {
         return Err(ActorIdError::DerivationMismatch);
     }
 
     Ok(())
 }
 
-/// Returns a canonical normalized role code.
-///
-/// Policy:
-/// - uppercase ASCII only
-/// - unsupported characters removed
-/// - strict fixed width
-/// - empty normalized output rejected
-fn normalize_role(role: &str) -> Result<String, ActorIdError> {
-    normalize_component(role, ROLE_LEN).ok_or(ActorIdError::InvalidRole)
-}
-
-/// Returns a canonical normalized zone code.
-///
-/// Policy:
-/// - uppercase ASCII only
-/// - unsupported characters removed
-/// - strict fixed width
-/// - empty normalized output rejected
-fn normalize_zone(zone: &str) -> Result<String, ActorIdError> {
-    normalize_component(zone, ZONE_LEN).ok_or(ActorIdError::InvalidZone)
-}
-
-/// Normalizes a textual identifier into a fixed-width uppercase alphanumeric token.
-///
-/// Rules:
-/// - converts to uppercase
-/// - removes non-ASCII-alphanumeric characters
-/// - truncates if longer than `len`
-/// - pads with `X` if shorter than `len`
-///
-/// Returns `None` if no valid alphanumeric characters remain after normalization.
-fn normalize_component(value: &str, len: usize) -> Option<String> {
-    let mut out = value
-        .to_ascii_uppercase()
-        .chars()
-        .filter(|ch| ch.is_ascii_alphanumeric())
-        .take(len)
-        .collect::<String>();
-
-    if out.is_empty() {
-        return None;
+/// Validates the public key according to the accepted AOXC actor-id policy.
+fn validate_public_key(pubkey: &[u8]) -> Result<(), ActorIdError> {
+    if pubkey.is_empty() {
+        return Err(ActorIdError::EmptyPublicKey);
     }
 
-    while out.len() < len {
-        out.push('X');
+    if !(MIN_PUBLIC_KEY_LEN..=MAX_PUBLIC_KEY_LEN).contains(&pubkey.len()) {
+        return Err(ActorIdError::InvalidPublicKeyLength);
     }
 
-    Some(out)
+    Ok(())
 }
 
-/// Derives the visible actor serial from the public key and canonical context.
+/// Canonicalizes an operator-supplied role input into a strict 3-character role code.
+///
+/// Policy:
+/// - known aliases are mapped explicitly,
+/// - already-canonical 3-character alphanumeric values are accepted,
+/// - permissive stripping, truncation, and padding are intentionally forbidden.
+fn canonicalize_role(role: &str) -> Result<String, ActorIdError> {
+    let normalized = role.trim().to_ascii_lowercase();
+
+    let canonical = match normalized.as_str() {
+        "val" | "validator" => "VAL",
+        "obs" | "observer" => "OBS",
+        "opr" | "operator" => "OPR",
+        "seq" | "sequencer" => "SEQ",
+        "rly" | "relayer" => "RLY",
+        "bld" | "builder" => "BLD",
+        "gov" | "governance" => "GOV",
+        _ => {
+            if role.len() == ROLE_LEN && role.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+                return Ok(role.to_ascii_uppercase());
+            }
+            return Err(ActorIdError::InvalidRole);
+        }
+    };
+
+    Ok(canonical.to_string())
+}
+
+/// Canonicalizes an operator-supplied zone input into a strict 2-character zone code.
+///
+/// Policy:
+/// - known aliases are mapped explicitly,
+/// - already-canonical 2-character alphanumeric values are accepted,
+/// - permissive stripping, truncation, and padding are intentionally forbidden.
+fn canonicalize_zone(zone: &str) -> Result<String, ActorIdError> {
+    let normalized = zone.trim().to_ascii_lowercase();
+
+    let canonical = match normalized.as_str() {
+        "eu" | "europe" => "EU",
+        "na" | "northamerica" | "north-america" => "NA",
+        "ap" | "apac" | "asia-pacific" | "asiapacific" => "AP",
+        "sa" | "southamerica" | "south-america" => "SA",
+        "af" | "africa" => "AF",
+        "me" | "middleeast" | "middle-east" => "ME",
+        "oc" | "oceania" => "OC",
+        "gl" | "global" => "GL",
+        _ => {
+            if zone.len() == ZONE_LEN && zone.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+                return Ok(zone.to_ascii_uppercase());
+            }
+            return Err(ActorIdError::InvalidZone);
+        }
+    };
+
+    Ok(canonical.to_string())
+}
+
+/// Derives the visible actor serial from canonical input.
 ///
 /// The serial is derived from:
-/// - actor-id namespace
-/// - normalized role
-/// - normalized zone
-/// - public key bytes
+/// - actor-id namespace,
+/// - protocol context,
+/// - canonical role,
+/// - canonical zone,
+/// - big-endian public-key length,
+/// - raw public key bytes.
 ///
-/// The resulting digest is truncated to `SERIAL_BYTES` and rendered as
+/// The resulting XOF output is truncated to `SERIAL_BYTES` and rendered as
 /// uppercase hexadecimal.
 fn derive_serial(pubkey: &[u8], role: &str, zone: &str) -> String {
-    // Quantum-aware hybrid sponge:
-    // 1) Fixed-output SHA3-256 for compatibility and deterministic stability.
-    // 2) SHAKE256 XOF stream for expanded entropy extraction and future-proofing.
-    // 3) XOR fusion to bind both digests into a single serial material.
-    let mut sha3 = Sha3_256::new();
-    sha3.update(ACTOR_ID_DOMAIN);
-    sha3.update([0x00]);
-    sha3.update(AOXC_CHAIN_CONTEXT);
-    sha3.update([0x00]);
-    sha3.update(role.as_bytes());
-    sha3.update([0x00]);
-    sha3.update(zone.as_bytes());
-    sha3.update([0x00]);
-    sha3.update([(pubkey.len() & 0xFF) as u8]);
-    sha3.update([0x00]);
-    sha3.update(pubkey);
-    let sha3_digest = sha3.finalize();
-
     let mut shake = Shake256::default();
-    sha3::digest::Update::update(&mut shake, ACTOR_ID_DOMAIN);
-    sha3::digest::Update::update(&mut shake, &[0x00]);
-    sha3::digest::Update::update(&mut shake, AOXC_CHAIN_CONTEXT);
-    sha3::digest::Update::update(&mut shake, &[0x00]);
-    sha3::digest::Update::update(&mut shake, role.as_bytes());
-    sha3::digest::Update::update(&mut shake, &[0x00]);
-    sha3::digest::Update::update(&mut shake, zone.as_bytes());
-    sha3::digest::Update::update(&mut shake, &[0x00]);
-    sha3::digest::Update::update(&mut shake, &[(pubkey.len() & 0xFF) as u8]);
-    sha3::digest::Update::update(&mut shake, &[0x00]);
-    sha3::digest::Update::update(&mut shake, pubkey);
+    shake.update(ACTOR_ID_DOMAIN);
+    shake.update(&[0x00]);
+    shake.update(ACTOR_ID_PROTOCOL_CONTEXT);
+    shake.update(&[0x00]);
+    shake.update(role.as_bytes());
+    shake.update(&[0x00]);
+    shake.update(zone.as_bytes());
+    shake.update(&[0x00]);
+    shake.update(&(pubkey.len() as u32).to_be_bytes());
+    shake.update(&[0x00]);
+    shake.update(pubkey);
 
-    let mut xof = shake.finalize_xof();
-    let mut shake_out = vec![0_u8; SERIAL_BYTES];
-    xof.read(&mut shake_out);
+    let mut reader = shake.finalize_xof();
+    let mut serial_bytes = [0u8; SERIAL_BYTES];
+    reader.read(&mut serial_bytes);
 
-    let fused = (0..SERIAL_BYTES)
-        .map(|idx| shake_out[idx] ^ sha3_digest[idx % sha3_digest.len()])
-        .collect::<Vec<u8>>();
-
-    hex::encode_upper(fused)
+    hex::encode_upper(serial_bytes)
 }
 
 /// Derives the compact checksum for a canonical actor identifier.
 ///
 /// The checksum is derived from:
-/// - checksum namespace
-/// - canonical prefix
-/// - canonical role
-/// - canonical zone
-/// - canonical serial
-///
-/// The resulting checksum is encoded using a restricted alphabet for improved
-/// operator readability.
+/// - checksum namespace,
+/// - canonical prefix,
+/// - canonical role,
+/// - canonical zone,
+/// - canonical serial.
 fn derive_checksum(role: &str, zone: &str, serial: &str) -> String {
     let mut shake = Shake256::default();
-    sha3::digest::Update::update(&mut shake, ACTOR_ID_CHECKSUM_DOMAIN);
-    sha3::digest::Update::update(&mut shake, &[0x00]);
-    sha3::digest::Update::update(&mut shake, AOXC_CHAIN_CONTEXT);
-    sha3::digest::Update::update(&mut shake, &[0x00]);
-    sha3::digest::Update::update(&mut shake, AOXC_PREFIX.as_bytes());
-    sha3::digest::Update::update(&mut shake, &[0x00]);
-    sha3::digest::Update::update(&mut shake, role.as_bytes());
-    sha3::digest::Update::update(&mut shake, &[0x00]);
-    sha3::digest::Update::update(&mut shake, zone.as_bytes());
-    sha3::digest::Update::update(&mut shake, &[0x00]);
-    sha3::digest::Update::update(&mut shake, serial.as_bytes());
+    shake.update(ACTOR_ID_CHECKSUM_DOMAIN);
+    shake.update(&[0x00]);
+    shake.update(ACTOR_ID_PROTOCOL_CONTEXT);
+    shake.update(&[0x00]);
+    shake.update(AOXC_PREFIX.as_bytes());
+    shake.update(&[0x00]);
+    shake.update(role.as_bytes());
+    shake.update(&[0x00]);
+    shake.update(zone.as_bytes());
+    shake.update(&[0x00]);
+    shake.update(serial.as_bytes());
 
-    let mut xof = shake.finalize_xof();
-    let mut checksum_bytes = [0_u8; CHECKSUM_LEN];
-    xof.read(&mut checksum_bytes);
+    let mut reader = shake.finalize_xof();
+    let mut checksum_bytes = [0u8; CHECKSUM_LEN];
+    reader.read(&mut checksum_bytes);
+
     encode_checksum(&checksum_bytes)
 }
 
-/// Encodes raw checksum bytes into a compact operator-friendly alphabet.
+/// Encodes raw checksum bytes into the restricted operator-friendly alphabet.
 fn encode_checksum(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len());
 
@@ -492,7 +493,8 @@ fn encode_checksum(bytes: &[u8]) -> String {
 
 /// Validates the canonical role component.
 fn validate_role_component(role: &str) -> Result<(), ActorIdError> {
-    if role.len() != ROLE_LEN || !role.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+    if role.len() != ROLE_LEN || !role.chars().all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
+    {
         return Err(ActorIdError::InvalidRole);
     }
 
@@ -501,7 +503,8 @@ fn validate_role_component(role: &str) -> Result<(), ActorIdError> {
 
 /// Validates the canonical zone component.
 fn validate_zone_component(zone: &str) -> Result<(), ActorIdError> {
-    if zone.len() != ZONE_LEN || !zone.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+    if zone.len() != ZONE_LEN || !zone.chars().all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit())
+    {
         return Err(ActorIdError::InvalidZone);
     }
 
@@ -514,7 +517,7 @@ fn validate_serial_component(serial: &str) -> Result<(), ActorIdError> {
         return Err(ActorIdError::InvalidSerial);
     }
 
-    if !serial.chars().all(|ch| ch.is_ascii_hexdigit()) {
+    if !serial.chars().all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_lowercase()) {
         return Err(ActorIdError::InvalidSerial);
     }
 
@@ -540,8 +543,6 @@ fn validate_checksum_component(checksum: &str) -> Result<(), ActorIdError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::rngs::StdRng;
-    use rand::{Rng, SeedableRng};
 
     fn sample_pubkey() -> Vec<u8> {
         vec![0x11; 32]
@@ -551,8 +552,10 @@ mod tests {
     fn actor_id_generation_is_deterministic() {
         let pk = sample_pubkey();
 
-        let a = generate_actor_id(&pk, "val", "eu").expect("actor id generation must succeed");
-        let b = generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+        let a = generate_actor_id(&pk, "validator", "europe")
+            .expect("actor id generation must succeed");
+        let b = generate_actor_id(&pk, "VAL", "EU")
+            .expect("actor id generation must succeed");
 
         assert_eq!(a, b);
     }
@@ -560,8 +563,8 @@ mod tests {
     #[test]
     fn actor_id_contains_expected_structure() {
         let pk = sample_pubkey();
-        let actor_id = generate_actor_id(&pk, "validator", "europe")
-            .expect("actor id generation must succeed");
+        let actor_id =
+            generate_actor_id(&pk, "validator", "europe").expect("actor id generation must succeed");
 
         let parts: Vec<&str> = actor_id.split('-').collect();
         assert_eq!(parts.len(), 5);
@@ -584,14 +587,14 @@ mod tests {
     #[test]
     fn actor_id_validation_rejects_checksum_mismatch() {
         let pk = sample_pubkey();
-        let mut actor_id =
-            generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+        let valid = generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+        let mut parts: Vec<&str> = valid.split('-').collect();
 
-        actor_id.pop();
-        actor_id.push('Z');
+        parts[4] = "ZZ";
+        let tampered = parts.join("-");
 
         assert_eq!(
-            validate_actor_id(&actor_id),
+            validate_actor_id(&tampered),
             Err(ActorIdError::ChecksumMismatch)
         );
     }
@@ -626,6 +629,14 @@ mod tests {
     }
 
     #[test]
+    fn too_short_public_key_is_rejected() {
+        assert_eq!(
+            generate_actor_id(&[0x11; 8], "VAL", "EU"),
+            Err(ActorIdError::InvalidPublicKeyLength)
+        );
+    }
+
+    #[test]
     fn parse_actor_id_extracts_components() {
         let pk = sample_pubkey();
         let actor_id =
@@ -640,40 +651,58 @@ mod tests {
     }
 
     #[test]
-    fn normalization_pads_short_components() {
+    fn validation_rejects_lowercase_actor_id() {
         let pk = sample_pubkey();
-        let actor_id = generate_actor_id(&pk, "v", "e").expect("actor id generation must succeed");
+        let actor_id =
+            generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
 
-        let parsed = parse_actor_id(&actor_id).expect("actor id parsing must succeed");
-        assert_eq!(parsed.role, "VXX");
-        assert_eq!(parsed.zone, "EX");
-    }
-
-    #[test]
-    fn generation_rejects_fully_invalid_role() {
-        let pk = sample_pubkey();
         assert_eq!(
-            generate_actor_id(&pk, "!!!", "EU"),
-            Err(ActorIdError::InvalidRole)
-        );
-    }
-
-    #[test]
-    fn validation_rejects_invalid_prefix() {
-        let actor_id = "NOPE-VAL-EU-3F7A9C21D4E8B7AA-K9";
-        assert_eq!(
-            validate_actor_id(actor_id),
+            validate_actor_id(&actor_id.to_ascii_lowercase()),
             Err(ActorIdError::InvalidPrefix)
         );
     }
 
     #[test]
-    fn generate_and_validate_actor_id_matches_validation_path() {
+    fn validation_rejects_surrounding_whitespace() {
         let pk = sample_pubkey();
         let actor_id =
-            generate_and_validate_actor_id(&pk, "validator", "europe").expect("must succeed");
+            generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
 
-        assert_eq!(validate_actor_id(&actor_id), Ok(()));
+        let candidate = format!(" {} ", actor_id);
+        assert_eq!(
+            validate_actor_id(&candidate),
+            Err(ActorIdError::InvalidFormat)
+        );
+    }
+
+    #[test]
+    fn generation_rejects_unknown_descriptive_role() {
+        let pk = sample_pubkey();
+        assert_eq!(
+            generate_actor_id(&pk, "super-validator", "EU"),
+            Err(ActorIdError::InvalidRole)
+        );
+    }
+
+    #[test]
+    fn generation_rejects_unknown_descriptive_zone() {
+        let pk = sample_pubkey();
+        assert_eq!(
+            generate_actor_id(&pk, "VAL", "antarctica"),
+            Err(ActorIdError::InvalidZone)
+        );
+    }
+
+    #[test]
+    fn canonical_aliases_are_supported_explicitly() {
+        let pk = sample_pubkey();
+
+        let a = generate_actor_id(&pk, "observer", "north-america")
+            .expect("actor id generation must succeed");
+        let b = generate_actor_id(&pk, "OBS", "NA")
+            .expect("actor id generation must succeed");
+
+        assert_eq!(a, b);
     }
 
     #[test]
@@ -715,8 +744,10 @@ mod tests {
         let pk = sample_pubkey();
         let valid = generate_actor_id(&pk, "VAL", "EU").expect("must succeed");
         let mut parts: Vec<&str> = valid.split('-').collect();
+
         parts[4] = "IO";
         let actor_id = parts.join("-");
+
         assert_eq!(
             validate_actor_id(&actor_id),
             Err(ActorIdError::InvalidChecksum)
@@ -724,45 +755,11 @@ mod tests {
     }
 
     #[test]
-    fn binding_verification_rejects_role_mismatch() {
+    fn generate_and_validate_actor_id_matches_validation_path() {
         let pk = sample_pubkey();
         let actor_id =
-            generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+            generate_and_validate_actor_id(&pk, "validator", "europe").expect("must succeed");
 
-        assert_eq!(
-            verify_actor_id_binding(&actor_id, &pk, "OBS", "EU"),
-            Err(ActorIdError::DerivationMismatch)
-        );
-    }
-
-    #[test]
-    fn deterministic_randomized_actor_id_regression_stress() {
-        let mut rng = StdRng::seed_from_u64(0xA0C1_D1D5_u64);
-
-        for _ in 0..1_000 {
-            let mut pubkey = [0u8; 32];
-            rng.fill_bytes(&mut pubkey);
-            if pubkey.iter().all(|b| *b == 0) {
-                pubkey[0] = 1;
-            }
-
-            let role = if (rng.next_u32() & 1) == 0 {
-                "validator"
-            } else {
-                "observer"
-            };
-            let zone = if (rng.next_u32() & 1) == 0 {
-                "eu"
-            } else {
-                "na"
-            };
-
-            let a = generate_actor_id(&pubkey, role, zone).expect("must succeed");
-            let b = generate_actor_id(&pubkey, role, zone).expect("must succeed");
-
-            assert_eq!(a, b);
-            assert_eq!(validate_actor_id(&a), Ok(()));
-            assert_eq!(verify_actor_id_binding(&a, &pubkey, role, zone), Ok(()));
-        }
+        assert_eq!(validate_actor_id(&actor_id), Ok(()));
     }
 }

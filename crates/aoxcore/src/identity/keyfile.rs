@@ -7,9 +7,10 @@ use aes_gcm::{Aes256Gcm, Nonce};
 
 use argon2::{Algorithm, Argon2, Params, Version};
 
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
+use sha3::{Digest, Sha3_256};
 use std::fmt;
 
 /// Canonical domain prefix embedded into serialized AOXC keyfiles.
@@ -17,6 +18,9 @@ use std::fmt;
 /// This value is authenticated as associated data during encryption and
 /// decryption in order to prevent cross-protocol blob confusion.
 const AOXC_KEYFILE_DOMAIN: &[u8] = b"AOXC-KEYFILE-V1";
+
+/// Domain separator used for deterministic envelope fingerprinting.
+const AOXC_KEYFILE_FINGERPRINT_DOMAIN: &[u8] = b"AOXC/IDENTITY/KEYFILE/FINGERPRINT/V1";
 
 /// Canonical AOXC keyfile format version.
 const KEYFILE_VERSION: u8 = 1;
@@ -38,6 +42,23 @@ const DEFAULT_ARGON2_T_COST: u32 = 3;
 
 /// Default Argon2 parallelism cost.
 const DEFAULT_ARGON2_P_COST: u32 = 1;
+
+/// Upper bound for accepted Argon2 memory cost in KiB.
+///
+/// This is intentionally conservative enough to reject obviously malformed
+/// envelopes while allowing the current AOXC baseline.
+const MAX_ARGON2_M_COST_KIB: u32 = 1_048_576;
+
+/// Upper bound for accepted Argon2 time cost.
+const MAX_ARGON2_T_COST: u32 = 32;
+
+/// Upper bound for accepted Argon2 parallelism.
+const MAX_ARGON2_P_COST: u32 = 32;
+
+/// Upper bound for accepted base64-encoded ciphertext length.
+///
+/// This protects the parser from obviously malformed or unbounded envelopes.
+const MAX_CIPHERTEXT_B64_LEN: usize = 1_048_576;
 
 /// Canonical serialized keyfile envelope.
 ///
@@ -80,6 +101,8 @@ pub enum KeyfileError {
     InvalidSaltLength,
     InvalidNonceLength,
     InvalidCiphertext,
+    InvalidKdfAlgorithm,
+    InvalidKdfMetadata,
     SerializationFailed(String),
     DeserializationFailed(String),
 }
@@ -100,6 +123,8 @@ impl KeyfileError {
             Self::InvalidSaltLength => "KEYFILE_INVALID_SALT_LENGTH",
             Self::InvalidNonceLength => "KEYFILE_INVALID_NONCE_LENGTH",
             Self::InvalidCiphertext => "KEYFILE_INVALID_CIPHERTEXT",
+            Self::InvalidKdfAlgorithm => "KEYFILE_INVALID_KDF_ALGORITHM",
+            Self::InvalidKdfMetadata => "KEYFILE_INVALID_KDF_METADATA",
             Self::SerializationFailed(_) => "KEYFILE_SERIALIZATION_FAILED",
             Self::DeserializationFailed(_) => "KEYFILE_DESERIALIZATION_FAILED",
         }
@@ -142,6 +167,12 @@ impl fmt::Display for KeyfileError {
             Self::InvalidCiphertext => {
                 write!(f, "keyfile operation failed: ciphertext is invalid")
             }
+            Self::InvalidKdfAlgorithm => {
+                write!(f, "keyfile operation failed: KDF algorithm is invalid")
+            }
+            Self::InvalidKdfMetadata => {
+                write!(f, "keyfile operation failed: KDF metadata is invalid")
+            }
             Self::SerializationFailed(error) => {
                 write!(
                     f,
@@ -162,6 +193,56 @@ impl fmt::Display for KeyfileError {
 
 impl std::error::Error for KeyfileError {}
 
+impl KeyfileKdf {
+    /// Validates the KDF metadata embedded in the envelope.
+    pub fn validate(&self) -> Result<(), KeyfileError> {
+        if self.algorithm != self.algorithm.trim() || self.algorithm.trim().is_empty() {
+            return Err(KeyfileError::InvalidKdfAlgorithm);
+        }
+
+        if !self.algorithm.eq_ignore_ascii_case("argon2id") {
+            return Err(KeyfileError::InvalidKdfAlgorithm);
+        }
+
+        if self.output_len != KEY_LEN {
+            return Err(KeyfileError::InvalidKdfMetadata);
+        }
+
+        if self.memory_cost_kib == 0
+            || self.time_cost == 0
+            || self.parallelism == 0
+            || self.memory_cost_kib > MAX_ARGON2_M_COST_KIB
+            || self.time_cost > MAX_ARGON2_T_COST
+            || self.parallelism > MAX_ARGON2_P_COST
+        {
+            return Err(KeyfileError::InvalidKdfMetadata);
+        }
+
+        Ok(())
+    }
+}
+
+impl KeyfileEnvelope {
+    /// Validates the envelope structure and encoded field lengths.
+    pub fn validate(&self) -> Result<(), KeyfileError> {
+        validate_envelope(self)
+    }
+
+    /// Returns a stable short fingerprint for the envelope.
+    pub fn fingerprint(&self) -> Result<String, KeyfileError> {
+        let bytes = serde_json::to_vec(self)
+            .map_err(|error| KeyfileError::SerializationFailed(error.to_string()))?;
+
+        let mut hasher = Sha3_256::new();
+        hasher.update(AOXC_KEYFILE_FINGERPRINT_DOMAIN);
+        hasher.update([0x00]);
+        hasher.update(bytes);
+
+        let digest = hasher.finalize();
+        Ok(hex::encode_upper(&digest[..8]))
+    }
+}
+
 /// Encrypts raw key material using:
 /// - Argon2id for password-based key derivation
 /// - AES-256-GCM for authenticated encryption
@@ -179,9 +260,7 @@ pub fn encrypt_key_to_envelope(
     data: &[u8],
     password: &str,
 ) -> Result<KeyfileEnvelope, KeyfileError> {
-    if password.trim().is_empty() {
-        return Err(KeyfileError::EmptyPassword);
-    }
+    validate_password(password)?;
 
     let mut rng = rand::rng();
 
@@ -211,6 +290,8 @@ pub fn encrypt_key_to_envelope(
         )
         .map_err(|_| KeyfileError::EncryptionFailed)?;
 
+    key_bytes.fill(0);
+
     Ok(KeyfileEnvelope {
         version: KEYFILE_VERSION,
         kdf: KeyfileKdf {
@@ -239,36 +320,12 @@ pub fn decrypt_key_from_envelope(
     envelope: &KeyfileEnvelope,
     password: &str,
 ) -> Result<Vec<u8>, KeyfileError> {
-    if password.trim().is_empty() {
-        return Err(KeyfileError::EmptyPassword);
-    }
-
+    validate_password(password)?;
     validate_envelope(envelope)?;
 
-    let salt = general_purpose::STANDARD
-        .decode(&envelope.salt_b64)
-        .map_err(|_| KeyfileError::InvalidBase64)?;
-
-    if salt.len() != SALT_LEN {
-        return Err(KeyfileError::InvalidSaltLength);
-    }
-
-    let nonce_vec = general_purpose::STANDARD
-        .decode(&envelope.nonce_b64)
-        .map_err(|_| KeyfileError::InvalidBase64)?;
-
-    let nonce_bytes: [u8; NONCE_LEN] = nonce_vec
-        .as_slice()
-        .try_into()
-        .map_err(|_| KeyfileError::InvalidNonceLength)?;
-
-    let ciphertext = general_purpose::STANDARD
-        .decode(&envelope.ciphertext_b64)
-        .map_err(|_| KeyfileError::InvalidBase64)?;
-
-    if ciphertext.is_empty() {
-        return Err(KeyfileError::InvalidCiphertext);
-    }
+    let salt = decode_salt(&envelope.salt_b64)?;
+    let nonce_bytes = decode_nonce(&envelope.nonce_b64)?;
+    let ciphertext = decode_ciphertext(&envelope.ciphertext_b64)?;
 
     let params = params_from_envelope(&envelope.kdf)?;
 
@@ -277,10 +334,9 @@ pub fn decrypt_key_from_envelope(
 
     let cipher =
         Aes256Gcm::new_from_slice(&key_bytes).map_err(|_| KeyfileError::DecryptionFailed)?;
-
     let nonce = Nonce::from(nonce_bytes);
 
-    cipher
+    let plaintext = cipher
         .decrypt(
             &nonce,
             Payload {
@@ -288,7 +344,11 @@ pub fn decrypt_key_from_envelope(
                 aad: AOXC_KEYFILE_DOMAIN,
             },
         )
-        .map_err(|_| KeyfileError::DecryptionFailed)
+        .map_err(|_| KeyfileError::DecryptionFailed);
+
+    key_bytes.fill(0);
+
+    plaintext
 }
 
 /// Returns true if a serialized keyfile is structurally valid JSON and envelope-valid.
@@ -301,30 +361,31 @@ pub fn is_valid_keyfile(serialized: &str) -> bool {
 }
 
 /// Validates a structured envelope without attempting decryption.
+///
+/// Validation policy:
+/// - version must match,
+/// - KDF metadata must be canonical and bounded,
+/// - all base64 fields must be canonical non-empty strings,
+/// - decoded salt and nonce lengths must match the fixed protocol constants,
+/// - decoded ciphertext must be non-empty.
 pub fn validate_envelope(envelope: &KeyfileEnvelope) -> Result<(), KeyfileError> {
     if envelope.version != KEYFILE_VERSION {
         return Err(KeyfileError::InvalidVersion);
     }
 
-    if !envelope
-        .kdf
-        .algorithm
-        .trim()
-        .eq_ignore_ascii_case("argon2id")
-    {
-        return Err(KeyfileError::InvalidFormat);
+    envelope.kdf.validate()?;
+
+    validate_nonempty_canonical_text(&envelope.salt_b64)?;
+    validate_nonempty_canonical_text(&envelope.nonce_b64)?;
+    validate_nonempty_canonical_text(&envelope.ciphertext_b64)?;
+
+    if envelope.ciphertext_b64.len() > MAX_CIPHERTEXT_B64_LEN {
+        return Err(KeyfileError::InvalidCiphertext);
     }
 
-    if envelope.kdf.output_len != KEY_LEN {
-        return Err(KeyfileError::InvalidFormat);
-    }
-
-    if envelope.salt_b64.trim().is_empty()
-        || envelope.nonce_b64.trim().is_empty()
-        || envelope.ciphertext_b64.trim().is_empty()
-    {
-        return Err(KeyfileError::InvalidFormat);
-    }
+    let _ = decode_salt(&envelope.salt_b64)?;
+    let _ = decode_nonce(&envelope.nonce_b64)?;
+    let _ = decode_ciphertext(&envelope.ciphertext_b64)?;
 
     Ok(())
 }
@@ -342,6 +403,8 @@ fn default_argon2_params() -> Result<Params, KeyfileError> {
 
 /// Rebuilds Argon2 parameters from persisted KDF metadata.
 fn params_from_envelope(kdf: &KeyfileKdf) -> Result<Params, KeyfileError> {
+    kdf.validate()?;
+
     Params::new(
         kdf.memory_cost_kib,
         kdf.time_cost,
@@ -367,6 +430,74 @@ fn derive_key(
     argon2
         .hash_password_into(password.as_bytes(), salt, out)
         .map_err(|_| KeyfileError::KeyDerivationFailed)
+}
+
+/// Validates an operator-supplied password.
+///
+/// Current policy:
+/// - surrounding whitespace is rejected rather than normalized,
+/// - blank passwords are forbidden.
+fn validate_password(password: &str) -> Result<(), KeyfileError> {
+    if password.is_empty() || password.trim().is_empty() {
+        return Err(KeyfileError::EmptyPassword);
+    }
+
+    if password != password.trim() {
+        return Err(KeyfileError::EmptyPassword);
+    }
+
+    Ok(())
+}
+
+/// Validates non-empty canonical text used by the serialized envelope.
+fn validate_nonempty_canonical_text(value: &str) -> Result<(), KeyfileError> {
+    if value.is_empty() || value.trim().is_empty() {
+        return Err(KeyfileError::InvalidFormat);
+    }
+
+    if value != value.trim() {
+        return Err(KeyfileError::InvalidFormat);
+    }
+
+    Ok(())
+}
+
+/// Decodes and validates the salt field.
+fn decode_salt(encoded: &str) -> Result<Vec<u8>, KeyfileError> {
+    let salt = general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|_| KeyfileError::InvalidBase64)?;
+
+    if salt.len() != SALT_LEN {
+        return Err(KeyfileError::InvalidSaltLength);
+    }
+
+    Ok(salt)
+}
+
+/// Decodes and validates the nonce field.
+fn decode_nonce(encoded: &str) -> Result<[u8; NONCE_LEN], KeyfileError> {
+    let nonce_vec = general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|_| KeyfileError::InvalidBase64)?;
+
+    nonce_vec
+        .as_slice()
+        .try_into()
+        .map_err(|_| KeyfileError::InvalidNonceLength)
+}
+
+/// Decodes and validates the ciphertext field.
+fn decode_ciphertext(encoded: &str) -> Result<Vec<u8>, KeyfileError> {
+    let ciphertext = general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|_| KeyfileError::InvalidBase64)?;
+
+    if ciphertext.is_empty() {
+        return Err(KeyfileError::InvalidCiphertext);
+    }
+
+    Ok(ciphertext)
 }
 
 #[cfg(test)]
@@ -402,6 +533,12 @@ mod tests {
     }
 
     #[test]
+    fn password_with_surrounding_whitespace_is_rejected() {
+        let result = encrypt_key(b"abc", " password ");
+        assert_eq!(result, Err(KeyfileError::EmptyPassword));
+    }
+
+    #[test]
     fn envelope_validation_accepts_valid_output() {
         let envelope =
             encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
@@ -412,5 +549,74 @@ mod tests {
     fn serialized_keyfile_reports_validity() {
         let serialized = encrypt_key(b"abc", "password").expect("encryption must succeed");
         assert!(is_valid_keyfile(&serialized));
+    }
+
+    #[test]
+    fn validate_envelope_rejects_invalid_version() {
+        let mut envelope =
+            encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
+        envelope.version = 99;
+
+        assert_eq!(validate_envelope(&envelope), Err(KeyfileError::InvalidVersion));
+    }
+
+    #[test]
+    fn validate_envelope_rejects_invalid_kdf_algorithm() {
+        let mut envelope =
+            encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
+        envelope.kdf.algorithm = "pbkdf2".to_string();
+
+        assert_eq!(
+            validate_envelope(&envelope),
+            Err(KeyfileError::InvalidKdfAlgorithm)
+        );
+    }
+
+    #[test]
+    fn validate_envelope_rejects_invalid_salt_length() {
+        let mut envelope =
+            encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
+        envelope.salt_b64 = general_purpose::STANDARD.encode([0u8; 8]);
+
+        assert_eq!(
+            validate_envelope(&envelope),
+            Err(KeyfileError::InvalidSaltLength)
+        );
+    }
+
+    #[test]
+    fn validate_envelope_rejects_invalid_nonce_length() {
+        let mut envelope =
+            encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
+        envelope.nonce_b64 = general_purpose::STANDARD.encode([0u8; 8]);
+
+        assert_eq!(
+            validate_envelope(&envelope),
+            Err(KeyfileError::InvalidNonceLength)
+        );
+    }
+
+    #[test]
+    fn validate_envelope_rejects_empty_ciphertext() {
+        let mut envelope =
+            encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
+        envelope.ciphertext_b64 = general_purpose::STANDARD.encode(Vec::<u8>::new());
+
+        assert_eq!(
+            validate_envelope(&envelope),
+            Err(KeyfileError::InvalidCiphertext)
+        );
+    }
+
+    #[test]
+    fn envelope_fingerprint_is_stable() {
+        let envelope =
+            encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
+
+        let a = envelope.fingerprint().expect("fingerprint must succeed");
+        let b = envelope.fingerprint().expect("fingerprint must succeed");
+
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 16);
     }
 }

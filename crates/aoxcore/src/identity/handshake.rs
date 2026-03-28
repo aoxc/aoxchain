@@ -22,6 +22,8 @@ pub enum HandshakeError {
     RevokedActor,
 
     /// The certificate failed structural or semantic validation.
+    ///
+    /// The enclosed string is intended to carry a stable symbolic reason code.
     InvalidCertificate(String),
 
     /// The certificate is not currently valid in time.
@@ -91,6 +93,7 @@ impl std::error::Error for HandshakeError {}
 /// Verification policy:
 /// - certificate must be structurally valid,
 /// - certificate must be signed,
+/// - certificate issuer must be present and match the supplied CA issuer,
 /// - certificate must not be revoked,
 /// - certificate must be valid at current time,
 /// - certificate must verify against the provided CA.
@@ -102,19 +105,7 @@ pub fn verify_handshake_detailed(
     ca: &CertificateAuthority,
     crl: &RevocationList,
 ) -> Result<(), HandshakeError> {
-    if cert.signature.trim().is_empty() {
-        return Err(HandshakeError::MissingSignature);
-    }
-
-    if cert.issuer.trim().is_empty() {
-        return Err(HandshakeError::InvalidIssuer);
-    }
-
-    cert.validate_signed().map_err(map_certificate_error)?;
-
-    if crl.is_revoked(&cert.actor_id) {
-        return Err(HandshakeError::RevokedActor);
-    }
+    verify_handshake_common(cert, ca, crl)?;
 
     let is_currently_valid = cert.is_currently_valid().map_err(map_certificate_error)?;
 
@@ -122,8 +113,27 @@ pub fn verify_handshake_detailed(
         return Err(HandshakeError::CertificateNotCurrentlyValid);
     }
 
-    ca.verify_certificate_detailed(cert)
-        .map_err(|_| HandshakeError::CryptographicVerificationFailed)?;
+    Ok(())
+}
+
+/// Verifies the handshake validity at an explicit UNIX timestamp.
+///
+/// This helper is intended for:
+/// - deterministic tests,
+/// - replayed incident analysis,
+/// - time-travel validation,
+/// - simulation environments.
+pub fn verify_handshake_detailed_at(
+    cert: &Certificate,
+    ca: &CertificateAuthority,
+    crl: &RevocationList,
+    unix_time: u64,
+) -> Result<(), HandshakeError> {
+    verify_handshake_common(cert, ca, crl)?;
+
+    if !cert.is_valid_at(unix_time) {
+        return Err(HandshakeError::CertificateNotCurrentlyValid);
+    }
 
     Ok(())
 }
@@ -144,39 +154,65 @@ pub fn verify_handshake(
     verify_handshake_detailed(cert, ca, crl).is_ok()
 }
 
+/// Applies all handshake checks except current-time evaluation.
+///
+/// Separation rationale:
+/// - keeps the current-time path and explicit-time path aligned,
+/// - avoids duplicating cryptographic and policy validation logic.
+fn verify_handshake_common(
+    cert: &Certificate,
+    ca: &CertificateAuthority,
+    crl: &RevocationList,
+) -> Result<(), HandshakeError> {
+    if cert.signature.trim().is_empty() {
+        return Err(HandshakeError::MissingSignature);
+    }
+
+    if cert.issuer.trim().is_empty() {
+        return Err(HandshakeError::InvalidIssuer);
+    }
+
+    if ca.issuer.trim().is_empty() {
+        return Err(HandshakeError::InvalidIssuer);
+    }
+
+    if cert.issuer != ca.issuer {
+        return Err(HandshakeError::InvalidIssuer);
+    }
+
+    cert.validate_signed().map_err(map_certificate_error)?;
+
+    if crl.is_revoked(&cert.actor_id) {
+        return Err(HandshakeError::RevokedActor);
+    }
+
+    ca.verify_certificate_detailed(cert)
+        .map_err(|_| HandshakeError::CryptographicVerificationFailed)?;
+
+    Ok(())
+}
+
 /// Maps certificate-domain validation errors into handshake-domain errors.
+///
+/// Mapping policy:
+/// - missing signature remains a first-class handshake error,
+/// - issuer problems remain a first-class handshake error,
+/// - all other certificate-domain validation failures are collapsed into
+///   `InvalidCertificate` with a stable symbolic reason code.
 fn map_certificate_error(error: CertificateError) -> HandshakeError {
-    HandshakeError::InvalidCertificate(error.to_string())
+    match error {
+        CertificateError::EmptySignature => HandshakeError::MissingSignature,
+        CertificateError::EmptyIssuer | CertificateError::InvalidIssuer => {
+            HandshakeError::InvalidIssuer
+        }
+        other => HandshakeError::InvalidCertificate(other.code().to_string()),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::identity::ca::CertificateAuthority;
-    use crate::identity::certificate::Certificate;
-
-    /// Minimal local test double for revocation checks.
-    ///
-    /// Replace with the real implementation in integration tests.
-    struct LocalRevocationList {
-        revoked: Vec<String>,
-    }
-
-    impl LocalRevocationList {
-        fn new() -> Self {
-            Self {
-                revoked: Vec::new(),
-            }
-        }
-
-        fn revoke(&mut self, actor_id: &str) {
-            self.revoked.push(actor_id.to_string());
-        }
-
-        fn is_revoked(&self, actor_id: &str) -> bool {
-            self.revoked.iter().any(|v| v == actor_id)
-        }
-    }
+    use crate::identity::revocation::{RevocationList, RevocationReason};
 
     fn sample_certificate() -> Certificate {
         Certificate::new_unsigned(
@@ -190,30 +226,129 @@ mod tests {
         )
     }
 
+    fn sample_signed_certificate(ca: &CertificateAuthority) -> Certificate {
+        ca.sign_certificate(sample_certificate())
+            .expect("certificate signing must succeed")
+    }
+
+    #[test]
+    fn handshake_accepts_valid_signed_certificate() {
+        let ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let cert = sample_signed_certificate(&ca);
+        let crl = RevocationList::new();
+
+        let result = verify_handshake_detailed(&cert, &ca, &crl);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn handshake_boolean_wrapper_matches_detailed_success_path() {
+        let ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let cert = sample_signed_certificate(&ca);
+        let crl = RevocationList::new();
+
+        assert!(verify_handshake(&cert, &ca, &crl));
+    }
+
     #[test]
     fn handshake_rejects_missing_signature() {
         let ca = CertificateAuthority::new("AOXC-ROOT-CA");
         let cert = sample_certificate();
+        let crl = RevocationList::new();
 
-        let local_crl = LocalRevocationList::new();
-
-        let result = if cert.signature.trim().is_empty() {
-            Err(HandshakeError::MissingSignature)
-        } else {
-            let _ = (&ca, &local_crl);
-            Ok(())
-        };
+        let result = verify_handshake_detailed(&cert, &ca, &crl);
 
         assert_eq!(result, Err(HandshakeError::MissingSignature));
     }
 
     #[test]
+    fn handshake_rejects_empty_issuer() {
+        let ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let mut cert = sample_certificate();
+        cert.signature = "A1B2".to_string();
+
+        let crl = RevocationList::new();
+        let result = verify_handshake_detailed(&cert, &ca, &crl);
+
+        assert_eq!(result, Err(HandshakeError::InvalidIssuer));
+    }
+
+    #[test]
+    fn handshake_rejects_issuer_mismatch_before_crypto_verification() {
+        let ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let mut cert = sample_signed_certificate(&ca);
+        cert.issuer = "OTHER-CA".to_string();
+
+        let crl = RevocationList::new();
+        let result = verify_handshake_detailed(&cert, &ca, &crl);
+
+        assert_eq!(result, Err(HandshakeError::InvalidIssuer));
+    }
+
+    #[test]
     fn handshake_rejects_revoked_actor() {
-        let actor_id = "AOXC-VAL-EU-3F7A9C21D4E8B7AA-K9";
+        let ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let cert = sample_signed_certificate(&ca);
 
-        let mut local_crl = LocalRevocationList::new();
-        local_crl.revoke(actor_id);
+        let mut crl = RevocationList::new();
+        crl.revoke(&cert.actor_id, RevocationReason::KeyCompromise);
 
-        assert!(local_crl.is_revoked(actor_id));
+        let result = verify_handshake_detailed(&cert, &ca, &crl);
+
+        assert_eq!(result, Err(HandshakeError::RevokedActor));
+    }
+
+    #[test]
+    fn handshake_rejects_cryptographic_verification_failure() {
+        let signing_ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let verifying_ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let cert = sample_signed_certificate(&signing_ca);
+        let crl = RevocationList::new();
+
+        let result = verify_handshake_detailed(&cert, &verifying_ca, &crl);
+
+        assert_eq!(
+            result,
+            Err(HandshakeError::CryptographicVerificationFailed)
+        );
+    }
+
+    #[test]
+    fn handshake_rejects_certificate_not_currently_valid_at_explicit_time() {
+        let ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let cert = sample_signed_certificate(&ca);
+        let crl = RevocationList::new();
+
+        let result = verify_handshake_detailed_at(&cert, &ca, &crl, 1_900_000_000);
+
+        assert_eq!(result, Err(HandshakeError::CertificateNotCurrentlyValid));
+    }
+
+    #[test]
+    fn handshake_detailed_at_accepts_valid_explicit_time() {
+        let ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let cert = sample_signed_certificate(&ca);
+        let crl = RevocationList::new();
+
+        let result = verify_handshake_detailed_at(&cert, &ca, &crl, 1_750_000_000);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn certificate_domain_errors_map_to_stable_handshake_errors() {
+        assert_eq!(
+            map_certificate_error(CertificateError::EmptySignature),
+            HandshakeError::MissingSignature
+        );
+        assert_eq!(
+            map_certificate_error(CertificateError::InvalidIssuer),
+            HandshakeError::InvalidIssuer
+        );
+        assert_eq!(
+            map_certificate_error(CertificateError::InvalidPublicKeyHex),
+            HandshakeError::InvalidCertificate("CERT_INVALID_PUBLIC_KEY_HEX".to_string())
+        );
     }
 }

@@ -5,15 +5,20 @@
 use ed25519_dalek::{SigningKey, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
+use std::collections::BTreeSet;
 use std::fmt;
 
 use crate::identity::{
     hd_path::{HdPath, HdPathError},
     key_engine::{DERIVED_ENTROPY_LEN, KeyEngine, KeyEngineError},
-    keyfile::{KeyfileEnvelope, KeyfileError},
+    keyfile::{KeyfileEnvelope, KeyfileError, validate_envelope},
 };
 
 /// Current canonical node key-bundle schema version.
+///
+/// Compatibility note:
+/// the struct name is retained for compatibility with the current codebase,
+/// but the canonical serialized schema version remains explicitly versioned here.
 pub const NODE_KEY_BUNDLE_VERSION: u8 = 2;
 
 /// Canonical AOXC public key encoding used inside serialized key bundles.
@@ -21,6 +26,25 @@ pub const AOXC_PUBLIC_KEY_ENCODING: &str = "hex";
 
 /// Canonical AOXC public key length for Ed25519 verifying keys.
 pub const AOXC_ED25519_PUBLIC_KEY_LEN: usize = 32;
+
+/// Canonical custody model string for node key bundles.
+pub const AOXC_NODE_KEY_CUSTODY_MODEL: &str = "encrypted-root-seed-envelope";
+
+/// Canonical domain used for deterministic Ed25519 role-key derivation inside bundles.
+const AOXC_NODE_BUNDLE_ED25519_ROLE_SEED_DOMAIN: &[u8] = b"AOXC/NODE_BUNDLE/ED25519/ROLE_SEED/V1";
+
+/// Canonical domain used for public-key fingerprints inside bundles.
+const AOXC_NODE_BUNDLE_PUBLIC_KEY_FINGERPRINT_DOMAIN: &[u8] =
+    b"AOXC/NODE_BUNDLE/PUBLIC_KEY_FINGERPRINT/V1";
+
+/// Canonical domain used for bundle fingerprint derivation.
+const AOXC_NODE_BUNDLE_FINGERPRINT_DOMAIN: &[u8] = b"AOXC/NODE_BUNDLE/FINGERPRINT/V1";
+
+/// Expected engine fingerprint length in uppercase hexadecimal characters.
+const ENGINE_FINGERPRINT_HEX_LEN: usize = 32;
+
+/// Expected bundle fingerprint length in uppercase hexadecimal characters.
+const BUNDLE_FINGERPRINT_HEX_LEN: usize = 32;
 
 /// Supported cryptographic operating profiles for AOXC node bundles.
 ///
@@ -67,7 +91,7 @@ impl fmt::Display for CryptoProfile {
 }
 
 /// Canonical operational roles that a node key can serve.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeKeyRole {
     Identity,
@@ -102,6 +126,18 @@ impl NodeKeyRole {
             Self::Recovery => "recovery",
             Self::PqAttestation => "pq_attestation",
         }
+    }
+
+    #[must_use]
+    pub const fn all() -> [NodeKeyRole; 6] {
+        [
+            Self::Identity,
+            Self::Consensus,
+            Self::Transport,
+            Self::Operator,
+            Self::Recovery,
+            Self::PqAttestation,
+        ]
     }
 }
 
@@ -143,24 +179,39 @@ pub struct NodeKeyBundleV1 {
 }
 
 /// Canonical error surface for node key-bundle operations.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum NodeKeyBundleError {
+    InvalidVersion,
     EmptyNodeName,
     EmptyProfile,
     EmptyCreatedAt,
     EmptyCustodyModel,
+    EmptyEngineFingerprint,
+    EmptyBundleFingerprint,
+    InvalidEngineFingerprint,
+    InvalidBundleFingerprint,
+    BundleFingerprintMismatch,
     MissingKeys,
     MissingRole(NodeKeyRole),
     DuplicateRole(NodeKeyRole),
     EmptyPublicKey(NodeKeyRole),
     EmptyFingerprint(NodeKeyRole),
     EmptyHdPath(NodeKeyRole),
+    InvalidAlgorithm(NodeKeyRole),
     InvalidPublicKeyEncoding(NodeKeyRole),
+    InvalidPublicKeyHex(NodeKeyRole),
+    InvalidPublicKeyMaterial(NodeKeyRole),
     InvalidPublicKeyLength {
         role: NodeKeyRole,
         expected: usize,
         actual: usize,
+    },
+    FingerprintMismatch(NodeKeyRole),
+    HdPathMismatch {
+        role: NodeKeyRole,
+        expected: String,
+        actual: String,
     },
     InvalidKeyfile(KeyfileError),
     SerializationFailed(String),
@@ -169,13 +220,55 @@ pub enum NodeKeyBundleError {
     UnsupportedProfile(String),
 }
 
+impl NodeKeyBundleError {
+    /// Returns a stable symbolic error code suitable for logs and telemetry.
+    #[must_use]
+    pub const fn code(&self) -> &'static str {
+        match self {
+            Self::InvalidVersion => "NODE_KEY_BUNDLE_INVALID_VERSION",
+            Self::EmptyNodeName => "NODE_KEY_BUNDLE_EMPTY_NODE_NAME",
+            Self::EmptyProfile => "NODE_KEY_BUNDLE_EMPTY_PROFILE",
+            Self::EmptyCreatedAt => "NODE_KEY_BUNDLE_EMPTY_CREATED_AT",
+            Self::EmptyCustodyModel => "NODE_KEY_BUNDLE_EMPTY_CUSTODY_MODEL",
+            Self::EmptyEngineFingerprint => "NODE_KEY_BUNDLE_EMPTY_ENGINE_FINGERPRINT",
+            Self::EmptyBundleFingerprint => "NODE_KEY_BUNDLE_EMPTY_BUNDLE_FINGERPRINT",
+            Self::InvalidEngineFingerprint => "NODE_KEY_BUNDLE_INVALID_ENGINE_FINGERPRINT",
+            Self::InvalidBundleFingerprint => "NODE_KEY_BUNDLE_INVALID_BUNDLE_FINGERPRINT",
+            Self::BundleFingerprintMismatch => "NODE_KEY_BUNDLE_FINGERPRINT_MISMATCH",
+            Self::MissingKeys => "NODE_KEY_BUNDLE_MISSING_KEYS",
+            Self::MissingRole(_) => "NODE_KEY_BUNDLE_MISSING_ROLE",
+            Self::DuplicateRole(_) => "NODE_KEY_BUNDLE_DUPLICATE_ROLE",
+            Self::EmptyPublicKey(_) => "NODE_KEY_BUNDLE_EMPTY_PUBLIC_KEY",
+            Self::EmptyFingerprint(_) => "NODE_KEY_BUNDLE_EMPTY_FINGERPRINT",
+            Self::EmptyHdPath(_) => "NODE_KEY_BUNDLE_EMPTY_HD_PATH",
+            Self::InvalidAlgorithm(_) => "NODE_KEY_BUNDLE_INVALID_ALGORITHM",
+            Self::InvalidPublicKeyEncoding(_) => "NODE_KEY_BUNDLE_INVALID_PUBLIC_KEY_ENCODING",
+            Self::InvalidPublicKeyHex(_) => "NODE_KEY_BUNDLE_INVALID_PUBLIC_KEY_HEX",
+            Self::InvalidPublicKeyMaterial(_) => "NODE_KEY_BUNDLE_INVALID_PUBLIC_KEY_MATERIAL",
+            Self::InvalidPublicKeyLength { .. } => "NODE_KEY_BUNDLE_INVALID_PUBLIC_KEY_LENGTH",
+            Self::FingerprintMismatch(_) => "NODE_KEY_BUNDLE_FINGERPRINT_MISMATCH_FOR_ROLE",
+            Self::HdPathMismatch { .. } => "NODE_KEY_BUNDLE_HD_PATH_MISMATCH",
+            Self::InvalidKeyfile(_) => "NODE_KEY_BUNDLE_INVALID_KEYFILE",
+            Self::SerializationFailed(_) => "NODE_KEY_BUNDLE_SERIALIZATION_FAILED",
+            Self::InvalidHdPath(_) => "NODE_KEY_BUNDLE_INVALID_HD_PATH",
+            Self::KeyDerivation(_) => "NODE_KEY_BUNDLE_KEY_DERIVATION_FAILED",
+            Self::UnsupportedProfile(_) => "NODE_KEY_BUNDLE_UNSUPPORTED_PROFILE",
+        }
+    }
+}
+
 impl fmt::Display for NodeKeyBundleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidVersion => {
+                write!(f, "node key bundle validation failed: version is invalid")
+            }
             Self::EmptyNodeName => {
                 write!(f, "node key bundle validation failed: node_name is empty")
             }
-            Self::EmptyProfile => write!(f, "node key bundle validation failed: profile is empty"),
+            Self::EmptyProfile => {
+                write!(f, "node key bundle validation failed: profile is empty")
+            }
             Self::EmptyCreatedAt => {
                 write!(f, "node key bundle validation failed: created_at is empty")
             }
@@ -185,7 +278,39 @@ impl fmt::Display for NodeKeyBundleError {
                     "node key bundle validation failed: custody_model is empty"
                 )
             }
-            Self::MissingKeys => write!(f, "node key bundle validation failed: no keys present"),
+            Self::EmptyEngineFingerprint => {
+                write!(
+                    f,
+                    "node key bundle validation failed: engine_fingerprint is empty"
+                )
+            }
+            Self::EmptyBundleFingerprint => {
+                write!(
+                    f,
+                    "node key bundle validation failed: bundle_fingerprint is empty"
+                )
+            }
+            Self::InvalidEngineFingerprint => {
+                write!(
+                    f,
+                    "node key bundle validation failed: engine_fingerprint is invalid"
+                )
+            }
+            Self::InvalidBundleFingerprint => {
+                write!(
+                    f,
+                    "node key bundle validation failed: bundle_fingerprint is invalid"
+                )
+            }
+            Self::BundleFingerprintMismatch => {
+                write!(
+                    f,
+                    "node key bundle validation failed: bundle_fingerprint mismatch"
+                )
+            }
+            Self::MissingKeys => {
+                write!(f, "node key bundle validation failed: no keys present")
+            }
             Self::MissingRole(role) => write!(
                 f,
                 "node key bundle validation failed: missing required role {}",
@@ -211,9 +336,24 @@ impl fmt::Display for NodeKeyBundleError {
                 "node key bundle validation failed: hd_path is empty for role {}",
                 role.as_str()
             ),
+            Self::InvalidAlgorithm(role) => write!(
+                f,
+                "node key bundle validation failed: algorithm is invalid for role {}",
+                role.as_str()
+            ),
             Self::InvalidPublicKeyEncoding(role) => write!(
                 f,
                 "node key bundle validation failed: unsupported public_key_encoding for role {}",
+                role.as_str()
+            ),
+            Self::InvalidPublicKeyHex(role) => write!(
+                f,
+                "node key bundle validation failed: public key hex is invalid for role {}",
+                role.as_str()
+            ),
+            Self::InvalidPublicKeyMaterial(role) => write!(
+                f,
+                "node key bundle validation failed: public key material is invalid for role {}",
                 role.as_str()
             ),
             Self::InvalidPublicKeyLength {
@@ -223,6 +363,22 @@ impl fmt::Display for NodeKeyBundleError {
             } => write!(
                 f,
                 "node key bundle validation failed: public key length mismatch for role {}; expected {} bytes, got {} bytes",
+                role.as_str(),
+                expected,
+                actual
+            ),
+            Self::FingerprintMismatch(role) => write!(
+                f,
+                "node key bundle validation failed: fingerprint mismatch for role {}",
+                role.as_str()
+            ),
+            Self::HdPathMismatch {
+                role,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "node key bundle validation failed: hd_path mismatch for role {}; expected `{}`, got `{}`",
                 role.as_str(),
                 expected,
                 actual
@@ -262,6 +418,12 @@ impl From<HdPathError> for NodeKeyBundleError {
     }
 }
 
+impl From<KeyfileError> for NodeKeyBundleError {
+    fn from(value: KeyfileError) -> Self {
+        Self::InvalidKeyfile(value)
+    }
+}
+
 impl NodeKeyBundleV1 {
     /// Builds a canonical key bundle from a key engine and encrypted root seed.
     ///
@@ -279,10 +441,12 @@ impl NodeKeyBundleV1 {
     ) -> Result<Self, NodeKeyBundleError> {
         let normalized_profile = normalize_profile(profile)?;
 
-        let keys = required_roles()
+        let mut keys = NodeKeyRole::all()
             .into_iter()
-            .map(|role| build_record(engine, normalized_profile, &crypto_profile, &role))
+            .map(|role| build_record(engine, normalized_profile, &crypto_profile, role))
             .collect::<Result<Vec<_>, _>>()?;
+
+        keys.sort_by_key(|record| record.role);
 
         let mut bundle = Self {
             version: NODE_KEY_BUNDLE_VERSION,
@@ -290,7 +454,7 @@ impl NodeKeyBundleV1 {
             profile: normalized_profile.to_string(),
             created_at,
             crypto_profile,
-            custody_model: "encrypted-root-seed-envelope".to_string(),
+            custody_model: AOXC_NODE_KEY_CUSTODY_MODEL.to_string(),
             engine_fingerprint: engine.fingerprint(),
             bundle_fingerprint: String::new(),
             encrypted_root_seed,
@@ -302,20 +466,48 @@ impl NodeKeyBundleV1 {
         Ok(bundle)
     }
 
-    /// Validates the bundle shape, role uniqueness, and public-key encoding.
+    /// Validates the bundle shape, role completeness, key metadata, and fingerprint integrity.
     pub fn validate(&self) -> Result<(), NodeKeyBundleError> {
+        if self.version != NODE_KEY_BUNDLE_VERSION {
+            return Err(NodeKeyBundleError::InvalidVersion);
+        }
+
         if self.node_name.trim().is_empty() {
             return Err(NodeKeyBundleError::EmptyNodeName);
         }
+
         if self.profile.trim().is_empty() {
             return Err(NodeKeyBundleError::EmptyProfile);
         }
+
         if self.created_at.trim().is_empty() {
             return Err(NodeKeyBundleError::EmptyCreatedAt);
         }
+
         if self.custody_model.trim().is_empty() {
             return Err(NodeKeyBundleError::EmptyCustodyModel);
         }
+
+        if self.custody_model != AOXC_NODE_KEY_CUSTODY_MODEL {
+            return Err(NodeKeyBundleError::EmptyCustodyModel);
+        }
+
+        if self.engine_fingerprint.trim().is_empty() {
+            return Err(NodeKeyBundleError::EmptyEngineFingerprint);
+        }
+
+        if !is_uppercase_hex_with_len(&self.engine_fingerprint, ENGINE_FINGERPRINT_HEX_LEN) {
+            return Err(NodeKeyBundleError::InvalidEngineFingerprint);
+        }
+
+        if self.bundle_fingerprint.trim().is_empty() {
+            return Err(NodeKeyBundleError::EmptyBundleFingerprint);
+        }
+
+        if !is_uppercase_hex_with_len(&self.bundle_fingerprint, BUNDLE_FINGERPRINT_HEX_LEN) {
+            return Err(NodeKeyBundleError::InvalidBundleFingerprint);
+        }
+
         if self.keys.is_empty() {
             return Err(NodeKeyBundleError::MissingKeys);
         }
@@ -325,68 +517,89 @@ impl NodeKeyBundleV1 {
             return Err(NodeKeyBundleError::UnsupportedProfile(self.profile.clone()));
         }
 
-        let mut seen = Vec::new();
+        validate_envelope(&self.encrypted_root_seed)?;
+
+        let mut seen_roles = BTreeSet::new();
+
         for record in &self.keys {
+            if !seen_roles.insert(record.role) {
+                return Err(NodeKeyBundleError::DuplicateRole(record.role));
+            }
+
             if record.hd_path.trim().is_empty() {
-                return Err(NodeKeyBundleError::EmptyHdPath(record.role.clone()));
+                return Err(NodeKeyBundleError::EmptyHdPath(record.role));
             }
-            if record.public_key.trim().is_empty() {
-                return Err(NodeKeyBundleError::EmptyPublicKey(record.role.clone()));
+
+            if record.algorithm != self.crypto_profile.operational_public_key_algorithm() {
+                return Err(NodeKeyBundleError::InvalidAlgorithm(record.role));
             }
-            if record.fingerprint.trim().is_empty() {
-                return Err(NodeKeyBundleError::EmptyFingerprint(record.role.clone()));
-            }
+
             if record.public_key_encoding != AOXC_PUBLIC_KEY_ENCODING {
-                return Err(NodeKeyBundleError::InvalidPublicKeyEncoding(
-                    record.role.clone(),
-                ));
+                return Err(NodeKeyBundleError::InvalidPublicKeyEncoding(record.role));
+            }
+
+            if record.public_key.trim().is_empty() {
+                return Err(NodeKeyBundleError::EmptyPublicKey(record.role));
+            }
+
+            if record.fingerprint.trim().is_empty() {
+                return Err(NodeKeyBundleError::EmptyFingerprint(record.role));
+            }
+
+            if !record.public_key.chars().all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_lowercase())
+            {
+                return Err(NodeKeyBundleError::InvalidPublicKeyHex(record.role));
             }
 
             let decoded = hex::decode(&record.public_key)
-                .map_err(|error| NodeKeyBundleError::SerializationFailed(error.to_string()))?;
+                .map_err(|_| NodeKeyBundleError::InvalidPublicKeyHex(record.role))?;
 
             if decoded.len() != AOXC_ED25519_PUBLIC_KEY_LEN {
                 return Err(NodeKeyBundleError::InvalidPublicKeyLength {
-                    role: record.role.clone(),
+                    role: record.role,
                     expected: AOXC_ED25519_PUBLIC_KEY_LEN,
                     actual: decoded.len(),
                 });
             }
 
-            let parsed_path: HdPath = record
-                .hd_path
-                .parse()
-                .map_err(NodeKeyBundleError::InvalidHdPath)?;
+            let public_key_bytes: [u8; AOXC_ED25519_PUBLIC_KEY_LEN] = decoded
+                .as_slice()
+                .try_into()
+                .map_err(|_| NodeKeyBundleError::InvalidPublicKeyLength {
+                    role: record.role,
+                    expected: AOXC_ED25519_PUBLIC_KEY_LEN,
+                    actual: decoded.len(),
+                })?;
 
-            let expected_path = derive_role_path(&self.profile, &record.role)?;
+            let verifying_key = VerifyingKey::from_bytes(&public_key_bytes)
+                .map_err(|_| NodeKeyBundleError::InvalidPublicKeyMaterial(record.role))?;
+
+            let expected_fingerprint = fingerprint_record(&verifying_key);
+            if record.fingerprint != expected_fingerprint {
+                return Err(NodeKeyBundleError::FingerprintMismatch(record.role));
+            }
+
+            let parsed_path: HdPath = record.hd_path.parse()?;
+            let expected_path = derive_role_path(&self.profile, record.role)?;
+
             if parsed_path != expected_path {
-                return Err(NodeKeyBundleError::SerializationFailed(format!(
-                    "hd_path mismatch for role {}; expected `{}`, got `{}`",
-                    record.role.as_str(),
-                    expected_path,
-                    parsed_path
-                )));
+                return Err(NodeKeyBundleError::HdPathMismatch {
+                    role: record.role,
+                    expected: expected_path.to_string(),
+                    actual: parsed_path.to_string(),
+                });
             }
-
-            if seen.contains(&record.role) {
-                return Err(NodeKeyBundleError::DuplicateRole(record.role.clone()));
-            }
-            seen.push(record.role.clone());
         }
 
-        for role in required_roles() {
-            if !seen.contains(&role) {
+        for role in NodeKeyRole::all() {
+            if !seen_roles.contains(&role) {
                 return Err(NodeKeyBundleError::MissingRole(role));
             }
         }
 
-        if let Err(error) =
-            crate::identity::keyfile::decrypt_key_from_envelope(&self.encrypted_root_seed, " ")
-        {
-            match error {
-                KeyfileError::EmptyPassword => {}
-                other => return Err(NodeKeyBundleError::InvalidKeyfile(other)),
-            }
+        let expected_bundle_fingerprint = self.compute_bundle_fingerprint()?;
+        if self.bundle_fingerprint != expected_bundle_fingerprint {
+            return Err(NodeKeyBundleError::BundleFingerprintMismatch);
         }
 
         Ok(())
@@ -398,32 +611,12 @@ impl NodeKeyBundleV1 {
             .map_err(|error| NodeKeyBundleError::SerializationFailed(error.to_string()))
     }
 
-    /// Deserializes the bundle from JSON.
+    /// Deserializes the bundle from JSON and validates it.
     pub fn from_json(data: &str) -> Result<Self, NodeKeyBundleError> {
         let bundle: Self = serde_json::from_str(data)
             .map_err(|error| NodeKeyBundleError::SerializationFailed(error.to_string()))?;
         bundle.validate()?;
         Ok(bundle)
-    }
-
-    fn compute_bundle_fingerprint(&self) -> Result<String, NodeKeyBundleError> {
-        let canonical = serde_json::json!({
-            "version": self.version,
-            "node_name": self.node_name,
-            "profile": self.profile,
-            "created_at": self.created_at,
-            "crypto_profile": self.crypto_profile.as_str(),
-            "custody_model": self.custody_model,
-            "engine_fingerprint": self.engine_fingerprint,
-            "keys": self.keys,
-        });
-
-        let bytes = serde_json::to_vec(&canonical)
-            .map_err(|error| NodeKeyBundleError::SerializationFailed(error.to_string()))?;
-        let mut hasher = Sha3_256::new();
-        hasher.update(bytes);
-        let digest = hasher.finalize();
-        Ok(hex::encode_upper(&digest[..16]))
     }
 
     /// Returns the raw Ed25519 public-key bytes for the requested role.
@@ -435,10 +628,10 @@ impl NodeKeyBundleV1 {
             .keys
             .iter()
             .find(|record| record.role == role)
-            .ok_or_else(|| NodeKeyBundleError::MissingRole(role.clone()))?;
+            .ok_or(NodeKeyBundleError::MissingRole(role))?;
 
         let bytes = hex::decode(&record.public_key)
-            .map_err(|error| NodeKeyBundleError::SerializationFailed(error.to_string()))?;
+            .map_err(|_| NodeKeyBundleError::InvalidPublicKeyHex(role))?;
 
         if bytes.len() != AOXC_ED25519_PUBLIC_KEY_LEN {
             return Err(NodeKeyBundleError::InvalidPublicKeyLength {
@@ -452,42 +645,37 @@ impl NodeKeyBundleV1 {
         out.copy_from_slice(&bytes);
         Ok(out)
     }
-}
 
-fn required_roles() -> Vec<NodeKeyRole> {
-    vec![
-        NodeKeyRole::Identity,
-        NodeKeyRole::Consensus,
-        NodeKeyRole::Transport,
-        NodeKeyRole::Operator,
-        NodeKeyRole::Recovery,
-        NodeKeyRole::PqAttestation,
-    ]
-}
+    /// Computes the canonical bundle fingerprint.
+    ///
+    /// Fingerprint policy:
+    /// - binds public and custody metadata,
+    /// - excludes the stored `bundle_fingerprint` field itself,
+    /// - keeps deterministic ordering as serialized in `keys`.
+    fn compute_bundle_fingerprint(&self) -> Result<String, NodeKeyBundleError> {
+        let canonical = serde_json::json!({
+            "version": self.version,
+            "node_name": self.node_name,
+            "profile": self.profile,
+            "created_at": self.created_at,
+            "crypto_profile": self.crypto_profile.as_str(),
+            "custody_model": self.custody_model,
+            "engine_fingerprint": self.engine_fingerprint,
+            "encrypted_root_seed": self.encrypted_root_seed,
+            "keys": self.keys,
+        });
 
-fn build_record(
-    engine: &KeyEngine,
-    profile: &str,
-    crypto_profile: &CryptoProfile,
-    role: &NodeKeyRole,
-) -> Result<NodeKeyRecord, NodeKeyBundleError> {
-    let path = derive_role_path(profile, role)?;
-    let material = engine.derive_key_material(&path)?;
-    let signing_key = derive_ed25519_signing_key(&material, role);
-    let verifying_key: VerifyingKey = signing_key.verifying_key();
-    let public_key_hex = hex::encode_upper(verifying_key.to_bytes());
-    let fingerprint = fingerprint_record(&verifying_key);
+        let bytes = serde_json::to_vec(&canonical)
+            .map_err(|error| NodeKeyBundleError::SerializationFailed(error.to_string()))?;
 
-    Ok(NodeKeyRecord {
-        role: role.clone(),
-        hd_path: path.to_string_path(),
-        algorithm: crypto_profile
-            .operational_public_key_algorithm()
-            .to_string(),
-        public_key_encoding: AOXC_PUBLIC_KEY_ENCODING.to_string(),
-        public_key: public_key_hex,
-        fingerprint,
-    })
+        let mut hasher = Sha3_256::new();
+        hasher.update(AOXC_NODE_BUNDLE_FINGERPRINT_DOMAIN);
+        hasher.update([0x00]);
+        hasher.update(bytes);
+
+        let digest = hasher.finalize();
+        Ok(hex::encode_upper(&digest[..16]))
+    }
 }
 
 /// Normalizes accepted profile aliases into canonical AOXC profile names.
@@ -515,31 +703,18 @@ fn normalize_profile(profile: &str) -> Result<&'static str, NodeKeyBundleError> 
 
 /// Derives the canonical AOXC HD path for the requested operational profile and role.
 ///
-/// This mapping is intentionally aligned with the new AOXC canonical chain-id
-/// policy introduced for the multi-network environment registry.
-///
-/// Current chain mapping:
-/// - `mainnet`    => `2626000001`
-/// - `testnet`    => `2626010001`
-/// - `validation` => `2626030001`
-/// - `devnet`     => `2626020001`
-/// - `localnet`   => `2626900001`
-///
-/// Zone and index are intentionally fixed at:
-/// - `zone = 1`
-/// - `index = 0`
-///
-/// until the node-bootstrap workflow introduces explicit multi-zone or
-/// multi-index operational derivation.
-fn derive_role_path(profile: &str, role: &NodeKeyRole) -> Result<HdPath, NodeKeyBundleError> {
+/// Important compatibility note:
+/// these chain identifiers are intentionally kept within the canonical unhardened
+/// 31-bit HD component range so they remain compatible with strict `HdPath` validation.
+fn derive_role_path(profile: &str, role: NodeKeyRole) -> Result<HdPath, NodeKeyBundleError> {
     let normalized = normalize_profile(profile)?;
 
     let chain = match normalized {
-        "mainnet" => 2_626_000_001,
-        "testnet" => 2_626_010_001,
-        "validation" => 2_626_030_001,
-        "devnet" => 2_626_020_001,
-        "localnet" => 2_626_900_001,
+        "mainnet" => 26_260_001,
+        "testnet" => 26_260_101,
+        "validation" => 26_260_301,
+        "devnet" => 26_260_201,
+        "localnet" => 26_269_001,
         _ => {
             return Err(NodeKeyBundleError::UnsupportedProfile(
                 normalized.to_string(),
@@ -550,18 +725,42 @@ fn derive_role_path(profile: &str, role: &NodeKeyRole) -> Result<HdPath, NodeKey
     Ok(HdPath::new(chain, role.role_index(), 1, 0)?)
 }
 
+/// Builds a canonical public node-key record for the requested role.
+fn build_record(
+    engine: &KeyEngine,
+    profile: &str,
+    crypto_profile: &CryptoProfile,
+    role: NodeKeyRole,
+) -> Result<NodeKeyRecord, NodeKeyBundleError> {
+    let path = derive_role_path(profile, role)?;
+    let material = engine.derive_key_material(&path)?;
+    let signing_key = derive_ed25519_signing_key(&material, role);
+    let verifying_key: VerifyingKey = signing_key.verifying_key();
+
+    Ok(NodeKeyRecord {
+        role,
+        hd_path: path.to_string(),
+        algorithm: crypto_profile
+            .operational_public_key_algorithm()
+            .to_string(),
+        public_key_encoding: AOXC_PUBLIC_KEY_ENCODING.to_string(),
+        public_key: hex::encode_upper(verifying_key.to_bytes()),
+        fingerprint: fingerprint_record(&verifying_key),
+    })
+}
+
 /// Derives a deterministic Ed25519 signing key from canonical AOXC role material.
 ///
 /// The derivation process intentionally avoids reusing the 64-byte engine output
-/// directly as an Ed25519 expanded secret. Instead, it compresses the role-
-/// scoped material through a dedicated domain-separated hash and uses the first
-/// 32 bytes as the Ed25519 seed material.
+/// directly as an Ed25519 expanded secret. Instead, it compresses the role-scoped
+/// material through a dedicated domain-separated hash and uses the first 32 bytes
+/// as the Ed25519 seed material.
 fn derive_ed25519_signing_key(
     material: &[u8; DERIVED_ENTROPY_LEN],
-    role: &NodeKeyRole,
+    role: NodeKeyRole,
 ) -> SigningKey {
     let mut hasher = Sha3_256::new();
-    hasher.update(b"AOXC-ED25519-ROLE-SEED-V1");
+    hasher.update(AOXC_NODE_BUNDLE_ED25519_ROLE_SEED_DOMAIN);
     hasher.update([0x00]);
     hasher.update(role.as_str().as_bytes());
     hasher.update([0x00]);
@@ -577,9 +776,20 @@ fn derive_ed25519_signing_key(
 /// Derives a stable short fingerprint from an Ed25519 verifying key.
 fn fingerprint_record(public_key: &VerifyingKey) -> String {
     let mut hasher = Sha3_256::new();
+    hasher.update(AOXC_NODE_BUNDLE_PUBLIC_KEY_FINGERPRINT_DOMAIN);
+    hasher.update([0x00]);
     hasher.update(public_key.to_bytes());
+
     let digest = hasher.finalize();
     hex::encode_upper(&digest[..8])
+}
+
+/// Returns whether the provided string is uppercase hexadecimal of an exact length.
+fn is_uppercase_hex_with_len(value: &str, expected_len: usize) -> bool {
+    value.len() == expected_len
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_lowercase())
 }
 
 #[cfg(test)]
@@ -773,9 +983,9 @@ mod tests {
             CryptoProfile::ClassicEd25519,
         );
 
-        for role in required_roles() {
+        for role in NodeKeyRole::all() {
             let bytes = bundle
-                .public_key_bytes_for_role(role.clone())
+                .public_key_bytes_for_role(role)
                 .expect("public key bytes must exist for each role");
             assert_eq!(bytes.len(), AOXC_ED25519_PUBLIC_KEY_LEN);
         }
@@ -824,10 +1034,7 @@ mod tests {
         record.hd_path = "m/44/2626/1/2/1/0".to_string();
 
         let result = bundle.validate();
-        assert!(matches!(
-            result,
-            Err(NodeKeyBundleError::SerializationFailed(_))
-        ));
+        assert!(matches!(result, Err(NodeKeyBundleError::HdPathMismatch { .. })));
     }
 
     #[test]
@@ -854,5 +1061,44 @@ mod tests {
                 NodeKeyRole::Identity
             ))
         ));
+    }
+
+    #[test]
+    fn validate_rejects_tampered_record_fingerprint() {
+        let mut bundle = make_bundle(
+            0x11,
+            "validator-13",
+            "mainnet",
+            CryptoProfile::ClassicEd25519,
+        );
+
+        let record = bundle
+            .keys
+            .iter_mut()
+            .find(|record| record.role == NodeKeyRole::Identity)
+            .expect("identity role must exist");
+
+        record.fingerprint = "AAAAAAAAAAAAAAAA".to_string();
+
+        let result = bundle.validate();
+        assert!(matches!(
+            result,
+            Err(NodeKeyBundleError::FingerprintMismatch(NodeKeyRole::Identity))
+        ));
+    }
+
+    #[test]
+    fn validate_rejects_bundle_fingerprint_mismatch() {
+        let mut bundle = make_bundle(
+            0x22,
+            "validator-14",
+            "mainnet",
+            CryptoProfile::ClassicEd25519,
+        );
+
+        bundle.bundle_fingerprint = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string();
+
+        let result = bundle.validate();
+        assert_eq!(result, Err(NodeKeyBundleError::BundleFingerprintMismatch));
     }
 }

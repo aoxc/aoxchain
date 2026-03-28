@@ -9,13 +9,13 @@ use std::fmt;
 use super::hd_path::HdPath;
 
 /// Domain separator preventing cross-protocol entropy reuse.
-const AOXC_KEY_DOMAIN: &[u8] = b"AOXC-KEY-DERIVATION-V1";
+const AOXC_KEY_DOMAIN: &[u8] = b"AOXC/IDENTITY/KEY_ENGINE/V1";
 
 /// Domain separator used for key-engine fingerprint derivation.
-const AOXC_KEY_FINGERPRINT_DOMAIN: &[u8] = b"AOXC-KEY-ENGINE-FINGERPRINT-V1";
+const AOXC_KEY_FINGERPRINT_DOMAIN: &[u8] = b"AOXC/IDENTITY/KEY_ENGINE/FINGERPRINT/V1";
 
 /// Domain separator used for role-scoped seed derivation.
-const AOXC_ROLE_SEED_DOMAIN: &[u8] = b"AOXC-ROLE-SEED-V1";
+const AOXC_ROLE_SEED_DOMAIN: &[u8] = b"AOXC/IDENTITY/KEY_ENGINE/ROLE_SEED/V1";
 
 /// Canonical master-seed size in bytes.
 pub const MASTER_SEED_LEN: usize = 64;
@@ -36,6 +36,18 @@ pub const ROLE_SEED_LEN: usize = 32;
 pub const AOXC_HD_PURPOSE: u32 = 2626;
 pub const AOXC_HD_BIP44_PURPOSE: u32 = 44;
 
+/// Maximum accepted canonical HD path component.
+///
+/// AOXC canonical path derivation currently assumes unhardened variable
+/// components only. Hardened derivation remains a downstream projection concern.
+pub const MAX_CANONICAL_HD_COMPONENT: u32 = 0x7FFF_FFFF;
+
+/// Maximum accepted role-label length.
+///
+/// This bound is intentionally conservative while remaining flexible enough
+/// for operational and protocol-facing role labels.
+pub const MAX_ROLE_LABEL_LEN: usize = 64;
+
 /// Error surface for key-engine operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -46,8 +58,11 @@ pub enum KeyEngineError {
     /// The derived entropy length was not equal to the canonical output size.
     InvalidEntropyLength,
 
-    /// The supplied role label was operationally invalid.
+    /// The supplied role label was empty.
     EmptyRoleLabel,
+
+    /// The supplied role label was present but not canonical.
+    InvalidRoleLabel,
 }
 
 impl KeyEngineError {
@@ -58,6 +73,7 @@ impl KeyEngineError {
             Self::InvalidPath => "KEY_ENGINE_INVALID_PATH",
             Self::InvalidEntropyLength => "KEY_ENGINE_INVALID_ENTROPY_LENGTH",
             Self::EmptyRoleLabel => "KEY_ENGINE_EMPTY_ROLE_LABEL",
+            Self::InvalidRoleLabel => "KEY_ENGINE_INVALID_ROLE_LABEL",
         }
     }
 }
@@ -76,6 +92,9 @@ impl fmt::Display for KeyEngineError {
             }
             Self::EmptyRoleLabel => {
                 write!(f, "key derivation failed: role label must not be empty")
+            }
+            Self::InvalidRoleLabel => {
+                write!(f, "key derivation failed: role label is not canonical")
             }
         }
     }
@@ -99,6 +118,12 @@ impl std::error::Error for KeyEngineError {}
 #[derive(Debug, Clone)]
 pub struct KeyEngine {
     master_seed: [u8; MASTER_SEED_LEN],
+}
+
+impl Drop for KeyEngine {
+    fn drop(&mut self) {
+        self.master_seed.fill(0);
+    }
 }
 
 impl KeyEngine {
@@ -253,13 +278,18 @@ impl KeyEngine {
 }
 
 /// Derives a compact role-scoped 32-byte seed from AOXC key material.
+///
+/// Canonical role-label policy:
+/// - label must not be blank,
+/// - surrounding whitespace is rejected rather than normalized,
+/// - internal whitespace is forbidden,
+/// - only ASCII alphanumeric characters plus `_`, `-`, and `.` are accepted,
+/// - length must remain bounded.
 pub fn derive_role_seed_from_material(
     material: &[u8; DERIVED_ENTROPY_LEN],
     role_label: &str,
 ) -> Result<[u8; ROLE_SEED_LEN], KeyEngineError> {
-    if role_label.trim().is_empty() {
-        return Err(KeyEngineError::EmptyRoleLabel);
-    }
+    validate_role_label(role_label)?;
 
     let mut hasher = Sha3_256::new();
     hasher.update(AOXC_ROLE_SEED_DOMAIN);
@@ -280,10 +310,46 @@ pub fn derive_role_seed_from_material(
 ///
 /// Current policy:
 /// - the path must not be the all-zero vector;
-/// - zero values are individually allowed except for the fully ambiguous all-zero case.
+/// - every variable component must remain in the canonical unhardened range.
 fn validate_hd_path(path: &HdPath) -> Result<(), KeyEngineError> {
     if path.chain == 0 && path.role == 0 && path.zone == 0 && path.index == 0 {
         return Err(KeyEngineError::InvalidPath);
+    }
+
+    if path.chain > MAX_CANONICAL_HD_COMPONENT
+        || path.role > MAX_CANONICAL_HD_COMPONENT
+        || path.zone > MAX_CANONICAL_HD_COMPONENT
+        || path.index > MAX_CANONICAL_HD_COMPONENT
+    {
+        return Err(KeyEngineError::InvalidPath);
+    }
+
+    Ok(())
+}
+
+/// Validates a canonical role label.
+fn validate_role_label(role_label: &str) -> Result<(), KeyEngineError> {
+    if role_label.is_empty() || role_label.trim().is_empty() {
+        return Err(KeyEngineError::EmptyRoleLabel);
+    }
+
+    if role_label != role_label.trim() {
+        return Err(KeyEngineError::InvalidRoleLabel);
+    }
+
+    if role_label.len() > MAX_ROLE_LABEL_LEN {
+        return Err(KeyEngineError::InvalidRoleLabel);
+    }
+
+    if role_label.chars().any(|ch| ch.is_ascii_whitespace()) {
+        return Err(KeyEngineError::InvalidRoleLabel);
+    }
+
+    if !role_label
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.')
+    {
+        return Err(KeyEngineError::InvalidRoleLabel);
     }
 
     Ok(())
@@ -390,6 +456,23 @@ mod tests {
     }
 
     #[test]
+    fn out_of_range_component_is_rejected() {
+        let engine = KeyEngine::from_seed(sample_seed());
+
+        let path = HdPath {
+            chain: MAX_CANONICAL_HD_COMPONENT + 1,
+            role: 1,
+            zone: 1,
+            index: 1,
+        };
+
+        assert_eq!(
+            engine.try_derive_entropy(&path),
+            Err(KeyEngineError::InvalidPath)
+        );
+    }
+
+    #[test]
     fn entropy_hex_has_expected_length() {
         let engine = KeyEngine::from_seed(sample_seed());
 
@@ -443,5 +526,67 @@ mod tests {
             .expect("role seed derivation must succeed");
 
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn empty_role_label_is_rejected() {
+        let engine = KeyEngine::from_seed(sample_seed());
+        let path = sample_path();
+
+        let result = engine.derive_role_seed(&path, "");
+        assert_eq!(result, Err(KeyEngineError::EmptyRoleLabel));
+    }
+
+    #[test]
+    fn whitespace_only_role_label_is_rejected() {
+        let engine = KeyEngine::from_seed(sample_seed());
+        let path = sample_path();
+
+        let result = engine.derive_role_seed(&path, "   ");
+        assert_eq!(result, Err(KeyEngineError::EmptyRoleLabel));
+    }
+
+    #[test]
+    fn surrounding_whitespace_in_role_label_is_rejected() {
+        let engine = KeyEngine::from_seed(sample_seed());
+        let path = sample_path();
+
+        let result = engine.derive_role_seed(&path, " consensus ");
+        assert_eq!(result, Err(KeyEngineError::InvalidRoleLabel));
+    }
+
+    #[test]
+    fn internal_whitespace_in_role_label_is_rejected() {
+        let engine = KeyEngine::from_seed(sample_seed());
+        let path = sample_path();
+
+        let result = engine.derive_role_seed(&path, "consensus role");
+        assert_eq!(result, Err(KeyEngineError::InvalidRoleLabel));
+    }
+
+    #[test]
+    fn invalid_characters_in_role_label_are_rejected() {
+        let engine = KeyEngine::from_seed(sample_seed());
+        let path = sample_path();
+
+        let result = engine.derive_role_seed(&path, "consensus!");
+        assert_eq!(result, Err(KeyEngineError::InvalidRoleLabel));
+    }
+
+    #[test]
+    fn error_codes_are_stable() {
+        assert_eq!(KeyEngineError::InvalidPath.code(), "KEY_ENGINE_INVALID_PATH");
+        assert_eq!(
+            KeyEngineError::InvalidEntropyLength.code(),
+            "KEY_ENGINE_INVALID_ENTROPY_LENGTH"
+        );
+        assert_eq!(
+            KeyEngineError::EmptyRoleLabel.code(),
+            "KEY_ENGINE_EMPTY_ROLE_LABEL"
+        );
+        assert_eq!(
+            KeyEngineError::InvalidRoleLabel.code(),
+            "KEY_ENGINE_INVALID_ROLE_LABEL"
+        );
     }
 }
