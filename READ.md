@@ -73,6 +73,19 @@ Bir sürüm “mainnet adayı” sayılmadan önce:
 - Güvenlik ve operasyon runbook’ları güncel olmalı,
 - Release artifact zinciri (binary hash, sbom, provenance, signatures) tamamlanmalı.
 
+### 4.1 Konsensüs olgunluk seviyesi (gerçekçi tanım)
+
+`%100 eksiksiz / hatasız` gibi mutlak bir güvenlik iddiası bu repo için **yapılmaz**. Bunun yerine
+ölçülebilir kalite kapıları ve kanıt üretimi esas alınır:
+
+- Konsensüs güvenliği test/evidence ile doğrulanır.
+- Post-quantum politika geçişleri epoch tabanlı zorunluluklarla uygulanır.
+- Üretim iddiaları yalnızca artifact + audit kanıtlarıyla kabul edilir.
+- Belirsiz durumlarda fail-open değil, fail-closed yaklaşımı korunur.
+
+Bu yaklaşımın amacı; pazarlama dili yerine denetlenebilir, tekrar üretilebilir ve operasyonel olarak
+izlenebilir bir güvenlik seviyesi sağlamaktır.
+
 ---
 
 ## 5) Konfigürasyon ve ortam modeli
