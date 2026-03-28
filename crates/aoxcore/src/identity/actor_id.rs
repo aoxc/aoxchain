@@ -540,6 +540,8 @@ fn validate_checksum_component(checksum: &str) -> Result<(), ActorIdError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
 
     fn sample_pubkey() -> Vec<u8> {
         vec![0x11; 32]
@@ -663,5 +665,104 @@ mod tests {
             validate_actor_id(actor_id),
             Err(ActorIdError::InvalidPrefix)
         );
+    }
+
+    #[test]
+    fn generate_and_validate_actor_id_matches_validation_path() {
+        let pk = sample_pubkey();
+        let actor_id =
+            generate_and_validate_actor_id(&pk, "validator", "europe").expect("must succeed");
+
+        assert_eq!(validate_actor_id(&actor_id), Ok(()));
+    }
+
+    #[test]
+    fn parse_rejects_whitespace_only_identifier() {
+        assert_eq!(parse_actor_id("   "), Err(ActorIdError::EmptyActorId));
+    }
+
+    #[test]
+    fn parse_rejects_structural_component_count_mismatch() {
+        assert_eq!(
+            parse_actor_id("AOXC-VAL-EU-ABCD"),
+            Err(ActorIdError::InvalidFormat)
+        );
+    }
+
+    #[test]
+    fn validation_rejects_invalid_serial_lengths_and_characters() {
+        let pk = sample_pubkey();
+        let valid = generate_actor_id(&pk, "VAL", "EU").expect("must succeed");
+        let mut parts: Vec<&str> = valid.split('-').collect();
+
+        parts[3] = "ABC";
+        let bad_len = parts.join("-");
+        assert_eq!(
+            validate_actor_id(&bad_len),
+            Err(ActorIdError::InvalidSerial)
+        );
+
+        parts[3] = "ZZZZZZZZZZZZZZZZZZZZZZZZ";
+        let bad_chars = parts.join("-");
+        assert_eq!(
+            validate_actor_id(&bad_chars),
+            Err(ActorIdError::InvalidSerial)
+        );
+    }
+
+    #[test]
+    fn validation_rejects_invalid_checksum_symbols() {
+        let pk = sample_pubkey();
+        let valid = generate_actor_id(&pk, "VAL", "EU").expect("must succeed");
+        let mut parts: Vec<&str> = valid.split('-').collect();
+        parts[4] = "IO";
+        let actor_id = parts.join("-");
+        assert_eq!(
+            validate_actor_id(&actor_id),
+            Err(ActorIdError::InvalidChecksum)
+        );
+    }
+
+    #[test]
+    fn binding_verification_rejects_role_mismatch() {
+        let pk = sample_pubkey();
+        let actor_id =
+            generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+
+        assert_eq!(
+            verify_actor_id_binding(&actor_id, &pk, "OBS", "EU"),
+            Err(ActorIdError::DerivationMismatch)
+        );
+    }
+
+    #[test]
+    fn deterministic_randomized_actor_id_regression_stress() {
+        let mut rng = StdRng::seed_from_u64(0xA0C1_D1D5_u64);
+
+        for _ in 0..1_000 {
+            let mut pubkey = [0u8; 32];
+            rng.fill_bytes(&mut pubkey);
+            if pubkey.iter().all(|b| *b == 0) {
+                pubkey[0] = 1;
+            }
+
+            let role = if (rng.next_u32() & 1) == 0 {
+                "validator"
+            } else {
+                "observer"
+            };
+            let zone = if (rng.next_u32() & 1) == 0 {
+                "eu"
+            } else {
+                "na"
+            };
+
+            let a = generate_actor_id(&pubkey, role, zone).expect("must succeed");
+            let b = generate_actor_id(&pubkey, role, zone).expect("must succeed");
+
+            assert_eq!(a, b);
+            assert_eq!(validate_actor_id(&a), Ok(()));
+            assert_eq!(verify_actor_id_binding(&a, &pubkey, role, zone), Ok(()));
+        }
     }
 }

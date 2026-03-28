@@ -180,6 +180,8 @@ impl fmt::Display for HdPath {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
 
     #[test]
     fn hd_path_creation() {
@@ -210,5 +212,101 @@ mod tests {
     fn hardened_index() {
         let path = HdPath::new(1, 1, 1, 0).unwrap();
         assert_eq!(path.hardened_index(), HARDENED_OFFSET);
+    }
+
+    #[test]
+    fn new_rejects_out_of_range_index() {
+        assert_eq!(
+            HdPath::new(1, 1, 1, MAX_HD_INDEX + 1),
+            Err(HdPathError::IndexOverflow)
+        );
+    }
+
+    #[test]
+    fn parse_rejects_invalid_shapes_and_prefixes() {
+        assert_eq!("".parse::<HdPath>(), Err(HdPathError::InvalidFormat));
+        assert_eq!(
+            "m/44/2626/1/2/3".parse::<HdPath>(),
+            Err(HdPathError::InvalidFormat)
+        );
+        assert_eq!(
+            "root/44/2626/1/2/3/4".parse::<HdPath>(),
+            Err(HdPathError::InvalidFormat)
+        );
+    }
+
+    #[test]
+    fn parse_rejects_wrong_purpose_values() {
+        assert_eq!(
+            "m/43/2626/1/2/3/4".parse::<HdPath>(),
+            Err(HdPathError::InvalidPurpose)
+        );
+        assert_eq!(
+            "m/44/9999/1/2/3/4".parse::<HdPath>(),
+            Err(HdPathError::InvalidPurpose)
+        );
+    }
+
+    #[test]
+    fn parse_rejects_non_numeric_components() {
+        assert_eq!(
+            "m/44/2626/x/2/3/4".parse::<HdPath>(),
+            Err(HdPathError::InvalidComponent)
+        );
+        assert_eq!(
+            "m/44/2626/1/x/3/4".parse::<HdPath>(),
+            Err(HdPathError::InvalidComponent)
+        );
+        assert_eq!(
+            "m/44/2626/1/2/x/4".parse::<HdPath>(),
+            Err(HdPathError::InvalidComponent)
+        );
+        assert_eq!(
+            "m/44/2626/1/2/3/x".parse::<HdPath>(),
+            Err(HdPathError::InvalidComponent)
+        );
+    }
+
+    #[test]
+    fn parse_rejects_index_overflow() {
+        let overflow_path = format!("m/44/2626/1/2/3/{}", MAX_HD_INDEX + 1);
+        assert_eq!(
+            overflow_path.parse::<HdPath>(),
+            Err(HdPathError::IndexOverflow)
+        );
+    }
+
+    #[test]
+    fn next_rejects_max_index() {
+        let path = HdPath::new(10, 20, 30, MAX_HD_INDEX).unwrap();
+        assert_eq!(path.next(), Err(HdPathError::IndexOverflow));
+    }
+
+    #[test]
+    fn hardened_detection_matches_threshold_behavior() {
+        let below = HdPath::new(1, 1, 1, MAX_HD_INDEX - 1).unwrap();
+        let max = HdPath::new(1, 1, 1, MAX_HD_INDEX).unwrap();
+
+        assert!(!below.is_hardened());
+        assert!(!max.is_hardened());
+        assert!(max.hardened_index() >= HARDENED_OFFSET);
+    }
+
+    #[test]
+    fn randomized_roundtrip_stress_for_canonical_paths() {
+        let mut rng = StdRng::seed_from_u64(0xA0C0_2026_u64);
+
+        for _ in 0..2_000 {
+            let chain = rng.next_u32();
+            let role = rng.next_u32();
+            let zone = rng.next_u32();
+            let index = rng.next_u32() & MAX_HD_INDEX;
+
+            let original = HdPath::new(chain, role, zone, index).unwrap();
+            let serialized = original.to_string();
+            let parsed: HdPath = serialized.parse().unwrap();
+
+            assert_eq!(parsed, original);
+        }
     }
 }
