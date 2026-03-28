@@ -2,17 +2,17 @@
 
 > Scope: `configs/environments/testnet`
 
-## Bu klasör ne yapar?
-Testnet için genesis, validator, profile, release-policy ve operasyonel metadata dosyalarını içerir.
+## Purpose
+Contains genesis, validator, profile, release-policy, and operational metadata files for testnet.
 
-## İçerik özeti
-- Bu klasördeki dosyalar testnet kimliğini (`chain_id`, `network_id`, genesis hash) sabitler.
-- `validators.json` en az 3 validator topolojisini referans alır.
-- `bootnodes.json` seed/bootnode peer keşif giriş noktalarını içerir.
-- `network-metadata.json` public RPC/explorer/faucet gibi kullanıcı metadata'sını tek noktada yayınlar.
-- Değişiklik yapılırken ilgili test/uyumluluk etkisi birlikte değerlendirilmelidir.
+## Contents at a glance
+- Files in this directory fix testnet identity (`chain_id`, `network_id`, genesis hash).
+- `validators.json` references a minimum three-validator topology.
+- `bootnodes.json` defines seed/bootnode peer discovery entry points.
+- `network-metadata.json` publishes user-facing metadata such as public RPC, explorer, and faucet endpoints.
+- Any change should be evaluated together with its testing and compatibility impact.
 
-## Hızlı doğrulama
+## Quick validation
 
 ```bash
 scripts/validation/persistent_testnet_gate.sh

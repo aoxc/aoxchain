@@ -2,10 +2,10 @@
 
 > Scope: `configs/environments/validation`
 
-## Bu klasör ne yapar?
-Validation ağı için profile/genesis/validator setini içerir.
+## Purpose
+Contains profile/genesis/validator sets for the validation network.
 
-## İçerik özeti
-- Bu klasördeki kod/dosyalar ilgili alanın çalışma davranışını tanımlar.
-- Klasör, kendi sorumluluk alanındaki modülleri ve yardımcı dosyaları içerir.
-- Değişiklik yapılırken ilgili test/uyumluluk etkisi birlikte değerlendirilmelidir.
+## Contents at a glance
+- The code and files in this directory define the runtime behavior of this scope.
+- The folder contains modules and supporting assets bounded by this responsibility domain.
+- Any change should be evaluated together with its testing and compatibility impact.

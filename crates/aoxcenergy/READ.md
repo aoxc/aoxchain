@@ -2,10 +2,10 @@
 
 > Scope: `crates/aoxcenergy`
 
-## Bu klasör ne yapar?
-Gas/fee/ekonomi tarafı maliyetlendirme ve kaynak kurallarını taşır.
+## Purpose
+Carries gas/fee/economic costing and resource-governance rules.
 
-## İçerik özeti
-- Bu klasördeki kod/dosyalar ilgili alanın çalışma davranışını tanımlar.
-- Klasör, kendi sorumluluk alanındaki modülleri ve yardımcı dosyaları içerir.
-- Değişiklik yapılırken ilgili test/uyumluluk etkisi birlikte değerlendirilmelidir.
+## Contents at a glance
+- The code and files in this directory define the runtime behavior of this scope.
+- The folder contains modules and supporting assets bounded by this responsibility domain.
+- Any change should be evaluated together with its testing and compatibility impact.

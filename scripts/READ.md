@@ -15,6 +15,8 @@ The script surface is designed to be production-oriented and compatible with:
   - Beginner-friendly operations CLI (`doctor/start/stop/status/restart/logs/menu`).
 - `scripts/network_env_daemon.sh`
   - Unified orchestrator for `start|once|status|stop` across `mainnet|testnet|devnet`.
+- `scripts/network_stack.sh`
+  - Dual-stack orchestrator for synchronized `testnet + mainnet` operations with rollback safety.
 - `scripts/real_chain_daemon.sh`
   - Legacy loop daemon for local real-chain simulation.
 - `scripts/validation/*`
@@ -29,11 +31,13 @@ Use Make targets for environment operations:
 - `make net-mainnet-start`, `make net-mainnet-once`, `make net-mainnet-status`, `make net-mainnet-stop`
 - `make net-testnet-start`, `make net-testnet-once`, `make net-testnet-status`, `make net-testnet-stop`
 - `make net-devnet-start`, `make net-devnet-once`, `make net-devnet-status`, `make net-devnet-stop`
+- `make net-dual-start`, `make net-dual-once`, `make net-dual-status`, `make net-dual-stop`, `make net-dual-restart`
 - `make ops-help`, `make ops-doctor`
 - `make ops-start-mainnet|ops-start-testnet|ops-start-devnet`
 - `make ops-status-mainnet|ops-status-testnet|ops-status-devnet`
 - `make ops-stop-mainnet|ops-stop-testnet|ops-stop-devnet`
 - `make ops-restart-mainnet|ops-restart-testnet|ops-restart-devnet`
+- `make ops-start-dual|ops-status-dual|ops-stop-dual|ops-restart-dual`
 - `make ops-logs-mainnet|ops-logs-testnet|ops-logs-devnet`
 
 ## Operational Safety Notes
