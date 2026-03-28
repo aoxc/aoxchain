@@ -130,7 +130,14 @@ const AOXC_CLI_COMMANDS: [CommandSpec; 6] = [
 /// routing consistency. It must be replaced with real application state if the
 /// project exposes a profile selector or environment registry.
 fn profile() -> NetworkProfile {
-    NetworkProfile::Mainnet
+    let endpoint = RpcClient::endpoint().to_ascii_lowercase();
+    if endpoint.contains("devnet") {
+        NetworkProfile::Devnet
+    } else if endpoint.contains("testnet") {
+        NetworkProfile::Testnet
+    } else {
+        NetworkProfile::Mainnet
+    }
 }
 
 #[component]
@@ -140,6 +147,22 @@ pub fn Home() -> Element {
 
     let total_tps: f32 = snapshot.lanes.iter().map(|lane| lane.tps).sum();
     let offline_nodes = snapshot.nodes.iter().filter(|node| !node.online).count();
+    let current_block = snapshot
+        .height
+        .map(|height| format!("#{height}"))
+        .unwrap_or_else(|| "N/A".to_string());
+    let network_health = snapshot
+        .network_health
+        .map(|value| format!("{value:.2}%"))
+        .unwrap_or_else(|| "N/A".to_string());
+    let active_nodes_label = snapshot
+        .active_nodes
+        .map(|count| count.to_string())
+        .unwrap_or_else(|| "N/A".to_string());
+    let staked_label = snapshot
+        .total_staked
+        .map(|amount| amount.to_string())
+        .unwrap_or_else(|| "N/A".to_string());
 
     let selected_profile = profile();
     let telemetry_resource = use_resource(move || async move { latest_snapshot().await });
@@ -166,7 +189,7 @@ pub fn Home() -> Element {
             div { class: "grid gap-4 md:grid-cols-2 xl:grid-cols-4",
                 MetricCard {
                     title: "Current Block",
-                    value: format!("#{}", snapshot.height),
+                    value: current_block,
                     hint: "Latest finalized L1 height".to_string()
                 }
                 MetricCard {
@@ -176,12 +199,12 @@ pub fn Home() -> Element {
                 }
                 MetricCard {
                     title: "Network Health",
-                    value: format!("{:.2}%", snapshot.network_health),
-                    hint: format!("{offline_nodes} offline / {} active", snapshot.active_nodes)
+                    value: network_health,
+                    hint: format!("{offline_nodes} offline / {active_nodes_label} active")
                 }
                 MetricCard {
                     title: "Total Staked",
-                    value: snapshot.total_staked.to_string(),
+                    value: staked_label,
                     hint: "Assets committed to network security in native units".to_string()
                 }
             }
@@ -295,6 +318,10 @@ pub fn Staking() -> Element {
     let chain = use_context::<Signal<GlobalChainState>>();
     let snapshot = chain.read().clone();
     let total_validator_weight: u64 = snapshot.nodes.iter().map(|node| node.stake_weight).sum();
+    let staked_label = snapshot
+        .total_staked
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "N/A".to_string());
 
     rsx! {
         div { class: "space-y-4",
@@ -310,12 +337,12 @@ pub fn Staking() -> Element {
                 div { class: "grid gap-3 md:grid-cols-3",
                     InfoTile {
                         label: "Total Staked",
-                        value: snapshot.total_staked.to_string(),
+                        value: staked_label,
                         hint: "Total AOXC secured by staking".to_string()
                     }
                     InfoTile {
                         label: "Validators",
-                        value: snapshot.active_nodes.to_string(),
+                        value: snapshot.active_nodes.map(|value| value.to_string()).unwrap_or_else(|| "N/A".to_string()),
                         hint: "Visible active validator footprint".to_string()
                     }
                     InfoTile {
@@ -342,6 +369,10 @@ pub fn Staking() -> Element {
 pub fn Nodes() -> Element {
     let chain = use_context::<Signal<GlobalChainState>>();
     let snapshot = chain.read().clone();
+    let active_nodes_label = snapshot
+        .active_nodes
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "N/A".to_string());
 
     rsx! {
         div { class: "space-y-4",
@@ -355,7 +386,7 @@ pub fn Nodes() -> Element {
 
             GlassSurface { class: Some("p-5".to_string()),
                 div { class: "mb-4 flex flex-wrap items-center justify-between gap-3",
-                    p { class: "text-sm text-slate-300", "Active nodes: {snapshot.active_nodes}" }
+                    p { class: "text-sm text-slate-300", "Active nodes: {active_nodes_label}" }
                     p { class: "text-xs uppercase tracking-wide text-slate-500", "Consensus participant registry" }
                 }
 
@@ -592,7 +623,11 @@ fn WalletPanel() -> Element {
 }
 
 #[component]
-fn ExplorerPanel(latest_height: u64, total_staked: u128, active_nodes: usize) -> Element {
+fn ExplorerPanel(
+    latest_height: Option<u64>,
+    total_staked: Option<u128>,
+    active_nodes: Option<usize>,
+) -> Element {
     rsx! {
         GlassSurface { class: Some("p-5".to_string()), intensity: Some("low"),
             div { class: "space-y-4",
@@ -607,17 +642,17 @@ fn ExplorerPanel(latest_height: u64, total_staked: u128, active_nodes: usize) ->
                 div { class: "grid gap-3 md:grid-cols-3",
                     InfoTile {
                         label: "Latest Block",
-                        value: format!("#{latest_height}"),
+                        value: latest_height.map(|height| format!("#{height}")).unwrap_or_else(|| "N/A".to_string()),
                         hint: "Most recent finalized height".to_string()
                     }
                     InfoTile {
                         label: "Total Staked",
-                        value: total_staked.to_string(),
+                        value: total_staked.map(|value| value.to_string()).unwrap_or_else(|| "N/A".to_string()),
                         hint: "Committed security base in native units".to_string()
                     }
                     InfoTile {
                         label: "Active Validators",
-                        value: active_nodes.to_string(),
+                        value: active_nodes.map(|value| value.to_string()).unwrap_or_else(|| "N/A".to_string()),
                         hint: "Currently visible validator footprint".to_string()
                     }
                 }
