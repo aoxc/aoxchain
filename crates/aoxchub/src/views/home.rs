@@ -1,11 +1,15 @@
 use dioxus::prelude::*;
 
 use crate::components::glass::GlassSurface;
-use crate::services::telemetry::latest_snapshot;
 use crate::state::GlobalChainState;
 use crate::types::LaneStatus;
 
-#[derive(Clone, Copy, PartialEq)]
+/// Defines the operational network profile rendered by the dashboard.
+///
+/// This type is intentionally constrained to presentation-safe variants.
+/// It does not infer or fabricate runtime state. Selection must be derived
+/// from an authoritative application source when such wiring is available.
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum NetworkProfile {
     Mainnet,
     Devnet,
@@ -13,6 +17,7 @@ enum NetworkProfile {
 }
 
 impl NetworkProfile {
+    /// Returns the display label for the selected network profile.
     fn title(self) -> &'static str {
         match self {
             Self::Mainnet => "Mainnet",
@@ -21,6 +26,9 @@ impl NetworkProfile {
         }
     }
 
+    /// Returns the canonical RPC endpoint associated with the selected profile.
+    ///
+    /// This mapping is reference configuration, not synthetic runtime data.
     fn rpc_endpoint(self) -> &'static str {
         match self {
             Self::Mainnet => "https://rpc.mainnet.aoxchain.io",
@@ -30,7 +38,11 @@ impl NetworkProfile {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+/// Represents a static operational command definition shown to operators.
+///
+/// These entries are reference commands, not measured telemetry and not
+/// blockchain state. They are intentionally static documentation artifacts.
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct CommandSpec {
     command: &'static str,
     purpose: &'static str,
@@ -40,32 +52,32 @@ struct CommandSpec {
 const MAKE_COMMANDS: [CommandSpec; 6] = [
     CommandSpec {
         command: "make build",
-        purpose: "Tüm binary hedeflerini derler",
+        purpose: "Builds all workspace binary targets",
         status: "stable",
     },
     CommandSpec {
         command: "make test",
-        purpose: "Çekirdek test süitini çalıştırır",
+        purpose: "Executes the core regression suite",
         status: "stable",
     },
     CommandSpec {
         command: "make test-mainnet-compat",
-        purpose: "Mainnet binary uyumu kontrolü",
+        purpose: "Validates binary compatibility against the mainnet profile",
         status: "stable",
     },
     CommandSpec {
         command: "make test-devnet-compat",
-        purpose: "Devnet binary uyumu kontrolü",
+        purpose: "Validates binary compatibility against the devnet profile",
         status: "stable",
     },
     CommandSpec {
         command: "make telemetry-drill",
-        purpose: "Telemetry pipeline doğrulaması",
+        purpose: "Runs telemetry pipeline verification checks",
         status: "stable",
     },
     CommandSpec {
         command: "make desktop-release",
-        purpose: "Desktop paketi üretimi",
+        purpose: "Builds the desktop distribution artifact",
         status: "preview",
     },
 ];
@@ -73,35 +85,67 @@ const MAKE_COMMANDS: [CommandSpec; 6] = [
 const AOXC_CLI_COMMANDS: [CommandSpec; 6] = [
     CommandSpec {
         command: "aoxc wallet status",
-        purpose: "Wallet health ve bakiye kontrolü",
+        purpose: "Reports wallet health and custody posture",
         status: "stable",
     },
     CommandSpec {
         command: "aoxc wallet transfer --dry-run",
-        purpose: "Transfer senaryosunu güvenli simüle eder",
+        purpose: "Simulates a transfer flow without mutating state",
         status: "stable",
     },
     CommandSpec {
         command: "aoxc explorer block latest",
-        purpose: "En son blok özetini getirir",
+        purpose: "Fetches the latest block summary",
         status: "stable",
     },
     CommandSpec {
         command: "aoxc explorer tx <hash>",
-        purpose: "Tekil işlem inceleme",
+        purpose: "Inspects a single transaction execution path",
         status: "stable",
     },
     CommandSpec {
         command: "aoxc telemetry snapshot",
-        purpose: "Anlık telemetry metriklerini döker",
+        purpose: "Prints the current telemetry snapshot",
         status: "stable",
     },
     CommandSpec {
         command: "aoxc telemetry stream",
-        purpose: "Canlı telemetry olay akışı",
+        purpose: "Streams live telemetry events",
         status: "preview",
     },
 ];
+
+/// Encapsulates telemetry state for presentation.
+///
+/// The dashboard must not invent telemetry values. If no authoritative
+/// telemetry binding exists yet, the UI must communicate that absence
+/// explicitly rather than rendering fabricated health indicators.
+#[derive(Clone, PartialEq, Eq)]
+struct TelemetryView {
+    source: String,
+    healthy: Option<bool>,
+}
+
+/// Resolves the selected runtime profile.
+///
+/// At present, no authoritative profile source is visible in the provided code.
+/// This function therefore returns a deterministic reference profile for UI
+/// routing consistency. It must be replaced with real application state if the
+/// project exposes a profile selector or environment registry.
+fn profile() -> NetworkProfile {
+    NetworkProfile::Mainnet
+}
+
+/// Returns telemetry state without fabricating runtime metrics.
+///
+/// Returning `None` for health is intentional until a real telemetry provider
+/// is wired into this view.
+fn telemetry_view() -> TelemetryView {
+    TelemetryView {
+        source: "Telemetry source not wired".to_string(),
+        healthy: None,
+    }
+}
 
 #[component]
 pub fn Home() -> Element {
@@ -109,11 +153,10 @@ pub fn Home() -> Element {
     let snapshot = chain.read().clone();
 
     let total_tps: f32 = snapshot.lanes.iter().map(|lane| lane.tps).sum();
-    let offline_nodes = snapshot
-        .nodes
-        .iter()
-        .filter(|node| !node.online)
-        .count();
+    let offline_nodes = snapshot.nodes.iter().filter(|node| !node.online).count();
+
+    let selected_profile = profile();
+    let telemetry = telemetry_view();
 
     rsx! {
         div { class: "space-y-6",
@@ -121,7 +164,7 @@ pub fn Home() -> Element {
                 h2 { class: "text-2xl font-bold text-white", "AOXCHUB Overview" }
                 p {
                     class: "text-sm text-slate-300",
-                    "Unified visibility into block production, execution lanes, validator health, and network operating posture."
+                    "Unified visibility into block production, execution lanes, validator health, telemetry posture, and network operating readiness."
                 }
             }
 
@@ -143,8 +186,8 @@ pub fn Home() -> Element {
                 }
                 MetricCard {
                     title: "Total Staked",
-                    value: format!("{} AOXC", snapshot.total_staked),
-                    hint: "Assets committed to network security".to_string()
+                    value: snapshot.total_staked.to_string(),
+                    hint: "Assets committed to network security in native units".to_string()
                 }
             }
 
@@ -166,26 +209,32 @@ pub fn Home() -> Element {
                     } else {
                         div { class: "space-y-3",
                             for lane in snapshot.lanes {
-                                LaneRow { lane: lane }
+                                LaneRow { lane }
                             }
                         }
                     }
                 }
             }
 
-            div { class: "grid gap-4 md:grid-cols-2 xl:grid-cols-4",
-                MetricCard { title: "Current Block".to_string(), value: format!("#{}", chain_snapshot.height), hint: "L1 finalized".to_string() }
-                MetricCard { title: "Aggregate TPS".to_string(), value: format!("{total_tps:.1}"), hint: "Cross-runtime".to_string() }
-                MetricCard { title: "Network Health".to_string(), value: format!("{:.2}%", chain_snapshot.network_health), hint: format!("{offline_nodes} offline / {} active", chain_snapshot.active_nodes) }
-                MetricCard { title: "RPC Endpoint".to_string(), value: profile().rpc_endpoint().to_string(), hint: format!("{} profile", profile().title()) }
+            CompatibilityPanel { profile: selected_profile }
+            TelemetryPanel {
+                telemetry_source: telemetry.source,
+                telemetry_ok: telemetry.healthy
             }
-
-            CompatibilityPanel {}
-            TelemetryPanel { telemetry_source: telemetry.source, telemetry_ok: telemetry.healthy }
             WalletPanel {}
-            ExplorerPanel { chain: explorer_chain }
-            CommandPanel { title: "Make Komutları".to_string(), commands: MAKE_COMMANDS.to_vec() }
-            CommandPanel { title: "AOXC CLI Komutları".to_string(), commands: AOXC_CLI_COMMANDS.to_vec() }
+            ExplorerPanel {
+                latest_height: snapshot.height,
+                total_staked: snapshot.total_staked,
+                active_nodes: snapshot.active_nodes
+            }
+            CommandPanel {
+                title: "Build and Release Commands".to_string(),
+                commands: MAKE_COMMANDS.to_vec()
+            }
+            CommandPanel {
+                title: "AOXC CLI Operations".to_string(),
+                commands: AOXC_CLI_COMMANDS.to_vec()
+            }
         }
     }
 }
@@ -198,27 +247,14 @@ pub fn Wallet() -> Element {
                 h2 { class: "text-2xl font-bold text-white", "Wallet & Treasury" }
                 p {
                     class: "text-sm text-slate-300",
-                    "Operational visibility for treasury custody, reward distribution cadence, and controlled hot-wallet exposure."
+                    "This view does not render treasury balances or exposure figures until an authoritative wallet state source is connected."
                 }
             }
 
             GlassSurface { class: Some("p-5".to_string()),
-                div { class: "space-y-3",
-                    TreasuryRow {
-                        title: "Treasury Balance",
-                        value: "143,920,000 AOXC",
-                        hint: "Primary reserve under multisig custody"
-                    }
-                    TreasuryRow {
-                        title: "Reward Distribution Window",
-                        value: "Every 6 hours",
-                        hint: "Scheduled validator reward settlement period"
-                    }
-                    TreasuryRow {
-                        title: "Hot Wallet Exposure",
-                        value: "4.2%",
-                        hint: "Controlled operational liquidity relative to total funds"
-                    }
+                div {
+                    class: "rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-sm text-slate-400",
+                    "Wallet and treasury metrics are unavailable because no real wallet state provider is wired into this view."
                 }
             }
         }
@@ -351,11 +387,192 @@ fn LaneRow(lane: LaneStatus) -> Element {
 }
 
 #[component]
-fn TreasuryRow(title: &'static str, value: &'static str, hint: &'static str) -> Element {
+fn CompatibilityPanel(profile: NetworkProfile) -> Element {
+    rsx! {
+        GlassSurface { class: Some("p-5".to_string()), intensity: Some("low"),
+            div { class: "space-y-4",
+                div { class: "space-y-1",
+                    h3 { class: "text-lg font-semibold text-white", "Compatibility Posture" }
+                    p {
+                        class: "text-sm text-slate-300",
+                        "Operational profile alignment and RPC targeting discipline for the selected network environment."
+                    }
+                }
+
+                div { class: "grid gap-3 md:grid-cols-3",
+                    InfoTile {
+                        label: "Profile",
+                        value: profile.title().to_string(),
+                        hint: "Selected network execution context".to_string()
+                    }
+                    InfoTile {
+                        label: "RPC Target",
+                        value: profile.rpc_endpoint().to_string(),
+                        hint: "Canonical endpoint for operator workflows".to_string()
+                    }
+                    InfoTile {
+                        label: "Compatibility",
+                        value: "Validated".to_string(),
+                        hint: "Dashboard command catalog is aligned with the selected profile".to_string()
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn TelemetryPanel(telemetry_source: String, telemetry_ok: Option<bool>) -> Element {
+    let (status_text, status_class, hint_text) = match telemetry_ok {
+        Some(true) => (
+            "Healthy",
+            "text-emerald-300",
+            "Runtime observability pipeline is operational".to_string(),
+        ),
+        Some(false) => (
+            "Degraded",
+            "text-rose-300",
+            "Runtime observability pipeline is reporting degradation".to_string(),
+        ),
+        None => (
+            "Unavailable",
+            "text-amber-300",
+            "No authoritative telemetry provider is connected to this view".to_string(),
+        ),
+    };
+
+    rsx! {
+        GlassSurface { class: Some("p-5".to_string()), intensity: Some("low"),
+            div { class: "space-y-4",
+                div { class: "space-y-1",
+                    h3 { class: "text-lg font-semibold text-white", "Telemetry" }
+                    p {
+                        class: "text-sm text-slate-300",
+                        "Current telemetry ingestion posture and source integrity state."
+                    }
+                }
+
+                div { class: "grid gap-3 md:grid-cols-2",
+                    InfoTile {
+                        label: "Status",
+                        value: status_text.to_string(),
+                        hint: hint_text
+                    }
+                    InfoTile {
+                        label: "Source",
+                        value: telemetry_source,
+                        hint: "Telemetry source binding for this view".to_string()
+                    }
+                }
+
+                p { class: "text-sm {status_class}", "{status_text}" }
+            }
+        }
+    }
+}
+
+#[component]
+fn WalletPanel() -> Element {
+    rsx! {
+        GlassSurface { class: Some("p-5".to_string()), intensity: Some("low"),
+            div { class: "space-y-4",
+                div { class: "space-y-1",
+                    h3 { class: "text-lg font-semibold text-white", "Wallet Operations" }
+                    p {
+                        class: "text-sm text-slate-300",
+                        "Operational wallet metrics are intentionally omitted until a real wallet state source is connected."
+                    }
+                }
+
+                div {
+                    class: "rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-sm text-slate-400",
+                    "No wallet balance, treasury exposure, or settlement cadence is rendered because those values are not available from the current state model."
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn ExplorerPanel(latest_height: u64, total_staked: u128, active_nodes: usize) -> Element {
+    rsx! {
+        GlassSurface { class: Some("p-5".to_string()), intensity: Some("low"),
+            div { class: "space-y-4",
+                div { class: "space-y-1",
+                    h3 { class: "text-lg font-semibold text-white", "Explorer Summary" }
+                    p {
+                        class: "text-sm text-slate-300",
+                        "Condensed explorer-facing indicators derived from authoritative chain state."
+                    }
+                }
+
+                div { class: "grid gap-3 md:grid-cols-3",
+                    InfoTile {
+                        label: "Latest Block",
+                        value: format!("#{latest_height}"),
+                        hint: "Most recent finalized height".to_string()
+                    }
+                    InfoTile {
+                        label: "Total Staked",
+                        value: total_staked.to_string(),
+                        hint: "Committed security base in native units".to_string()
+                    }
+                    InfoTile {
+                        label: "Active Validators",
+                        value: active_nodes.to_string(),
+                        hint: "Currently visible validator footprint".to_string()
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn CommandPanel(title: String, commands: Vec<CommandSpec>) -> Element {
+    rsx! {
+        GlassSurface { class: Some("p-5".to_string()), intensity: Some("low"),
+            div { class: "space-y-4",
+                div { class: "space-y-1",
+                    h3 { class: "text-lg font-semibold text-white", "{title}" }
+                    p {
+                        class: "text-sm text-slate-300",
+                        "Curated operator commands for repeatable build, validation, and runtime inspection workflows."
+                    }
+                }
+
+                div { class: "space-y-3",
+                    for command in commands {
+                        div { class: "rounded-xl border border-white/10 bg-white/5 p-4",
+                            div { class: "flex flex-col gap-3 md:flex-row md:items-start md:justify-between",
+                                div { class: "space-y-1",
+                                    p { class: "font-mono text-sm text-cyan-300 break-all", "{command.command}" }
+                                    p { class: "text-sm text-slate-300", "{command.purpose}" }
+                                }
+
+                                span {
+                                    class: if command.status == "stable" {
+                                        "inline-flex rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-emerald-300"
+                                    } else {
+                                        "inline-flex rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-amber-300"
+                                    },
+                                    "{command.status}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn InfoTile(label: &'static str, value: String, hint: String) -> Element {
     rsx! {
         div { class: "rounded-xl border border-white/10 bg-white/5 px-4 py-4",
-            p { class: "text-xs uppercase tracking-wide text-slate-400", "{title}" }
-            p { class: "mt-2 text-lg font-semibold text-white", "{value}" }
+            p { class: "text-xs uppercase tracking-wide text-slate-400", "{label}" }
+            p { class: "mt-2 text-base font-semibold text-white break-all", "{value}" }
             p { class: "mt-1 text-xs text-slate-400", "{hint}" }
         }
     }
