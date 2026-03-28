@@ -810,7 +810,7 @@ fn evaluate_full_surface_readiness(
             ],
         ),
         build_surface(
-            "wallet",
+            "desktop-wallet",
             "client-platform",
             vec![
                 surface_check(
@@ -2244,7 +2244,7 @@ mod tests {
             vec!["artifacts/network-production-closure/desktop-wallet-compat.json".to_string()],
         );
 
-        assert_eq!(surface.surface, "wallet");
+        assert_eq!(surface.surface, "desktop-wallet");
         assert_eq!(surface.status, "hardening");
         assert_eq!(surface.score, 50);
         assert_eq!(surface.blockers.len(), 1);
@@ -2269,14 +2269,14 @@ mod tests {
             full.matrix_release_line.as_deref(),
             Some("aoxc.v.0.1.1-akdeniz")
         );
-        assert_eq!(full.matrix_surface_count, 5);
+        assert_eq!(full.matrix_surface_count, 6);
         assert!(
             full.matrix_warnings.is_empty(),
             "{:?}",
             full.matrix_warnings
         );
-        assert_eq!(full.total_surfaces, 5);
-        assert_eq!(full.surfaces.len(), 5);
+        assert_eq!(full.total_surfaces, 6);
+        assert_eq!(full.surfaces.len(), 6);
         assert!(full
             .surfaces
             .iter()
@@ -2292,7 +2292,7 @@ mod tests {
         assert!(full
             .surfaces
             .iter()
-            .any(|surface| surface.surface == "wallet"));
+            .any(|surface| surface.surface == "desktop-wallet"));
         assert!(full
             .surfaces
             .iter()
