@@ -3,8 +3,9 @@
 // This file is part of the AOXC pre-release codebase.
 
 use crate::{
-    data_home::{read_file, resolve_home, write_file},
+    data_home::{read_file, resolve_home},
     error::{AppError, ErrorCode},
+    storage::redb_chain::{append_chain_log, load_ledger_state, persist_ledger_state},
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -53,35 +54,42 @@ pub fn ledger_path() -> Result<PathBuf, AppError> {
 }
 
 pub fn load() -> Result<LedgerState, AppError> {
-    let path = ledger_path()?;
-    let raw = read_file(&path).map_err(|_| {
-        AppError::new(
-            ErrorCode::LedgerInvalid,
-            format!("Ledger file is missing at {}", path.display()),
-        )
-    })?;
-    let ledger: LedgerState = serde_json::from_str(&raw).map_err(|e| {
-        AppError::with_source(ErrorCode::LedgerInvalid, "Failed to parse ledger state", e)
-    })?;
-    ledger
-        .validate()
-        .map_err(|e| AppError::new(ErrorCode::LedgerInvalid, e))?;
-    Ok(ledger)
+    match load_ledger_state() {
+        Ok(ledger) => Ok(ledger),
+        Err(error) => {
+            let path = ledger_path()?;
+            let raw = read_file(&path).map_err(|_| error)?;
+            let ledger: LedgerState = serde_json::from_str(&raw).map_err(|e| {
+                AppError::with_source(ErrorCode::LedgerInvalid, "Failed to parse ledger state", e)
+            })?;
+            ledger
+                .validate()
+                .map_err(|e| AppError::new(ErrorCode::LedgerInvalid, e))?;
+            persist_ledger_state(&ledger)?;
+            let _ = append_chain_log(
+                "ledger",
+                "migrate_json_to_redb",
+                "legacy ledger.json migrated",
+            );
+            Ok(ledger)
+        }
+    }
 }
 
 pub fn persist(ledger: &LedgerState) -> Result<(), AppError> {
     ledger
         .validate()
         .map_err(|e| AppError::new(ErrorCode::LedgerInvalid, e))?;
-    let path = ledger_path()?;
-    let content = serde_json::to_string_pretty(ledger).map_err(|e| {
-        AppError::with_source(
-            ErrorCode::OutputEncodingFailed,
-            "Failed to encode ledger state",
-            e,
-        )
-    })?;
-    write_file(&path, &content)
+    persist_ledger_state(ledger)?;
+    let _ = append_chain_log(
+        "ledger",
+        "persist_ledger_state",
+        &format!(
+            "treasury_balance={} transfers={}",
+            ledger.treasury_balance, ledger.transfers
+        ),
+    );
+    Ok(())
 }
 
 pub fn init() -> Result<LedgerState, AppError> {

@@ -3,6 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 pub mod json_runtime;
+pub mod redb_chain;
 pub mod redb_runtime;
 
 use crate::{

@@ -7,26 +7,48 @@ use crate::{
     keys::manager::inspect_operator_key,
     node::state::NodeState,
     storage::{
-        json_runtime::{runtime_state_json_path, JsonRuntimeStateStore},
+        json_runtime::JsonRuntimeStateStore,
+        redb_chain::{append_chain_log, load_node_state, main_redb_path, persist_node_state},
         RuntimeStateStore,
     },
 };
 use std::path::PathBuf;
 
 pub fn state_path() -> Result<PathBuf, AppError> {
-    runtime_state_json_path()
-}
-
-fn runtime_store() -> impl RuntimeStateStore {
-    JsonRuntimeStateStore
+    main_redb_path()
 }
 
 pub fn load_state() -> Result<NodeState, AppError> {
-    runtime_store().load_state()
+    match load_node_state() {
+        Ok(state) => Ok(state),
+        Err(error) => {
+            let legacy_store = JsonRuntimeStateStore;
+            let legacy_state = legacy_store.load_state();
+            if let Ok(state) = legacy_state {
+                persist_node_state(&state)?;
+                let _ = append_chain_log(
+                    "runtime",
+                    "migrate_json_to_redb",
+                    "legacy node_state.json migrated",
+                );
+                return Ok(state);
+            }
+            Err(error)
+        }
+    }
 }
 
 pub fn persist_state(state: &NodeState) -> Result<(), AppError> {
-    runtime_store().persist_state(state)
+    persist_node_state(state)?;
+    let _ = append_chain_log(
+        "runtime",
+        "persist_node_state",
+        &format!(
+            "height={} produced_blocks={}",
+            state.current_height, state.produced_blocks
+        ),
+    );
+    Ok(())
 }
 
 pub fn bootstrap_state() -> Result<NodeState, AppError> {
@@ -44,6 +66,7 @@ pub fn bootstrap_state() -> Result<NodeState, AppError> {
         .map_err(|e| AppError::new(ErrorCode::NodeStateInvalid, e))?;
 
     persist_state(&state)?;
+    let _ = append_chain_log("runtime", "bootstrap_state", "node state bootstrapped");
     Ok(state)
 }
 
@@ -79,7 +102,7 @@ mod tests {
 
         let bootstrapped = bootstrap_state().expect("bootstrap should persist node state");
         let reloaded = load_state().expect("bootstrapped state should load");
-        let expected_path = home.join("runtime").join("node_state.json");
+        let expected_path = home.join("runtime").join("db").join("main.redb");
 
         assert_eq!(
             state_path().expect("state path should resolve"),
