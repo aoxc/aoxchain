@@ -107,9 +107,8 @@ fn serialize_actor_id_output(
     format: OutputFormat,
 ) -> Result<String, String> {
     match format {
-        OutputFormat::Json => {
-            serde_json::to_string(output).map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error))
-        }
+        OutputFormat::Json => serde_json::to_string(output)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error)),
         OutputFormat::PrettyJson => serde_json::to_string_pretty(output)
             .map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error)),
     }
@@ -125,10 +124,7 @@ fn normalize_non_empty_text(value: &str, field: &str) -> Result<String, String> 
     let normalized = value.trim();
 
     if normalized.is_empty() {
-        return Err(format!(
-            "INVALID_ARGUMENT: {} must not be blank",
-            field
-        ));
+        return Err(format!("INVALID_ARGUMENT: {} must not be blank", field));
     }
 
     Ok(normalized.to_string())

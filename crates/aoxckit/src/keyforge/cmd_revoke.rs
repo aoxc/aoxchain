@@ -3,7 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 use crate::keyforge::cli::{RevokeCommand, RevokeSubcommand};
-use crate::keyforge::cmd_registry::{load_registry, RegistryState};
+use crate::keyforge::cmd_registry::{RegistryState, load_registry};
 use crate::keyforge::util::write_json_file;
 use serde::Serialize;
 
@@ -109,10 +109,7 @@ fn normalize_required_text(value: &str, field: &str) -> Result<String, String> {
     let normalized = value.trim();
 
     if normalized.is_empty() {
-        return Err(format!(
-            "INVALID_ARGUMENT: {} must not be blank",
-            field
-        ));
+        return Err(format!("INVALID_ARGUMENT: {} must not be blank", field));
     }
 
     Ok(normalized.to_string())
@@ -121,7 +118,7 @@ fn normalize_required_text(value: &str, field: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keyforge::cmd_registry::{load_registry, RegistryEntry};
+    use crate::keyforge::cmd_registry::{RegistryEntry, load_registry};
     use crate::keyforge::util::write_json_file;
 
     fn tmp_file(name: &str) -> String {
@@ -258,8 +255,8 @@ mod tests {
 
         write_json_file(&path, &seeded_registry_state()).expect("seed must succeed");
 
-        let error = revoke_actor(&path, "actor-1", "   ")
-            .expect_err("blank reason must be rejected");
+        let error =
+            revoke_actor(&path, "actor-1", "   ").expect_err("blank reason must be rejected");
 
         assert_eq!(
             error,

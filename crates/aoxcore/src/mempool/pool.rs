@@ -2,44 +2,183 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
+//! AOXC production-grade FIFO mempool.
+//!
+//! This module implements a bounded, deterministic, single-threaded FIFO
+//! mempool with explicit admission controls, duplicate suppression, expiry
+//! policy, and operator-facing telemetry snapshots.
+//!
+//! Design objectives:
+//! - deterministic FIFO collection order,
+//! - explicit and validated resource bounds,
+//! - duplicate suppression by canonical transaction identifier,
+//! - explicit expiry and eviction behavior,
+//! - telemetry-friendly rejection and lifecycle statistics,
+//! - panic-free accounting and state transitions.
+//!
+//! Security rationale:
+//! The mempool is not a consensus object by itself, but weak admission policy,
+//! imprecise accounting, or ambiguous eviction rules can still become an
+//! operational denial-of-service surface. All relevant bounds are therefore
+//! explicit, validated, and enforced before insertion.
+
 use std::collections::{HashMap, VecDeque};
+use std::fmt;
 use std::time::{Duration, Instant};
 
-/// Represents a validated transaction accepted into the mempool.
+/// Canonical transaction identifier width in bytes.
+pub const TX_ID_LEN: usize = 32;
+
+/// Stable severity classification for mempool-level failures.
 ///
-/// The structure intentionally stores:
-/// - a stable transaction identifier used for duplicate suppression,
-/// - the opaque transaction payload,
-/// - the insertion timestamp for expiry enforcement.
+/// Intended for telemetry labels, dashboards, and incident routing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MempoolErrorSeverity {
+    Warning,
+    Error,
+    Critical,
+}
+
+impl MempoolErrorSeverity {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Warning => "WARN",
+            Self::Error => "ERROR",
+            Self::Critical => "CRITICAL",
+        }
+    }
+}
+
+/// Stable category classification for mempool-level failures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MempoolErrorCategory {
+    Config,
+    Admission,
+    Capacity,
+    Integrity,
+}
+
+impl MempoolErrorCategory {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Config => "CONFIG",
+            Self::Admission => "ADMISSION",
+            Self::Capacity => "CAPACITY",
+            Self::Integrity => "INTEGRITY",
+        }
+    }
+}
+
+/// Source channel by which a transaction entered the admission pipeline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AdmissionSource {
+    Rpc,
+    P2P,
+    Internal,
+    Recovery,
+}
+
+impl AdmissionSource {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Rpc => "RPC",
+            Self::P2P => "P2P",
+            Self::Internal => "INTERNAL",
+            Self::Recovery => "RECOVERY",
+        }
+    }
+}
+
+/// Priority label recorded at admission time.
 ///
-/// This design keeps the mempool implementation generic while still exposing
-/// the minimum metadata required for safe capacity accounting and lifecycle control.
+/// Security rationale:
+/// Priority is intentionally recorded for observability and future policy
+/// evolution, but it does not currently override deterministic FIFO ordering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum AdmissionPriority {
+    Low,
+    Normal,
+    High,
+    Critical,
+}
+
+impl AdmissionPriority {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Low => "LOW",
+            Self::Normal => "NORMAL",
+            Self::High => "HIGH",
+            Self::Critical => "CRITICAL",
+        }
+    }
+}
+
+/// Admission metadata attached to a transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AdmissionMeta {
+    pub received_at: Instant,
+    pub inserted_at: Instant,
+    pub source: AdmissionSource,
+    pub priority: AdmissionPriority,
+}
+
+impl AdmissionMeta {
+    /// Returns default admission metadata using the current monotonic instant.
+    #[must_use]
+    pub fn now(source: AdmissionSource, priority: AdmissionPriority) -> Self {
+        let now = Instant::now();
+        Self {
+            received_at: now,
+            inserted_at: now,
+            source,
+            priority,
+        }
+    }
+}
+
+impl Default for AdmissionMeta {
+    fn default() -> Self {
+        Self::now(AdmissionSource::Rpc, AdmissionPriority::Normal)
+    }
+}
+
+/// Canonical transaction retained by the mempool.
+///
+/// Security rationale:
+/// The structure stores the minimum metadata required for duplicate
+/// suppression, expiry enforcement, bounded resource accounting, admission
+/// tracing, and future reporting surfaces.
 #[derive(Debug, Clone)]
 pub struct Transaction {
-    id: [u8; 32],
+    id: [u8; TX_ID_LEN],
     payload: Vec<u8>,
-    inserted_at: Instant,
+    meta: AdmissionMeta,
 }
 
 impl Transaction {
-    /// Constructs a new transaction instance.
-    ///
-    /// # Security considerations
-    /// The caller is responsible for ensuring that `id` is a canonical and collision-resistant
-    /// identifier for `payload`. In production environments this should normally be the
-    /// transaction hash produced by the system's canonical encoding rules.
+    /// Constructs a transaction using default admission metadata.
     #[must_use]
-    pub fn new(id: [u8; 32], payload: Vec<u8>) -> Self {
+    pub fn new(id: [u8; TX_ID_LEN], payload: Vec<u8>) -> Self {
         Self {
             id,
             payload,
-            inserted_at: Instant::now(),
+            meta: AdmissionMeta::default(),
         }
+    }
+
+    /// Constructs a transaction with explicit admission metadata.
+    #[must_use]
+    pub fn new_with_meta(id: [u8; TX_ID_LEN], payload: Vec<u8>, meta: AdmissionMeta) -> Self {
+        Self { id, payload, meta }
     }
 
     /// Returns the canonical transaction identifier.
     #[must_use]
-    pub fn id(&self) -> &[u8; 32] {
+    pub fn id(&self) -> &[u8; TX_ID_LEN] {
         &self.id
     }
 
@@ -55,30 +194,37 @@ impl Transaction {
         self.payload.len()
     }
 
-    /// Returns the insertion timestamp.
+    /// Returns admission metadata.
     #[must_use]
-    pub fn inserted_at(&self) -> Instant {
-        self.inserted_at
+    pub fn meta(&self) -> AdmissionMeta {
+        self.meta
+    }
+
+    /// Returns true if the identifier is all-zero.
+    #[must_use]
+    pub fn has_zero_id(&self) -> bool {
+        self.id == [0u8; TX_ID_LEN]
     }
 }
 
 /// Configuration governing mempool resource boundaries and retention policy.
-///
-/// All fields are mandatory and explicit to avoid ambiguous runtime defaults.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MempoolConfig {
-    /// Maximum number of live transactions that may be retained at once.
+    /// Maximum number of live transactions retained at once.
     pub max_txs: usize,
+
     /// Maximum payload size allowed for a single transaction.
     pub max_tx_size: usize,
+
     /// Maximum total payload bytes retained across all live transactions.
     pub max_total_bytes: usize,
-    /// Maximum retention duration for a transaction before it becomes collect-ineligible.
+
+    /// Maximum retention duration for a transaction before it becomes expired.
     pub tx_ttl: Duration,
 }
 
 impl MempoolConfig {
-    /// Validates the configuration and returns an error if any safety invariant is violated.
+    /// Validates configuration invariants and returns the validated config.
     pub fn validate(self) -> Result<Self, MempoolError> {
         if self.max_txs == 0 {
             return Err(MempoolError::InvalidConfig(
@@ -115,12 +261,10 @@ impl MempoolConfig {
 }
 
 /// Enumerates all mempool-level failures with explicit semantics.
-///
-/// This error model is intentionally strict so that the caller can
-/// distinguish policy rejection from programming/configuration errors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MempoolError {
     InvalidConfig(&'static str),
+    ZeroTransactionId,
     EmptyTransaction,
     TransactionTooLarge {
         size: usize,
@@ -137,22 +281,68 @@ pub enum MempoolError {
     },
 }
 
-impl std::fmt::Display for MempoolError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl MempoolError {
+    #[must_use]
+    pub const fn code(&self) -> &'static str {
         match self {
-            MempoolError::InvalidConfig(msg) => write!(f, "invalid mempool config: {msg}"),
-            MempoolError::EmptyTransaction => write!(f, "transaction payload must not be empty"),
-            MempoolError::TransactionTooLarge { size, max_allowed } => write!(
+            Self::InvalidConfig(_) => "MEMPOOL_INVALID_CONFIG",
+            Self::ZeroTransactionId => "MEMPOOL_ZERO_TRANSACTION_ID",
+            Self::EmptyTransaction => "MEMPOOL_EMPTY_TRANSACTION",
+            Self::TransactionTooLarge { .. } => "MEMPOOL_TRANSACTION_TOO_LARGE",
+            Self::DuplicateTransaction => "MEMPOOL_DUPLICATE_TRANSACTION",
+            Self::MempoolFull { .. } => "MEMPOOL_FULL",
+            Self::TotalBytesExceeded { .. } => "MEMPOOL_TOTAL_BYTES_EXCEEDED",
+        }
+    }
+
+    #[must_use]
+    pub const fn category(&self) -> MempoolErrorCategory {
+        match self {
+            Self::InvalidConfig(_) => MempoolErrorCategory::Config,
+            Self::ZeroTransactionId | Self::DuplicateTransaction => MempoolErrorCategory::Integrity,
+            Self::EmptyTransaction | Self::TransactionTooLarge { .. } => {
+                MempoolErrorCategory::Admission
+            }
+            Self::MempoolFull { .. } | Self::TotalBytesExceeded { .. } => {
+                MempoolErrorCategory::Capacity
+            }
+        }
+    }
+
+    #[must_use]
+    pub const fn severity(&self) -> MempoolErrorSeverity {
+        match self {
+            Self::InvalidConfig(_) => MempoolErrorSeverity::Critical,
+            Self::ZeroTransactionId | Self::DuplicateTransaction => MempoolErrorSeverity::Error,
+            Self::EmptyTransaction | Self::TransactionTooLarge { .. } => {
+                MempoolErrorSeverity::Warning
+            }
+            Self::MempoolFull { .. } | Self::TotalBytesExceeded { .. } => {
+                MempoolErrorSeverity::Warning
+            }
+        }
+    }
+}
+
+impl fmt::Display for MempoolError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidConfig(msg) => write!(f, "invalid mempool config: {msg}"),
+            Self::ZeroTransactionId => {
+                write!(f, "transaction identifier must not be all-zero")
+            }
+            Self::EmptyTransaction => write!(f, "transaction payload must not be empty"),
+            Self::TransactionTooLarge { size, max_allowed } => write!(
                 f,
                 "transaction size {size} exceeds max allowed size {max_allowed}"
             ),
-            MempoolError::DuplicateTransaction => {
+            Self::DuplicateTransaction => {
                 write!(f, "transaction already exists in mempool")
             }
-            MempoolError::MempoolFull { max_txs } => {
+            Self::MempoolFull { max_txs } => {
                 write!(f, "mempool has reached max transaction capacity {max_txs}")
             }
-            MempoolError::TotalBytesExceeded {
+            Self::TotalBytesExceeded {
                 current_bytes,
                 tx_size,
                 max_allowed,
@@ -166,37 +356,87 @@ impl std::fmt::Display for MempoolError {
 
 impl std::error::Error for MempoolError {}
 
-/// Represents a transaction entry returned to the caller during collection.
+/// Transaction record returned during collection.
 ///
 /// Returning the full structure preserves deterministic metadata and avoids
 /// hidden loss of context at the interface boundary.
 #[derive(Debug, Clone)]
 pub struct CollectedTransaction {
-    pub id: [u8; 32],
+    pub id: [u8; TX_ID_LEN],
     pub payload: Vec<u8>,
-    pub inserted_at: Instant,
+    pub meta: AdmissionMeta,
+}
+
+/// Cumulative rejection counters by reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RejectionStats {
+    pub zero_id: u64,
+    pub empty: u64,
+    pub oversized: u64,
+    pub duplicate: u64,
+    pub full: u64,
+    pub bytes_exceeded: u64,
+}
+
+/// Cumulative lifecycle counters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LifecycleStats {
+    pub accepted: u64,
+    pub expired_evictions: u64,
+    pub explicit_removals: u64,
+    pub collected: u64,
+    pub clears: u64,
+}
+
+/// Per-source admission counters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SourceStats {
+    pub rpc: u64,
+    pub p2p: u64,
+    pub internal: u64,
+    pub recovery: u64,
+}
+
+impl SourceStats {
+    fn increment(&mut self, source: AdmissionSource) {
+        match source {
+            AdmissionSource::Rpc => self.rpc += 1,
+            AdmissionSource::P2P => self.p2p += 1,
+            AdmissionSource::Internal => self.internal += 1,
+            AdmissionSource::Recovery => self.recovery += 1,
+        }
+    }
+}
+
+/// Lightweight mempool statistics snapshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MempoolStats {
+    pub len: usize,
+    pub total_bytes: usize,
+    pub max_txs: usize,
+    pub max_tx_size: usize,
+    pub max_total_bytes: usize,
+    pub remaining_tx_capacity: usize,
+    pub remaining_byte_capacity: usize,
+    pub rejection_stats: RejectionStats,
+    pub lifecycle_stats: LifecycleStats,
+    pub accepted_by_source: SourceStats,
 }
 
 /// Production-oriented FIFO mempool with bounded resource consumption.
-///
-/// # Design notes
-/// - FIFO ordering is intentionally preserved for deterministic collection.
-/// - Duplicate suppression is implemented through an index map keyed by tx id.
-/// - Resource bounds are enforced before insertion to prevent unbounded growth.
-/// - Expired transactions are lazily evicted during public mutating operations.
-///
-/// This component is single-threaded by design. If concurrent access is required,
-/// it should be wrapped by an external synchronization primitive at the integration layer.
 #[derive(Debug)]
 pub struct Mempool {
     config: MempoolConfig,
     queue: VecDeque<Transaction>,
-    index: HashMap<[u8; 32], ()>,
+    index: HashMap<[u8; TX_ID_LEN], usize>,
     total_bytes: usize,
+    rejection_stats: RejectionStats,
+    lifecycle_stats: LifecycleStats,
+    accepted_by_source: SourceStats,
 }
 
 impl Mempool {
-    /// Creates a new mempool instance after validating all configuration invariants.
+    /// Creates a new mempool after validating all configuration invariants.
     pub fn new(config: MempoolConfig) -> Result<Self, MempoolError> {
         let config = config.validate()?;
 
@@ -205,6 +445,9 @@ impl Mempool {
             queue: VecDeque::new(),
             index: HashMap::new(),
             total_bytes: 0,
+            rejection_stats: RejectionStats::default(),
+            lifecycle_stats: LifecycleStats::default(),
+            accepted_by_source: SourceStats::default(),
         })
     }
 
@@ -234,49 +477,121 @@ impl Mempool {
 
     /// Returns true if the transaction identifier is currently present.
     #[must_use]
-    pub fn contains(&self, id: &[u8; 32]) -> bool {
+    pub fn contains(&self, id: &[u8; TX_ID_LEN]) -> bool {
         self.index.contains_key(id)
     }
 
-    /// Attempts to insert a new transaction into the mempool.
+    /// Returns the remaining transaction-capacity slots.
+    #[must_use]
+    pub fn remaining_tx_capacity(&self) -> usize {
+        self.config.max_txs.saturating_sub(self.queue.len())
+    }
+
+    /// Returns the remaining aggregate byte capacity.
+    #[must_use]
+    pub fn remaining_byte_capacity(&self) -> usize {
+        self.config.max_total_bytes.saturating_sub(self.total_bytes)
+    }
+
+    /// Returns cumulative rejection statistics.
+    #[must_use]
+    pub const fn rejection_stats(&self) -> RejectionStats {
+        self.rejection_stats
+    }
+
+    /// Returns cumulative lifecycle statistics.
+    #[must_use]
+    pub const fn lifecycle_stats(&self) -> LifecycleStats {
+        self.lifecycle_stats
+    }
+
+    /// Returns per-source accepted admission statistics.
+    #[must_use]
+    pub const fn accepted_by_source(&self) -> SourceStats {
+        self.accepted_by_source
+    }
+
+    /// Returns a statistics snapshot for observability.
+    #[must_use]
+    pub fn stats(&self) -> MempoolStats {
+        MempoolStats {
+            len: self.queue.len(),
+            total_bytes: self.total_bytes,
+            max_txs: self.config.max_txs,
+            max_tx_size: self.config.max_tx_size,
+            max_total_bytes: self.config.max_total_bytes,
+            remaining_tx_capacity: self.remaining_tx_capacity(),
+            remaining_byte_capacity: self.remaining_byte_capacity(),
+            rejection_stats: self.rejection_stats,
+            lifecycle_stats: self.lifecycle_stats,
+            accepted_by_source: self.accepted_by_source,
+        }
+    }
+
+    /// Attempts to insert a new transaction using default admission metadata.
+    pub fn add_tx(&mut self, id: [u8; TX_ID_LEN], payload: Vec<u8>) -> Result<(), MempoolError> {
+        self.add_transaction(Transaction::new(id, payload))
+    }
+
+    /// Attempts to insert a transaction together with explicit admission metadata.
+    pub fn add_tx_with_meta(
+        &mut self,
+        id: [u8; TX_ID_LEN],
+        payload: Vec<u8>,
+        meta: AdmissionMeta,
+    ) -> Result<(), MempoolError> {
+        self.add_transaction(Transaction::new_with_meta(id, payload, meta))
+    }
+
+    /// Attempts to insert a pre-built transaction into the mempool.
     ///
-    /// # Rejection policy
-    /// The transaction is rejected if any of the following conditions hold:
-    /// - payload is empty,
-    /// - payload exceeds the configured per-transaction limit,
-    /// - transaction id already exists,
-    /// - mempool transaction count limit would be exceeded,
-    /// - mempool total byte limit would be exceeded.
+    /// Rejection policy:
+    /// - payload must be non-empty,
+    /// - identifier must not be all-zero,
+    /// - payload must not exceed the configured per-transaction bound,
+    /// - transaction must not already exist,
+    /// - transaction-count bound must not be exceeded,
+    /// - aggregate byte bound must not be exceeded.
     ///
-    /// Expired entries are purged before capacity evaluation so that stale data
-    /// does not artificially block fresh admissions.
-    pub fn add_tx(&mut self, id: [u8; 32], payload: Vec<u8>) -> Result<(), MempoolError> {
+    /// Expired entries are purged before capacity evaluation so stale data does
+    /// not artificially block fresh admissions.
+    pub fn add_transaction(&mut self, tx: Transaction) -> Result<(), MempoolError> {
         self.evict_expired();
 
-        if payload.is_empty() {
+        if tx.has_zero_id() {
+            self.rejection_stats.zero_id += 1;
+            return Err(MempoolError::ZeroTransactionId);
+        }
+
+        if tx.payload.is_empty() {
+            self.rejection_stats.empty += 1;
             return Err(MempoolError::EmptyTransaction);
         }
 
-        let tx_size = payload.len();
+        let tx_size = tx.size();
 
         if tx_size > self.config.max_tx_size {
+            self.rejection_stats.oversized += 1;
             return Err(MempoolError::TransactionTooLarge {
                 size: tx_size,
                 max_allowed: self.config.max_tx_size,
             });
         }
 
-        if self.index.contains_key(&id) {
+        if self.index.contains_key(&tx.id) {
+            self.rejection_stats.duplicate += 1;
             return Err(MempoolError::DuplicateTransaction);
         }
 
         if self.queue.len() >= self.config.max_txs {
+            self.rejection_stats.full += 1;
             return Err(MempoolError::MempoolFull {
                 max_txs: self.config.max_txs,
             });
         }
 
         if self.total_bytes.saturating_add(tx_size) > self.config.max_total_bytes {
+            self.rejection_stats.bytes_exceeded += 1;
             return Err(MempoolError::TotalBytesExceeded {
                 current_bytes: self.total_bytes,
                 tx_size,
@@ -284,17 +599,18 @@ impl Mempool {
             });
         }
 
-        let tx = Transaction::new(id, payload);
-        self.total_bytes += tx.size();
-        self.index.insert(id, ());
+        self.total_bytes += tx_size;
+        self.accepted_by_source.increment(tx.meta.source);
+        self.lifecycle_stats.accepted += 1;
         self.queue.push_back(tx);
+        self.rebuild_index();
 
         Ok(())
     }
 
     /// Collects up to `limit` non-expired transactions in FIFO order.
     ///
-    /// Expired entries encountered at the front are discarded and not returned.
+    /// Expired entries encountered at the head are discarded and not returned.
     /// A zero limit is treated as a valid no-op and returns an empty vector.
     pub fn collect(&mut self, limit: usize) -> Vec<CollectedTransaction> {
         self.evict_expired();
@@ -304,7 +620,7 @@ impl Mempool {
         }
 
         let take = limit.min(self.queue.len());
-        let mut block_txs = Vec::with_capacity(take);
+        let mut collected = Vec::with_capacity(take);
 
         for _ in 0..take {
             let Some(tx) = self.queue.pop_front() else {
@@ -312,23 +628,24 @@ impl Mempool {
             };
 
             self.total_bytes -= tx.size();
-            self.index.remove(&tx.id);
+            self.lifecycle_stats.collected += 1;
 
-            block_txs.push(CollectedTransaction {
+            collected.push(CollectedTransaction {
                 id: tx.id,
                 payload: tx.payload,
-                inserted_at: tx.inserted_at,
+                meta: tx.meta,
             });
         }
 
-        block_txs
+        self.rebuild_index();
+        collected
     }
 
     /// Removes a transaction by identifier if it exists.
     ///
     /// Returns true if a live entry was found and removed.
-    /// This operation is O(n) due to FIFO queue preservation.
-    pub fn remove_tx(&mut self, id: &[u8; 32]) -> bool {
+    /// This operation is O(n) because FIFO queue preservation is intentional.
+    pub fn remove_tx(&mut self, id: &[u8; TX_ID_LEN]) -> bool {
         self.evict_expired();
 
         let Some(position) = self.queue.iter().position(|tx| &tx.id == id) else {
@@ -340,43 +657,53 @@ impl Mempool {
         };
 
         self.total_bytes -= tx.size();
-        self.index.remove(&tx.id);
+        self.lifecycle_stats.explicit_removals += 1;
+        self.rebuild_index();
         true
     }
 
     /// Returns the number of expired transactions removed during this call.
-    ///
-    /// This method can be invoked proactively by the integration layer to bound
-    /// stale residency even during periods of low mempool activity.
     pub fn purge_expired(&mut self) -> usize {
         self.evict_expired()
     }
 
-    /// Removes all entries from the mempool and resets accounting.
+    /// Removes all live entries from the mempool and resets live accounting
+    /// while preserving cumulative counters.
     pub fn clear(&mut self) {
         self.queue.clear();
         self.index.clear();
         self.total_bytes = 0;
+        self.lifecycle_stats.clears += 1;
     }
 
     /// Returns a snapshot of transaction identifiers in current FIFO order.
-    ///
-    /// This is primarily useful for observability and deterministic testing.
     #[must_use]
-    pub fn ids_in_order(&self) -> Vec<[u8; 32]> {
+    pub fn ids_in_order(&self) -> Vec<[u8; TX_ID_LEN]> {
         self.queue.iter().map(|tx| tx.id).collect()
+    }
+
+    /// Returns the identifier of the current head transaction, if any.
+    #[must_use]
+    pub fn peek_oldest_id(&self) -> Option<[u8; TX_ID_LEN]> {
+        self.queue.front().map(|tx| tx.id)
+    }
+
+    /// Returns the priority of the current head transaction, if any.
+    #[must_use]
+    pub fn peek_oldest_priority(&self) -> Option<AdmissionPriority> {
+        self.queue.front().map(|tx| tx.meta.priority)
     }
 
     /// Evicts expired transactions from the head of the queue.
     ///
-    /// Because FIFO order is enforced, once the head is found to be non-expired,
-    /// all later entries are guaranteed to be newer and therefore also non-expired.
+    /// Because FIFO order is preserved, once the head is non-expired all later
+    /// entries are necessarily newer and therefore also non-expired.
     fn evict_expired(&mut self) -> usize {
         let now = Instant::now();
         let mut removed = 0usize;
 
         while let Some(front) = self.queue.front() {
-            if now.duration_since(front.inserted_at) < self.config.tx_ttl {
+            if now.duration_since(front.meta.inserted_at) < self.config.tx_ttl {
                 break;
             }
 
@@ -385,11 +712,28 @@ impl Mempool {
             };
 
             self.total_bytes -= tx.size();
-            self.index.remove(&tx.id);
             removed += 1;
+            self.lifecycle_stats.expired_evictions += 1;
+        }
+
+        if removed > 0 {
+            self.rebuild_index();
         }
 
         removed
+    }
+
+    /// Rebuilds the identifier index from the current FIFO queue state.
+    ///
+    /// Operational rationale:
+    /// The queue is the source of truth. Rebuilding the index avoids stale
+    /// positions after collection, removal, or expiry.
+    fn rebuild_index(&mut self) {
+        self.index.clear();
+
+        for (position, tx) in self.queue.iter().enumerate() {
+            self.index.insert(tx.id, position);
+        }
     }
 }
 
@@ -397,8 +741,8 @@ impl Mempool {
 mod tests {
     use super::*;
 
-    fn sample_id(byte: u8) -> [u8; 32] {
-        [byte; 32]
+    fn sample_id(byte: u8) -> [u8; TX_ID_LEN] {
+        [byte; TX_ID_LEN]
     }
 
     fn default_config() -> MempoolConfig {
@@ -442,6 +786,18 @@ mod tests {
         assert_eq!(mempool.len(), 1);
         assert_eq!(mempool.total_bytes(), 3);
         assert!(mempool.contains(&sample_id(1)));
+        assert_eq!(mempool.lifecycle_stats().accepted, 1);
+    }
+
+    #[test]
+    fn rejects_zero_transaction_id() {
+        let mut mempool =
+            Mempool::new(default_config()).expect("valid config must construct mempool");
+
+        let result = mempool.add_tx([0u8; TX_ID_LEN], vec![1]);
+
+        assert_eq!(result, Err(MempoolError::ZeroTransactionId));
+        assert_eq!(mempool.rejection_stats().zero_id, 1);
     }
 
     #[test]
@@ -452,6 +808,7 @@ mod tests {
         let result = mempool.add_tx(sample_id(1), vec![]);
 
         assert_eq!(result, Err(MempoolError::EmptyTransaction));
+        assert_eq!(mempool.rejection_stats().empty, 1);
     }
 
     #[test]
@@ -468,6 +825,7 @@ mod tests {
                 max_allowed: 16,
             })
         );
+        assert_eq!(mempool.rejection_stats().oversized, 1);
     }
 
     #[test]
@@ -483,6 +841,7 @@ mod tests {
             .expect_err("duplicate transaction must be rejected");
 
         assert_eq!(result, MempoolError::DuplicateTransaction);
+        assert_eq!(mempool.rejection_stats().duplicate, 1);
     }
 
     #[test]
@@ -490,21 +849,16 @@ mod tests {
         let mut mempool =
             Mempool::new(default_config()).expect("valid config must construct mempool");
 
-        mempool
-            .add_tx(sample_id(1), vec![1])
-            .expect("tx1 must be accepted");
-        mempool
-            .add_tx(sample_id(2), vec![2])
-            .expect("tx2 must be accepted");
-        mempool
-            .add_tx(sample_id(3), vec![3])
-            .expect("tx3 must be accepted");
+        mempool.add_tx(sample_id(1), vec![1]).unwrap();
+        mempool.add_tx(sample_id(2), vec![2]).unwrap();
+        mempool.add_tx(sample_id(3), vec![3]).unwrap();
 
         let result = mempool
             .add_tx(sample_id(4), vec![4])
             .expect_err("capacity overflow must be rejected");
 
         assert_eq!(result, MempoolError::MempoolFull { max_txs: 3 });
+        assert_eq!(mempool.rejection_stats().full, 1);
     }
 
     #[test]
@@ -512,12 +866,8 @@ mod tests {
         let mut mempool =
             Mempool::new(default_config()).expect("valid config must construct mempool");
 
-        mempool
-            .add_tx(sample_id(1), vec![0u8; 16])
-            .expect("tx1 must be accepted");
-        mempool
-            .add_tx(sample_id(2), vec![0u8; 16])
-            .expect("tx2 must be accepted");
+        mempool.add_tx(sample_id(1), vec![0u8; 16]).unwrap();
+        mempool.add_tx(sample_id(2), vec![0u8; 16]).unwrap();
 
         let result = mempool
             .add_tx(sample_id(3), vec![1])
@@ -531,6 +881,7 @@ mod tests {
                 max_allowed: 32,
             }
         );
+        assert_eq!(mempool.rejection_stats().bytes_exceeded, 1);
     }
 
     #[test]
@@ -538,15 +889,9 @@ mod tests {
         let mut mempool =
             Mempool::new(default_config()).expect("valid config must construct mempool");
 
-        mempool
-            .add_tx(sample_id(1), vec![1])
-            .expect("tx1 must be accepted");
-        mempool
-            .add_tx(sample_id(2), vec![2])
-            .expect("tx2 must be accepted");
-        mempool
-            .add_tx(sample_id(3), vec![3])
-            .expect("tx3 must be accepted");
+        mempool.add_tx(sample_id(1), vec![1]).unwrap();
+        mempool.add_tx(sample_id(2), vec![2]).unwrap();
+        mempool.add_tx(sample_id(3), vec![3]).unwrap();
 
         let collected = mempool.collect(2);
 
@@ -556,6 +901,7 @@ mod tests {
         assert_eq!(mempool.len(), 1);
         assert_eq!(mempool.total_bytes(), 1);
         assert!(mempool.contains(&sample_id(3)));
+        assert_eq!(mempool.lifecycle_stats().collected, 2);
     }
 
     #[test]
@@ -563,9 +909,7 @@ mod tests {
         let mut mempool =
             Mempool::new(default_config()).expect("valid config must construct mempool");
 
-        mempool
-            .add_tx(sample_id(1), vec![1, 2, 3])
-            .expect("tx must be accepted");
+        mempool.add_tx(sample_id(1), vec![1, 2, 3]).unwrap();
 
         let collected = mempool.collect(0);
 
@@ -579,12 +923,8 @@ mod tests {
         let mut mempool =
             Mempool::new(default_config()).expect("valid config must construct mempool");
 
-        mempool
-            .add_tx(sample_id(1), vec![1, 2])
-            .expect("tx1 must be accepted");
-        mempool
-            .add_tx(sample_id(2), vec![3, 4, 5])
-            .expect("tx2 must be accepted");
+        mempool.add_tx(sample_id(1), vec![1, 2]).unwrap();
+        mempool.add_tx(sample_id(2), vec![3, 4, 5]).unwrap();
 
         let removed = mempool.remove_tx(&sample_id(1));
 
@@ -593,25 +933,23 @@ mod tests {
         assert_eq!(mempool.total_bytes(), 3);
         assert!(!mempool.contains(&sample_id(1)));
         assert!(mempool.contains(&sample_id(2)));
+        assert_eq!(mempool.lifecycle_stats().explicit_removals, 1);
     }
 
     #[test]
-    fn clear_resets_state() {
+    fn clear_resets_live_state_and_preserves_counters() {
         let mut mempool =
             Mempool::new(default_config()).expect("valid config must construct mempool");
 
-        mempool
-            .add_tx(sample_id(1), vec![1, 2])
-            .expect("tx1 must be accepted");
-        mempool
-            .add_tx(sample_id(2), vec![3])
-            .expect("tx2 must be accepted");
+        mempool.add_tx(sample_id(1), vec![1, 2]).unwrap();
+        mempool.add_tx(sample_id(2), vec![3]).unwrap();
 
         mempool.clear();
 
         assert_eq!(mempool.len(), 0);
         assert_eq!(mempool.total_bytes(), 0);
         assert!(mempool.is_empty());
+        assert_eq!(mempool.lifecycle_stats().clears, 1);
     }
 
     #[test]
@@ -619,18 +957,72 @@ mod tests {
         let mut mempool =
             Mempool::new(default_config()).expect("valid config must construct mempool");
 
-        mempool
-            .add_tx(sample_id(1), vec![1])
-            .expect("tx1 must be accepted");
-        mempool
-            .add_tx(sample_id(2), vec![2])
-            .expect("tx2 must be accepted");
-        mempool
-            .add_tx(sample_id(3), vec![3])
-            .expect("tx3 must be accepted");
+        mempool.add_tx(sample_id(1), vec![1]).unwrap();
+        mempool.add_tx(sample_id(2), vec![2]).unwrap();
+        mempool.add_tx(sample_id(3), vec![3]).unwrap();
 
         let ids = mempool.ids_in_order();
 
         assert_eq!(ids, vec![sample_id(1), sample_id(2), sample_id(3)]);
+    }
+
+    #[test]
+    fn stats_snapshot_matches_runtime_state() {
+        let mut mempool =
+            Mempool::new(default_config()).expect("valid config must construct mempool");
+
+        mempool.add_tx(sample_id(1), vec![1, 2, 3]).unwrap();
+        let stats = mempool.stats();
+
+        assert_eq!(stats.len, 1);
+        assert_eq!(stats.total_bytes, 3);
+        assert_eq!(stats.max_txs, 3);
+        assert_eq!(stats.max_tx_size, 16);
+        assert_eq!(stats.max_total_bytes, 32);
+        assert_eq!(stats.remaining_tx_capacity, 2);
+        assert_eq!(stats.remaining_byte_capacity, 29);
+        assert_eq!(stats.lifecycle_stats.accepted, 1);
+    }
+
+    #[test]
+    fn explicit_metadata_is_preserved_on_collection() {
+        let mut mempool =
+            Mempool::new(default_config()).expect("valid config must construct mempool");
+
+        let meta = AdmissionMeta::now(AdmissionSource::P2P, AdmissionPriority::High);
+
+        mempool
+            .add_tx_with_meta(sample_id(9), vec![1, 2, 3], meta)
+            .unwrap();
+
+        let collected = mempool.collect(1);
+        assert_eq!(collected.len(), 1);
+        assert_eq!(collected[0].meta.source, AdmissionSource::P2P);
+        assert_eq!(collected[0].meta.priority, AdmissionPriority::High);
+    }
+
+    #[test]
+    fn accepted_by_source_is_tracked() {
+        let mut mempool =
+            Mempool::new(default_config()).expect("valid config must construct mempool");
+
+        mempool
+            .add_tx_with_meta(
+                sample_id(1),
+                vec![1],
+                AdmissionMeta::now(AdmissionSource::Rpc, AdmissionPriority::Normal),
+            )
+            .unwrap();
+        mempool
+            .add_tx_with_meta(
+                sample_id(2),
+                vec![2],
+                AdmissionMeta::now(AdmissionSource::P2P, AdmissionPriority::Normal),
+            )
+            .unwrap();
+
+        let by_source = mempool.accepted_by_source();
+        assert_eq!(by_source.rpc, 1);
+        assert_eq!(by_source.p2p, 1);
     }
 }

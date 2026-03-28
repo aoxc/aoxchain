@@ -15,6 +15,7 @@
 //! - Clear separation between structural validation and stateful nonce policy
 //! - Direct compatibility with the block-domain task model
 //! - Clean interoperability with transaction hashing and pool admission
+//! - Explicit fail-closed guards against malformed sentinel states
 
 pub mod hash;
 pub mod pool;
@@ -54,14 +55,17 @@ pub const TRANSACTION_SIGNING_FORMAT_VERSION: u8 = 1;
 /// classes in the protocol.
 const TRANSACTION_SIGNING_DOMAIN: &[u8] = b"AOXC::TRANSACTION::SIGNING_PAYLOAD";
 
+const ZERO_SENDER: [u8; 32] = [0u8; 32];
+const ZERO_SIGNATURE: [u8; 64] = [0u8; 64];
+
 /// Canonical transaction-domain error type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TransactionError {
-    /// The sender public key is malformed or unsupported.
+    /// The sender public key is malformed, unsupported, or trivially zeroed.
     InvalidSenderKey,
 
-    /// The transaction signature does not match the canonical signing payload.
+    /// The transaction signature is structurally invalid or trivially zeroed.
     InvalidSignature,
 
     /// The nonce is invalid under an external caller-supplied policy.
@@ -119,11 +123,11 @@ impl fmt::Display for TransactionError {
         match self {
             Self::InvalidSenderKey => write!(
                 f,
-                "transaction validation failed: sender public key is malformed or unsupported"
+                "transaction validation failed: sender public key is malformed, unsupported, or zeroed"
             ),
             Self::InvalidSignature => write!(
                 f,
-                "transaction validation failed: signature does not match the canonical signing payload"
+                "transaction validation failed: signature does not match the canonical signing payload or is structurally invalid"
             ),
             Self::InvalidNonce => write!(
                 f,
@@ -140,7 +144,7 @@ impl fmt::Display for TransactionError {
             ),
             Self::HashEncodingFailed(err) => write!(
                 f,
-                "transaction canonical encoding failed during hashing/signing: {:?}",
+                "transaction canonical encoding failed during hashing/signing: {}",
                 err
             ),
             Self::TaskConversionFailed(err) => {
@@ -223,6 +227,14 @@ impl Transaction {
     /// depends on external chain or mempool state and must therefore be
     /// enforced by the caller.
     pub fn validate(&self) -> Result<(), TransactionError> {
+        if self.sender == ZERO_SENDER {
+            return Err(TransactionError::InvalidSenderKey);
+        }
+
+        if self.signature == ZERO_SIGNATURE {
+            return Err(TransactionError::InvalidSignature);
+        }
+
         if self.payload.is_empty() {
             return Err(TransactionError::EmptyPayload);
         }
@@ -248,6 +260,12 @@ impl Transaction {
     #[must_use]
     pub fn payload_len(&self) -> usize {
         self.payload.len()
+    }
+
+    /// Returns `true` when the payload is empty.
+    #[must_use]
+    pub fn is_empty_payload(&self) -> bool {
+        self.payload.is_empty()
     }
 
     /// Builds the canonical signing payload used for Ed25519 verification.
@@ -282,10 +300,12 @@ impl Transaction {
         Ok(message)
     }
 
+    /// Returns the canonical signing message and panics only if a previously
+    /// validated payload violated canonical bounds through unchecked mutation.
     #[must_use]
     pub fn signing_message(&self) -> Vec<u8> {
         self.try_signing_message()
-            .expect("TX_SIGNING: validated transaction payload exceeded canonical encoding limits")
+            .expect("transaction signing message construction must operate on canonical payload bounds")
     }
 
     /// Verifies the transaction signature against the canonical signing payload.
@@ -324,7 +344,7 @@ impl Transaction {
     #[must_use]
     pub fn intent_id(&self) -> [u8; 32] {
         self.try_intent_id()
-            .expect("TX_ID: validated transaction intent exceeded canonical encoding limits")
+            .expect("transaction intent hashing must operate on canonical transaction bounds")
     }
 
     /// Returns the canonical signed transaction identifier.
@@ -336,7 +356,7 @@ impl Transaction {
     #[must_use]
     pub fn tx_id(&self) -> [u8; 32] {
         self.try_tx_id()
-            .expect("TX_ID: validated signed transaction exceeded canonical encoding limits")
+            .expect("transaction id hashing must operate on canonical transaction bounds")
     }
 
     /// Converts this transaction into a block-domain task.
@@ -408,6 +428,35 @@ mod tests {
     fn empty_payload_is_rejected() {
         let tx = signed_transaction(Vec::new(), 1);
         assert_eq!(tx.validate(), Err(TransactionError::EmptyPayload));
+    }
+
+    #[test]
+    fn zero_sender_is_rejected() {
+        let tx = Transaction {
+            sender: [0u8; 32],
+            nonce: 1,
+            capability: Capability::UserSigned,
+            target: TargetOutpost::EthMainnetGateway,
+            payload: vec![1],
+            signature: [1u8; 64],
+        };
+
+        assert_eq!(tx.validate(), Err(TransactionError::InvalidSenderKey));
+    }
+
+    #[test]
+    fn zero_signature_is_rejected() {
+        let signing_key = signing_key(7);
+        let tx = Transaction {
+            sender: signing_key.verifying_key().to_bytes(),
+            nonce: 1,
+            capability: Capability::UserSigned,
+            target: TargetOutpost::EthMainnetGateway,
+            payload: vec![1],
+            signature: [0u8; 64],
+        };
+
+        assert_eq!(tx.validate(), Err(TransactionError::InvalidSignature));
     }
 
     #[test]

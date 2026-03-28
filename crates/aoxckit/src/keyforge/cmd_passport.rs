@@ -4,7 +4,7 @@
 
 use crate::keyforge::cli::{PassportCommand, PassportSubcommand};
 use crate::keyforge::util::read_text_file;
-use aoxcore::identity::passport::{Passport, PASSPORT_VERSION};
+use aoxcore::identity::passport::{PASSPORT_VERSION, Passport};
 use serde::Serialize;
 
 /// Canonical operator-facing passport inspection response.
@@ -119,10 +119,7 @@ fn normalize_required_text(value: &str, field: &str) -> Result<String, String> {
     let normalized = value.trim();
 
     if normalized.is_empty() {
-        return Err(format!(
-            "INVALID_ARGUMENT: {} must not be blank",
-            field
-        ));
+        return Err(format!("INVALID_ARGUMENT: {} must not be blank", field));
     }
 
     Ok(normalized.to_string())
@@ -134,7 +131,11 @@ mod tests {
     use std::fs;
 
     fn unique_path(label: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("aoxc-passport-{}-{}.json", label, std::process::id()))
+        std::env::temp_dir().join(format!(
+            "aoxc-passport-{}-{}.json",
+            label,
+            std::process::id()
+        ))
     }
 
     fn sample_passport() -> Passport {

@@ -231,10 +231,7 @@ fn normalize_required_text(value: &str, field: &str) -> Result<String, String> {
     let normalized = value.trim();
 
     if normalized.is_empty() {
-        return Err(format!(
-            "INVALID_ARGUMENT: {} must not be blank",
-            field
-        ));
+        return Err(format!("INVALID_ARGUMENT: {} must not be blank", field));
     }
 
     Ok(normalized.to_string())
@@ -256,7 +253,10 @@ mod tests {
     fn normalized_status_accepts_canonical_values() {
         assert_eq!(normalized_status("active"), Ok("active".to_string()));
         assert_eq!(normalized_status("REVOKED"), Ok("revoked".to_string()));
-        assert_eq!(normalized_status(" suspended "), Ok("suspended".to_string()));
+        assert_eq!(
+            normalized_status(" suspended "),
+            Ok("suspended".to_string())
+        );
     }
 
     #[test]
@@ -343,13 +343,9 @@ mod tests {
     fn upsert_registry_state_inserts_new_entry() {
         let state = RegistryState::default();
 
-        let updated = upsert_registry_state(
-            state,
-            "actor-1",
-            "active",
-            Some("bootstrap".to_string()),
-        )
-        .expect("upsert must succeed");
+        let updated =
+            upsert_registry_state(state, "actor-1", "active", Some("bootstrap".to_string()))
+                .expect("upsert must succeed");
 
         assert_eq!(updated.entries.len(), 1);
         assert_eq!(updated.entries[0].actor_id, "actor-1");
@@ -367,13 +363,9 @@ mod tests {
             }],
         };
 
-        let updated = upsert_registry_state(
-            state,
-            "actor-1",
-            "revoked",
-            Some("manual".to_string()),
-        )
-        .expect("upsert must succeed");
+        let updated =
+            upsert_registry_state(state, "actor-1", "revoked", Some("manual".to_string()))
+                .expect("upsert must succeed");
 
         assert_eq!(updated.entries.len(), 1);
         assert_eq!(updated.entries[0].status, "revoked");

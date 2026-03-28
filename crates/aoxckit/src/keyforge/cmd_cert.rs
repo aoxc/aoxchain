@@ -78,14 +78,7 @@ fn issue(
     output: Option<&str>,
 ) -> Result<(), String> {
     let signed = build_signed_certificate(
-        chain,
-        actor_id,
-        role,
-        zone,
-        pubkey,
-        issued_at,
-        expires_at,
-        issuer,
+        chain, actor_id, role, zone, pubkey, issued_at, expires_at, issuer,
     )?;
 
     let body = serialize_pretty_json(&signed)?;
@@ -134,10 +127,7 @@ fn generate_mtls(common_name: &str, output: &str) -> Result<(), String> {
     let normalized_output = normalize_required_text(output, "output")?;
 
     write_text_file(&normalized_output, &body)?;
-    println!(
-        "mTLS certificate template written to {}",
-        normalized_output
-    );
+    println!("mTLS certificate template written to {}", normalized_output);
 
     Ok(())
 }
@@ -236,10 +226,7 @@ fn normalize_required_text(value: &str, field: &str) -> Result<String, String> {
     let normalized = value.trim();
 
     if normalized.is_empty() {
-        return Err(format!(
-            "INVALID_ARGUMENT: {} must not be blank",
-            field
-        ));
+        return Err(format!("INVALID_ARGUMENT: {} must not be blank", field));
     }
 
     Ok(normalized.to_string())
@@ -343,8 +330,8 @@ mod tests {
 
     #[test]
     fn serialize_pretty_json_produces_valid_json_document() {
-        let template = build_mtls_template("node-01.aoxc.internal")
-            .expect("template generation must succeed");
+        let template =
+            build_mtls_template("node-01.aoxc.internal").expect("template generation must succeed");
 
         let body = serialize_pretty_json(&template).expect("serialization must succeed");
         let parsed: Value = serde_json::from_str(&body).expect("output must be valid JSON");
@@ -365,10 +352,8 @@ mod tests {
 
     #[test]
     fn load_certificate_from_file_accepts_valid_json_shape() {
-        let path = std::env::temp_dir().join(format!(
-            "aoxc-cert-load-valid-{}.json",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("aoxc-cert-load-valid-{}.json", std::process::id()));
 
         std::fs::write(&path, sample_unsigned_certificate_json())
             .expect("fixture file must be written");

@@ -21,8 +21,8 @@ fn test_key_generate_command_produces_public_only_json() {
 
     let assert = cmd.assert().success();
 
-    let stdout = String::from_utf8(assert.get_output().stdout.clone())
-        .expect("stdout must be valid UTF-8");
+    let stdout =
+        String::from_utf8(assert.get_output().stdout.clone()).expect("stdout must be valid UTF-8");
 
     let parsed: Value =
         serde_json::from_str(&stdout).expect("key generate output must be valid JSON");
@@ -131,13 +131,11 @@ fn test_key_generate_keyfile_then_decrypt_round_trip() {
         .arg("Correct#2026!")
         .arg("--allow-plaintext-output");
 
-    decrypt
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("decrypted key material written to"));
+    decrypt.assert().success().stdout(predicate::str::contains(
+        "decrypted key material written to",
+    ));
 
-    let recovered =
-        std::fs::read(&decrypted_path).expect("decrypted output file must be readable");
+    let recovered = std::fs::read(&decrypted_path).expect("decrypted output file must be readable");
     assert_eq!(recovered, b"super-secret-key-material");
 
     let _ = std::fs::remove_file(&plaintext_path);
@@ -155,8 +153,7 @@ fn test_keyfile_decrypt_requires_explicit_plaintext_acknowledgement() {
     let _ = std::fs::remove_file(&encrypted_path);
     let _ = std::fs::remove_file(&decrypted_path);
 
-    std::fs::write(&plaintext_path, b"secret-material")
-        .expect("plaintext fixture must be written");
+    std::fs::write(&plaintext_path, b"secret-material").expect("plaintext fixture must be written");
 
     let mut encrypt = Command::cargo_bin("aoxckit").expect("aoxckit binary must build");
     encrypt
@@ -182,10 +179,9 @@ fn test_keyfile_decrypt_requires_explicit_plaintext_acknowledgement() {
         .arg("--password")
         .arg("Correct#2026!");
 
-    decrypt
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("KEYFILE_PLAINTEXT_OUTPUT_NOT_ACKNOWLEDGED"));
+    decrypt.assert().failure().stderr(predicate::str::contains(
+        "KEYFILE_PLAINTEXT_OUTPUT_NOT_ACKNOWLEDGED",
+    ));
 
     let _ = std::fs::remove_file(&plaintext_path);
     let _ = std::fs::remove_file(&encrypted_path);

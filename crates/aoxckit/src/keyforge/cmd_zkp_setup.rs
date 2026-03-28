@@ -83,10 +83,7 @@ fn normalize_required_text(value: &str, field: &str) -> Result<String, String> {
     let normalized = value.trim();
 
     if normalized.is_empty() {
-        return Err(format!(
-            "INVALID_ARGUMENT: {} must not be blank",
-            field
-        ));
+        return Err(format!("INVALID_ARGUMENT: {} must not be blank", field));
     }
 
     Ok(normalized.to_string())
@@ -99,7 +96,11 @@ mod tests {
     use std::fs;
 
     fn unique_path(label: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("aoxc-zkp-setup-{}-{}.json", label, std::process::id()))
+        std::env::temp_dir().join(format!(
+            "aoxc-zkp-setup-{}-{}.json",
+            label,
+            std::process::id()
+        ))
     }
 
     #[test]
@@ -119,8 +120,8 @@ mod tests {
 
     #[test]
     fn build_setup_artifact_trims_circuit_name() {
-        let artifact = build_setup_artifact("  identity-v1  ", 18)
-            .expect("artifact generation must succeed");
+        let artifact =
+            build_setup_artifact("  identity-v1  ", 18).expect("artifact generation must succeed");
 
         assert_eq!(artifact.circuit, "identity-v1");
     }

@@ -27,13 +27,7 @@ pub fn handle(command: KeyfileCommand) -> Result<(), String> {
             password,
             allow_plaintext_output,
             force,
-        } => decrypt(
-            &input,
-            &output,
-            &password,
-            allow_plaintext_output,
-            force,
-        ),
+        } => decrypt(&input, &output, &password, allow_plaintext_output, force),
     }
 }
 
@@ -155,10 +149,7 @@ fn normalize_required_text(value: &str, field: &str) -> Result<String, String> {
     let normalized = value.trim();
 
     if normalized.is_empty() {
-        return Err(format!(
-            "INVALID_ARGUMENT: {} must not be blank",
-            field
-        ));
+        return Err(format!("INVALID_ARGUMENT: {} must not be blank", field));
     }
 
     Ok(normalized.to_string())
@@ -244,10 +235,8 @@ mod tests {
         let path = unique_path("keyfile-overwrite-block");
         fs::write(&path, "existing").expect("fixture file must be written");
 
-        let result = reject_existing_output_path(
-            path.to_str().expect("path must be valid UTF-8"),
-            false,
-        );
+        let result =
+            reject_existing_output_path(path.to_str().expect("path must be valid UTF-8"), false);
 
         assert_eq!(result, Err("OUTPUT_FILE_EXISTS_USE_FORCE".to_string()));
 
@@ -259,10 +248,8 @@ mod tests {
         let path = unique_path("keyfile-overwrite-force");
         fs::write(&path, "existing").expect("fixture file must be written");
 
-        let result = reject_existing_output_path(
-            path.to_str().expect("path must be valid UTF-8"),
-            true,
-        );
+        let result =
+            reject_existing_output_path(path.to_str().expect("path must be valid UTF-8"), true);
 
         assert!(result.is_ok());
 
@@ -370,7 +357,9 @@ mod tests {
 
         let result = decrypt(
             input_path.to_str().expect("input path must be valid UTF-8"),
-            output_path.to_str().expect("output path must be valid UTF-8"),
+            output_path
+                .to_str()
+                .expect("output path must be valid UTF-8"),
             &inline_password_source("Correct#2026!"),
             true,
             false,

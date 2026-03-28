@@ -167,8 +167,7 @@ mod tests {
 
     #[test]
     fn build_quorum_evaluation_output_marks_passed_when_threshold_is_met() {
-        let output =
-            build_quorum_evaluation_output(10, 7, 6667).expect("evaluation must succeed");
+        let output = build_quorum_evaluation_output(10, 7, 6667).expect("evaluation must succeed");
 
         assert_eq!(
             output,
@@ -184,8 +183,7 @@ mod tests {
 
     #[test]
     fn build_quorum_evaluation_output_marks_failed_when_threshold_is_not_met() {
-        let output =
-            build_quorum_evaluation_output(10, 6, 6667).expect("evaluation must succeed");
+        let output = build_quorum_evaluation_output(10, 6, 6667).expect("evaluation must succeed");
 
         assert_eq!(output.required_approvals, 7);
         assert!(!output.passed);

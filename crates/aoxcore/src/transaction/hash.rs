@@ -16,15 +16,31 @@
 //! - Forward-compatible encoding discipline
 //! - Clean separation between unsigned intent identity and signed transaction identity
 //! - Clear extension path for future collection commitments
+//! - Fail-closed bounds enforcement for variable-length fields
 
 use blake3::Hasher;
+use std::fmt;
 
 use super::Transaction;
 
+/// Canonical transaction hash-domain error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransactionHashError {
+    /// A variable-length field exceeded the canonical `u32` length prefix model.
     LengthOverflow,
 }
+
+impl fmt::Display for TransactionHashError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::LengthOverflow => {
+                f.write_str("transaction hashing input exceeded canonical length bounds")
+            }
+        }
+    }
+}
+
+impl std::error::Error for TransactionHashError {}
 
 /// Canonical hash output size in bytes.
 pub const HASH_SIZE: usize = 32;
@@ -117,12 +133,16 @@ fn update_bytes64(hasher: &mut Hasher, value: &[u8; 64]) {
     hasher.update(value);
 }
 
-/// Encodes a variable-length byte slice using a `u32` length prefix.
+/// Converts a `usize` into the canonical `u32` length model.
+///
+/// This function protects the hashing surface from silently truncating
+/// oversized variable-length fields.
 #[inline]
 fn checked_len(value: usize) -> Result<u32, TransactionHashError> {
     u32::try_from(value).map_err(|_| TransactionHashError::LengthOverflow)
 }
 
+/// Encodes a variable-length byte slice using a canonical `u32` length prefix.
 #[inline]
 fn update_bytes(hasher: &mut Hasher, value: &[u8]) -> Result<(), TransactionHashError> {
     let len = checked_len(value.len())?;
@@ -147,10 +167,12 @@ pub fn try_compute_hash(data: &[u8]) -> Result<[u8; HASH_SIZE], TransactionHashE
     Ok(finalize_hash(hasher))
 }
 
+/// Computes a generic transaction-domain hash and panics only if the caller
+/// violated the canonical variable-length bounds.
 #[must_use]
 pub fn compute_hash(data: &[u8]) -> [u8; HASH_SIZE] {
     try_compute_hash(data)
-        .expect("TX_HASH: generic transaction hash input exceeded encoding limits")
+        .expect("transaction generic hash input must satisfy canonical length bounds")
 }
 
 /// Returns the canonical empty transaction root.
@@ -163,11 +185,13 @@ pub fn empty_transaction_root() -> [u8; HASH_SIZE] {
     finalize_hash(hasher)
 }
 
-/// Hashes the canonical signing payload semantic content of a transaction.
+/// Hashes the canonical signing-payload semantic content of a transaction.
 ///
 /// This is distinct from the raw `Transaction::signing_message()` byte vector
 /// and intentionally bound to a dedicated hashing namespace.
-pub fn try_hash_signing_payload(tx: &Transaction) -> Result<[u8; HASH_SIZE], TransactionHashError> {
+pub fn try_hash_signing_payload(
+    tx: &Transaction,
+) -> Result<[u8; HASH_SIZE], TransactionHashError> {
     let mut hasher = new_tagged_hasher(DOMAIN_SIGNING_PAYLOAD);
 
     update_bytes32(&mut hasher, &tx.sender);
@@ -179,10 +203,12 @@ pub fn try_hash_signing_payload(tx: &Transaction) -> Result<[u8; HASH_SIZE], Tra
     Ok(finalize_hash(hasher))
 }
 
+/// Hashes the canonical signing payload and panics only if the transaction
+/// payload violates the canonical length model.
 #[must_use]
 pub fn hash_signing_payload(tx: &Transaction) -> [u8; HASH_SIZE] {
     try_hash_signing_payload(tx)
-        .expect("TX_HASH: signing payload exceeded canonical encoding limits")
+        .expect("transaction signing payload must satisfy canonical length bounds")
 }
 
 /// Computes the canonical unsigned transaction intent hash.
@@ -205,10 +231,12 @@ pub fn try_hash_transaction_intent(
     Ok(finalize_hash(hasher))
 }
 
+/// Computes the canonical unsigned transaction intent hash and panics only if
+/// the transaction payload violates the canonical length model.
 #[must_use]
 pub fn hash_transaction_intent(tx: &Transaction) -> [u8; HASH_SIZE] {
     try_hash_transaction_intent(tx)
-        .expect("TX_HASH: transaction intent exceeded canonical encoding limits")
+        .expect("transaction intent must satisfy canonical length bounds")
 }
 
 /// Computes the canonical signed transaction hash.
@@ -228,10 +256,12 @@ pub fn try_hash_transaction(tx: &Transaction) -> Result<[u8; HASH_SIZE], Transac
     Ok(finalize_hash(hasher))
 }
 
+/// Computes the canonical signed transaction hash and panics only if the
+/// transaction payload violates the canonical length model.
 #[must_use]
 pub fn hash_transaction(tx: &Transaction) -> [u8; HASH_SIZE] {
     try_hash_transaction(tx)
-        .expect("TX_HASH: signed transaction exceeded canonical encoding limits")
+        .expect("signed transaction must satisfy canonical length bounds")
 }
 
 /// Computes the canonical transaction leaf hash used in collection-root
@@ -250,10 +280,12 @@ pub fn try_hash_transaction_leaf(
     Ok(finalize_hash(hasher))
 }
 
+/// Computes the canonical transaction leaf hash and panics only if the
+/// underlying transaction violates the canonical length model.
 #[must_use]
 pub fn hash_transaction_leaf(tx: &Transaction) -> [u8; HASH_SIZE] {
     try_hash_transaction_leaf(tx)
-        .expect("TX_HASH: transaction leaf exceeded canonical encoding limits")
+        .expect("transaction leaf hashing must operate on canonical transactions")
 }
 
 /// Computes the canonical commitment root for a slice of transactions.
@@ -285,10 +317,12 @@ pub fn try_calculate_transaction_root(
     Ok(finalize_hash(hasher))
 }
 
+/// Computes the canonical transaction root and panics only if the transaction
+/// collection violates the canonical length model.
 #[must_use]
 pub fn calculate_transaction_root(transactions: &[Transaction]) -> [u8; HASH_SIZE] {
     try_calculate_transaction_root(transactions)
-        .expect("TX_HASH: transaction root exceeded canonical encoding limits")
+        .expect("transaction root calculation must operate on canonical transactions")
 }
 
 /// Computes a future-reserved internal-node hash for transaction tree

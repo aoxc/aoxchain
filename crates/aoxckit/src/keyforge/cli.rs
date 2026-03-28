@@ -563,13 +563,7 @@ mod tests {
 
     #[test]
     fn blank_values_are_rejected_at_parse_time() {
-        let result = Cli::try_parse_from([
-            "aoxc-keyforge",
-            "cert",
-            "inspect",
-            "--file",
-            "   ",
-        ]);
+        let result = Cli::try_parse_from(["aoxc-keyforge", "cert", "inspect", "--file", "   "]);
 
         assert!(result.is_err());
     }

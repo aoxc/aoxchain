@@ -151,7 +151,9 @@ fn temporary_sibling_path(target: &Path) -> Result<PathBuf, String> {
     let file_name = target
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| "INVALID_ARGUMENT: target path must reference a valid file name".to_string())?;
+        .ok_or_else(|| {
+            "INVALID_ARGUMENT: target path must reference a valid file name".to_string()
+        })?;
 
     let process_id = std::process::id();
     let timestamp_nanos = SystemTime::now()
@@ -219,19 +221,28 @@ mod tests {
     #[test]
     fn normalize_required_path_rejects_blank_input() {
         let result = normalize_required_path("   ");
-        assert_eq!(result, Err("INVALID_ARGUMENT: path must not be blank".to_string()));
+        assert_eq!(
+            result,
+            Err("INVALID_ARGUMENT: path must not be blank".to_string())
+        );
     }
 
     #[test]
     fn read_file_rejects_blank_path() {
         let result = read_file("   ");
-        assert_eq!(result, Err("INVALID_ARGUMENT: path must not be blank".to_string()));
+        assert_eq!(
+            result,
+            Err("INVALID_ARGUMENT: path must not be blank".to_string())
+        );
     }
 
     #[test]
     fn read_text_file_rejects_blank_path() {
         let result = read_text_file("   ");
-        assert_eq!(result, Err("INVALID_ARGUMENT: path must not be blank".to_string()));
+        assert_eq!(
+            result,
+            Err("INVALID_ARGUMENT: path must not be blank".to_string())
+        );
     }
 
     #[test]
@@ -337,13 +348,19 @@ mod tests {
     #[test]
     fn write_file_rejects_blank_path() {
         let result = write_file("   ", b"abc");
-        assert_eq!(result, Err("INVALID_ARGUMENT: path must not be blank".to_string()));
+        assert_eq!(
+            result,
+            Err("INVALID_ARGUMENT: path must not be blank".to_string())
+        );
     }
 
     #[test]
     fn write_text_file_rejects_blank_path() {
         let result = write_text_file("   ", "abc");
-        assert_eq!(result, Err("INVALID_ARGUMENT: path must not be blank".to_string()));
+        assert_eq!(
+            result,
+            Err("INVALID_ARGUMENT: path must not be blank".to_string())
+        );
     }
 
     #[cfg(unix)]
