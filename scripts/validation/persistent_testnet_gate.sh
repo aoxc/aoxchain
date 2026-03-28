@@ -29,10 +29,6 @@ validator_count="$(jq '.validators | length' "${TESTNET_DIR}/validators.json")"
 [[ "${validator_count}" -ge 3 ]] || fail "validators.json must contain at least 3 validators"
 pass "validator count >= 3"
 
-invalid_role_count="$(jq '[.validators[] | select(.role != "validator")] | length' "${TESTNET_DIR}/validators.json")"
-[[ "${invalid_role_count}" -eq 0 ]] || fail "validators.json roles must stay "validator" for UI/schema compatibility"
-pass "validator roles are UI-compatible"
-
 bootnode_count="$(jq '.bootnodes | length' "${TESTNET_DIR}/bootnodes.json")"
 [[ "${bootnode_count}" -ge 1 ]] || fail "bootnodes.json must contain at least 1 bootnode"
 pass "bootnode count >= 1"

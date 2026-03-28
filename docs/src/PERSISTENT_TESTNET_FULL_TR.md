@@ -33,8 +33,6 @@ Dosyalar:
 
 Validator seti en az 3 aktif node içerir.
 
-**Arayüz uyumluluğu notu:** `validators.json` içinde `role` alanı mevcut arayüz/şema uyumluluğu için `validator` olarak tutulur; seed/rpc ayrımı `network-metadata.json` içindeki `topology` alanından okunur.
-
 ### 3) 7/24 servis yönetimi (systemd)
 
 Her node için önerilen unit:

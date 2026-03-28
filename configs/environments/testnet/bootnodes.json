@@ -14,8 +14,8 @@
       "display_name": "AOXC Testnet Seed/Bootnode 001",
       "transport_key_algorithm": "ed25519",
       "transport_public_key_encoding": "hex",
-      "transport_public_key": "aoxc_transport_pk_testnet_001_pending_real_value",
-      "transport_key_fingerprint": "aoxc_transport_fp_testnet_001_pending_real_value",
+      "transport_public_key": "REPLACE_WITH_REAL_TRANSPORT_PUBKEY_NODE_1",
+      "transport_key_fingerprint": "REPLACE_WITH_REAL_TRANSPORT_FINGERPRINT_NODE_1",
       "address": "/dns4/seed1.testnet.aoxchain.io/tcp/26656",
       "transport": "tcp",
       "status": "active"
@@ -25,8 +25,8 @@
       "display_name": "AOXC Testnet Seed/Bootnode 002",
       "transport_key_algorithm": "ed25519",
       "transport_public_key_encoding": "hex",
-      "transport_public_key": "aoxc_transport_pk_testnet_002_pending_real_value",
-      "transport_key_fingerprint": "aoxc_transport_fp_testnet_002_pending_real_value",
+      "transport_public_key": "REPLACE_WITH_REAL_TRANSPORT_PUBKEY_NODE_3",
+      "transport_key_fingerprint": "REPLACE_WITH_REAL_TRANSPORT_FINGERPRINT_NODE_3",
       "address": "/dns4/rpc1.testnet.aoxchain.io/tcp/26656",
       "transport": "tcp",
       "status": "active"
