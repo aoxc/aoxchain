@@ -2,16 +2,25 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
-use std::fmt::{Display, Formatter};
+use std::{
+    error::Error as StdError,
+    fmt::{Display, Formatter},
+};
 
-#[derive(Debug, Clone, Copy)]
+/// Canonical AOXC application error code taxonomy.
+///
+/// Design intent:
+/// - Provide stable machine-readable identifiers for operator-facing failures.
+/// - Preserve deterministic exit-code grouping for shell automation and CI.
+/// - Separate semantic error identity from human-readable message text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
     UsageUnknownCommand,
     UsageInvalidArguments,
     HomeResolutionFailed,
     FilesystemIoFailed,
-    ConfigInvalid,
     ConfigMissing,
+    ConfigInvalid,
     KeyMaterialMissing,
     KeyMaterialInvalid,
     GenesisInvalid,
@@ -24,14 +33,20 @@ pub enum ErrorCode {
 }
 
 impl ErrorCode {
-    pub fn as_str(self) -> &'static str {
+    /// Returns the stable AOXC string code associated with this error class.
+    ///
+    /// Stability contract:
+    /// - Values returned by this function are part of the operator-facing
+    ///   contract and must not be changed without an explicit compatibility
+    ///   migration decision.
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::UsageUnknownCommand => "AOXC-USG-001",
             Self::UsageInvalidArguments => "AOXC-USG-002",
             Self::HomeResolutionFailed => "AOXC-HOM-001",
             Self::FilesystemIoFailed => "AOXC-FS-001",
-            Self::ConfigInvalid => "AOXC-CFG-001",
-            Self::ConfigMissing => "AOXC-CFG-002",
+            Self::ConfigMissing => "AOXC-CFG-001",
+            Self::ConfigInvalid => "AOXC-CFG-002",
             Self::KeyMaterialMissing => "AOXC-KEY-001",
             Self::KeyMaterialInvalid => "AOXC-KEY-002",
             Self::GenesisInvalid => "AOXC-GEN-001",
@@ -44,11 +59,17 @@ impl ErrorCode {
         }
     }
 
-    pub fn exit_code(self) -> i32 {
+    /// Returns the canonical process exit code for this error class.
+    ///
+    /// Exit-code policy:
+    /// - Related operator failure families intentionally share the same process
+    ///   exit code so shell automation can react at the correct abstraction
+    ///   level without parsing human-readable text.
+    pub const fn exit_code(self) -> i32 {
         match self {
             Self::UsageUnknownCommand | Self::UsageInvalidArguments => 2,
             Self::HomeResolutionFailed | Self::FilesystemIoFailed => 3,
-            Self::ConfigInvalid | Self::ConfigMissing => 4,
+            Self::ConfigMissing | Self::ConfigInvalid => 4,
             Self::KeyMaterialMissing | Self::KeyMaterialInvalid => 5,
             Self::GenesisInvalid => 6,
             Self::LedgerInvalid | Self::NodeStateInvalid => 7,
@@ -58,44 +79,136 @@ impl ErrorCode {
     }
 }
 
+/// Canonical AOXC application error envelope.
+///
+/// Design intent:
+/// - Preserve a stable machine-readable error code.
+/// - Preserve a human-readable operator message.
+/// - Optionally retain an underlying source error for diagnostics while keeping
+///   display output compact and deterministic.
 #[derive(Debug)]
 pub struct AppError {
     code: ErrorCode,
     message: String,
+    source: Option<Box<dyn StdError + Send + Sync + 'static>>,
 }
 
 impl AppError {
+    /// Constructs an application error without an underlying source error.
     pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
             message: message.into(),
+            source: None,
         }
     }
 
+    /// Constructs an application error that preserves an underlying source
+    /// error for diagnostics and chained error reporting.
     pub fn with_source(
         code: ErrorCode,
         message: impl Into<String>,
-        source: impl std::error::Error,
+        source: impl StdError + Send + Sync + 'static,
     ) -> Self {
         Self {
             code,
-            message: format!("{}: {}", message.into(), source),
+            message: message.into(),
+            source: Some(Box::new(source)),
         }
     }
 
-    pub fn code(&self) -> &'static str {
+    /// Returns the stable AOXC string code.
+    pub const fn code(&self) -> &'static str {
         self.code.as_str()
     }
 
-    pub fn exit_code(&self) -> i32 {
+    /// Returns the canonical process exit code associated with this error.
+    pub const fn exit_code(&self) -> i32 {
         self.code.exit_code()
+    }
+
+    /// Returns the strongly typed error code.
+    pub const fn kind(&self) -> ErrorCode {
+        self.code
+    }
+
+    /// Returns the human-readable operator message.
+    pub fn message(&self) -> &str {
+        &self.message
     }
 }
 
 impl Display for AppError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] {}", self.code.as_str(), self.message)
+        match &self.source {
+            Some(source) => write!(f, "[{}] {}: {}", self.code.as_str(), self.message, source),
+            None => write!(f, "[{}] {}", self.code.as_str(), self.message),
+        }
     }
 }
 
-impl std::error::Error for AppError {}
+impl StdError for AppError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        self.source
+            .as_deref()
+            .map(|error| error as &(dyn StdError + 'static))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AppError, ErrorCode};
+
+    #[test]
+    fn config_missing_and_config_invalid_codes_match_canonical_contract() {
+        assert_eq!(ErrorCode::ConfigMissing.as_str(), "AOXC-CFG-001");
+        assert_eq!(ErrorCode::ConfigInvalid.as_str(), "AOXC-CFG-002");
+    }
+
+    #[test]
+    fn exit_codes_group_related_error_families() {
+        assert_eq!(ErrorCode::UsageUnknownCommand.exit_code(), 2);
+        assert_eq!(ErrorCode::FilesystemIoFailed.exit_code(), 3);
+        assert_eq!(ErrorCode::ConfigMissing.exit_code(), 4);
+        assert_eq!(ErrorCode::ConfigInvalid.exit_code(), 4);
+        assert_eq!(ErrorCode::KeyMaterialInvalid.exit_code(), 5);
+        assert_eq!(ErrorCode::GenesisInvalid.exit_code(), 6);
+        assert_eq!(ErrorCode::LedgerInvalid.exit_code(), 7);
+        assert_eq!(ErrorCode::PolicyGateFailed.exit_code(), 8);
+        assert_eq!(ErrorCode::OutputEncodingFailed.exit_code(), 9);
+    }
+
+    #[test]
+    fn app_error_display_without_source_is_stable() {
+        let error = AppError::new(ErrorCode::ConfigMissing, "Configuration file is missing");
+
+        assert_eq!(
+            format!("{error}"),
+            "[AOXC-CFG-001] Configuration file is missing"
+        );
+    }
+
+    #[test]
+    fn app_error_display_with_source_includes_source_message() {
+        let error = AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to read file",
+            std::io::Error::other("permission denied"),
+        );
+
+        let rendered = format!("{error}");
+        assert!(rendered.contains("[AOXC-FS-001]"));
+        assert!(rendered.contains("Failed to read file"));
+        assert!(rendered.contains("permission denied"));
+    }
+
+    #[test]
+    fn app_error_exposes_code_kind_message_and_exit_code() {
+        let error = AppError::new(ErrorCode::LedgerInvalid, "Ledger validation failed");
+
+        assert_eq!(error.kind(), ErrorCode::LedgerInvalid);
+        assert_eq!(error.code(), "AOXC-LED-001");
+        assert_eq!(error.message(), "Ledger validation failed");
+        assert_eq!(error.exit_code(), 7);
+    }
+}

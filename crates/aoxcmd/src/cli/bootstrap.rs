@@ -19,7 +19,7 @@ use crate::{
     cli::{AOXC_RELEASE_NAME, TESTNET_FIXTURE_MEMBERS},
     cli_support::{arg_value, emit_serialized, has_flag, output_format, text_envelope},
     config::{
-        loader::{init_default, load, load_or_init, persist},
+        loader::{init_default, load, persist},
         settings::Settings,
     },
     data_home::{ensure_layout, read_file, resolve_home, write_file},
@@ -33,9 +33,11 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     path::{Path, PathBuf},
+    process,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 /// Canonical AOXC environment identity description used by bootstrap flows.
@@ -281,6 +283,35 @@ impl EnvironmentProfile {
     }
 }
 
+/// Process-scoped guard that installs a temporary AOXC home override and
+/// restores the previous value when the scoped bootstrap operation ends.
+///
+/// Rationale:
+/// - Several lower-level key and node helpers resolve paths from `AOXC_HOME`.
+/// - Dual-profile bootstrap must execute those helpers inside the target home
+///   rather than against the ambient operator environment.
+/// - Restoration must occur on every exit path.
+struct ScopedHomeOverride {
+    previous_home: Option<std::ffi::OsString>,
+}
+
+impl ScopedHomeOverride {
+    fn install(home: &Path) -> Self {
+        let previous_home = env::var_os("AOXC_HOME");
+        env::set_var("AOXC_HOME", home);
+        Self { previous_home }
+    }
+}
+
+impl Drop for ScopedHomeOverride {
+    fn drop(&mut self) {
+        match self.previous_home.take() {
+            Some(value) => env::set_var("AOXC_HOME", value),
+            None => env::remove_var("AOXC_HOME"),
+        }
+    }
+}
+
 fn genesis_path() -> Result<PathBuf, AppError> {
     Ok(resolve_home()?.join("identity").join("genesis.json"))
 }
@@ -296,14 +327,14 @@ pub fn cmd_testnet_fixture_init(args: &[String]) -> Result<(), AppError> {
     let home = resolve_home()?;
     ensure_layout(&home)?;
     let fixture_dir = home.join("support").join("deterministic-testnet");
-    std::fs::create_dir_all(&fixture_dir).map_err(|e| {
+    std::fs::create_dir_all(&fixture_dir).map_err(|error| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
             format!(
                 "Failed to create fixture directory {}",
                 fixture_dir.display()
             ),
-            e,
+            error,
         )
     })?;
 
@@ -322,6 +353,7 @@ pub fn cmd_testnet_fixture_init(args: &[String]) -> Result<(), AppError> {
         "members".to_string(),
         TESTNET_FIXTURE_MEMBERS.len().to_string(),
     );
+
     emit_serialized(
         &text_envelope("testnet-fixture-init", "ok", details),
         output_format(args),
@@ -334,13 +366,8 @@ pub fn cmd_key_bootstrap(args: &[String]) -> Result<(), AppError> {
 
     let profile_input = arg_value(args, "--profile").unwrap_or_else(|| "validation".to_string());
     let profile = EnvironmentProfile::parse(&profile_input)?;
-    let name = arg_value(args, "--name").unwrap_or_else(|| "validator-01".to_string());
-    let password = arg_value(args, "--password").ok_or_else(|| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Missing required flag --password for key bootstrap",
-        )
-    })?;
+    let name = parse_required_or_default_text_arg(args, "--name", "validator-01")?;
+    let password = parse_required_text_arg(args, "--password", false, "key bootstrap")?;
 
     let material = bootstrap_operator_key(&name, profile.as_str(), &password)?;
     emit_serialized(&material, output_format(args))
@@ -350,6 +377,7 @@ pub fn cmd_keys_show_fingerprint(args: &[String]) -> Result<(), AppError> {
     let fp = operator_fingerprint()?;
     let mut details = BTreeMap::new();
     details.insert("fingerprint".to_string(), fp);
+
     emit_serialized(
         &text_envelope("keys-show-fingerprint", "ok", details),
         output_format(args),
@@ -364,6 +392,7 @@ pub fn cmd_keys_inspect(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_keys_verify(args: &[String]) -> Result<(), AppError> {
     let password = arg_value(args, "--password");
     verify_operator_key(password.as_deref())?;
+
     let mut details = BTreeMap::new();
     details.insert("result".to_string(), "verified".to_string());
     details.insert(
@@ -374,6 +403,7 @@ pub fn cmd_keys_verify(args: &[String]) -> Result<(), AppError> {
             "skipped-no-password".to_string()
         },
     );
+
     emit_serialized(
         &text_envelope("keys-verify", "ok", details),
         output_format(args),
@@ -382,17 +412,17 @@ pub fn cmd_keys_verify(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
     let profile_input = arg_value(args, "--profile")
-        .or_else(|| load_or_init().ok().map(|settings| settings.profile))
+        .or_else(|| load().ok().map(|settings| settings.profile))
         .unwrap_or_else(|| "validation".to_string());
 
     let profile = EnvironmentProfile::parse(&profile_input)?;
     let genesis = profile.genesis_document();
 
-    let content = serde_json::to_string_pretty(&genesis).map_err(|e| {
+    let content = serde_json::to_string_pretty(&genesis).map_err(|error| {
         AppError::with_source(
             ErrorCode::OutputEncodingFailed,
             "Failed to encode AOXC genesis document",
-            e,
+            error,
         )
     })?;
 
@@ -450,7 +480,7 @@ pub fn cmd_config_init(args: &[String]) -> Result<(), AppError> {
 
     let profile_input = arg_value(args, "--profile").unwrap_or_else(|| "validation".to_string());
     let profile = EnvironmentProfile::parse(&profile_input)?;
-    let bind_host = arg_value(args, "--bind-host");
+    let bind_host = parse_optional_text_arg(args, "--bind-host", false);
     let json_logs = has_flag(args, "--json-logs");
 
     let mut settings =
@@ -466,17 +496,17 @@ pub fn cmd_config_init(args: &[String]) -> Result<(), AppError> {
 
     settings
         .validate()
-        .map_err(|e| AppError::new(ErrorCode::ConfigInvalid, e))?;
+        .map_err(|error| AppError::new(ErrorCode::ConfigInvalid, error))?;
 
     persist(&settings)?;
     emit_serialized(&settings, output_format(args))
 }
 
 pub fn cmd_config_validate(args: &[String]) -> Result<(), AppError> {
-    let settings = load_or_init()?;
+    let settings = load()?;
     settings
         .validate()
-        .map_err(|e| AppError::new(ErrorCode::ConfigInvalid, e))?;
+        .map_err(|error| AppError::new(ErrorCode::ConfigInvalid, error))?;
 
     let mut details = BTreeMap::new();
     details.insert("profile".to_string(), settings.profile);
@@ -495,11 +525,17 @@ pub fn cmd_config_print(args: &[String]) -> Result<(), AppError> {
     } else {
         settings
     };
+
     emit_serialized(&printable, output_format(args))
 }
 
 fn bootstrap_root() -> PathBuf {
-    env::temp_dir().join("aoxc-bootstrap")
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time should be after unix epoch")
+        .as_nanos();
+
+    env::temp_dir().join(format!("aoxc-bootstrap-pid{}-{}", process::id(), nanos))
 }
 
 pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
@@ -509,28 +545,23 @@ pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
     let profile = EnvironmentProfile::parse(
         &arg_value(args, "--profile").unwrap_or_else(|| "mainnet".to_string()),
     )?;
-    let name = arg_value(args, "--name").unwrap_or_else(|| "validator-01".to_string());
-    let password = arg_value(args, "--password").ok_or_else(|| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Missing required flag --password for production bootstrap",
-        )
-    })?;
-    let bind_host = arg_value(args, "--bind-host");
+    let name = parse_required_or_default_text_arg(args, "--name", "validator-01")?;
+    let password = parse_required_text_arg(args, "--password", false, "production bootstrap")?;
+    let bind_host = parse_optional_text_arg(args, "--bind-host", false);
 
     let mut settings = build_profile_settings(home.display().to_string(), profile, bind_host)?;
     settings.logging.json = true;
     settings
         .validate()
-        .map_err(|e| AppError::new(ErrorCode::ConfigInvalid, e))?;
+        .map_err(|error| AppError::new(ErrorCode::ConfigInvalid, error))?;
     persist(&settings)?;
 
     let genesis = profile.genesis_document();
-    let genesis_json = serde_json::to_string_pretty(&genesis).map_err(|e| {
+    let genesis_json = serde_json::to_string_pretty(&genesis).map_err(|error| {
         AppError::with_source(
             ErrorCode::OutputEncodingFailed,
             "Failed to encode production genesis document",
-            e,
+            error,
         )
     })?;
     write_file(&genesis_path()?, &genesis_json)?;
@@ -562,20 +593,16 @@ pub fn cmd_dual_profile_bootstrap(args: &[String]) -> Result<(), AppError> {
         .map(PathBuf::from)
         .unwrap_or_else(|| bootstrap_root().join("dual-profile"));
 
-    let password = arg_value(args, "--password").ok_or_else(|| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Missing required flag --password for dual profile bootstrap",
-        )
-    })?;
+    let password = parse_required_text_arg(args, "--password", false, "dual profile bootstrap")?;
+    let name = parse_required_or_default_text_arg(args, "--name", "validator-01")?;
 
     let mainnet_dir = output_dir.join("mainnet");
     let testnet_dir = output_dir.join("testnet");
 
     let mainnet =
-        bootstrap_profile_directory(&mainnet_dir, EnvironmentProfile::Mainnet, &password)?;
+        bootstrap_profile_directory(&mainnet_dir, EnvironmentProfile::Mainnet, &name, &password)?;
     let testnet =
-        bootstrap_profile_directory(&testnet_dir, EnvironmentProfile::Testnet, &password)?;
+        bootstrap_profile_directory(&testnet_dir, EnvironmentProfile::Testnet, &name, &password)?;
 
     let result = DualProfileBootstrapResult {
         output_dir: output_dir.display().to_string(),
@@ -589,66 +616,54 @@ pub fn cmd_dual_profile_bootstrap(args: &[String]) -> Result<(), AppError> {
 fn bootstrap_profile_directory(
     output_dir: &Path,
     profile: EnvironmentProfile,
+    operator_name: &str,
     password: &str,
 ) -> Result<ProfileBootstrapSummary, AppError> {
-    fs::create_dir_all(output_dir).map_err(|e| {
+    fs::create_dir_all(output_dir).map_err(|error| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
             format!(
                 "Failed to create bootstrap output directory {}",
                 output_dir.display()
             ),
-            e,
+            error,
         )
     })?;
 
     let home_dir = output_dir.join("home");
-    fs::create_dir_all(&home_dir).map_err(|e| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!("Failed to create home directory {}", home_dir.display()),
-            e,
-        )
-    })?;
+    ensure_layout(&home_dir)?;
+
+    let _home_override = ScopedHomeOverride::install(&home_dir);
 
     let settings = build_profile_settings(home_dir.display().to_string(), profile, None)?;
-    let config_path = home_dir.join("config.json");
-    let settings_json = serde_json::to_string_pretty(&settings).map_err(|e| {
-        AppError::with_source(
-            ErrorCode::OutputEncodingFailed,
-            "Failed to encode bootstrap settings",
-            e,
-        )
-    })?;
-    write_file(&config_path, &settings_json)?;
+    persist(&settings)?;
 
     let genesis = profile.genesis_document();
-    let genesis_json = serde_json::to_string_pretty(&genesis).map_err(|e| {
+    let genesis_json = serde_json::to_string_pretty(&genesis).map_err(|error| {
         AppError::with_source(
             ErrorCode::OutputEncodingFailed,
             "Failed to encode bootstrap genesis",
-            e,
+            error,
         )
     })?;
-    let identity_dir = home_dir.join("identity");
-    fs::create_dir_all(&identity_dir).map_err(|e| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!(
-                "Failed to create identity directory {}",
-                identity_dir.display()
-            ),
-            e,
-        )
-    })?;
-    write_file(&identity_dir.join("genesis.json"), &genesis_json)?;
+    write_file(&genesis_path()?, &genesis_json)?;
 
-    let material = bootstrap_operator_key("validator-01", profile.as_str(), password)?;
+    let material = bootstrap_operator_key(operator_name, profile.as_str(), password)?;
     let operator_fp = operator_fingerprint()?;
     let consensus_pk = consensus_public_key_hex()?;
     let node_state = bootstrap_state()?;
 
-    let summary = ProfileBootstrapSummary {
+    let material_path = home_dir.join("support").join("operator-key-bootstrap.json");
+    let material_json = serde_json::to_string_pretty(&material).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode operator bootstrap material",
+            error,
+        )
+    })?;
+    write_file(&material_path, &material_json)?;
+
+    Ok(ProfileBootstrapSummary {
         profile: profile.as_str().to_string(),
         home_dir: home_dir.display().to_string(),
         bind_host: settings.network.bind_host.clone(),
@@ -660,19 +675,7 @@ fn bootstrap_profile_directory(
         operator_fingerprint: operator_fp,
         consensus_public_key: consensus_pk,
         node_height: node_state.current_height,
-    };
-
-    let material_path = home_dir.join("operator-key-bootstrap.json");
-    let material_json = serde_json::to_string_pretty(&material).map_err(|e| {
-        AppError::with_source(
-            ErrorCode::OutputEncodingFailed,
-            "Failed to encode operator bootstrap material",
-            e,
-        )
-    })?;
-    write_file(&material_path, &material_json)?;
-
-    Ok(summary)
+    })
 }
 
 fn build_profile_settings(
@@ -681,7 +684,7 @@ fn build_profile_settings(
     bind_host: Option<String>,
 ) -> Result<Settings, AppError> {
     let mut settings = Settings::default_for_profile(home_dir, profile.as_str())
-        .map_err(|e| AppError::new(ErrorCode::ConfigInvalid, e))?;
+        .map_err(|error| AppError::new(ErrorCode::ConfigInvalid, error))?;
 
     if let Some(bind_host) = bind_host {
         settings.network.bind_host = bind_host;
@@ -689,18 +692,18 @@ fn build_profile_settings(
 
     settings
         .validate()
-        .map_err(|e| AppError::new(ErrorCode::ConfigInvalid, e))?;
+        .map_err(|error| AppError::new(ErrorCode::ConfigInvalid, error))?;
 
     Ok(settings)
 }
 
 fn load_genesis() -> Result<BootstrapGenesisDocument, AppError> {
     let raw = read_file(&genesis_path()?)?;
-    serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|e| {
+    serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|error| {
         AppError::with_source(
-            ErrorCode::OutputEncodingFailed,
+            ErrorCode::ConfigInvalid,
             "Failed to decode AOXC genesis document",
-            e,
+            error,
         )
     })
 }
@@ -724,6 +727,13 @@ fn validate_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> 
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
             "Genesis validation failed: environment must not be empty",
+        ));
+    }
+
+    if genesis.family_name.trim().is_empty() || genesis.family_code.trim().is_empty() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: family identity fields must not be empty",
         ));
     }
 
@@ -752,10 +762,39 @@ fn validate_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> 
         ));
     }
 
+    if genesis.environment.trim() != genesis.identity.network_class.trim()
+        && !matches!(
+            (
+                genesis.environment.trim(),
+                genesis.identity.network_class.trim()
+            ),
+            ("mainnet", "public_mainnet") | ("testnet", "public_testnet")
+        )
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: environment and network_class are inconsistent",
+        ));
+    }
+
     if genesis.consensus.block_time_ms == 0 {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
             "Genesis validation failed: block_time_ms must be non-zero",
+        ));
+    }
+
+    if genesis.economics.native_symbol.trim().is_empty() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: native_symbol must not be empty",
+        ));
+    }
+
+    if !is_non_zero_decimal_string(&genesis.economics.initial_treasury.amount) {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: treasury amount must be a non-zero decimal string",
         ));
     }
 
@@ -764,6 +803,26 @@ fn validate_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> 
             ErrorCode::ConfigInvalid,
             "Genesis validation failed: at least one state account is required",
         ));
+    }
+
+    let mut seen_accounts = BTreeSet::new();
+    for account in &genesis.state.accounts {
+        if account.account_id.trim().is_empty()
+            || account.role.trim().is_empty()
+            || !is_decimal_string(&account.balance)
+        {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                "Genesis validation failed: account fields are invalid",
+            ));
+        }
+
+        if !seen_accounts.insert(account.account_id.clone()) {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                "Genesis validation failed: duplicate account_id detected",
+            ));
+        }
     }
 
     if genesis.bindings.validators_file.trim().is_empty()
@@ -776,5 +835,82 @@ fn validate_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> 
         ));
     }
 
+    if genesis.integrity.hash_algorithm.trim() != "sha256" {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: hash_algorithm must equal sha256",
+        ));
+    }
+
+    if !genesis.integrity.deterministic_serialization_required {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: deterministic serialization must be required",
+        ));
+    }
+
     Ok(())
+}
+
+fn parse_required_text_arg(
+    args: &[String],
+    flag: &str,
+    lowercase: bool,
+    context: &str,
+) -> Result<String, AppError> {
+    let value = arg_value(args, flag).ok_or_else(|| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Missing required flag {flag} for {context}"),
+        )
+    })?;
+
+    normalize_text(&value, lowercase).ok_or_else(|| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Flag {flag} must not be blank"),
+        )
+    })
+}
+
+fn parse_required_or_default_text_arg(
+    args: &[String],
+    flag: &str,
+    default: &str,
+) -> Result<String, AppError> {
+    match arg_value(args, flag) {
+        Some(value) => normalize_text(&value, false).ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                format!("Flag {flag} must not be blank"),
+            )
+        }),
+        None => Ok(default.to_string()),
+    }
+}
+
+fn parse_optional_text_arg(args: &[String], flag: &str, lowercase: bool) -> Option<String> {
+    arg_value(args, flag).and_then(|value| normalize_text(&value, lowercase))
+}
+
+fn normalize_text(value: &str, lowercase: bool) -> Option<String> {
+    let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return None;
+    }
+
+    if lowercase {
+        Some(normalized.to_ascii_lowercase())
+    } else {
+        Some(normalized)
+    }
+}
+
+fn is_decimal_string(value: &str) -> bool {
+    let trimmed = value.trim();
+    !trimmed.is_empty() && trimmed.chars().all(|ch| ch.is_ascii_digit())
+}
+
+fn is_non_zero_decimal_string(value: &str) -> bool {
+    is_decimal_string(value) && value.trim().chars().any(|ch| ch != '0')
 }

@@ -14,11 +14,24 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Canonical default metadata backend for AOXC operator workflows.
+///
+/// Architectural policy:
+/// - `redb` is treated as the primary embedded metadata backend.
+/// - `sqlite` remains supported as an explicitly selectable compatibility backend.
+/// - CLI callers may still override the backend by supplying `--backend`.
+const DEFAULT_INDEX_BACKEND: IndexBackend = IndexBackend::Redb;
+
 /// Operator-facing database status payload.
 ///
-/// This view is intentionally compact and stable so that command-line
-/// automation, shell tooling, and CI workflows can inspect the effective
-/// AOXC database surface without depending on internal storage details.
+/// This payload is intentionally compact, deterministic, and suitable for:
+/// - shell automation,
+/// - CI verification steps,
+/// - operator diagnostics,
+/// - post-action audit evidence collection.
+///
+/// The structure avoids exposing internal implementation details that may
+/// change over time while preserving the minimum signals needed by operators.
 #[derive(Debug, Serialize)]
 struct DbStatus {
     backend: String,
@@ -28,6 +41,14 @@ struct DbStatus {
     has_index_journal: bool,
 }
 
+/// Returns the stable operator-facing backend label.
+fn backend_label(backend: IndexBackend) -> &'static str {
+    match backend {
+        IndexBackend::Sqlite => "sqlite",
+        IndexBackend::Redb => "redb",
+    }
+}
+
 /// Parses the requested metadata index backend from CLI arguments.
 ///
 /// Accepted values:
@@ -35,10 +56,15 @@ struct DbStatus {
 /// - `redb`
 ///
 /// Default behavior:
-/// - Falls back to `sqlite` when `--backend` is omitted.
+/// - Falls back to the AOXC canonical default backend when `--backend` is omitted.
+///
+/// Validation behavior:
+/// - Rejects unknown values with a stable usage error.
 fn parse_backend(args: &[String]) -> Result<IndexBackend, AppError> {
+    let fallback = backend_label(DEFAULT_INDEX_BACKEND).to_string();
+
     match arg_value(args, "--backend")
-        .unwrap_or_else(|| "sqlite".to_string())
+        .unwrap_or(fallback)
         .to_ascii_lowercase()
         .as_str()
     {
@@ -60,6 +86,10 @@ fn parse_backend(args: &[String]) -> Result<IndexBackend, AppError> {
 /// Examples:
 /// - `/home/<user>/.AOXCData/home/default/runtime/db`
 /// - `/home/<user>/.AOXCData/.test/<label>/runtime/db`
+///
+/// Operational guarantee:
+/// - The required AOXC layout is materialized before the root is returned so
+///   downstream database commands operate on a prepared filesystem surface.
 fn db_root() -> Result<PathBuf, AppError> {
     let home = resolve_home()?;
     ensure_layout(&home)?;
@@ -67,12 +97,20 @@ fn db_root() -> Result<PathBuf, AppError> {
 }
 
 /// Opens the hybrid data store for the selected backend under the effective root.
+///
+/// Error policy:
+/// - Fails with a filesystem-oriented application error when the backend cannot
+///   be opened for the resolved AOXC root.
 fn open_store(backend: IndexBackend) -> Result<(HybridDataStore, PathBuf), AppError> {
     let root = db_root()?;
     let store = HybridDataStore::new(&root, backend).map_err(|err| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
-            format!("Failed to open data store at {}", root.display()),
+            format!(
+                "Failed to open {} data store at {}",
+                backend_label(backend),
+                root.display()
+            ),
             err,
         )
     })?;
@@ -81,6 +119,11 @@ fn open_store(backend: IndexBackend) -> Result<(HybridDataStore, PathBuf), AppEr
 }
 
 /// Parses a required unsigned integer CLI argument.
+///
+/// Validation behavior:
+/// - Rejects missing values.
+/// - Rejects non-numeric values.
+/// - Preserves the CLI flag name in operator-visible error text.
 fn parse_u64_arg(args: &[String], flag: &str) -> Result<u64, AppError> {
     arg_value(args, flag)
         .ok_or_else(|| {
@@ -99,6 +142,10 @@ fn parse_u64_arg(args: &[String], flag: &str) -> Result<u64, AppError> {
 }
 
 /// Parses a required string CLI argument.
+///
+/// Validation behavior:
+/// - Rejects a missing flag value.
+/// - Preserves the original flag name in the emitted error.
 fn parse_required_arg(args: &[String], flag: &str) -> Result<String, AppError> {
     arg_value(args, flag).ok_or_else(|| {
         AppError::new(
@@ -109,6 +156,12 @@ fn parse_required_arg(args: &[String], flag: &str) -> Result<String, AppError> {
 }
 
 /// Counts persisted IPFS objects beneath the effective database root.
+///
+/// Design notes:
+/// - The absence of the `ipfs/` directory is treated as a valid empty state.
+/// - The count reflects materialized directory entries only.
+/// - The function intentionally avoids recursive traversal to preserve
+///   predictability and operator-facing performance.
 fn count_ipfs_objects(root: &Path) -> Result<usize, AppError> {
     let ipfs_dir = root.join("ipfs");
     if !ipfs_dir.exists() {
@@ -127,9 +180,14 @@ fn count_ipfs_objects(root: &Path) -> Result<usize, AppError> {
 }
 
 /// Builds the operator-facing database status payload for the effective root.
+///
+/// Compatibility note:
+/// - `has_index_snapshot` and `has_index_journal` remain exposed as stable
+///   diagnostics fields because operator tooling may already consume them,
+///   regardless of the selected embedded metadata backend.
 fn build_status(backend: IndexBackend, root: &Path) -> Result<DbStatus, AppError> {
     Ok(DbStatus {
-        backend: format!("{backend:?}").to_ascii_lowercase(),
+        backend: backend_label(backend).to_string(),
         db_root: root.display().to_string(),
         ipfs_object_count: count_ipfs_objects(root)?,
         has_index_snapshot: root.join("index").join("snapshot.json").exists(),
@@ -137,7 +195,12 @@ fn build_status(backend: IndexBackend, root: &Path) -> Result<DbStatus, AppError
     })
 }
 
-/// Initializes the effective AOXC database root and emits an operator status view.
+/// Initializes the effective AOXC database root and emits a normalized status view.
+///
+/// Operator contract:
+/// - The command is safe to invoke repeatedly.
+/// - The selected backend is opened under the resolved AOXC root.
+/// - A serialized status payload is emitted on success.
 pub fn cmd_db_init(args: &[String]) -> Result<(), AppError> {
     let backend = parse_backend(args)?;
     let (_, root) = open_store(backend)?;
@@ -154,6 +217,15 @@ pub fn cmd_db_status(args: &[String]) -> Result<(), AppError> {
 }
 
 /// Persists a block envelope loaded from a JSON file.
+///
+/// Validation and safety flow:
+/// 1. Parse backend selection.
+/// 2. Require `--block-file`.
+/// 3. Read UTF-8 JSON payload from disk.
+/// 4. Deserialize into a `BlockEnvelope`.
+/// 5. Persist through the selected embedded metadata backend.
+///
+/// Failure modes are reported with stable AOXC application error categories.
 pub fn cmd_db_put_block(args: &[String]) -> Result<(), AppError> {
     let backend = parse_backend(args)?;
     let block_file = parse_required_arg(args, "--block-file")?;
@@ -178,7 +250,11 @@ pub fn cmd_db_put_block(args: &[String]) -> Result<(), AppError> {
     let meta = store.put_block(&block).map_err(|err| {
         AppError::with_source(
             ErrorCode::LedgerInvalid,
-            format!("Failed to persist block into {}", root.display()),
+            format!(
+                "Failed to persist block into {} using {} backend",
+                root.display(),
+                backend_label(backend)
+            ),
             err,
         )
     })?;
@@ -186,7 +262,7 @@ pub fn cmd_db_put_block(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&meta, output_format(args))
 }
 
-/// Loads a block envelope by height.
+/// Loads a block envelope by block height.
 pub fn cmd_db_get_height(args: &[String]) -> Result<(), AppError> {
     let backend = parse_backend(args)?;
     let height = parse_u64_arg(args, "--height")?;
@@ -196,8 +272,9 @@ pub fn cmd_db_get_height(args: &[String]) -> Result<(), AppError> {
         AppError::with_source(
             ErrorCode::LedgerInvalid,
             format!(
-                "Failed to load block at height {height} from {}",
-                root.display()
+                "Failed to load block at height {height} from {} using {} backend",
+                root.display(),
+                backend_label(backend)
             ),
             err,
         )
@@ -215,7 +292,11 @@ pub fn cmd_db_get_hash(args: &[String]) -> Result<(), AppError> {
     let block = store.get_block_by_hash(&hash).map_err(|err| {
         AppError::with_source(
             ErrorCode::LedgerInvalid,
-            format!("Failed to load block hash {hash} from {}", root.display()),
+            format!(
+                "Failed to load block hash {hash} from {} using {} backend",
+                root.display(),
+                backend_label(backend)
+            ),
             err,
         )
     })?;
@@ -224,6 +305,11 @@ pub fn cmd_db_get_hash(args: &[String]) -> Result<(), AppError> {
 }
 
 /// Compacts the metadata index and emits the post-compaction database status.
+///
+/// Operational intent:
+/// - Preserve the existing backend selection.
+/// - Run compaction through the hybrid store abstraction.
+/// - Return a fresh operator-facing status snapshot.
 pub fn cmd_db_compact(args: &[String]) -> Result<(), AppError> {
     let backend = parse_backend(args)?;
     let (store, root) = open_store(backend)?;
@@ -231,7 +317,11 @@ pub fn cmd_db_compact(args: &[String]) -> Result<(), AppError> {
     store.compact_index().map_err(|err| {
         AppError::with_source(
             ErrorCode::LedgerInvalid,
-            format!("Failed to compact metadata index at {}", root.display()),
+            format!(
+                "Failed to compact metadata index at {} using {} backend",
+                root.display(),
+                backend_label(backend)
+            ),
             err,
         )
     })?;
@@ -243,9 +333,9 @@ pub fn cmd_db_compact(args: &[String]) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_status, cmd_db_compact, cmd_db_get_hash, cmd_db_get_height, cmd_db_init,
-        cmd_db_put_block, cmd_db_status, count_ipfs_objects, db_root, open_store, parse_backend,
-        parse_required_arg, parse_u64_arg,
+        backend_label, build_status, cmd_db_compact, cmd_db_get_hash, cmd_db_get_height,
+        cmd_db_init, cmd_db_put_block, cmd_db_status, count_ipfs_objects, db_root, open_store,
+        parse_backend, parse_required_arg, parse_u64_arg, DEFAULT_INDEX_BACKEND,
     };
     use crate::test_support::{aoxc_home_test_lock, AoxcHomeGuard, TestHome};
     use aoxcdata::{HybridDataStore, IndexBackend};
@@ -261,6 +351,10 @@ mod tests {
 
     fn args(items: &[&str]) -> Vec<String> {
         items.iter().map(|item| (*item).to_string()).collect()
+    }
+
+    fn backend_args(backend: IndexBackend) -> Vec<String> {
+        vec!["--backend".to_string(), backend_label(backend).to_string()]
     }
 
     fn zero_hash() -> String {
@@ -304,36 +398,48 @@ mod tests {
         block_file
     }
 
+    fn open_store_for_backend(backend: IndexBackend) -> (HybridDataStore, PathBuf) {
+        open_store(backend).unwrap_or_else(|err| {
+            panic!(
+                "store should open under the active AOXC root for backend {}: {}",
+                backend_label(backend),
+                err
+            )
+        })
+    }
+
     fn persist_block_fixture(
         home: &TestHome,
         name: &str,
         height: u64,
         parent_hash: &str,
         payload: &[u8],
+        backend: IndexBackend,
     ) -> String {
         let (block_hash, block_json) = sample_block_json(height, parent_hash, payload);
         let block_file = write_block_fixture(home, name, &block_json);
 
-        cmd_db_put_block(&args(&["--block-file", &block_file.display().to_string()]))
-            .expect("block fixture should persist successfully");
+        let args = vec![
+            "--backend".to_string(),
+            backend_label(backend).to_string(),
+            "--block-file".to_string(),
+            block_file.display().to_string(),
+        ];
 
+        cmd_db_put_block(&args).expect("block fixture should persist successfully");
         block_hash
     }
 
-    fn open_sqlite_store() -> (HybridDataStore, PathBuf) {
-        open_store(IndexBackend::Sqlite)
-            .expect("sqlite store should open under the active AOXC root")
-    }
-
-    fn assert_block_present_by_height(expected_height: u64) {
-        let (store, root) = open_sqlite_store();
+    fn assert_block_present_by_height(expected_height: u64, backend: IndexBackend) {
+        let (store, root) = open_store_for_backend(backend);
         let block = store
             .get_block_by_height(expected_height)
             .unwrap_or_else(|err| {
                 panic!(
-                    "expected block at height {} to be readable from {}: {}",
+                    "expected block at height {} to be readable from {} using {} backend: {}",
                     expected_height,
                     root.display(),
+                    backend_label(backend),
                     err
                 )
             });
@@ -341,34 +447,44 @@ mod tests {
         assert_eq!(block.height, expected_height);
     }
 
-    fn assert_block_present_by_hash(expected_hash: &str, expected_height: u64) {
-        let (store, root) = open_sqlite_store();
-        let block = store.get_block_by_hash(expected_hash).unwrap_or_else(|err| {
-            panic!(
-                "expected block hash {} to be readable from {}: {}",
-                expected_hash,
-                root.display(),
-                err
-            )
-        });
+    fn assert_block_present_by_hash(
+        expected_hash: &str,
+        expected_height: u64,
+        backend: IndexBackend,
+    ) {
+        let (store, root) = open_store_for_backend(backend);
+        let block = store
+            .get_block_by_hash(expected_hash)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "expected block hash {} to be readable from {} using {} backend: {}",
+                    expected_hash,
+                    root.display(),
+                    backend_label(backend),
+                    err
+                )
+            });
 
         assert_eq!(block.height, expected_height);
         assert_eq!(block.block_hash_hex, expected_hash);
     }
 
     #[test]
-    fn backend_parser_defaults_to_sqlite_when_backend_is_omitted() {
-        assert_eq!(
-            format!("{:?}", parse_backend(&[]).expect("default backend should parse")),
-            "Sqlite"
-        );
+    fn backend_parser_defaults_to_redb_when_backend_is_omitted() {
+        let parsed = parse_backend(&[]).expect("default backend should parse");
+        assert_eq!(parsed, DEFAULT_INDEX_BACKEND);
+        assert_eq!(backend_label(parsed), "redb");
     }
 
     #[test]
     fn backend_parser_accepts_known_values() {
-        let parsed = parse_backend(&args(&["--backend", "redb"]))
-            .expect("known backend should parse successfully");
-        assert_eq!(format!("{parsed:?}"), "Redb");
+        let sqlite = parse_backend(&args(&["--backend", "sqlite"]))
+            .expect("sqlite backend should parse successfully");
+        let redb = parse_backend(&args(&["--backend", "redb"]))
+            .expect("redb backend should parse successfully");
+
+        assert_eq!(sqlite, IndexBackend::Sqlite);
+        assert_eq!(redb, IndexBackend::Redb);
     }
 
     #[test]
@@ -417,9 +533,9 @@ mod tests {
         with_test_home("db-status-build", |home| {
             let root = db_root().expect("db root should resolve");
             let status =
-                build_status(IndexBackend::Sqlite, &root).expect("status should build successfully");
+                build_status(IndexBackend::Redb, &root).expect("status should build successfully");
 
-            assert_eq!(status.backend, "sqlite");
+            assert_eq!(status.backend, "redb");
             assert_eq!(
                 status.db_root,
                 home.path().join("runtime").join("db").display().to_string()
@@ -457,72 +573,198 @@ mod tests {
     }
 
     #[test]
-    fn db_init_and_status_succeed_under_isolated_aoxc_root() {
-        with_test_home("db-init-status", |home| {
+    fn db_init_and_status_succeed_under_isolated_aoxc_root_with_default_backend() {
+        with_test_home("db-init-status-default", |home| {
             cmd_db_init(&[]).expect("db init should succeed");
             cmd_db_status(&[]).expect("db status should succeed");
 
             let root = home.path().join("runtime").join("db");
             assert!(root.is_dir());
+
+            let status = build_status(DEFAULT_INDEX_BACKEND, &root)
+                .expect("status should build successfully");
+            assert_eq!(status.backend, "redb");
         });
     }
 
     #[test]
-    fn db_roundtrip_flow_with_cli_commands() {
-        with_test_home("db-roundtrip", |home| {
+    fn db_roundtrip_flow_with_redb_backend() {
+        with_test_home("db-roundtrip-redb", |home| {
             let parent = zero_hash();
-            let payload = br#"{"tx":"db-smoke"}"#;
+            let payload = br#"{"tx":"db-smoke-redb"}"#;
             let (block_hash, block_json) = sample_block_json(1, &parent, payload);
-            let block_file = write_block_fixture(home, "sample-block.json", &block_json);
+            let block_file = write_block_fixture(home, "sample-block-redb.json", &block_json);
 
-            cmd_db_init(&[]).expect("db init should succeed");
-            cmd_db_put_block(&args(&["--block-file", &block_file.display().to_string()]))
-                .expect("db put should succeed");
-            cmd_db_get_height(&args(&["--height", "1"]))
-                .expect("db get by height should succeed");
-            cmd_db_get_hash(&args(&["--hash", &block_hash]))
-                .expect("db get by hash should succeed");
+            let init_args = backend_args(IndexBackend::Redb);
+            cmd_db_init(&init_args).expect("db init should succeed");
 
-            assert_block_present_by_height(1);
-            assert_block_present_by_hash(&block_hash, 1);
+            let put_args = vec![
+                "--backend".to_string(),
+                "redb".to_string(),
+                "--block-file".to_string(),
+                block_file.display().to_string(),
+            ];
+            cmd_db_put_block(&put_args).expect("db put should succeed");
+
+            let get_height_args = vec![
+                "--backend".to_string(),
+                "redb".to_string(),
+                "--height".to_string(),
+                "1".to_string(),
+            ];
+            cmd_db_get_height(&get_height_args).expect("db get by height should succeed");
+
+            let get_hash_args = vec![
+                "--backend".to_string(),
+                "redb".to_string(),
+                "--hash".to_string(),
+                block_hash.clone(),
+            ];
+            cmd_db_get_hash(&get_hash_args).expect("db get by hash should succeed");
+
+            assert_block_present_by_height(1, IndexBackend::Redb);
+            assert_block_present_by_hash(&block_hash, 1, IndexBackend::Redb);
         });
     }
 
     #[test]
-    fn db_put_and_follow_up_reads_use_the_same_isolated_root() {
-        with_test_home("db-root-consistency", |home| {
+    fn db_roundtrip_flow_with_sqlite_backend_remains_supported() {
+        with_test_home("db-roundtrip-sqlite", |home| {
             let parent = zero_hash();
-            let payload = br#"{"tx":"consistency-check"}"#;
+            let payload = br#"{"tx":"db-smoke-sqlite"}"#;
+            let (block_hash, block_json) = sample_block_json(1, &parent, payload);
+            let block_file = write_block_fixture(home, "sample-block-sqlite.json", &block_json);
+
+            let init_args = backend_args(IndexBackend::Sqlite);
+            cmd_db_init(&init_args).expect("db init should succeed");
+
+            let put_args = vec![
+                "--backend".to_string(),
+                "sqlite".to_string(),
+                "--block-file".to_string(),
+                block_file.display().to_string(),
+            ];
+            cmd_db_put_block(&put_args).expect("db put should succeed");
+
+            let get_height_args = vec![
+                "--backend".to_string(),
+                "sqlite".to_string(),
+                "--height".to_string(),
+                "1".to_string(),
+            ];
+            cmd_db_get_height(&get_height_args).expect("db get by height should succeed");
+
+            let get_hash_args = vec![
+                "--backend".to_string(),
+                "sqlite".to_string(),
+                "--hash".to_string(),
+                block_hash.clone(),
+            ];
+            cmd_db_get_hash(&get_hash_args).expect("db get by hash should succeed");
+
+            assert_block_present_by_height(1, IndexBackend::Sqlite);
+            assert_block_present_by_hash(&block_hash, 1, IndexBackend::Sqlite);
+        });
+    }
+
+    #[test]
+    fn db_put_and_follow_up_reads_use_the_same_isolated_root_for_redb() {
+        with_test_home("db-root-consistency-redb", |home| {
+            let parent = zero_hash();
+            let payload = br#"{"tx":"consistency-check-redb"}"#;
             let block_hash = persist_block_fixture(
                 home,
-                "consistency-block.json",
+                "consistency-block-redb.json",
                 1,
                 &parent,
                 payload,
+                IndexBackend::Redb,
             );
 
             let root = db_root().expect("db root should resolve");
             assert_eq!(root, home.path().join("runtime").join("db"));
 
-            assert_block_present_by_height(1);
-            assert_block_present_by_hash(&block_hash, 1);
+            assert_block_present_by_height(1, IndexBackend::Redb);
+            assert_block_present_by_hash(&block_hash, 1, IndexBackend::Redb);
         });
     }
 
     #[test]
-    fn db_put_rejects_duplicate_block_reinsertion() {
-        with_test_home("db-duplicate-height", |home| {
+    fn db_put_and_follow_up_reads_use_the_same_isolated_root_for_sqlite() {
+        with_test_home("db-root-consistency-sqlite", |home| {
             let parent = zero_hash();
-            let payload = br#"{"tx":"duplicate-height"}"#;
+            let payload = br#"{"tx":"consistency-check-sqlite"}"#;
+            let block_hash = persist_block_fixture(
+                home,
+                "consistency-block-sqlite.json",
+                1,
+                &parent,
+                payload,
+                IndexBackend::Sqlite,
+            );
+
+            let root = db_root().expect("db root should resolve");
+            assert_eq!(root, home.path().join("runtime").join("db"));
+
+            assert_block_present_by_height(1, IndexBackend::Sqlite);
+            assert_block_present_by_hash(&block_hash, 1, IndexBackend::Sqlite);
+        });
+    }
+
+    #[test]
+    fn db_put_rejects_duplicate_block_reinsertion_for_redb() {
+        with_test_home("db-duplicate-height-redb", |home| {
+            let parent = zero_hash();
+            let payload = br#"{"tx":"duplicate-height-redb"}"#;
             let (_block_hash, block_json) = sample_block_json(1, &parent, payload);
-            let block_file = write_block_fixture(home, "duplicate-height.json", &block_json);
+            let block_file = write_block_fixture(home, "duplicate-height-redb.json", &block_json);
 
-            cmd_db_put_block(&args(&["--block-file", &block_file.display().to_string()]))
-                .expect("first db put should succeed");
+            let first_args = vec![
+                "--backend".to_string(),
+                "redb".to_string(),
+                "--block-file".to_string(),
+                block_file.display().to_string(),
+            ];
+            cmd_db_put_block(&first_args).expect("first db put should succeed");
 
+            let second_args = vec![
+                "--backend".to_string(),
+                "redb".to_string(),
+                "--block-file".to_string(),
+                block_file.display().to_string(),
+            ];
             let error =
-                cmd_db_put_block(&args(&["--block-file", &block_file.display().to_string()]))
-                    .expect_err("duplicate insertion must be rejected");
+                cmd_db_put_block(&second_args).expect_err("duplicate insertion must be rejected");
+
+            assert_eq!(error.code(), "AOXC-LED-001");
+            assert!(format!("{error}").contains("Failed to persist block"));
+        });
+    }
+
+    #[test]
+    fn db_put_rejects_duplicate_block_reinsertion_for_sqlite() {
+        with_test_home("db-duplicate-height-sqlite", |home| {
+            let parent = zero_hash();
+            let payload = br#"{"tx":"duplicate-height-sqlite"}"#;
+            let (_block_hash, block_json) = sample_block_json(1, &parent, payload);
+            let block_file = write_block_fixture(home, "duplicate-height-sqlite.json", &block_json);
+
+            let first_args = vec![
+                "--backend".to_string(),
+                "sqlite".to_string(),
+                "--block-file".to_string(),
+                block_file.display().to_string(),
+            ];
+            cmd_db_put_block(&first_args).expect("first db put should succeed");
+
+            let second_args = vec![
+                "--backend".to_string(),
+                "sqlite".to_string(),
+                "--block-file".to_string(),
+                block_file.display().to_string(),
+            ];
+            let error =
+                cmd_db_put_block(&second_args).expect_err("duplicate insertion must be rejected");
 
             assert_eq!(error.code(), "AOXC-LED-001");
             assert!(format!("{error}").contains("Failed to persist block"));
@@ -532,8 +774,8 @@ mod tests {
     #[test]
     fn db_put_requires_block_file_argument() {
         with_test_home("db-put-missing-arg", |_home| {
-            let error = cmd_db_put_block(&[])
-                .expect_err("missing block-file argument must be rejected");
+            let error =
+                cmd_db_put_block(&[]).expect_err("missing block-file argument must be rejected");
             assert_eq!(error.code(), "AOXC-USG-002");
             assert!(format!("{error}").contains("--block-file"));
         });
@@ -543,8 +785,14 @@ mod tests {
     fn db_put_rejects_missing_block_file_on_disk() {
         with_test_home("db-put-missing-file", |home| {
             let missing = home.path().join("support").join("does-not-exist.json");
-            let error = cmd_db_put_block(&args(&["--block-file", &missing.display().to_string()]))
-                .expect_err("missing block file must be rejected");
+
+            let error = cmd_db_put_block(&[
+                "--backend".to_string(),
+                "redb".to_string(),
+                "--block-file".to_string(),
+                missing.display().to_string(),
+            ])
+            .expect_err("missing block file must be rejected");
 
             assert_eq!(error.code(), "AOXC-FS-001");
             assert!(format!("{error}").contains("Failed to read block file"));
@@ -557,9 +805,13 @@ mod tests {
             let block_file =
                 write_block_fixture(home, "invalid-block.json", r#"{"height":not-a-number}"#);
 
-            let error =
-                cmd_db_put_block(&args(&["--block-file", &block_file.display().to_string()]))
-                    .expect_err("invalid block json must be rejected");
+            let error = cmd_db_put_block(&[
+                "--backend".to_string(),
+                "redb".to_string(),
+                "--block-file".to_string(),
+                block_file.display().to_string(),
+            ])
+            .expect_err("invalid block json must be rejected");
 
             assert_eq!(error.code(), "AOXC-USG-002");
             assert!(format!("{error}").contains("Invalid block JSON"));
@@ -589,8 +841,14 @@ mod tests {
     #[test]
     fn db_get_height_returns_ledger_error_when_block_is_absent() {
         with_test_home("db-get-height-absent", |_home| {
-            let error = cmd_db_get_height(&args(&["--height", "999"]))
-                .expect_err("absent height lookup must fail");
+            let error = cmd_db_get_height(&[
+                "--backend".to_string(),
+                "redb".to_string(),
+                "--height".to_string(),
+                "999".to_string(),
+            ])
+            .expect_err("absent height lookup must fail");
+
             assert_eq!(error.code(), "AOXC-LED-001");
             assert!(format!("{error}").contains("Failed to load block at height 999"));
         });
@@ -599,8 +857,7 @@ mod tests {
     #[test]
     fn db_get_hash_rejects_missing_argument() {
         with_test_home("db-get-hash-missing-arg", |_home| {
-            let error =
-                cmd_db_get_hash(&[]).expect_err("missing hash argument must be rejected");
+            let error = cmd_db_get_hash(&[]).expect_err("missing hash argument must be rejected");
             assert_eq!(error.code(), "AOXC-USG-002");
             assert!(format!("{error}").contains("--hash"));
         });
@@ -610,42 +867,75 @@ mod tests {
     fn db_get_hash_returns_ledger_error_when_block_is_absent() {
         with_test_home("db-get-hash-absent", |_home| {
             let missing_hash = "aa".repeat(32);
-            let error = cmd_db_get_hash(&args(&["--hash", &missing_hash]))
-                .expect_err("absent hash lookup must fail");
+            let error = cmd_db_get_hash(&[
+                "--backend".to_string(),
+                "redb".to_string(),
+                "--hash".to_string(),
+                missing_hash,
+            ])
+            .expect_err("absent hash lookup must fail");
+
             assert_eq!(error.code(), "AOXC-LED-001");
             assert!(format!("{error}").contains("Failed to load block hash"));
         });
     }
 
     #[test]
-    fn db_compact_succeeds_after_persisting_a_genesis_block() {
-        with_test_home("db-compact", |home| {
-            cmd_db_init(&[]).expect("db init should succeed");
+    fn db_compact_succeeds_after_persisting_a_genesis_block_with_redb() {
+        with_test_home("db-compact-redb", |home| {
+            cmd_db_init(&backend_args(IndexBackend::Redb)).expect("db init should succeed");
 
             let block_hash = persist_block_fixture(
                 home,
-                "compact-block.json",
+                "compact-block-redb.json",
                 1,
                 &zero_hash(),
-                br#"{"tx":"compact-me"}"#,
+                br#"{"tx":"compact-me-redb"}"#,
+                IndexBackend::Redb,
             );
 
-            cmd_db_compact(&[]).expect("db compact should succeed");
+            cmd_db_compact(&backend_args(IndexBackend::Redb)).expect("db compact should succeed");
 
             let root = home.path().join("runtime").join("db");
             let status =
-                build_status(IndexBackend::Sqlite, &root).expect("status should build after compact");
-            assert_eq!(status.backend, "sqlite");
+                build_status(IndexBackend::Redb, &root).expect("status should build after compact");
+            assert_eq!(status.backend, "redb");
 
-            assert_block_present_by_height(1);
-            assert_block_present_by_hash(&block_hash, 1);
+            assert_block_present_by_height(1, IndexBackend::Redb);
+            assert_block_present_by_hash(&block_hash, 1, IndexBackend::Redb);
         });
     }
 
     #[test]
-    fn open_store_uses_the_active_aoxc_test_root() {
-        with_test_home("open-store", |home| {
-            let (_store, root) = open_sqlite_store();
+    fn db_compact_succeeds_after_persisting_a_genesis_block_with_sqlite() {
+        with_test_home("db-compact-sqlite", |home| {
+            cmd_db_init(&backend_args(IndexBackend::Sqlite)).expect("db init should succeed");
+
+            let block_hash = persist_block_fixture(
+                home,
+                "compact-block-sqlite.json",
+                1,
+                &zero_hash(),
+                br#"{"tx":"compact-me-sqlite"}"#,
+                IndexBackend::Sqlite,
+            );
+
+            cmd_db_compact(&backend_args(IndexBackend::Sqlite)).expect("db compact should succeed");
+
+            let root = home.path().join("runtime").join("db");
+            let status = build_status(IndexBackend::Sqlite, &root)
+                .expect("status should build after compact");
+            assert_eq!(status.backend, "sqlite");
+
+            assert_block_present_by_height(1, IndexBackend::Sqlite);
+            assert_block_present_by_hash(&block_hash, 1, IndexBackend::Sqlite);
+        });
+    }
+
+    #[test]
+    fn open_store_uses_the_active_aoxc_test_root_for_default_backend() {
+        with_test_home("open-store-default-backend", |home| {
+            let (_store, root) = open_store_for_backend(DEFAULT_INDEX_BACKEND);
             assert_eq!(root, home.path().join("runtime").join("db"));
             assert!(root.is_dir());
         });

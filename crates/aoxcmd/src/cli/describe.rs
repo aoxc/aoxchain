@@ -3,16 +3,25 @@
 // This file is part of the AOXC pre-release codebase.
 
 use crate::{
-    build_info::build_info,
+    build_info::{build_info, BuildInfo},
     cli::AOXC_RELEASE_NAME,
-    cli_support::{emit_serialized, output_format, text_envelope},
-    config::loader::load_or_init,
-    error::AppError,
+    cli_support::{emit_serialized, output_format, text_envelope, OutputFormat},
+    config::{loader::load, settings::Settings},
+    data_home::resolve_home,
+    error::{AppError, ErrorCode},
     logging::init::trace_for,
-    services::registry::default_registry,
+    services::registry::{default_registry, ServiceDescriptor},
 };
+use serde::Serialize;
 use std::collections::BTreeMap;
 
+/// Operator-facing compatibility matrix published by the describe surface.
+///
+/// Design intent:
+/// - Provide a stable machine-readable compatibility summary for release evidence.
+/// - Preserve a compact contract that downstream tooling can consume without
+///   re-parsing multiple independent informational surfaces.
+/// - Bind protocol, upgrade, and trust-chain expectations into one envelope.
 #[derive(Debug, Clone, Serialize)]
 struct CompatibilityMatrix<'a> {
     binary_version: &'a str,
@@ -23,6 +32,7 @@ struct CompatibilityMatrix<'a> {
     release_trust_chain: ReleaseTrustChain<'a>,
 }
 
+/// Protocol-line compatibility details surfaced to operators and release tooling.
 #[derive(Debug, Clone, Serialize)]
 struct ProtocolCompatibility<'a> {
     core_line: &'a str,
@@ -33,6 +43,7 @@ struct ProtocolCompatibility<'a> {
     enforcement: Vec<EnforcementRule<'a>>,
 }
 
+/// Version-enforcement rule for a protocol-visible surface.
 #[derive(Debug, Clone, Serialize)]
 struct EnforcementRule<'a> {
     surface: &'a str,
@@ -40,6 +51,7 @@ struct EnforcementRule<'a> {
     behavior_on_mismatch: &'a str,
 }
 
+/// Upgrade-policy statement for the currently published release line.
 #[derive(Debug, Clone, Serialize)]
 struct UpgradePolicy<'a> {
     backward_compatibility: &'a str,
@@ -48,6 +60,7 @@ struct UpgradePolicy<'a> {
     supported_upgrade_paths: Vec<UpgradePath<'a>>,
 }
 
+/// Supported or gated release transition.
 #[derive(Debug, Clone, Serialize)]
 struct UpgradePath<'a> {
     from: &'a str,
@@ -56,6 +69,7 @@ struct UpgradePath<'a> {
     guarantee: &'a str,
 }
 
+/// Scripted or policy-backed validation track.
 #[derive(Debug, Clone, Serialize)]
 struct ValidationTrack<'a> {
     name: &'a str,
@@ -63,6 +77,7 @@ struct ValidationTrack<'a> {
     evidence_hint: &'a str,
 }
 
+/// Release trust-chain obligations published with the binary.
 #[derive(Debug, Clone, Serialize)]
 struct ReleaseTrustChain<'a> {
     reproducible_build: &'a str,
@@ -72,10 +87,58 @@ struct ReleaseTrustChain<'a> {
     compatibility_matrix: &'a str,
 }
 
-use serde::Serialize;
+/// Build manifest emitted by the `build-manifest` describe surface.
+#[derive(Debug, Clone, Serialize)]
+struct Manifest<'a> {
+    build: BuildInfo,
+    services: &'a [ServiceDescriptor],
+    compatibility: CompatibilityMatrix<'a>,
+}
 
+/// Operator-facing port map for the active effective settings surface.
+#[derive(Debug, Clone, Serialize)]
+struct PortMap<'a> {
+    bind_host: &'a str,
+    p2p_port: u16,
+    rpc_port: u16,
+    prometheus_port: u16,
+}
+
+/// Emits JSON for describe-surface commands that intentionally expose a stable
+/// machine-readable contract.
+fn emit_json<T: Serialize>(value: &T) -> Result<(), AppError> {
+    emit_serialized(value, OutputFormat::Json)
+}
+
+/// Resolves effective settings for read-only describe surfaces without creating
+/// configuration files on disk.
+///
+/// Behavioral policy:
+/// - If canonical settings already exist, load and validate them.
+/// - If settings are missing, derive safe in-memory defaults for the active
+///   AOXC home without persisting anything.
+/// - If settings exist but are invalid, propagate the underlying error.
+///
+/// Rationale:
+/// - Read-only informational commands must not unexpectedly mutate operator
+///   state merely to display policy or port metadata.
+/// - Missing configuration should still allow deterministic previews based on
+///   the canonical AOXC default settings model.
+fn effective_settings_for_describe_surface() -> Result<Settings, AppError> {
+    match load() {
+        Ok(settings) => Ok(settings),
+        Err(error) if error.code() == ErrorCode::ConfigMissing.as_str() => {
+            let home = resolve_home()?;
+            Ok(Settings::default_for(home.display().to_string()))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// Constructs the canonical compatibility matrix for the current binary build.
 fn compatibility_matrix() -> CompatibilityMatrix<'static> {
     let info = build_info();
+
     CompatibilityMatrix {
         binary_version: info.package_version,
         release_name: AOXC_RELEASE_NAME,
@@ -99,14 +162,18 @@ fn compatibility_matrix() -> CompatibilityMatrix<'static> {
                 EnforcementRule {
                     surface: "vote/certificate format line",
                     expected_version: "AOXC-VOTE-FMT-V1-draft / AOXC-CERT-FMT-V1-draft",
-                    behavior_on_mismatch: "treat quorum material as incompatible and non-canonical",
+                    behavior_on_mismatch:
+                        "treat quorum material as incompatible and non-canonical",
                 },
             ],
         },
         policy: UpgradePolicy {
-            backward_compatibility: "patch releases within the same protocol line must preserve on-disk state and operator CLI automation contracts",
-            rollback_window: "same release line only; protocol-line downgrades require explicit snapshot restore",
-            migration_guarantee: "state migrations must be deterministic, evidence-backed, and coupled with snapshot recovery rehearsal",
+            backward_compatibility:
+                "patch releases within the same protocol line must preserve on-disk state and operator CLI automation contracts",
+            rollback_window:
+                "same release line only; protocol-line downgrades require explicit snapshot restore",
+            migration_guarantee:
+                "state migrations must be deterministic, evidence-backed, and coupled with snapshot recovery rehearsal",
             supported_upgrade_paths: vec![
                 UpgradePath {
                     from: "0.1.1-akdeniz",
@@ -124,7 +191,8 @@ fn compatibility_matrix() -> CompatibilityMatrix<'static> {
                     from: "protocol line N",
                     to: "protocol line N+1",
                     status: "gated",
-                    guarantee: "requires explicit migration plan, compatibility evidence, and rollback snapshot",
+                    guarantee:
+                        "requires explicit migration plan, compatibility evidence, and rollback snapshot",
                 },
             ],
         },
@@ -137,12 +205,14 @@ fn compatibility_matrix() -> CompatibilityMatrix<'static> {
             ValidationTrack {
                 name: "fault injection and partition",
                 status: "scripted",
-                evidence_hint: "scripts/validation/network_production_closure.sh --scenario partition|delay|drop|restart",
+                evidence_hint:
+                    "scripts/validation/network_production_closure.sh --scenario partition|delay|drop|restart",
             },
             ValidationTrack {
                 name: "state sync and snapshot recovery",
                 status: "scripted",
-                evidence_hint: "scripts/validation/network_production_closure.sh --scenario recovery",
+                evidence_hint:
+                    "scripts/validation/network_production_closure.sh --scenario recovery",
             },
             ValidationTrack {
                 name: "soak and telemetry evidence",
@@ -152,72 +222,82 @@ fn compatibility_matrix() -> CompatibilityMatrix<'static> {
         ],
         release_trust_chain: ReleaseTrustChain {
             reproducible_build: "required via scripts/release/generate_release_evidence.sh",
-            artifact_signature: "required via AOXC_SIGNING_CMD or pre-signed artifact injection",
-            provenance_attestation: "required via AOXC_PROVENANCE_CMD or generated placeholder failure",
-            release_evidence_gate: "release bundle is incomplete until checksums, signatures, provenance, and compatibility reports are present",
-            compatibility_matrix: "published by `aoxc compat-matrix --format json` and bundled into release evidence",
+            artifact_signature:
+                "required via AOXC_SIGNING_CMD or pre-signed artifact injection",
+            provenance_attestation:
+                "required via AOXC_PROVENANCE_CMD or generated placeholder failure",
+            release_evidence_gate:
+                "release bundle is incomplete until checksums, signatures, provenance, and compatibility reports are present",
+            compatibility_matrix:
+                "published by `aoxc compat-matrix --format json` and bundled into release evidence",
         },
     }
 }
 
+/// Emits machine-readable build metadata for the current binary.
 pub fn cmd_version() -> Result<(), AppError> {
-    emit_serialized(&build_info(), crate::cli_support::OutputFormat::Json)
+    emit_json(&build_info())
 }
 
+/// Emits the high-level vision statement for the AOXC operator command plane.
 pub fn cmd_vision() -> Result<(), AppError> {
     let trace = trace_for("vision");
     let mut details = BTreeMap::new();
+
     details.insert("release".to_string(), AOXC_RELEASE_NAME.to_string());
     details.insert(
         "statement".to_string(),
-        "AOXCMD is the deterministic operator command plane for bootstrap, diagnostics, and audit evidence generation.".to_string(),
+        "AOXCMD is the deterministic operator command plane for bootstrap, diagnostics, and audit evidence generation."
+            .to_string(),
     );
     details.insert("correlation_id".to_string(), trace.correlation_id);
-    emit_serialized(
-        &text_envelope("vision", "ok", details),
-        crate::cli_support::OutputFormat::Json,
-    )
+
+    emit_json(&text_envelope("vision", "ok", details))
 }
 
+/// Emits the operator-facing build manifest.
 pub fn cmd_build_manifest() -> Result<(), AppError> {
-    let info = build_info();
     let registry = default_registry();
-    #[derive(serde::Serialize)]
-    struct Manifest<'a> {
-        build: crate::build_info::BuildInfo,
-        services: &'a [crate::services::registry::ServiceDescriptor],
-        compatibility: CompatibilityMatrix<'a>,
-    }
     let manifest = Manifest {
-        build: info,
+        build: build_info(),
         services: &registry,
         compatibility: compatibility_matrix(),
     };
-    emit_serialized(&manifest, crate::cli_support::OutputFormat::Json)
+
+    emit_json(&manifest)
 }
 
+/// Emits the effective node connection policy.
+///
+/// Behavioral note:
+/// - Existing validated settings are used when present.
+/// - Missing settings are represented by deterministic in-memory defaults for
+///   the active AOXC home.
+/// - The `--enforce-official` flag is treated as an invocation-level override
+///   preview layered over the persisted or default settings surface.
 pub fn cmd_node_connection_policy(args: &[String]) -> Result<(), AppError> {
-    let settings = load_or_init()?;
+    let settings = effective_settings_for_describe_surface()?;
     let mut details = BTreeMap::new();
+
+    let effective_official_only = settings.network.enforce_official_peers
+        || args.iter().any(|arg| arg == "--enforce-official");
+
     details.insert(
         "official_only".to_string(),
-        if settings.network.enforce_official_peers || args.iter().any(|a| a == "--enforce-official")
-        {
-            "true".to_string()
-        } else {
-            "false".to_string()
-        },
+        effective_official_only.to_string(),
     );
     details.insert(
         "allow_remote_peers".to_string(),
         settings.policy.allow_remote_peers.to_string(),
     );
+
     emit_serialized(
         &text_envelope("node-connection-policy", "ok", details),
         output_format(args),
     )
 }
 
+/// Emits the canonical sovereign root modules recognized by AOXC.
 pub fn cmd_sovereign_core() -> Result<(), AppError> {
     let roots = vec![
         "identity",
@@ -228,9 +308,11 @@ pub fn cmd_sovereign_core() -> Result<(), AppError> {
         "settlement",
         "treasury",
     ];
-    emit_serialized(&roots, crate::cli_support::OutputFormat::Json)
+
+    emit_json(&roots)
 }
 
+/// Emits the high-level module architecture list for the AOXC command plane.
 pub fn cmd_module_architecture() -> Result<(), AppError> {
     let modules = vec![
         "app",
@@ -244,41 +326,49 @@ pub fn cmd_module_architecture() -> Result<(), AppError> {
         "services",
         "audit",
     ];
-    emit_serialized(&modules, crate::cli_support::OutputFormat::Json)
+
+    emit_json(&modules)
 }
 
+/// Emits the canonical compatibility matrix.
 pub fn cmd_compat_matrix() -> Result<(), AppError> {
-    emit_serialized(
-        &compatibility_matrix(),
-        crate::cli_support::OutputFormat::Json,
-    )
+    emit_json(&compatibility_matrix())
 }
 
+/// Emits the effective port map derived from the active settings surface.
+///
+/// Behavioral policy:
+/// - Existing validated settings are preferred.
+/// - Missing settings fall back to deterministic in-memory defaults without
+///   mutating operator state.
 pub fn cmd_port_map() -> Result<(), AppError> {
-    let settings = load_or_init()?;
-    #[derive(serde::Serialize)]
-    struct PortMap<'a> {
-        bind_host: &'a str,
-        p2p_port: u16,
-        rpc_port: u16,
-        prometheus_port: u16,
-    }
+    let settings = effective_settings_for_describe_surface()?;
     let map = PortMap {
         bind_host: &settings.network.bind_host,
         p2p_port: settings.network.p2p_port,
         rpc_port: settings.network.rpc_port,
         prometheus_port: settings.telemetry.prometheus_port,
     };
-    emit_serialized(&map, crate::cli_support::OutputFormat::Json)
+
+    emit_json(&map)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::compatibility_matrix;
+    use super::{compatibility_matrix, effective_settings_for_describe_surface};
+    use crate::test_support::{aoxc_home_test_lock, AoxcHomeGuard, TestHome};
+
+    fn with_test_home<T>(label: &str, test: impl FnOnce(&TestHome) -> T) -> T {
+        let _lock = aoxc_home_test_lock();
+        let home = TestHome::new(label);
+        let _guard = AoxcHomeGuard::install(home.path());
+        test(&home)
+    }
 
     #[test]
     fn compatibility_matrix_captures_protocol_enforcement() {
         let matrix = compatibility_matrix();
+
         assert_eq!(matrix.protocol.enforcement.len(), 3);
         assert!(matrix
             .protocol
@@ -290,6 +380,7 @@ mod tests {
     #[test]
     fn compatibility_matrix_requires_release_trust_chain_controls() {
         let matrix = compatibility_matrix();
+
         assert!(matrix
             .release_trust_chain
             .artifact_signature
@@ -298,5 +389,20 @@ mod tests {
             .network_validation
             .iter()
             .any(|track| track.name == "state sync and snapshot recovery"));
+    }
+
+    #[test]
+    fn describe_settings_fallback_uses_in_memory_defaults_when_config_is_missing() {
+        with_test_home("describe-settings-fallback", |home| {
+            let settings = effective_settings_for_describe_surface()
+                .expect("missing config should fall back to deterministic defaults");
+
+            assert_eq!(settings.profile, "validation");
+            assert_eq!(settings.home_dir, home.path().display().to_string());
+            assert!(
+                !home.path().join("config").join("settings.json").exists(),
+                "read-only describe surfaces must not create configuration files"
+            );
+        });
     }
 }

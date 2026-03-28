@@ -5,11 +5,29 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+const PROFILE_MAINNET: &str = "mainnet";
+const PROFILE_TESTNET: &str = "testnet";
+const PROFILE_VALIDATION: &str = "validation";
+const PROFILE_VALIDATOR_ALIAS: &str = "validator";
+const PROFILE_DEVNET: &str = "devnet";
+const PROFILE_LOCALNET: &str = "localnet";
+
+const LOG_LEVEL_INFO: &str = "info";
+const LOG_LEVEL_DEBUG: &str = "debug";
+const LOG_LEVEL_TRACE: &str = "trace";
+const LOG_LEVEL_WARN: &str = "warn";
+const LOG_LEVEL_ERROR: &str = "error";
+
+const LOOPBACK_IPV4: &str = "127.0.0.1";
+const LOOPBACK_IPV6: &str = "::1";
+const LOOPBACK_HOSTNAME: &str = "localhost";
+
 /// Canonical AOXC CLI settings document.
 ///
-/// This structure intentionally reflects the AOXC single-binary,
-/// multi-network operating model. Profile-specific behavior is derived from
-/// canonical environment classes rather than legacy validator-centric defaults.
+/// This structure reflects the AOXC single-binary, multi-network operating
+/// model. Behavior is derived from canonical environment profiles rather than
+/// ad hoc runtime toggles. The intent is to keep the operator surface explicit,
+/// deterministic, and auditable.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Settings {
     pub home_dir: String,
@@ -52,6 +70,10 @@ pub struct PolicySettings {
 }
 
 /// Canonical AOXC environment profile enumeration.
+///
+/// This enum is intentionally internal so the serialized configuration surface
+/// remains string-based and operator-friendly, while validation and defaulting
+/// logic can still rely on a strongly typed profile model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CanonicalProfile {
     Mainnet,
@@ -62,14 +84,23 @@ enum CanonicalProfile {
 }
 
 impl CanonicalProfile {
+    /// Parses a canonical AOXC profile string.
+    ///
+    /// Accepted values:
+    /// - `mainnet`
+    /// - `testnet`
+    /// - `validation`
+    /// - `validator` (legacy alias => `validation`)
+    /// - `devnet`
+    /// - `localnet`
     fn parse(value: &str) -> Result<Self, String> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "mainnet" => Ok(Self::Mainnet),
-            "testnet" => Ok(Self::Testnet),
-            "validation" => Ok(Self::Validation),
-            "validator" => Ok(Self::Validation),
-            "devnet" => Ok(Self::Devnet),
-            "localnet" => Ok(Self::Localnet),
+        match normalize_profile_text(value).as_str() {
+            PROFILE_MAINNET => Ok(Self::Mainnet),
+            PROFILE_TESTNET => Ok(Self::Testnet),
+            PROFILE_VALIDATION => Ok(Self::Validation),
+            PROFILE_VALIDATOR_ALIAS => Ok(Self::Validation),
+            PROFILE_DEVNET => Ok(Self::Devnet),
+            PROFILE_LOCALNET => Ok(Self::Localnet),
             other => Err(format!(
                 "profile must be one of mainnet, testnet, validation, devnet, or localnet; got `{}`",
                 other
@@ -79,21 +110,18 @@ impl CanonicalProfile {
 
     const fn as_str(self) -> &'static str {
         match self {
-            Self::Mainnet => "mainnet",
-            Self::Testnet => "testnet",
-            Self::Validation => "validation",
-            Self::Devnet => "devnet",
-            Self::Localnet => "localnet",
+            Self::Mainnet => PROFILE_MAINNET,
+            Self::Testnet => PROFILE_TESTNET,
+            Self::Validation => PROFILE_VALIDATION,
+            Self::Devnet => PROFILE_DEVNET,
+            Self::Localnet => PROFILE_LOCALNET,
         }
     }
 
     const fn default_bind_host(self) -> &'static str {
         match self {
-            Self::Mainnet => "0.0.0.0",
-            Self::Testnet => "0.0.0.0",
-            Self::Validation => "127.0.0.1",
-            Self::Devnet => "127.0.0.1",
-            Self::Localnet => "127.0.0.1",
+            Self::Mainnet | Self::Testnet => "0.0.0.0",
+            Self::Validation | Self::Devnet | Self::Localnet => LOOPBACK_IPV4,
         }
     }
 
@@ -129,32 +157,20 @@ impl CanonicalProfile {
 
     const fn default_enforce_official_peers(self) -> bool {
         match self {
-            Self::Mainnet => true,
-            Self::Testnet => true,
-            Self::Validation => true,
-            Self::Devnet => false,
-            Self::Localnet => false,
+            Self::Mainnet | Self::Testnet | Self::Validation => true,
+            Self::Devnet | Self::Localnet => false,
         }
     }
 
     const fn default_allow_remote_peers(self) -> bool {
         match self {
-            Self::Mainnet => false,
-            Self::Testnet => false,
-            Self::Validation => false,
-            Self::Devnet => true,
-            Self::Localnet => true,
+            Self::Mainnet | Self::Testnet | Self::Validation => false,
+            Self::Devnet | Self::Localnet => true,
         }
     }
 
     const fn default_require_key_material(self) -> bool {
-        match self {
-            Self::Mainnet => true,
-            Self::Testnet => true,
-            Self::Validation => true,
-            Self::Devnet => true,
-            Self::Localnet => true,
-        }
+        true
     }
 
     const fn default_require_genesis(self) -> bool {
@@ -171,11 +187,8 @@ impl CanonicalProfile {
 
     const fn default_logging_level(self) -> &'static str {
         match self {
-            Self::Mainnet => "info",
-            Self::Testnet => "info",
-            Self::Validation => "info",
-            Self::Devnet => "debug",
-            Self::Localnet => "debug",
+            Self::Mainnet | Self::Testnet | Self::Validation => LOG_LEVEL_INFO,
+            Self::Devnet | Self::Localnet => LOG_LEVEL_DEBUG,
         }
     }
 }
@@ -183,78 +196,72 @@ impl CanonicalProfile {
 impl Settings {
     /// Returns canonical default settings for the AOXC validation profile.
     ///
-    /// Validation is used as the modern safe default because:
-    /// - it is non-production,
-    /// - it remains governance-aware,
-    /// - it is stricter than a free-form devnet default,
-    /// - it replaces the older ambiguous `validator` profile terminology.
+    /// Validation is the safe default because it is non-production while still
+    /// preserving stronger operator constraints than a relaxed devnet posture.
     pub fn default_for(home_dir: String) -> Self {
-        Self::default_for_profile(home_dir, "validation")
+        Self::default_for_profile(home_dir, PROFILE_VALIDATION)
             .expect("default validation profile construction must succeed")
     }
 
     /// Returns canonical default settings for a requested profile.
     ///
-    /// Accepted profile values:
-    /// - `mainnet`
-    /// - `testnet`
-    /// - `validation`
-    /// - `validator` (legacy alias => `validation`)
-    /// - `devnet`
-    /// - `localnet`
+    /// The returned document is already normalized to the canonical profile
+    /// spelling, which means the legacy alias `validator` becomes `validation`.
     pub fn default_for_profile(home_dir: String, profile: &str) -> Result<Self, String> {
-        let profile = CanonicalProfile::parse(profile)?;
+        let canonical_profile = CanonicalProfile::parse(profile)?;
+        let normalized_home_dir = normalize_required_text(&home_dir, "home_dir")?;
 
         Ok(Self {
-            home_dir,
-            profile: profile.as_str().to_string(),
+            home_dir: normalized_home_dir,
+            profile: canonical_profile.as_str().to_string(),
             logging: LoggingSettings {
-                level: profile.default_logging_level().to_string(),
-                json: profile.default_logging_json(),
+                level: canonical_profile.default_logging_level().to_string(),
+                json: canonical_profile.default_logging_json(),
             },
             network: NetworkSettings {
-                bind_host: profile.default_bind_host().to_string(),
-                p2p_port: profile.default_p2p_port(),
-                rpc_port: profile.default_rpc_port(),
-                enforce_official_peers: profile.default_enforce_official_peers(),
+                bind_host: canonical_profile.default_bind_host().to_string(),
+                p2p_port: canonical_profile.default_p2p_port(),
+                rpc_port: canonical_profile.default_rpc_port(),
+                enforce_official_peers: canonical_profile.default_enforce_official_peers(),
             },
             telemetry: TelemetrySettings {
-                enable_metrics: profile.default_enable_metrics(),
-                prometheus_port: profile.default_prometheus_port(),
+                enable_metrics: canonical_profile.default_enable_metrics(),
+                prometheus_port: canonical_profile.default_prometheus_port(),
             },
             policy: PolicySettings {
-                require_key_material: profile.default_require_key_material(),
-                require_genesis: profile.default_require_genesis(),
-                allow_remote_peers: profile.default_allow_remote_peers(),
+                require_key_material: canonical_profile.default_require_key_material(),
+                require_genesis: canonical_profile.default_require_genesis(),
+                allow_remote_peers: canonical_profile.default_allow_remote_peers(),
             },
         })
     }
 
     /// Validates the current AOXC settings surface.
+    ///
+    /// Validation policy:
+    /// - The document must parse into a canonical AOXC profile.
+    /// - Core string fields must not be blank after normalization.
+    /// - Core ports must be non-zero and distinct.
+    /// - Global policy contradictions are rejected before profile-specific
+    ///   guard evaluation.
+    /// - Profile-specific hardening rules are enforced afterwards.
     pub fn validate(&self) -> Result<(), String> {
-        if self.home_dir.trim().is_empty() {
-            return Err("home_dir must not be empty".to_string());
-        }
-
+        normalize_required_text(&self.home_dir, "home_dir")?;
         let profile = CanonicalProfile::parse(&self.profile)?;
+        normalize_required_text(&self.network.bind_host, "bind_host")?;
 
-        if self.network.p2p_port == 0
-            || self.network.rpc_port == 0
-            || self.telemetry.prometheus_port == 0
-        {
-            return Err("ports must be non-zero".to_string());
-        }
+        let logging_level = normalize_logging_level(&self.logging.level)?;
 
-        if self.network.p2p_port == self.network.rpc_port
-            || self.network.p2p_port == self.telemetry.prometheus_port
-            || self.network.rpc_port == self.telemetry.prometheus_port
-        {
-            return Err("p2p, rpc, and prometheus ports must be distinct".to_string());
-        }
-
-        if self.network.bind_host.trim().is_empty() {
-            return Err("bind_host must not be empty".to_string());
-        }
+        validate_non_zero_ports(
+            self.network.p2p_port,
+            self.network.rpc_port,
+            self.telemetry.prometheus_port,
+        )?;
+        validate_distinct_ports(
+            self.network.p2p_port,
+            self.network.rpc_port,
+            self.telemetry.prometheus_port,
+        )?;
 
         if self.policy.allow_remote_peers && self.network.enforce_official_peers {
             return Err(
@@ -263,23 +270,29 @@ impl Settings {
             );
         }
 
-        self.validate_profile_guards(profile)?;
+        self.validate_profile_guards(profile, logging_level)?;
         Ok(())
     }
 
     /// Applies profile-specific hardening rules.
-    fn validate_profile_guards(&self, profile: CanonicalProfile) -> Result<(), String> {
+    fn validate_profile_guards(
+        &self,
+        profile: CanonicalProfile,
+        normalized_logging_level: &str,
+    ) -> Result<(), String> {
         match profile {
-            CanonicalProfile::Mainnet => self.validate_mainnet_guards(),
-            CanonicalProfile::Testnet => self.validate_testnet_guards(),
-            CanonicalProfile::Validation => self.validate_validation_guards(),
-            CanonicalProfile::Devnet => self.validate_devnet_guards(),
-            CanonicalProfile::Localnet => self.validate_localnet_guards(),
+            CanonicalProfile::Mainnet => self.validate_mainnet_guards(normalized_logging_level),
+            CanonicalProfile::Testnet => self.validate_testnet_guards(normalized_logging_level),
+            CanonicalProfile::Validation => {
+                self.validate_validation_guards(normalized_logging_level)
+            }
+            CanonicalProfile::Devnet => self.validate_devnet_guards(normalized_logging_level),
+            CanonicalProfile::Localnet => self.validate_localnet_guards(normalized_logging_level),
         }
     }
 
     /// Validates mainnet-specific security expectations.
-    fn validate_mainnet_guards(&self) -> Result<(), String> {
+    fn validate_mainnet_guards(&self, logging_level: &str) -> Result<(), String> {
         if !Path::new(&self.home_dir).is_absolute() {
             return Err("mainnet profile requires an absolute home_dir".to_string());
         }
@@ -317,20 +330,14 @@ impl Settings {
             );
         }
 
-        if matches!(
-            self.logging.level.trim().to_ascii_lowercase().as_str(),
-            "debug" | "trace"
-        ) {
+        if matches!(logging_level, LOG_LEVEL_DEBUG | LOG_LEVEL_TRACE) {
             return Err(
                 "mainnet profile cannot use debug or trace logging because it expands attack surface and log volume"
                     .to_string(),
             );
         }
 
-        if matches!(
-            self.network.bind_host.trim(),
-            "127.0.0.1" | "::1" | "localhost"
-        ) {
+        if is_loopback_host(&self.network.bind_host) {
             return Err(
                 "mainnet profile requires a non-loopback bind_host so the node is reachable by the production network"
                     .to_string(),
@@ -341,7 +348,7 @@ impl Settings {
     }
 
     /// Validates public testnet expectations.
-    fn validate_testnet_guards(&self) -> Result<(), String> {
+    fn validate_testnet_guards(&self, logging_level: &str) -> Result<(), String> {
         if !self.policy.require_key_material {
             return Err(
                 "testnet profile requires key material verification before startup".to_string(),
@@ -365,11 +372,18 @@ impl Settings {
             );
         }
 
+        if matches!(logging_level, LOG_LEVEL_TRACE) {
+            return Err(
+                "testnet profile cannot use trace logging because it is excessively verbose for public-network operation"
+                    .to_string(),
+            );
+        }
+
         Ok(())
     }
 
     /// Validates validation-environment expectations.
-    fn validate_validation_guards(&self) -> Result<(), String> {
+    fn validate_validation_guards(&self, _logging_level: &str) -> Result<(), String> {
         if !self.policy.require_key_material {
             return Err(
                 "validation profile requires key material verification before startup".to_string(),
@@ -380,7 +394,7 @@ impl Settings {
             return Err("validation profile requires a committed genesis document".to_string());
         }
 
-        if self.policy.allow_remote_peers && self.network.bind_host.trim() == "127.0.0.1" {
+        if self.policy.allow_remote_peers && is_loopback_host(&self.network.bind_host) {
             return Err(
                 "validation profile cannot advertise remote peer admission while bound to loopback"
                     .to_string(),
@@ -391,7 +405,7 @@ impl Settings {
     }
 
     /// Validates development-network expectations.
-    fn validate_devnet_guards(&self) -> Result<(), String> {
+    fn validate_devnet_guards(&self, _logging_level: &str) -> Result<(), String> {
         if !self.policy.require_key_material {
             return Err("devnet profile still requires key material verification".to_string());
         }
@@ -404,11 +418,8 @@ impl Settings {
     }
 
     /// Validates local deterministic operator-network expectations.
-    fn validate_localnet_guards(&self) -> Result<(), String> {
-        if !matches!(
-            self.network.bind_host.trim(),
-            "127.0.0.1" | "::1" | "localhost"
-        ) {
+    fn validate_localnet_guards(&self, _logging_level: &str) -> Result<(), String> {
+        if !is_loopback_host(&self.network.bind_host) {
             return Err(
                 "localnet profile must remain loopback-bound to preserve local-only operation"
                     .to_string(),
@@ -429,11 +440,67 @@ impl Settings {
     /// Returns a redacted copy of settings.
     ///
     /// The current settings surface does not contain embedded secrets, so
-    /// redaction is structurally identical to cloning. The helper is retained
-    /// to preserve a stable UI / CLI contract for future secret-bearing fields.
+    /// redaction is structurally identical to cloning. The helper is preserved
+    /// to maintain a stable UI and CLI contract for future secret-bearing
+    /// fields.
     pub fn redacted(&self) -> Self {
         self.clone()
     }
+}
+
+fn normalize_profile_text(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
+fn normalize_required_text(value: &str, field: &str) -> Result<String, String> {
+    let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return Err(format!("{field} must not be empty"));
+    }
+    Ok(normalized)
+}
+
+fn normalize_logging_level(value: &str) -> Result<&str, String> {
+    match normalize_profile_text(value).as_str() {
+        LOG_LEVEL_INFO => Ok(LOG_LEVEL_INFO),
+        LOG_LEVEL_DEBUG => Ok(LOG_LEVEL_DEBUG),
+        LOG_LEVEL_TRACE => Ok(LOG_LEVEL_TRACE),
+        LOG_LEVEL_WARN => Ok(LOG_LEVEL_WARN),
+        LOG_LEVEL_ERROR => Ok(LOG_LEVEL_ERROR),
+        other => Err(format!(
+            "logging.level must be one of info, debug, trace, warn, or error; got `{}`",
+            other
+        )),
+    }
+}
+
+fn validate_non_zero_ports(
+    p2p_port: u16,
+    rpc_port: u16,
+    prometheus_port: u16,
+) -> Result<(), String> {
+    if p2p_port == 0 || rpc_port == 0 || prometheus_port == 0 {
+        return Err("ports must be non-zero".to_string());
+    }
+    Ok(())
+}
+
+fn validate_distinct_ports(
+    p2p_port: u16,
+    rpc_port: u16,
+    prometheus_port: u16,
+) -> Result<(), String> {
+    if p2p_port == rpc_port || p2p_port == prometheus_port || rpc_port == prometheus_port {
+        return Err("p2p, rpc, and prometheus ports must be distinct".to_string());
+    }
+    Ok(())
+}
+
+fn is_loopback_host(value: &str) -> bool {
+    matches!(
+        value.trim(),
+        LOOPBACK_IPV4 | LOOPBACK_IPV6 | LOOPBACK_HOSTNAME
+    )
 }
 
 #[cfg(test)]
@@ -453,6 +520,14 @@ mod tests {
     }
 
     #[test]
+    fn default_for_profile_rejects_blank_home_dir() {
+        let error = Settings::default_for_profile("   ".to_string(), "validation")
+            .expect_err("blank home_dir must fail");
+
+        assert!(error.contains("home_dir must not be empty"));
+    }
+
+    #[test]
     fn validate_rejects_unknown_profile() {
         let mut settings = Settings::default_for("/tmp/aoxc".to_string());
         settings.profile = "staging".to_string();
@@ -461,9 +536,41 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_blank_home_dir() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.home_dir = "   ".to_string();
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_blank_bind_host() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.network.bind_host = "   ".to_string();
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_invalid_logging_level() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.logging.level = "verbose".to_string();
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
     fn validate_rejects_port_collisions() {
         let mut settings = Settings::default_for("/tmp/aoxc".to_string());
         settings.network.rpc_port = settings.network.p2p_port;
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_zero_ports() {
+        let mut settings = Settings::default_for("/tmp/aoxc".to_string());
+        settings.network.p2p_port = 0;
 
         assert!(settings.validate().is_err());
     }
@@ -489,7 +596,7 @@ mod tests {
 
     #[test]
     fn validate_accepts_hardened_mainnet_profile() {
-        let settings = Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
+        let settings = Settings::default_for_profile("/opt/aoxc".to_string(), "mainnet").unwrap();
 
         assert!(settings.validate().is_ok());
     }
@@ -514,6 +621,15 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_mainnet_with_trace_logging() {
+        let mut settings =
+            Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
+        settings.logging.level = "trace".to_string();
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
     fn validate_rejects_mainnet_with_loopback_bind_host() {
         let mut settings =
             Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
@@ -530,11 +646,31 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_testnet_trace_logging() {
+        let mut settings =
+            Settings::default_for_profile("/tmp/aoxc".to_string(), "testnet").unwrap();
+        settings.logging.level = "trace".to_string();
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
     fn validate_accepts_validation_defaults() {
         let settings =
             Settings::default_for_profile("/tmp/aoxc".to_string(), "validation").unwrap();
 
         assert!(settings.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_validation_remote_peers_on_loopback() {
+        let mut settings =
+            Settings::default_for_profile("/tmp/aoxc".to_string(), "validation").unwrap();
+        settings.policy.allow_remote_peers = true;
+        settings.network.enforce_official_peers = false;
+        settings.network.bind_host = "127.0.0.1".to_string();
+
+        assert!(settings.validate().is_err());
     }
 
     #[test]
@@ -564,5 +700,11 @@ mod tests {
     fn canonical_profile_parser_normalizes_validator_alias() {
         let parsed = CanonicalProfile::parse("validator").unwrap();
         assert_eq!(parsed, CanonicalProfile::Validation);
+    }
+
+    #[test]
+    fn redacted_returns_structurally_identical_settings() {
+        let settings = Settings::default_for("/tmp/aoxc".to_string());
+        assert_eq!(settings, settings.redacted());
     }
 }
