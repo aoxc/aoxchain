@@ -164,6 +164,7 @@ mod tests {
                             network_id: 2626,
                             epoch: 0,
                             validator_set_root: [6u8; 32],
+                            pq_attestation_root: [7u8; 32],
                             signature_scheme: 1,
                         },
                     },

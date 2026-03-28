@@ -1104,6 +1104,7 @@ mod tests {
                         network_id: 2626,
                         epoch: 7,
                         validator_set_root: [9u8; 32],
+                        pq_attestation_root: [9u8; 32],
                         signature_scheme: 1,
                     },
                 },
@@ -1111,6 +1112,7 @@ mod tests {
                     network_id: 2626,
                     epoch: 0,
                     validator_set_root: state.rotation.validator_set_hash(),
+                    pq_attestation_root: state.rotation.validator_set_hash(),
                     signature_scheme: 1,
                 },
             )

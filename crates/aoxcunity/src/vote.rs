@@ -54,6 +54,7 @@ pub struct VoteAuthenticationContext {
     pub network_id: u32,
     pub epoch: u64,
     pub validator_set_root: [u8; 32],
+    pub pq_attestation_root: [u8; 32],
     pub signature_scheme: u16,
 }
 
@@ -126,12 +127,13 @@ impl AuthenticatedVote {
     pub fn signing_bytes(&self) -> Vec<u8> {
         let vote_bytes = self.vote.signing_bytes();
         let mut bytes = Vec::with_capacity(
-            AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1.len() + vote_bytes.len() + 4 + 8 + 32 + 2,
+            AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1.len() + vote_bytes.len() + 4 + 8 + 32 + 32 + 2,
         );
         bytes.extend_from_slice(AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1);
         bytes.extend_from_slice(&self.context.network_id.to_le_bytes());
         bytes.extend_from_slice(&self.context.epoch.to_le_bytes());
         bytes.extend_from_slice(&self.context.validator_set_root);
+        bytes.extend_from_slice(&self.context.pq_attestation_root);
         bytes.extend_from_slice(&self.context.signature_scheme.to_le_bytes());
         bytes.extend_from_slice(&vote_bytes);
         bytes
@@ -300,6 +302,7 @@ mod tests {
             network_id: 2626,
             epoch: 4,
             validator_set_root: [5u8; 32],
+            pq_attestation_root: [11u8; 32],
             signature_scheme: 1,
         };
         let mut authenticated = AuthenticatedVote {
