@@ -73,7 +73,7 @@ mod tests {
         cfg.mainnet.milestones.pop();
 
         let errs = cfg.validate().expect_err("config should be invalid");
-        assert_eq!(errs.len(), 3);
+        assert_eq!(errs.len(), 4);
         assert!(errs.iter().any(|e| e.starts_with("chain:")));
         assert!(errs.iter().any(|e| e.starts_with("contracts:")));
         assert!(errs.iter().any(|e| e.starts_with("mainnet:")));

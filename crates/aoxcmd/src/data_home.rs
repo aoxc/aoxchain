@@ -8,22 +8,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Returns the canonical AOXC operator data root for the current user.
+/// Returns the canonical AOXC data root for the current user.
 ///
-/// Default path policy:
+/// Canonical data root policy:
 /// - Linux/macOS style environments resolve to `$HOME/.AOXCData`.
 ///
-/// Operational rationale:
-/// - Preserve a single AOXC-owned root directory under the user home.
-/// - Avoid scattering AOXC state across unrelated user-visible locations.
-/// - Provide a stable anchor for configuration, identity material, keys,
-///   runtime state, telemetry output, and operator-facing reports.
-///
-/// Security note:
-/// - This path is a storage convention, not a trust boundary by itself.
-/// - Profile separation, path validation, and permission controls remain the
-///   responsibility of the caller and the surrounding workflow.
-pub fn default_home_dir() -> Result<PathBuf, AppError> {
+/// This directory is the top-level AOXC-owned namespace. It is not, by itself,
+/// the effective runtime home used by commands. The effective AOXC home is
+/// derived beneath this root unless explicitly overridden.
+pub fn default_data_root() -> Result<PathBuf, AppError> {
     let home = env::var("HOME").map(PathBuf::from).map_err(|_| {
         AppError::new(
             ErrorCode::HomeResolutionFailed,
@@ -34,15 +27,24 @@ pub fn default_home_dir() -> Result<PathBuf, AppError> {
     Ok(home.join(".AOXCData"))
 }
 
-/// Resolves the effective AOXC operator data root.
+/// Returns the canonical default AOXC home directory.
+///
+/// Canonical home policy:
+/// - `$HOME/.AOXCData/home/default`
+///
+/// Design intent:
+/// - Preserve a stable AOXC-owned root at `$HOME/.AOXCData`.
+/// - Keep operator-specific runtime state under `home/<name>`.
+/// - Align runtime defaults with packaging and Makefile conventions.
+pub fn default_home_dir() -> Result<PathBuf, AppError> {
+    Ok(default_data_root()?.join("home").join("default"))
+}
+
+/// Resolves the effective AOXC operator home.
 ///
 /// Resolution order:
 /// 1. `AOXC_HOME` when present and non-empty
 /// 2. canonical default returned by `default_home_dir()`
-///
-/// Path policy:
-/// - Empty or whitespace-only override values are ignored.
-/// - Non-empty override values are accepted as provided by the operator.
 pub fn resolve_home() -> Result<PathBuf, AppError> {
     match env::var("AOXC_HOME") {
         Ok(value) if !value.trim().is_empty() => Ok(PathBuf::from(value)),
@@ -50,22 +52,18 @@ pub fn resolve_home() -> Result<PathBuf, AppError> {
     }
 }
 
-/// Ensures the canonical AOXC directory layout exists under the supplied root.
+/// Ensures the canonical AOXC directory layout exists under the supplied home.
 ///
-/// Layout policy:
-/// - `config/`      => operator configuration surfaces
-/// - `identity/`    => identity-bound metadata and declarations
-/// - `keys/`        => sensitive key material and related artifacts
-/// - `ledger/`      => economy and accounting state
-/// - `runtime/`     => live runtime state
-/// - `runtime/db/`  => local database storage
-/// - `telemetry/`   => metrics, snapshots, and observability output
-/// - `reports/`     => readiness, audit, and operator-facing reports
-/// - `support/`     => support bundles and auxiliary diagnostic artifacts
-///
-/// Design objective:
-/// - Preserve a stable and operator-readable storage contract under a single
-///   AOXC-owned root directory.
+/// Layout policy under the effective AOXC home:
+/// - `config/`
+/// - `identity/`
+/// - `keys/`
+/// - `ledger/`
+/// - `runtime/`
+/// - `runtime/db/`
+/// - `telemetry/`
+/// - `reports/`
+/// - `support/`
 pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
     let required_dirs = [
         "config",
@@ -94,15 +92,6 @@ pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
 }
 
 /// Writes a UTF-8 AOXC file and hardens permissions where supported.
-///
-/// Write behavior:
-/// - Parent directories are created automatically when absent.
-/// - Existing files are overwritten with the provided content.
-/// - On Unix targets, permissions are reduced to `0600` after write.
-///
-/// Operational intent:
-/// - Sensitive AOXC artifacts must not rely on permissive default visibility
-///   in operator environments.
 pub fn write_file(path: &Path, content: &str) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
@@ -138,14 +127,6 @@ pub fn read_file(path: &Path) -> Result<String, AppError> {
 }
 
 /// Returns whether the file permissions are hardened for sensitive AOXC data.
-///
-/// Unix policy:
-/// - The check passes only when no group or world permission bits are present.
-///
-/// Non-Unix policy:
-/// - The function currently returns `true` as a compatibility fallback because
-///   equivalent portable permission semantics are not uniformly exposed through
-///   the same standard library surface.
 pub fn file_permissions_are_hardened(path: &Path) -> Result<bool, AppError> {
     let metadata = fs::metadata(path).map_err(|error| {
         AppError::with_source(
@@ -171,12 +152,6 @@ pub fn file_permissions_are_hardened(path: &Path) -> Result<bool, AppError> {
 }
 
 /// Hardens file permissions for sensitive AOXC artifacts.
-///
-/// Unix policy:
-/// - Files are reduced to mode `0600`.
-///
-/// Non-Unix policy:
-/// - The function is currently a no-op.
 fn harden_file_permissions(path: &Path) -> Result<(), AppError> {
     #[cfg(unix)]
     {
@@ -197,38 +172,40 @@ fn harden_file_permissions(path: &Path) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        default_home_dir, ensure_layout, file_permissions_are_hardened, read_file, write_file,
+        default_data_root, default_home_dir, ensure_layout, file_permissions_are_hardened,
+        read_file, write_file,
     };
-    use std::{
-        env,
-        path::PathBuf,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::env;
 
-    fn unique_test_root(label: &str) -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system time must be after unix epoch")
-            .as_nanos();
-
-        env::temp_dir().join(format!("aoxc-home-tests-{label}-{nanos}"))
+    #[test]
+    fn default_data_root_resolves_to_hidden_aoxcdata_root() {
+        let home = env::var("HOME").expect("HOME must be set for tests");
+        assert_eq!(
+            default_data_root().expect("data root should resolve"),
+            std::path::PathBuf::from(home).join(".AOXCData")
+        );
     }
 
     #[test]
-    fn default_home_dir_resolves_to_hidden_aoxcdata_root() {
+    fn default_home_dir_resolves_beneath_canonical_data_root() {
         let home = env::var("HOME").expect("HOME must be set for tests");
-        let expected = PathBuf::from(home).join(".AOXCData");
-
         assert_eq!(
             default_home_dir().expect("default home should resolve"),
-            expected
+            std::path::PathBuf::from(home)
+                .join(".AOXCData")
+                .join("home")
+                .join("default")
         );
     }
 
     #[test]
     fn ensure_layout_creates_required_operator_directories() {
-        let root = unique_test_root("layout");
+        let root = default_data_root()
+            .expect("data root should resolve")
+            .join(".test")
+            .join("layout-check");
 
+        let _ = std::fs::remove_dir_all(&root);
         ensure_layout(&root).expect("layout creation should succeed");
 
         for relative in [
@@ -242,11 +219,7 @@ mod tests {
             "reports",
             "support",
         ] {
-            assert!(
-                root.join(relative).is_dir(),
-                "expected directory {} to exist",
-                root.join(relative).display()
-            );
+            assert!(root.join(relative).is_dir());
         }
 
         let _ = std::fs::remove_dir_all(root);
@@ -254,8 +227,13 @@ mod tests {
 
     #[test]
     fn write_file_persists_content_and_hardens_permissions() {
-        let root = unique_test_root("write-file");
+        let root = default_data_root()
+            .expect("data root should resolve")
+            .join(".test")
+            .join("write-file");
         let path = root.join("config").join("settings.json");
+
+        let _ = std::fs::remove_dir_all(&root);
 
         write_file(&path, "{\"profile\":\"mainnet\"}")
             .expect("sensitive file write should succeed");
@@ -264,8 +242,7 @@ mod tests {
         assert_eq!(content, "{\"profile\":\"mainnet\"}");
 
         assert!(
-            file_permissions_are_hardened(&path).expect("metadata should be readable"),
-            "written files must be hardened for operator environments"
+            file_permissions_are_hardened(&path).expect("metadata should be readable")
         );
 
         let _ = std::fs::remove_dir_all(root);
