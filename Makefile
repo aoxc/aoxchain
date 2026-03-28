@@ -3,7 +3,7 @@ AOXC_HOME ?= $(AOXC_DATA_ROOT)/home/default
 AOXC_BIN_DIR ?= $(AOXC_DATA_ROOT)/bin
 AOXC_BIN_PATH ?= $(AOXC_BIN_DIR)/aoxc
 
-.PHONY: help build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local audit-install produce-loop real-chain-prep real-chain-run real-chain-run-once real-chain-health real-chain-tail version manifest policy dev-bootstrap net-mainnet-start net-mainnet-once net-mainnet-status net-mainnet-stop net-testnet-start net-testnet-once net-testnet-status net-testnet-stop net-devnet-start net-devnet-once net-devnet-status net-devnet-stop ops-help ops-doctor ops-start-mainnet ops-start-testnet ops-start-devnet ops-stop-mainnet ops-stop-testnet ops-stop-devnet ops-status-mainnet ops-status-testnet ops-status-devnet ops-restart-mainnet ops-restart-testnet ops-restart-devnet ops-logs-mainnet ops-logs-testnet ops-logs-devnet
+.PHONY: help build build-release package-bin test check fmt clippy audit quality quality-quick quality-release ci run-local supervise-local audit-install produce-loop real-chain-prep real-chain-run real-chain-run-once real-chain-health real-chain-tail version manifest policy dev-bootstrap net-mainnet-start net-mainnet-once net-mainnet-status net-mainnet-stop net-testnet-start net-testnet-once net-testnet-status net-testnet-stop net-devnet-start net-devnet-once net-devnet-status net-devnet-stop net-dual-start net-dual-once net-dual-status net-dual-stop net-dual-restart ops-help ops-doctor ops-start-mainnet ops-start-testnet ops-start-devnet ops-start-dual ops-stop-mainnet ops-stop-testnet ops-stop-devnet ops-stop-dual ops-status-mainnet ops-status-testnet ops-status-devnet ops-status-dual ops-restart-mainnet ops-restart-testnet ops-restart-devnet ops-restart-dual ops-logs-mainnet ops-logs-testnet ops-logs-devnet
 help:
 	@printf "\nAOXChain developer targets\n\n"
 	@printf "  make fmt              - format the workspace\n"
@@ -42,18 +42,27 @@ help:
 	@printf "  make net-devnet-once     - run one devnet produce+health cycle\n"
 	@printf "  make net-devnet-status   - show devnet daemon status\n"
 	@printf "  make net-devnet-stop     - stop devnet daemon\n\n"
+	@printf "Dual network stack (testnet + mainnet)\n"
+	@printf "  make net-dual-start      - start testnet and mainnet together\n"
+	@printf "  make net-dual-once       - run one cycle on testnet and mainnet\n"
+	@printf "  make net-dual-status     - show dual stack status\n"
+	@printf "  make net-dual-stop       - stop testnet and mainnet together\n"
+	@printf "  make net-dual-restart    - restart dual stack safely\n\n"
 	@printf "Easy operations CLI (7 to 77)\n"
 	@printf "  make ops-help            - show beginner-friendly commands\n"
 	@printf "  make ops-doctor          - run environment readiness checks\n"
 	@printf "  make ops-start-mainnet   - start mainnet quickly\n"
 	@printf "  make ops-start-testnet   - start testnet quickly\n"
 	@printf "  make ops-start-devnet    - start devnet quickly\n"
+	@printf "  make ops-start-dual      - start testnet+mainnet together\n"
 	@printf "  make ops-status-mainnet  - mainnet status\n"
 	@printf "  make ops-status-testnet  - testnet status\n"
 	@printf "  make ops-status-devnet   - devnet status\n"
+	@printf "  make ops-status-dual     - testnet+mainnet status\n"
 	@printf "  make ops-stop-mainnet    - stop mainnet\n"
 	@printf "  make ops-stop-testnet    - stop testnet\n"
 	@printf "  make ops-stop-devnet     - stop devnet\n"
+	@printf "  make ops-stop-dual       - stop testnet+mainnet together\n"
 	@printf "  make ops-logs-mainnet    - tail mainnet logs\n"
 	@printf "  make ops-logs-testnet    - tail testnet logs\n"
 	@printf "  make ops-logs-devnet     - tail devnet logs\n\n"
@@ -186,6 +195,21 @@ net-devnet-status:
 net-devnet-stop:
 	./scripts/network_env_daemon.sh stop devnet
 
+net-dual-start: package-bin
+	./scripts/network_stack.sh start
+
+net-dual-once: package-bin
+	./scripts/network_stack.sh once
+
+net-dual-status:
+	./scripts/network_stack.sh status
+
+net-dual-stop:
+	./scripts/network_stack.sh stop
+
+net-dual-restart: package-bin
+	./scripts/network_stack.sh restart
+
 ops-help:
 	./scripts/aoxc_easy.sh help
 
@@ -201,6 +225,9 @@ ops-start-testnet: package-bin
 ops-start-devnet: package-bin
 	./scripts/aoxc_easy.sh start devnet
 
+ops-start-dual: package-bin
+	./scripts/aoxc_easy.sh start-dual
+
 ops-stop-mainnet:
 	./scripts/aoxc_easy.sh stop mainnet
 
@@ -209,6 +236,9 @@ ops-stop-testnet:
 
 ops-stop-devnet:
 	./scripts/aoxc_easy.sh stop devnet
+
+ops-stop-dual:
+	./scripts/aoxc_easy.sh stop-dual
 
 ops-status-mainnet:
 	./scripts/aoxc_easy.sh status mainnet
@@ -219,6 +249,9 @@ ops-status-testnet:
 ops-status-devnet:
 	./scripts/aoxc_easy.sh status devnet
 
+ops-status-dual:
+	./scripts/aoxc_easy.sh status-dual
+
 ops-restart-mainnet: package-bin
 	./scripts/aoxc_easy.sh restart mainnet
 
@@ -227,6 +260,9 @@ ops-restart-testnet: package-bin
 
 ops-restart-devnet: package-bin
 	./scripts/aoxc_easy.sh restart devnet
+
+ops-restart-dual: package-bin
+	./scripts/aoxc_easy.sh restart-dual
 
 ops-logs-mainnet:
 	./scripts/aoxc_easy.sh logs mainnet
