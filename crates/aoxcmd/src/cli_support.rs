@@ -88,6 +88,8 @@ Validation and audit:
   testnet-readiness [--enforce] [--write-report <path>]
   full-surface-readiness [--enforce] [--write-report <path>]
   level-score [--enforce]
+  operator-evidence-record --action <name> --reason <text> --pq-attestation-root <hex64> --pq-signer-fingerprint <hex64> [--pq-mode <hybrid|full>] [--signature-scheme <name>] [--subject <id>] [--profile <name>] [--command <text>]
+  operator-evidence-list [--limit <n>] [--category <name>]
 
 Global flags:
   --home <path>        Override AOXC home directory.
