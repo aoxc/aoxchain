@@ -12,6 +12,7 @@ pub(crate) mod audit;
 pub(crate) mod bootstrap;
 pub(crate) mod db;
 pub(crate) mod describe;
+pub(crate) mod evidence;
 pub(crate) mod ops;
 
 pub(crate) const AOXC_RELEASE_NAME: &str = "AOXC Mainnet-Candidate Operator Plane";
@@ -53,6 +54,8 @@ pub fn run_cli() -> Result<(), AppError> {
         "testnet-readiness" => ops::cmd_testnet_readiness(&args[2..]),
         "full-surface-readiness" => ops::cmd_full_surface_readiness(&args[2..]),
         "level-score" => ops::cmd_level_score(&args[2..]),
+        "operator-evidence-record" => evidence::cmd_operator_evidence_record(&args[2..]),
+        "operator-evidence-list" => evidence::cmd_operator_evidence_list(&args[2..]),
         "key-bootstrap" => bootstrap::cmd_key_bootstrap(&args[2..]),
         "keys-inspect" => bootstrap::cmd_keys_inspect(&args[2..]),
         "keys-show-fingerprint" => bootstrap::cmd_keys_show_fingerprint(&args[2..]),
