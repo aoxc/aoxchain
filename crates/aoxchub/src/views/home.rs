@@ -1,6 +1,8 @@
 use dioxus::prelude::*;
 
 use crate::components::glass::GlassSurface;
+use crate::services::rpc_client::RpcClient;
+use crate::services::telemetry::latest_snapshot;
 use crate::state::GlobalChainState;
 use crate::types::LaneStatus;
 
@@ -15,6 +17,12 @@ enum NetworkProfile {
     Devnet,
     Testnet,
 }
+
+const ALL_PROFILES: [NetworkProfile; 3] = [
+    NetworkProfile::Mainnet,
+    NetworkProfile::Devnet,
+    NetworkProfile::Testnet,
+];
 
 impl NetworkProfile {
     /// Returns the display label for the selected network profile.
@@ -115,17 +123,6 @@ const AOXC_CLI_COMMANDS: [CommandSpec; 6] = [
     },
 ];
 
-/// Encapsulates telemetry state for presentation.
-///
-/// The dashboard must not invent telemetry values. If no authoritative
-/// telemetry binding exists yet, the UI must communicate that absence
-/// explicitly rather than rendering fabricated health indicators.
-#[derive(Clone, PartialEq, Eq)]
-struct TelemetryView {
-    source: String,
-    healthy: Option<bool>,
-}
-
 /// Resolves the selected runtime profile.
 ///
 /// At present, no authoritative profile source is visible in the provided code.
@@ -134,17 +131,6 @@ struct TelemetryView {
 /// project exposes a profile selector or environment registry.
 fn profile() -> NetworkProfile {
     NetworkProfile::Mainnet
-}
-
-/// Returns telemetry state without fabricating runtime metrics.
-///
-/// Returning `None` for health is intentional until a real telemetry provider
-/// is wired into this view.
-fn telemetry_view() -> TelemetryView {
-    TelemetryView {
-        source: "Telemetry source not wired".to_string(),
-        healthy: None,
-    }
 }
 
 #[component]
@@ -156,7 +142,16 @@ pub fn Home() -> Element {
     let offline_nodes = snapshot.nodes.iter().filter(|node| !node.online).count();
 
     let selected_profile = profile();
-    let telemetry = telemetry_view();
+    let telemetry_resource = use_resource(move || async move { latest_snapshot().await });
+    let telemetry_snapshot = telemetry_resource();
+    let telemetry_source = telemetry_snapshot
+        .as_ref()
+        .map(|snapshot| snapshot.source.clone())
+        .unwrap_or_else(RpcClient::descriptor);
+    let telemetry_ok = telemetry_snapshot.as_ref().map(|snapshot| snapshot.healthy);
+    let telemetry_block = telemetry_snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.latest_block);
 
     rsx! {
         div { class: "space-y-6",
@@ -218,8 +213,9 @@ pub fn Home() -> Element {
 
             CompatibilityPanel { profile: selected_profile }
             TelemetryPanel {
-                telemetry_source: telemetry.source,
-                telemetry_ok: telemetry.healthy
+                telemetry_source,
+                telemetry_ok,
+                telemetry_block
             }
             WalletPanel {}
             ExplorerPanel {
@@ -255,6 +251,87 @@ pub fn Wallet() -> Element {
                 div {
                     class: "rounded-xl border border-dashed border-white/10 bg-white/5 px-4 py-6 text-sm text-slate-400",
                     "Wallet and treasury metrics are unavailable because no real wallet state provider is wired into this view."
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn Explorer() -> Element {
+    let chain = use_context::<Signal<GlobalChainState>>();
+    let snapshot = chain.read().clone();
+
+    rsx! {
+        div { class: "space-y-4",
+            div { class: "space-y-2",
+                h2 { class: "text-2xl font-bold text-white", "Explorer" }
+                p {
+                    class: "text-sm text-slate-300",
+                    "Block and transaction visibility surface for AOXC operators."
+                }
+            }
+
+            ExplorerPanel {
+                latest_height: snapshot.height,
+                total_staked: snapshot.total_staked,
+                active_nodes: snapshot.active_nodes
+            }
+
+            GlassSurface { class: Some("p-5".to_string()),
+                div { class: "space-y-3",
+                    h3 { class: "text-base font-semibold text-white", "Quick Queries" }
+                    p { class: "text-sm text-slate-300", "Use these CLI probes for deterministic explorer checks." }
+                    code { class: "block rounded-lg border border-white/10 bg-[#030611] p-3 text-xs text-cyan-300", "aoxc explorer block latest" }
+                    code { class: "block rounded-lg border border-white/10 bg-[#030611] p-3 text-xs text-cyan-300", "aoxc explorer tx <hash>" }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+pub fn Staking() -> Element {
+    let chain = use_context::<Signal<GlobalChainState>>();
+    let snapshot = chain.read().clone();
+    let total_validator_weight: u64 = snapshot.nodes.iter().map(|node| node.stake_weight).sum();
+
+    rsx! {
+        div { class: "space-y-4",
+            div { class: "space-y-2",
+                h2 { class: "text-2xl font-bold text-white", "Staking Hub" }
+                p {
+                    class: "text-sm text-slate-300",
+                    "Validator economics, stake distribution, and delegation command references."
+                }
+            }
+
+            GlassSurface { class: Some("p-5".to_string()), intensity: Some("low"),
+                div { class: "grid gap-3 md:grid-cols-3",
+                    InfoTile {
+                        label: "Total Staked",
+                        value: snapshot.total_staked.to_string(),
+                        hint: "Total AOXC secured by staking".to_string()
+                    }
+                    InfoTile {
+                        label: "Validators",
+                        value: snapshot.active_nodes.to_string(),
+                        hint: "Visible active validator footprint".to_string()
+                    }
+                    InfoTile {
+                        label: "Stake Weight",
+                        value: total_validator_weight.to_string(),
+                        hint: "Aggregate weight across indexed validators".to_string()
+                    }
+                }
+            }
+
+            GlassSurface { class: Some("p-5".to_string()),
+                div { class: "space-y-3",
+                    h3 { class: "text-base font-semibold text-white", "Staking Operations" }
+                    code { class: "block rounded-lg border border-white/10 bg-[#030611] p-3 text-xs text-cyan-300", "aoxc staking delegate --validator <node-id> --amount <aoxc>" }
+                    code { class: "block rounded-lg border border-white/10 bg-[#030611] p-3 text-xs text-cyan-300", "aoxc staking rewards --address <wallet>" }
+                    code { class: "block rounded-lg border border-white/10 bg-[#030611] p-3 text-xs text-cyan-300", "aoxc staking undelegate --validator <node-id> --amount <aoxc>" }
                 }
             }
         }
@@ -416,13 +493,30 @@ fn CompatibilityPanel(profile: NetworkProfile) -> Element {
                         hint: "Dashboard command catalog is aligned with the selected profile".to_string()
                     }
                 }
+
+                div { class: "flex flex-wrap gap-2",
+                    for entry in ALL_PROFILES {
+                        span {
+                            class: if entry == profile {
+                                "rounded-full border border-blue-400/50 bg-blue-500/20 px-3 py-1 text-xs text-blue-200"
+                            } else {
+                                "rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300"
+                            },
+                            "{entry.title()}"
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 #[component]
-fn TelemetryPanel(telemetry_source: String, telemetry_ok: Option<bool>) -> Element {
+fn TelemetryPanel(
+    telemetry_source: String,
+    telemetry_ok: Option<bool>,
+    telemetry_block: Option<u64>,
+) -> Element {
     let (status_text, status_class, hint_text) = match telemetry_ok {
         Some(true) => (
             "Healthy",
@@ -463,6 +557,10 @@ fn TelemetryPanel(telemetry_source: String, telemetry_ok: Option<bool>) -> Eleme
                         value: telemetry_source,
                         hint: "Telemetry source binding for this view".to_string()
                     }
+                }
+
+                if let Some(block) = telemetry_block {
+                    p { class: "text-xs text-slate-400", "Latest RPC block: #{block}" }
                 }
 
                 p { class: "text-sm {status_class}", "{status_text}" }
