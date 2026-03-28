@@ -43,7 +43,7 @@ pub use messages::ConsensusMessage;
 pub use proposer::Proposer;
 pub use quorum::QuorumThreshold;
 pub use rotation::ValidatorRotation;
-pub use round::RoundState;
+pub use round::{PacemakerStep, RoundChangeReason, RoundState};
 pub use safety::{JustificationRef, LockState, SafeToVote, SafetyViolation, evaluate_safe_to_vote};
 pub use seal::AuthenticatedQuorumCertificate;
 pub use seal::{BlockSeal, QuorumCertificate};
@@ -52,7 +52,7 @@ pub use store::{
     ConsensusEvidence, ConsensusJournal, FinalityStore, KernelSnapshot, PersistedConsensusEvent,
     RecoveryState, SnapshotStore, recover_state,
 };
-pub use validator::{Validator, ValidatorId, ValidatorRole};
+pub use validator::{SlashFault, Validator, ValidatorId, ValidatorLifecycle, ValidatorRole};
 pub use version::{
     AOXC_CERTIFICATE_FORMAT_LINE, AOXC_COVENANT_KERNEL_LINE, AOXC_COVENANT_KERNEL_NAME,
     AOXC_VOTE_FORMAT_LINE, KernelIdentity, kernel_identity,
