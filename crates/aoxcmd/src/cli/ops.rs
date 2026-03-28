@@ -1846,10 +1846,100 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
         .parse::<u64>()
         .map_err(|_| AppError::new(ErrorCode::UsageInvalidArguments, "Invalid --rounds value"))?;
     let tx_prefix = arg_value(args, "--tx-prefix").unwrap_or_else(|| "AOXC-RUN".to_string());
-    let state = engine::run_rounds(rounds, &tx_prefix)?;
+    let format = output_format(args);
+    let live_log_enabled = !has_flag(args, "--no-live-log");
+    let log_level = arg_value(args, "--log-level").unwrap_or_else(|| "info".to_string());
+    if !matches!(log_level.as_str(), "info" | "debug") {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Invalid --log-level value (supported: info, debug)",
+        ));
+    }
+
+    if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
+        print_node_live_log_header(rounds, &tx_prefix, &log_level)?;
+    }
+
+    let state = if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
+        engine::run_rounds_with_observer(rounds, &tx_prefix, |entry| {
+            print_node_round_line(entry, &log_level);
+        })?
+    } else {
+        engine::run_rounds(rounds, &tx_prefix)?
+    };
     let _ = refresh_runtime_metrics().ok();
     let _ = graceful_shutdown();
-    emit_serialized(&state, output_format(args))
+
+    if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
+        print_node_live_log_footer(&state);
+    }
+
+    emit_serialized(&state, format)
+}
+
+fn print_node_live_log_header(
+    rounds: u64,
+    tx_prefix: &str,
+    log_level: &str,
+) -> Result<(), AppError> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let db_path = lifecycle::state_path()?;
+    println!("🚀 [{}] node-run startup", now);
+    println!(
+        "🧭 mode=live rounds={} tx_prefix={} log_level={}",
+        rounds, tx_prefix, log_level
+    );
+    println!("🗄️  state_db={}", db_path.display());
+    println!(
+        "📋 {:>5} | {:<25} | {:>8} | {:>8} | {:>8} | {:<12}",
+        "round", "timestamp", "height", "blocks", "sections", "tx"
+    );
+    println!(
+        "────────────────────────────────────────────────────────────────────────────────────────"
+    );
+    Ok(())
+}
+
+fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
+    let timestamp = chrono::DateTime::<chrono::Utc>::from_timestamp(entry.timestamp_unix as i64, 0)
+        .map(|dt| dt.to_rfc3339())
+        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    println!(
+        "✅ {:>5} | {:<25} | {:>8} | {:>8} | {:>8} | {:<12}",
+        entry.round_index,
+        timestamp,
+        entry.height,
+        entry.produced_blocks,
+        entry.section_count,
+        entry.tx_id
+    );
+
+    if log_level == "debug" {
+        println!(
+            "   🔍 round={} consensus_round={} block={} parent={}",
+            entry.round_index,
+            entry.consensus_round,
+            short_hash(&entry.block_hash_hex),
+            short_hash(&entry.parent_hash_hex)
+        );
+    }
+}
+
+fn print_node_live_log_footer(state: &crate::node::state::NodeState) {
+    println!(
+        "────────────────────────────────────────────────────────────────────────────────────────"
+    );
+    println!(
+        "🏁 completed height={} produced_blocks={} updated_at={}",
+        state.current_height, state.produced_blocks, state.updated_at
+    );
+}
+
+fn short_hash(value: &str) -> String {
+    if value.len() <= 16 {
+        return value.to_string();
+    }
+    format!("{}…{}", &value[..8], &value[value.len() - 8..])
 }
 
 pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
