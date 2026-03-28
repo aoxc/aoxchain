@@ -34,6 +34,7 @@
 
 ## 📊 Testing & Integration
 - [Deterministic Testnet Guide](./DETERMINISTIC_TESTNET_TR.md)
+- [Persistent Testnet (Full) Plan - TR](./PERSISTENT_TESTNET_FULL_TR.md)
 - [Frontend RPC API Integration](./FRONTEND_RPC_API_INTEGRATION_TR.md)
 - [Local Benchmark & Mainnet Readiness](./LOCAL_BENCHMARK_AND_MAINNET_READINESS_TR.md)
 - [Key Types & Interoperability](./KEY_TYPES_AND_INTEROP_GUIDE_EN.md)
