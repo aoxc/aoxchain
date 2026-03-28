@@ -1,2 +1,14 @@
+pub mod consensus_service;
+pub mod execution_service;
+pub mod explorer_service;
+pub mod governance_service;
+pub mod infrastructure_service;
+pub mod intent_service;
+pub mod network_profile;
+pub mod overview_service;
 pub mod rpc_client;
+pub mod settings_service;
+pub mod staking_service;
 pub mod telemetry;
+pub mod telemetry_audit_service;
+pub mod treasury_service;
