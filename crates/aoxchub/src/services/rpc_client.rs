@@ -23,8 +23,7 @@ impl RpcClient {
     /// remains usable in development environments even when public AOXC RPC
     /// infrastructure is unavailable.
     pub fn endpoint() -> String {
-        Self::endpoint_from_env()
-            .unwrap_or_else(|| "http://127.0.0.1:8545".to_string())
+        Self::endpoint_from_env().unwrap_or_else(|| "http://127.0.0.1:8545".to_string())
     }
 
     /// Returns a human-readable descriptor suitable for diagnostics or UI display.

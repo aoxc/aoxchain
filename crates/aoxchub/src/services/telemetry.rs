@@ -66,12 +66,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
         "id": 1
     });
 
-    let response = match client
-        .post(&endpoint)
-        .json(&payload)
-        .send()
-        .await
-    {
+    let response = match client.post(&endpoint).json(&payload).send().await {
         Ok(response) => response,
         Err(_) => {
             return TelemetrySnapshot {

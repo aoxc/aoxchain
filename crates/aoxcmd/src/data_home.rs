@@ -169,7 +169,10 @@ mod tests {
     #[test]
     fn default_home_dir_is_namespaced_under_hidden_aoxcdata_home() {
         let home = env::var("HOME").expect("HOME must be set for tests");
-        let expected = PathBuf::from(home).join(".AOXCData").join("home").join("default");
+        let expected = PathBuf::from(home)
+            .join(".AOXCData")
+            .join("home")
+            .join("default");
 
         assert_eq!(
             default_home_dir().expect("default home should resolve"),

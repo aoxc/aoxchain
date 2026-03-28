@@ -1,15 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::layouts::AdminLayout;
-use crate::views::{
-    ConsensusMap,
-    Home,
-    LaneMonitor,
-    Nodes,
-    NotFoundPage,
-    Wallet,
-    ZkpAudit,
-};
+use crate::views::{ConsensusMap, Home, LaneMonitor, Nodes, NotFoundPage, Wallet, ZkpAudit};
 
 /// Defines the routing topology for the AOXCHUB control plane.
 ///

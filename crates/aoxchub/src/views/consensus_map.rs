@@ -58,7 +58,10 @@ pub fn ConsensusMap() -> Element {
         .collect();
 
     let total_nodes = nodes.len();
-    let online_nodes = nodes.iter().filter(|node| node.status_label == "Online").count();
+    let online_nodes = nodes
+        .iter()
+        .filter(|node| node.status_label == "Online")
+        .count();
     let offline_nodes = total_nodes.saturating_sub(online_nodes);
 
     rsx! {
