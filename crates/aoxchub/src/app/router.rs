@@ -7,6 +7,29 @@ use crate::features::operations::page::OperationsSection;
 use crate::features::settings::page::SettingsSection;
 use crate::features::wallet::page::WalletSetupSection;
 
+pub const INTEGRATION_CHECKLIST: [(&str, &str); 5] = [
+    (
+        "Network profile baseline",
+        "Validate Dev / Testnet / Mainnet endpoints with deterministic RPC failover.",
+    ),
+    (
+        "Wallet security enforcement",
+        "Confirm session policy, signer isolation, and key material handling controls.",
+    ),
+    (
+        "Operations readiness",
+        "Execute validator and bridge command drills with auditable runbook evidence.",
+    ),
+    (
+        "Governance alignment",
+        "Verify proposal state transitions, voting telemetry, and treasury signaling.",
+    ),
+    (
+        "Release observability",
+        "Correlate health checks, log streams, and alert thresholds before rollout.",
+    ),
+];
+
 #[derive(Routable, Clone, PartialEq)]
 pub enum Route {
     #[layout(AppLayout)]
@@ -26,7 +49,7 @@ pub enum Route {
 
 #[component]
 fn Landing() -> Element {
-    let _integration_checklist = INTEGRATION_CHECKLIST;
+    let _ = INTEGRATION_CHECKLIST;
     rsx! { OverviewSection {} }
 }
 
