@@ -393,8 +393,7 @@ h1 {
   .metrics-grid,
   .widget-grid,
   .content-grid,
-  .hero,
-  .wallet-steps {
+  .hero {
     grid-template-columns: 1fr;
   }
 }

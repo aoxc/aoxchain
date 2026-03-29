@@ -44,28 +44,6 @@ pub fn Home() -> Element {
         ("Treasury Balance", "94.2M AOXC", "Policy constrained"),
         ("Governance Cycle", "Epoch 219", "Voting phase active"),
     ];
-    let wallet_steps = [
-        (
-            "1",
-            "Create Address",
-            "Generate a new AOXC wallet and bind an operator label.",
-        ),
-        (
-            "2",
-            "Backup Secret",
-            "Export the recovery phrase to an offline vault before any transfer.",
-        ),
-        (
-            "3",
-            "Fund Wallet",
-            "Bridge or faucet initial AOXC for gas, staking, and governance actions.",
-        ),
-        (
-            "4",
-            "Policy Bind",
-            "Attach signature policy and session controls for desktop operations.",
-        ),
-    ];
 
     let validators = [
         ("Atlas One", "99.99%", "6.2M AOXC", "Europe"),

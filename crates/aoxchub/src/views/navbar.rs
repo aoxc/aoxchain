@@ -4,7 +4,6 @@ use dioxus::prelude::*;
 #[component]
 pub fn Navbar() -> Element {
     let menu_items = [
-        ("Wallet Setup", "#wallet-setup"),
         ("Overview", "#overview"),
         ("Dashboard", "#dashboard"),
         ("Validators", "#validators"),
