@@ -25,6 +25,7 @@ AOXC_DATA_ROOT ?= $(HOME)/.AOXCData
 AOXC_HOME ?= $(AOXC_DATA_ROOT)/home/default
 AOXC_BIN_DIR ?= $(AOXC_DATA_ROOT)/bin
 AOXC_BIN_PATH ?= $(AOXC_BIN_DIR)/aoxc
+AOXC_RELEASES_DIR ?= $(AOXC_DATA_ROOT)/releases
 
 AOXC_HOME_LOCAL ?= $(AOXC_DATA_ROOT)/home/local-dev
 AOXC_HOME_REAL ?= $(AOXC_DATA_ROOT)/home/real
@@ -41,6 +42,17 @@ RUSTFMT ?= rustfmt
 CLIPPY_FLAGS ?= --workspace --all-targets --all-features
 TEST_FLAGS ?= --workspace
 CHECK_FLAGS ?= --workspace
+
+RELEASE_VERSION ?= $(shell $(CARGO) pkgid -p aoxcmd 2>/dev/null | sed -E 's|.*#||; s|.*@||')
+RELEASE_TAG ?= v$(RELEASE_VERSION)
+RELEASE_BUNDLE_NAME ?= aoxc-$(RELEASE_TAG)
+RELEASE_BUNDLE_DIR ?= $(AOXC_RELEASES_DIR)/$(RELEASE_BUNDLE_NAME)
+RELEASE_BUNDLE_BIN_DIR ?= $(RELEASE_BUNDLE_DIR)/bin
+RELEASE_BUNDLE_MANIFEST ?= $(RELEASE_BUNDLE_DIR)/BUILD-MANIFEST.txt
+RELEASE_BUNDLE_CHECKSUMS ?= $(RELEASE_BUNDLE_DIR)/SHA256SUMS
+RELEASE_ARCHIVE_BASENAME ?= $(RELEASE_BUNDLE_NAME)-linux-amd64
+RELEASE_ARCHIVE_PATH ?= $(AOXC_RELEASES_DIR)/$(RELEASE_ARCHIVE_BASENAME).tar.gz
+RELEASE_BINARIES ?= aoxc aoxchub aoxckit
 
 # --------------------------------------------------------------------
 # Shared shell helpers
@@ -62,7 +74,7 @@ endef
 # --------------------------------------------------------------------
 .PHONY: \
 	help paths env-check bootstrap-paths clean-home clean-logs \
-	bootstrap-desktop-paths build build-release build-release-all package-bin package-all-bin package-desktop-testnet install-bin \
+	bootstrap-desktop-paths build build-release build-release-all package-bin package-all-bin package-versioned-bin package-versioned-archive package-desktop-testnet install-bin \
 	test test-lib test-workspace check fmt clippy audit \
 	quality quality-quick quality-release ci \
 	version manifest policy \
@@ -108,6 +120,8 @@ help:
 	@printf "  make package-bin       - install release binary into %s\n" "$(AOXC_BIN_DIR)"
 	@printf "  make build-release-all - build all release binaries (aoxc, aoxchub, aoxckit)\n"
 	@printf "  make package-all-bin   - install all release binaries into %s\n" "$(AOXC_BIN_DIR)"
+	@printf "  make package-versioned-bin - install all binaries into versioned bundle under %s\n" "$(AOXC_RELEASES_DIR)"
+	@printf "  make package-versioned-archive - create tar.gz archive for the versioned bundle\n"
 	@printf "  make package-desktop-testnet - install all binaries under desktop/testnet root\n"
 	@printf "  make version           - show AOXC build/version metadata\n"
 	@printf "  make manifest          - print build manifest\n"
@@ -184,11 +198,15 @@ paths:
 	@printf "AOXC_HOME_DESKTOP_TESTNET=%s\n" "$(AOXC_HOME_DESKTOP_TESTNET)"
 	@printf "AOXC_BIN_DIR=%s\n" "$(AOXC_BIN_DIR)"
 	@printf "AOXC_BIN_PATH=%s\n" "$(AOXC_BIN_PATH)"
+	@printf "AOXC_RELEASES_DIR=%s\n" "$(AOXC_RELEASES_DIR)"
 	@printf "AOXC_LOG_ROOT=%s\n" "$(AOXC_LOG_ROOT)"
 	@printf "AOXC_REAL_LOG_DIR=%s\n" "$(AOXC_REAL_LOG_DIR)"
 	@printf "AOXC_DESKTOP_ROOT=%s\n" "$(AOXC_DESKTOP_ROOT)"
 	@printf "AOXC_DESKTOP_BIN_DIR=%s\n" "$(AOXC_DESKTOP_BIN_DIR)"
 	@printf "AOXC_DESKTOP_LOG_DIR=%s\n" "$(AOXC_DESKTOP_LOG_DIR)"
+	@printf "RELEASE_TAG=%s\n" "$(RELEASE_TAG)"
+	@printf "RELEASE_BUNDLE_DIR=%s\n" "$(RELEASE_BUNDLE_DIR)"
+	@printf "RELEASE_ARCHIVE_PATH=%s\n" "$(RELEASE_ARCHIVE_PATH)"
 
 env-check:
 	$(call print_banner,Validating local build environment)
@@ -273,6 +291,35 @@ package-all-bin: build-release-all bootstrap-paths
 	@ln -sf "$(AOXC_BIN_DIR)/aoxckit" bin/aoxckit
 	@echo "Installed binaries under: $(AOXC_BIN_DIR)"
 	@echo "Compatibility symlinks created under ./bin"
+
+package-versioned-bin: build-release-all
+	$(call print_banner,Packaging versioned release bundle)
+	@set -euo pipefail; \
+	mkdir -p "$(RELEASE_BUNDLE_BIN_DIR)"; \
+	for binary in $(RELEASE_BINARIES); do \
+		cp "target/release/$$binary" "$(RELEASE_BUNDLE_BIN_DIR)/$$binary"; \
+		chmod +x "$(RELEASE_BUNDLE_BIN_DIR)/$$binary"; \
+	done; \
+	printf "AOXC Release Bundle\n" > "$(RELEASE_BUNDLE_MANIFEST)"; \
+	printf "release_tag=%s\n" "$(RELEASE_TAG)" >> "$(RELEASE_BUNDLE_MANIFEST)"; \
+	printf "bundle_name=%s\n" "$(RELEASE_BUNDLE_NAME)" >> "$(RELEASE_BUNDLE_MANIFEST)"; \
+	printf "bundle_dir=%s\n" "$(RELEASE_BUNDLE_DIR)" >> "$(RELEASE_BUNDLE_MANIFEST)"; \
+	printf "generated_at_utc=%s\n" "$$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$(RELEASE_BUNDLE_MANIFEST)"; \
+	printf "binaries=%s\n" "$(RELEASE_BINARIES)" >> "$(RELEASE_BUNDLE_MANIFEST)"; \
+	( \
+		cd "$(RELEASE_BUNDLE_DIR)" && \
+		sha256sum bin/* > "$(notdir $(RELEASE_BUNDLE_CHECKSUMS))" \
+	); \
+	echo "Versioned bundle directory: $(RELEASE_BUNDLE_DIR)"; \
+	echo "Bundle manifest: $(RELEASE_BUNDLE_MANIFEST)"; \
+	echo "Checksums: $(RELEASE_BUNDLE_CHECKSUMS)"
+
+package-versioned-archive: package-versioned-bin
+	$(call print_banner,Creating versioned release archive)
+	@set -euo pipefail; \
+	mkdir -p "$(AOXC_RELEASES_DIR)"; \
+	tar -C "$(AOXC_RELEASES_DIR)" -czf "$(RELEASE_ARCHIVE_PATH)" "$(RELEASE_BUNDLE_NAME)"; \
+	echo "Versioned release archive: $(RELEASE_ARCHIVE_PATH)"
 
 package-desktop-testnet: build-release-all bootstrap-desktop-paths
 	$(call print_banner,Packaging desktop testnet binaries and profile layout)
