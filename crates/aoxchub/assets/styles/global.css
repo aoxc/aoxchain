@@ -563,6 +563,14 @@ h3 {
   gap: 12px;
 }
 
+.hero-panel-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
 .hero-panel li {
   display: flex;
   justify-content: space-between;

@@ -1,4 +1,39 @@
 use dioxus::prelude::*;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize, Clone)]
+struct SecurityDrill {
+    status: String,
+    scenarios: Vec<String>,
+    requirements: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct TelemetrySnapshot {
+    status: String,
+    alerts_required: Vec<String>,
+}
+
+fn load_security_drill() -> SecurityDrill {
+    serde_json::from_str(include_str!(
+        "../../../../../artifacts/network-production-closure/security-drill.json"
+    ))
+    .unwrap_or_else(|_| SecurityDrill {
+        status: String::from("unknown"),
+        scenarios: Vec::new(),
+        requirements: Vec::new(),
+    })
+}
+
+fn load_telemetry_snapshot() -> TelemetrySnapshot {
+    serde_json::from_str(include_str!(
+        "../../../../../artifacts/network-production-closure/telemetry-snapshot.json"
+    ))
+    .unwrap_or_else(|_| TelemetrySnapshot {
+        status: String::from("unknown"),
+        alerts_required: Vec::new(),
+    })
+}
 
 #[component]
 pub fn SettingsSection() -> Element {
