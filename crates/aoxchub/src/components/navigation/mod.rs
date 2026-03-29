@@ -4,76 +4,152 @@ use crate::i18n::Language;
 use crate::route::Route;
 use crate::services::network_profile::resolve_profile;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+/// Represents a stable, compile-safe identifier for a sidebar destination.
+///
+/// This enum intentionally stores only lightweight discriminants rather than
+/// full `Route` values. The design avoids unnecessary trait constraints on
+/// configuration records and keeps the navigation model resilient if `Route`
+/// evolves to include non-`Copy` or otherwise richer state in the future.
+///
+/// Security and maintainability rationale:
+/// - Prevents invalid `Copy` assumptions for route-bearing structures.
+/// - Keeps static navigation metadata deterministic and side-effect free.
+/// - Provides a single conversion boundary from UI intent to router state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NavKey {
+    Overview,
+    Consensus,
+    ValidatorsStaking,
+    ExecutionLanes,
+    Explorer,
+    WalletTreasury,
+    NodesInfrastructure,
+    TelemetryAudit,
+    GovernanceControl,
+    SettingsSecurity,
+}
+
+impl NavKey {
+    /// Resolves the stable navigation key into the concrete router destination.
+    ///
+    /// This conversion is intentionally explicit to preserve auditability and
+    /// reduce the probability of silent routing drift during future refactors.
+    #[inline]
+    fn route(self) -> Route {
+        match self {
+            Self::Overview => Route::Overview {},
+            Self::Consensus => Route::Consensus {},
+            Self::ValidatorsStaking => Route::ValidatorsStaking {},
+            Self::ExecutionLanes => Route::ExecutionLanes {},
+            Self::Explorer => Route::Explorer {},
+            Self::WalletTreasury => Route::WalletTreasury {},
+            Self::NodesInfrastructure => Route::NodesInfrastructure {},
+            Self::TelemetryAudit => Route::TelemetryAudit {},
+            Self::GovernanceControl => Route::GovernanceControl {},
+            Self::SettingsSecurity => Route::SettingsSecurity {},
+        }
+    }
+}
+
+/// Immutable navigation descriptor used by the control surface sidebar.
+///
+/// The structure is deliberately limited to `'static` metadata and a stable
+/// route key. This allows the record to remain `Copy`, trivially analyzable,
+/// and suitable for static initialization without imposing trait requirements
+/// on higher-order routing types.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct NavItem {
+    /// Human-readable navigation label rendered in the sidebar.
     label: &'static str,
-    route: Route,
+
+    /// Stable internal destination identifier.
+    key: NavKey,
+
+    /// Short operational classification badge shown beside the label.
     badge: &'static str,
 }
 
 const NAV_ITEMS: [NavItem; 10] = [
     NavItem {
         label: "Overview",
-        route: Route::Overview {},
+        key: NavKey::Overview,
         badge: "Chain",
     },
     NavItem {
         label: "Consensus",
-        route: Route::Consensus {},
+        key: NavKey::Consensus,
         badge: "Core",
     },
     NavItem {
         label: "Validators & Staking",
-        route: Route::ValidatorsStaking {},
+        key: NavKey::ValidatorsStaking,
         badge: "Security",
     },
     NavItem {
         label: "Execution Lanes",
-        route: Route::ExecutionLanes {},
+        key: NavKey::ExecutionLanes,
         badge: "Runtime",
     },
     NavItem {
         label: "Explorer",
-        route: Route::Explorer {},
+        key: NavKey::Explorer,
         badge: "Inspection",
     },
     NavItem {
         label: "Wallet & Treasury",
-        route: Route::WalletTreasury {},
+        key: NavKey::WalletTreasury,
         badge: "Custody",
     },
     NavItem {
         label: "Nodes & Infrastructure",
-        route: Route::NodesInfrastructure {},
+        key: NavKey::NodesInfrastructure,
         badge: "Ops",
     },
     NavItem {
         label: "Telemetry & Audit",
-        route: Route::TelemetryAudit {},
+        key: NavKey::TelemetryAudit,
         badge: "Evidence",
     },
     NavItem {
         label: "Governance & Control",
-        route: Route::GovernanceControl {},
+        key: NavKey::GovernanceControl,
         badge: "Policy",
     },
     NavItem {
         label: "Settings & Security",
-        route: Route::SettingsSecurity {},
+        key: NavKey::SettingsSecurity,
         badge: "Boundary",
     },
 ];
 
-#[component]
-pub fn Header() -> Element {
-    let language = match std::env::var("AOXCHUB_LANG").ok().as_deref() {
+/// Resolves the effective interface language from process-level configuration.
+///
+/// The function applies a fail-safe default to English when the environment
+/// variable is absent, malformed, or unsupported. This behavior is intentional
+/// for operational predictability in production deployments.
+#[inline]
+fn resolve_language() -> Language {
+    match std::env::var("AOXCHUB_LANG").ok().as_deref() {
         Some("tr") | Some("TR") => Language::TR,
         _ => Language::EN,
-    };
-    let language_label = match language {
+    }
+}
+
+/// Returns the compact language marker displayed in the header.
+///
+/// The function is separated from the component body to keep the render path
+/// declarative and to centralize presentation mapping for future expansion.
+#[inline]
+fn language_label(language: Language) -> &'static str {
+    match language {
         Language::TR => "TR",
         Language::EN => "EN",
-    };
+    }
+}
+
+#[component]
+pub fn Header() -> Element {
+    let language = resolve_language();
     let profile = resolve_profile();
 
     rsx! {
@@ -82,9 +158,10 @@ pub fn Header() -> Element {
                 p { class: "aox-kicker", "AOXC Integrated Control Surface" }
                 h1 { class: "aox-title", "Production Chain Interface" }
             }
+
             div { class: "aox-chip-row",
                 span { class: "aox-chip", "Profile: {profile.title()}" }
-                span { class: "aox-chip", "Language: {language_label}" }
+                span { class: "aox-chip", "Language: {language_label(language)}" }
                 span { class: "aox-chip aox-chip--good", "Boundary: Fail-Closed" }
             }
         }
@@ -101,9 +178,9 @@ pub fn Sidebar() -> Element {
             }
 
             nav { class: "aox-nav",
-                for item in NAV_ITEMS {
+                for item in NAV_ITEMS.into_iter() {
                     Link {
-                        to: item.route,
+                        to: item.key.route(),
                         class: "aox-nav-link",
                         span { "{item.label}" }
                         strong { "{item.badge}" }
@@ -113,7 +190,10 @@ pub fn Sidebar() -> Element {
 
             div { class: "aox-security-box",
                 p { class: "aox-kicker", "Security Posture" }
-                p { "Wallet approvals, governance intents, and node operations are constrained behind explicit policy boundaries." }
+                p {
+                    "Wallet approvals, governance intents, and node operations \
+                    are constrained behind explicit policy boundaries."
+                }
             }
         }
     }
