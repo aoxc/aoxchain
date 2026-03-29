@@ -3,12 +3,26 @@ use dioxus::prelude::*;
 mod views;
 use views::{HubPage, Navbar};
 
+use views::{
+    DashboardPage, ExplorerPage, HomePage, Navbar, OperationsPage, SettingsPage, WalletPage,
+};
+
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
-enum Route {
+pub enum Route {
     #[layout(Navbar)]
         #[route("/")]
         Home {},
+        #[route("/wallet")]
+        Wallet {},
+        #[route("/explorer")]
+        Explorer {},
+        #[route("/dashboard")]
+        Dashboard {},
+        #[route("/operations")]
+        Operations {},
+        #[route("/settings")]
+        Settings {},
 }
 
 const FAVICON: Asset = asset!("/assets/images/favicon.ico");
