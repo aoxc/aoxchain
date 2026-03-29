@@ -4,57 +4,84 @@
     color-scheme: dark;
 }
 
+* {
+    box-sizing: border-box;
+}
+
 body {
     margin: 0;
     min-height: 100vh;
-    font-family: Inter, "Segoe UI", Roboto, system-ui, sans-serif;
-    color: #e4eaff;
+    font-family: "Inter", "Segoe UI", "SF Pro Display", Roboto, system-ui, sans-serif;
+    color: #e6edff;
     background:
-        radial-gradient(circle at 5% 0%, rgba(56, 96, 220, 0.25), transparent 40%),
-        radial-gradient(circle at 95% 10%, rgba(94, 45, 181, 0.28), transparent 42%),
-        linear-gradient(180deg, #02040b 0%, #060c17 100%);
+        radial-gradient(circle at 0% 0%, rgba(0, 208, 255, 0.17), transparent 36%),
+        radial-gradient(circle at 100% 0%, rgba(124, 58, 237, 0.22), transparent 34%),
+        radial-gradient(circle at 50% 100%, rgba(14, 165, 233, 0.14), transparent 42%),
+        linear-gradient(140deg, #030712 0%, #020617 44%, #0b1226 100%);
 }
 
 .aox-shell {
     min-height: 100vh;
     display: grid;
-    grid-template-columns: 18.5rem minmax(0, 1fr) 20rem;
+    grid-template-columns: 20rem minmax(0, 1fr) 22rem;
+    gap: 0.75rem;
+    padding: 0.75rem;
+}
+
+.aox-sidebar,
+.aox-right-panel,
+.aox-main-column {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 1.1rem;
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.64));
+    box-shadow:
+        0 10px 35px rgba(2, 6, 23, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.aox-sidebar,
+.aox-right-panel {
+    padding: 1.2rem;
+    backdrop-filter: blur(24px);
 }
 
 .aox-main-column {
     min-width: 0;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
-    border-inline: 1px solid rgba(148, 163, 184, 0.16);
-    background: rgba(10, 15, 27, 0.7);
-    backdrop-filter: blur(18px);
-}
-
-.aox-sidebar,
-.aox-right-panel {
-    padding: 1.25rem;
-    background: rgba(3, 6, 13, 0.9);
+    overflow: hidden;
+    backdrop-filter: blur(22px);
 }
 
 .aox-brand h2,
 .aox-title {
-    margin: 0.25rem 0 0;
-    font-size: 1rem;
-    color: #f6f8ff;
+    margin: 0.35rem 0 0;
+    font-size: 1.2rem;
+    color: #f8fbff;
+    letter-spacing: -0.01em;
+}
+
+.aox-brand-subtitle,
+.aox-header-subtitle {
+    margin: 0.45rem 0 0;
+    font-size: 0.81rem;
+    line-height: 1.45;
+    color: #b8c7e6;
 }
 
 .aox-kicker {
     margin: 0;
     text-transform: uppercase;
-    letter-spacing: 0.13em;
-    font-size: 0.72rem;
-    color: #8cb9ff;
+    letter-spacing: 0.16em;
+    font-size: 0.67rem;
+    font-weight: 700;
+    color: #67e8f9;
 }
 
 .aox-nav {
     display: grid;
-    gap: 0.5rem;
-    margin-top: 1.25rem;
+    gap: 0.62rem;
+    margin-top: 1.3rem;
 }
 
 .aox-nav-link {
@@ -62,50 +89,58 @@ body {
     justify-content: space-between;
     align-items: center;
     gap: 0.75rem;
-    border: 1px solid rgba(148, 163, 184, 0.16);
-    border-radius: 0.85rem;
-    padding: 0.7rem 0.8rem;
-    color: #d8e5ff;
-    background: rgba(255, 255, 255, 0.02);
-    transition: all 140ms ease;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 0.9rem;
+    padding: 0.78rem 0.86rem;
+    color: #deebff;
+    background: linear-gradient(140deg, rgba(15, 23, 42, 0.64), rgba(30, 41, 59, 0.52));
+    transition: all 150ms ease;
 }
 
 .aox-nav-link:hover,
 .aox-nav-link[aria-current="page"] {
-    border-color: rgba(96, 165, 250, 0.7);
-    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(56, 189, 248, 0.68);
+    background: linear-gradient(140deg, rgba(8, 47, 73, 0.88), rgba(30, 64, 175, 0.44));
+    box-shadow: 0 8px 20px rgba(14, 116, 144, 0.3);
     color: #ffffff;
 }
 
 .aox-nav-link strong {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     text-transform: uppercase;
-    color: #93c5fd;
+    letter-spacing: 0.07em;
+    color: #7dd3fc;
 }
 
 .aox-security-box,
 .aox-right-card {
-    margin-top: 1.25rem;
-    padding: 0.85rem;
-    border-radius: 0.9rem;
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    background: linear-gradient(150deg, rgba(15, 23, 42, 0.9), rgba(24, 41, 73, 0.5));
+    margin-top: 1.2rem;
+    padding: 1rem;
+    border-radius: 0.95rem;
+    border: 1px solid rgba(125, 211, 252, 0.27);
+    background: linear-gradient(135deg, rgba(12, 74, 110, 0.28), rgba(30, 41, 59, 0.62));
 }
 
 .aox-security-box p,
 .aox-right-card li {
     margin-top: 0.5rem;
     font-size: 0.82rem;
-    color: #c5d3ef;
+    line-height: 1.45;
+    color: #c7d7f2;
 }
 
 .aox-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     gap: 1rem;
-    padding: 1.1rem 1.4rem;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    padding: 1.12rem 1.4rem 1.05rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+    background: linear-gradient(140deg, rgba(2, 132, 199, 0.1), rgba(30, 41, 59, 0.1));
+}
+
+.aox-header-copy {
+    max-width: 36rem;
 }
 
 .aox-chip-row {
@@ -118,38 +153,40 @@ body {
 .aox-chip {
     border-radius: 999px;
     border: 1px solid rgba(125, 211, 252, 0.45);
-    background: rgba(56, 189, 248, 0.15);
-    color: #d8efff;
-    font-size: 0.75rem;
-    padding: 0.28rem 0.6rem;
+    background: rgba(14, 116, 144, 0.25);
+    color: #d7f3ff;
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 0.31rem 0.69rem;
 }
 
 .aox-chip--good {
     border-color: rgba(74, 222, 128, 0.5);
-    background: rgba(16, 185, 129, 0.2);
+    background: rgba(5, 150, 105, 0.24);
     color: #d1fae5;
 }
 
 .aox-workspace {
     overflow-y: auto;
-    padding: 1.25rem;
+    padding: 1.28rem;
 }
 
 .aox-footer {
-    border-top: 1px solid rgba(148, 163, 184, 0.16);
-    padding: 0.75rem 1.4rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    padding: 0.75rem 1.35rem;
     display: flex;
     justify-content: space-between;
     gap: 0.8rem;
     flex-wrap: wrap;
-    color: #9db3d8;
-    font-size: 0.75rem;
+    color: #9db6dd;
+    font-size: 0.74rem;
+    background: rgba(15, 23, 42, 0.48);
 }
 
 .aox-right-card h3 {
-    margin: 0.2rem 0;
-    font-size: 0.9rem;
-    color: #f0f5ff;
+    margin: 0.25rem 0;
+    font-size: 0.95rem;
+    color: #f0f7ff;
 }
 
 .aox-right-card ul {
@@ -157,9 +194,9 @@ body {
     padding-left: 1rem;
 }
 
-@media (max-width: 1240px) {
+@media (max-width: 1320px) {
     .aox-shell {
-        grid-template-columns: 16rem minmax(0, 1fr);
+        grid-template-columns: 18rem minmax(0, 1fr);
     }
 
     .aox-right-panel {
@@ -167,12 +204,16 @@ body {
     }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 980px) {
     .aox-shell {
         grid-template-columns: 1fr;
     }
 
     .aox-sidebar {
-        border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+        order: 1;
+    }
+
+    .aox-main-column {
+        order: 2;
     }
 }
