@@ -14,10 +14,10 @@ body {
     font-family: "Inter", "Segoe UI", "SF Pro Display", Roboto, system-ui, sans-serif;
     color: #e6edff;
     background:
-        radial-gradient(circle at 0% 0%, rgba(0, 208, 255, 0.17), transparent 36%),
-        radial-gradient(circle at 100% 0%, rgba(124, 58, 237, 0.22), transparent 34%),
-        radial-gradient(circle at 50% 100%, rgba(14, 165, 233, 0.14), transparent 42%),
-        linear-gradient(140deg, #030712 0%, #020617 44%, #0b1226 100%);
+        radial-gradient(circle at 0% 0%, rgba(139, 92, 246, 0.35), transparent 38%),
+        radial-gradient(circle at 100% 0%, rgba(217, 70, 239, 0.22), transparent 30%),
+        radial-gradient(circle at 50% 100%, rgba(56, 189, 248, 0.14), transparent 38%),
+        linear-gradient(140deg, #090014 0%, #0b1020 46%, #110824 100%);
 }
 
 .aox-shell {
@@ -31,12 +31,13 @@ body {
 .aox-sidebar,
 .aox-right-panel,
 .aox-main-column {
-    border: 1px solid rgba(148, 163, 184, 0.22);
+    border: 1px solid rgba(192, 132, 252, 0.24);
     border-radius: 1.1rem;
-    background: linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.64));
+    background: linear-gradient(160deg, rgba(22, 13, 40, 0.9), rgba(18, 14, 37, 0.63));
     box-shadow:
-        0 10px 35px rgba(2, 6, 23, 0.35),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        0 16px 44px rgba(8, 5, 18, 0.6),
+        0 0 45px rgba(168, 85, 247, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 .aox-sidebar,
@@ -75,7 +76,7 @@ body {
     letter-spacing: 0.16em;
     font-size: 0.67rem;
     font-weight: 700;
-    color: #67e8f9;
+    color: #c084fc;
 }
 
 .aox-nav {
@@ -90,19 +91,19 @@ body {
     justify-content: space-between;
     align-items: center;
     gap: 0.75rem;
-    border: 1px solid rgba(148, 163, 184, 0.2);
+    border: 1px solid rgba(217, 70, 239, 0.22);
     border-radius: 0.9rem;
     padding: 0.78rem 0.86rem;
     color: #deebff;
-    background: linear-gradient(140deg, rgba(15, 23, 42, 0.64), rgba(30, 41, 59, 0.52));
+    background: linear-gradient(140deg, rgba(30, 19, 52, 0.7), rgba(38, 24, 63, 0.5));
     transition: all 150ms ease;
 }
 
 .aox-nav-link:hover,
 .aox-nav-link[aria-current="page"] {
-    border-color: rgba(56, 189, 248, 0.68);
-    background: linear-gradient(140deg, rgba(8, 47, 73, 0.88), rgba(30, 64, 175, 0.44));
-    box-shadow: 0 8px 20px rgba(14, 116, 144, 0.3);
+    border-color: rgba(216, 180, 254, 0.75);
+    background: linear-gradient(140deg, rgba(76, 29, 149, 0.84), rgba(124, 58, 237, 0.42));
+    box-shadow: 0 8px 24px rgba(168, 85, 247, 0.3);
     color: #ffffff;
 }
 
@@ -110,7 +111,7 @@ body {
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    color: #7dd3fc;
+    color: #e9d5ff;
 }
 
 .aox-security-box,
@@ -118,8 +119,8 @@ body {
     margin-top: 1.2rem;
     padding: 1rem;
     border-radius: 0.95rem;
-    border: 1px solid rgba(125, 211, 252, 0.27);
-    background: linear-gradient(135deg, rgba(12, 74, 110, 0.28), rgba(30, 41, 59, 0.62));
+    border: 1px solid rgba(192, 132, 252, 0.29);
+    background: linear-gradient(135deg, rgba(88, 28, 135, 0.32), rgba(30, 27, 75, 0.62));
 }
 
 .aox-security-box p,
@@ -132,14 +133,14 @@ body {
 
 .aox-header {
     padding: 1rem 1.35rem;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+    border-bottom: 1px solid rgba(217, 70, 239, 0.2);
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 1rem;
     padding: 1.12rem 1.4rem 1.05rem;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-    background: linear-gradient(140deg, rgba(2, 132, 199, 0.1), rgba(30, 41, 59, 0.1));
+    border-bottom: 1px solid rgba(217, 70, 239, 0.2);
+    background: linear-gradient(140deg, rgba(88, 28, 135, 0.22), rgba(59, 7, 100, 0.14));
 }
 
 .aox-header-copy {
@@ -155,18 +156,18 @@ body {
 
 .aox-chip {
     border-radius: 999px;
-    border: 1px solid rgba(125, 211, 252, 0.45);
-    background: rgba(14, 116, 144, 0.25);
-    color: #d7f3ff;
+    border: 1px solid rgba(216, 180, 254, 0.45);
+    background: rgba(107, 33, 168, 0.3);
+    color: #f5e9ff;
     font-size: 0.74rem;
     font-weight: 600;
     padding: 0.31rem 0.69rem;
 }
 
 .aox-chip--good {
-    border-color: rgba(74, 222, 128, 0.5);
-    background: rgba(5, 150, 105, 0.24);
-    color: #d1fae5;
+    border-color: rgba(45, 212, 191, 0.55);
+    background: rgba(13, 148, 136, 0.24);
+    color: #ccfbf1;
 }
 
 .aox-workspace {
@@ -175,20 +176,38 @@ body {
 }
 
 .aox-footer {
-    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    border-top: 1px solid rgba(192, 132, 252, 0.2);
     padding: 0.75rem 1.35rem;
     display: flex;
     justify-content: space-between;
     flex-wrap: wrap;
     color: #9db6dd;
     font-size: 0.74rem;
-    background: rgba(15, 23, 42, 0.48);
+    background: rgba(39, 19, 70, 0.38);
 }
 
 .aox-right-card h3 {
     margin: 0.25rem 0;
     font-size: 0.95rem;
     color: #f0f7ff;
+}
+
+.aox-hero {
+    border: 1px solid rgba(216, 180, 254, 0.28);
+    background: linear-gradient(135deg, rgba(76, 29, 149, 0.35), rgba(30, 27, 75, 0.45));
+    box-shadow: 0 0 40px rgba(192, 132, 252, 0.16);
+}
+
+.aox-hero-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 1rem;
+}
+
+.aox-hero-badges {
+    display: grid;
+    gap: 0.5rem;
+    align-content: start;
 }
 
 .aox-right-card ul {
@@ -217,5 +236,9 @@ body {
 
     .aox-main-column {
         order: 2;
+    }
+
+    .aox-hero-grid {
+        grid-template-columns: 1fr;
     }
 }

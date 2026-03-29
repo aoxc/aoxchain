@@ -20,10 +20,24 @@ pub fn Overview() -> Element {
     let readiness = use_resource(move || async move { read_desktop_readiness().await });
 
     rsx! {
-        PageShell { title: "Overview", subtitle: "Ana operasyon ekranı: zincirin genel sağlığını tek bakışta gösterir." }
+        PageShell { title: "Overview", subtitle: "Advanced command-center landing page with production RPC, operator automation, and security-aware execution visibility." }
         {
             match data() {
                 Some(model) => rsx! {
+                    GlassSurface { class: Some("p-5 aox-hero".to_string()),
+                        div { class: "aox-hero-grid",
+                            div { class: "space-y-2",
+                                p { class: "aox-kicker", "WELCOME" }
+                                h3 { class: "text-xl font-semibold text-white", "AOXCHUB Next-Gen Admin Dashboard" }
+                                p { class: "text-sm text-slate-200", "Dark-purple glass workspace with RPC-connected widgets, CLI runbooks, and policy-bound operator controls." }
+                            }
+                            div { class: "aox-hero-badges",
+                                span { class: "aox-chip", "RPC Endpoint: {model.source}" }
+                                span { class: "aox-chip aox-chip--good", "Profile: {model.network_profile.title()}" }
+                                span { class: "aox-chip", "Sync: {model.sync_status}" }
+                            }
+                        }
+                    }
                     SourceLabel { source: model.source }
                     GridSection {
                         cards: vec![
@@ -37,6 +51,16 @@ pub fn Overview() -> Element {
                             ("Network Health", model.network_health, "telemetry".to_string()),
                             ("Alerts Summary", model.alerts_summary, "alert stream".to_string()),
                         ]
+                    }
+                    GlassSurface { class: Some("p-5".to_string()),
+                        h3 { class: "text-base font-semibold text-white", "Integrated Operator Commands" }
+                        p { class: "mt-1 text-sm text-slate-300", "Production runbooks for AOXC CLI and Make-based release automation." }
+                        div { class: "mt-3 grid gap-3 md:grid-cols-2",
+                            CommandRow { command: "aoxc telemetry snapshot", purpose: "Read latest RPC telemetry snapshot from configured profile endpoint." }
+                            CommandRow { command: "aoxc explorer block latest", purpose: "Inspect latest finalized block and explorer metadata." }
+                            CommandRow { command: "make test-mainnet-compat", purpose: "Execute compatibility checks for mainnet profile release gate." }
+                            CommandRow { command: "make telemetry-drill", purpose: "Validate transport health and telemetry envelope continuity." }
+                        }
                     }
                     {
                         match readiness() {
@@ -379,6 +403,16 @@ fn LineItem(label: &'static str, value: String, source: String) -> Element {
             p { class: "text-xs uppercase tracking-wide text-slate-400", "{label}" }
             p { class: "text-sm text-white", "{value}" }
             p { class: "text-[11px] text-slate-500", "source: {source}" }
+        }
+    }
+}
+
+#[component]
+fn CommandRow(command: &'static str, purpose: &'static str) -> Element {
+    rsx! {
+        div { class: "rounded-lg border border-fuchsia-300/20 bg-fuchsia-500/5 px-3 py-3",
+            p { class: "text-xs uppercase tracking-wide text-fuchsia-200", "{command}" }
+            p { class: "mt-1 text-sm text-slate-200", "{purpose}" }
         }
     }
 }

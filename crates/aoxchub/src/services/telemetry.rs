@@ -11,6 +11,7 @@ pub struct TelemetrySnapshot {
     pub source: String,
     pub latest_block: Option<u64>,
     pub peer_count: Option<usize>,
+    pub chain_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +42,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
                 source: endpoint,
                 latest_block: None,
                 peer_count: None,
+                chain_id: None,
             };
         }
     };
@@ -60,6 +62,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
                 source: endpoint,
                 latest_block: None,
                 peer_count: None,
+                chain_id: None,
             };
         }
     };
@@ -70,6 +73,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
             source: endpoint,
             latest_block: None,
             peer_count: None,
+            chain_id: None,
         };
     }
 
@@ -81,6 +85,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
                 source: endpoint,
                 latest_block: None,
                 peer_count: None,
+                chain_id: None,
             };
         }
     };
@@ -96,6 +101,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
             source: endpoint.clone(),
             latest_block,
             peer_count: latest_peer_count(&client, &endpoint).await,
+            chain_id: latest_chain_id(&client, &endpoint).await,
         };
     }
 
@@ -108,6 +114,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
             source: endpoint,
             latest_block: None,
             peer_count: None,
+            chain_id: None,
         };
     }
 
@@ -116,6 +123,7 @@ pub async fn latest_snapshot() -> TelemetrySnapshot {
         source: endpoint,
         latest_block: None,
         peer_count: None,
+        chain_id: None,
     }
 }
 
@@ -139,4 +147,27 @@ async fn latest_peer_count(client: &reqwest::Client, endpoint: &str) -> Option<u
         .result
         .strip_prefix("0x")
         .and_then(|value| usize::from_str_radix(value, 16).ok())
+}
+
+async fn latest_chain_id(client: &reqwest::Client, endpoint: &str) -> Option<String> {
+    let payload = json!({
+        "jsonrpc": "2.0",
+        "method": "eth_chainId",
+        "params": [],
+        "id": 3
+    });
+
+    let response = client.post(endpoint).json(&payload).send().await.ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+
+    let body = response.text().await.ok()?;
+    let success = serde_json::from_str::<JsonRpcSuccessResponse>(&body).ok()?;
+    let numeric = success
+        .result
+        .strip_prefix("0x")
+        .and_then(|value| u64::from_str_radix(value, 16).ok())?;
+
+    Some(numeric.to_string())
 }
