@@ -31,11 +31,11 @@ a {
 
 .app-frame {
   margin: 14px;
-  border: 2px solid #1e293b;
+  border: 1px solid #111827;
   border-radius: 18px;
   overflow: hidden;
   background: linear-gradient(180deg, rgba(5, 10, 22, 0.96), rgba(4, 10, 20, 0.94));
-  box-shadow: 0 14px 44px rgba(2, 6, 23, 0.5), inset 0 0 0 1px rgba(37, 99, 235, 0.16);
+  box-shadow: 0 14px 44px rgba(2, 6, 23, 0.5);
 }
 
 .topbar {
@@ -140,24 +140,6 @@ a {
   gap: 16px;
 }
 
-.retro-shell {
-  position: relative;
-}
-
-.retro-shell::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    180deg,
-    rgba(148, 163, 184, 0.025) 0px,
-    rgba(148, 163, 184, 0.025) 1px,
-    transparent 2px,
-    transparent 4px
-  );
-}
-
 .glass {
   border: 1px solid var(--line);
   background: var(--panel);
@@ -251,7 +233,6 @@ h1 {
   font-size: 12px;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 .metric-value {
@@ -412,8 +393,7 @@ h1 {
   .metrics-grid,
   .widget-grid,
   .content-grid,
-  .hero,
-  .wallet-steps {
+  .hero {
     grid-template-columns: 1fr;
   }
 }

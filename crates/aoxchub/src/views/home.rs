@@ -33,14 +33,191 @@ struct HubSnapshot {
 
 #[component]
 pub fn Home() -> Element {
+    let kpis = [
+        ("Network TPS", "42,781", "+18.4%"),
+        ("Finality", "480ms", "-12.1%"),
+        ("24h Volume", "$1.28B", "+9.7%"),
+        ("Active Wallets", "892,114", "+6.2%"),
+    ];
+
+    let widgets = [
+        ("Node Sync", "99.998%", "All regions healthy"),
+        ("Smart Contract Calls", "18.2M/day", "EVM + WASM pipelines"),
+        ("IBC Packets", "2.4M", "Cross-chain finalized"),
+        ("Alert Queue", "03", "2 warning, 1 info"),
+        ("Treasury Balance", "94.2M AOXC", "Policy constrained"),
+        ("Governance Cycle", "Epoch 219", "Voting phase active"),
+    ];
+
+    let validators = [
+        ("Atlas One", "99.99%", "6.2M AOXC", "Europe"),
+        ("Cypher Labs", "99.97%", "5.8M AOXC", "North America"),
+        ("Delta Forge", "99.95%", "5.2M AOXC", "Asia"),
+        ("Boreal Node", "99.92%", "4.9M AOXC", "South America"),
+    ];
+
+    let activity = [
+        ("Bridge", "Ethereum → AOXC", "$12.4M", "2m ago"),
+        ("Swap", "AOXC / USDC", "$4.8M", "5m ago"),
+        ("Staking", "Validator delegation", "$7.1M", "9m ago"),
+        ("Mint", "Identity credential", "$1.2M", "13m ago"),
+    ];
+
     rsx! {
         div {
-            class: "hub-page retro-shell",
-            WalletSetupSection {}
-            OverviewSection {}
-            DashboardSection {}
-            OperationsSection {}
-            DomainSections {}
+            class: "hub-page",
+            section {
+                id: "wallet-setup",
+                class: "panel glass",
+                h2 { "Wallet Onboarding" }
+                p { class: "hero-sub", "İlk menü cüzdan oluşturma ile başlar: adres üretimi, yedekleme, fonlama ve politika bağlama adımları tek akışta yönetilir." }
+                div {
+                    class: "wallet-steps",
+                    for (index, title, detail) in wallet_steps {
+                        article {
+                            class: "wallet-step",
+                            span { class: "wallet-step-index", "{index}" }
+                            div {
+                                p { class: "wallet-step-title", "{title}" }
+                                p { class: "wallet-step-detail", "{detail}" }
+                            }
+                        }
+                    }
+                }
+            }
+
+            section {
+                id: "overview",
+                class: "hero glass",
+                div {
+                    class: "hero-copy",
+                    p { class: "eyebrow", "AOXC Real Network Operations" }
+                    h1 { "AOXCHub: entegre masaüstü paneli" }
+                    p {
+                        class: "hero-sub",
+                        "Header, sidebar, dashboard widget sistemi ve tüm operasyon menüleriyle AOXC zincir servislerine gerçek ağ uyumlu erişim sunar."
+                    }
+                    div {
+                        class: "hero-actions",
+                        button { class: "btn btn-primary", "Launch Mainnet Console" }
+                        button { class: "btn btn-ghost", "Open Integration Guide" }
+                    }
+                }
+                div {
+                    class: "hero-panel",
+                    h3 { "Live Network Status" }
+                    ul {
+                        li { span { "Consensus" } strong { "Healthy" } }
+                        li { span { "Bridge Relays" } strong { "Synchronized" } }
+                        li { span { "RPC Regions" } strong { "47 Online" } }
+                        li { span { "Governance Engine" } strong { "Running" } }
+                    }
+                }
+            }
+
+            section {
+                id: "dashboard",
+                class: "metrics-grid",
+                for (title, value, delta) in kpis {
+                    article {
+                        class: "metric-card glass",
+                        p { class: "metric-title", "{title}" }
+                        p { class: "metric-value", "{value}" }
+                        p { class: "metric-delta", "{delta}" }
+                    }
+                }
+            }
+
+            section {
+                class: "widget-grid",
+                for (title, value, note) in widgets {
+                    article {
+                        class: "widget-card glass",
+                        p { class: "widget-title", "{title}" }
+                        h3 { "{value}" }
+                        p { class: "widget-note", "{note}" }
+                    }
+                }
+            }
+
+            section {
+                class: "content-grid",
+                article {
+                    id: "validators",
+                    class: "panel glass",
+                    h2 { "Validator Matrix" }
+                    table {
+                        class: "hub-table",
+                        thead {
+                            tr {
+                                th { "Node" }
+                                th { "Uptime" }
+                                th { "Stake" }
+                                th { "Region" }
+                            }
+                        }
+                        tbody {
+                            for (node, uptime, stake, region) in validators {
+                                tr {
+                                    td { "{node}" }
+                                    td { "{uptime}" }
+                                    td { "{stake}" }
+                                    td { "{region}" }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                article {
+                    id: "rpc-monitor",
+                    class: "panel glass",
+                    h2 { "Operational Stream" }
+                    ul {
+                        class: "activity-list",
+                        for (kind, pair, amount, time) in activity {
+                            li {
+                                div {
+                                    p { class: "activity-kind", "{kind}" }
+                                    p { class: "activity-pair", "{pair}" }
+                                }
+                                div {
+                                    p { class: "activity-amount", "{amount}" }
+                                    p { class: "activity-time", "{time}" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            section {
+                id: "bridge",
+                class: "ecosystem glass",
+                h2 { "Bridge & Interop" }
+                p { "Native bridge policy, relayer health, and settlement routes are managed from this panel." }
+            }
+
+            section {
+                id: "governance",
+                class: "ecosystem glass",
+                h2 { "Governance" }
+                p { "Proposal pipeline, voting telemetry, and treasury execution are integrated with AOXC governance services." }
+            }
+
+            section {
+                id: "staking",
+                class: "ecosystem glass",
+                h2 { "Staking" }
+                p { "Delegation states, validator risk scores, and reward windows are streamed in near real-time." }
+            }
+
+            section {
+                id: "ecosystem",
+                class: "ecosystem glass",
+                h2 { "Ecosystem Overview" }
+                p { "AOX Hub connects monitoring, staking, bridge operations, observability pipelines, and governance automation in one desktop frame." }
+            }
         }
     }
 }
