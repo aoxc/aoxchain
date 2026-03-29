@@ -38,6 +38,24 @@ pub fn DashboardSection() -> Element {
         ("Governance Cycle", "Epoch 219", "Voting phase active"),
     ];
 
+    let release_tracks = [
+        (
+            "Mainnet",
+            "Release Candidate 2026.03.29",
+            "All readiness gates passed with full deterministic coverage.",
+        ),
+        (
+            "Testnet",
+            "Canary Build 2026.03.29",
+            "Chaos profile enabled with latency and gossip stress controls.",
+        ),
+        (
+            "Dev",
+            "Nightly Build 2026.03.29",
+            "Protocol experiments and schema migration rehearsals are active.",
+        ),
+    ];
+
     rsx! {
         section {
             class: "hero glass dashboard-hero",
@@ -100,6 +118,18 @@ pub fn DashboardSection() -> Element {
                     p { class: "widget-title", "{title}" }
                     h3 { "{value}" }
                     p { class: "widget-note", "{note}" }
+                }
+            }
+        }
+
+        section {
+            class: "release-grid",
+            for (track, version, detail) in release_tracks {
+                article {
+                    class: "release-card glass",
+                    p { class: "widget-title", "{track}" }
+                    h3 { "{version}" }
+                    p { class: "widget-note", "{detail}" }
                 }
             }
         }

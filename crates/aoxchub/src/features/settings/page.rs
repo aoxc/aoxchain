@@ -15,6 +15,18 @@ pub fn SettingsSection() -> Element {
         ("Notification Mode", "Desktop + In-app"),
     ];
 
+    let hardening = [
+        ("Transport", "TLS pin set, certificate rollover monitored."),
+        (
+            "Secrets",
+            "Operator key scope is redacted in desktop telemetry.",
+        ),
+        (
+            "Automation",
+            "Release gate requires build + integration + smoke pass.",
+        ),
+    ];
+
     rsx! {
         section {
             class: "content-grid",
@@ -52,6 +64,26 @@ pub fn SettingsSection() -> Element {
                             div {
                                 p { class: "activity-amount", "Applied" }
                                 p { class: "activity-time", "Live" }
+                            }
+                        }
+                    }
+                }
+            }
+
+            article {
+                class: "panel glass",
+                h2 { "Security Hardening" }
+                ul {
+                    class: "activity-list",
+                    for (name, value) in hardening {
+                        li {
+                            div {
+                                p { class: "activity-kind", "{name}" }
+                                p { class: "activity-pair", "{value}" }
+                            }
+                            div {
+                                p { class: "activity-amount", "Enforced" }
+                                p { class: "activity-time", "Continuous" }
                             }
                         }
                     }
