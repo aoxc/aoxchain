@@ -49,12 +49,20 @@ fn build_passport_inspection_output(file: &str) -> Result<PassportInspectionOutp
 
     Ok(PassportInspectionOutput {
         fingerprint: passport.fingerprint(),
-        expired: passport.is_expired(passport.expires_at.saturating_add(1)),
+        expired: passport.is_expired(current_unix_timestamp()),
         passport,
     })
 }
 
 /// Loads a passport from disk and decodes it from JSON.
+
+fn current_unix_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
+}
+
 fn load_passport_from_file(file: &str) -> Result<Passport, String> {
     let normalized_file = normalize_required_text(file, "file")?;
     let data = read_text_file(&normalized_file)?;

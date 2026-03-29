@@ -117,11 +117,21 @@ pub enum KeySubcommand {
         /// Operational guidance:
         /// prefer `--password-file` in automated or auditable environments
         /// to reduce shell history exposure.
-        #[arg(long, value_parser = non_empty_trimmed_arg, conflicts_with = "password_file")]
+        #[arg(
+            long,
+            value_parser = non_empty_trimmed_arg,
+            conflicts_with = "password_file",
+            required_unless_present = "password_file"
+        )]
         password: Option<String>,
 
         /// Path to a file that contains the encryption password.
-        #[arg(long, value_parser = non_empty_trimmed_arg, conflicts_with = "password")]
+        #[arg(
+            long,
+            value_parser = non_empty_trimmed_arg,
+            conflicts_with = "password",
+            required_unless_present = "password"
+        )]
         password_file: Option<String>,
 
         /// Replaces an existing output file.

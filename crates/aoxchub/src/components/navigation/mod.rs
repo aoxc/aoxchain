@@ -4,6 +4,66 @@ use crate::i18n::Language;
 use crate::route::Route;
 use crate::services::network_profile::resolve_profile;
 
+#[derive(Clone, PartialEq)]
+struct NavItem {
+    label: &'static str,
+    route: Route,
+    badge: &'static str,
+}
+
+const NAV_ITEMS: [NavItem; 10] = [
+    NavItem {
+        label: "Overview",
+        route: Route::Overview {},
+        badge: "Chain",
+    },
+    NavItem {
+        label: "Consensus",
+        route: Route::Consensus {},
+        badge: "Core",
+    },
+    NavItem {
+        label: "Validators & Staking",
+        route: Route::ValidatorsStaking {},
+        badge: "Security",
+    },
+    NavItem {
+        label: "Execution Lanes",
+        route: Route::ExecutionLanes {},
+        badge: "Runtime",
+    },
+    NavItem {
+        label: "Explorer",
+        route: Route::Explorer {},
+        badge: "Inspection",
+    },
+    NavItem {
+        label: "Wallet & Treasury",
+        route: Route::WalletTreasury {},
+        badge: "Custody",
+    },
+    NavItem {
+        label: "Nodes & Infrastructure",
+        route: Route::NodesInfrastructure {},
+        badge: "Ops",
+    },
+    NavItem {
+        label: "Telemetry & Audit",
+        route: Route::TelemetryAudit {},
+        badge: "Evidence",
+    },
+    NavItem {
+        label: "Governance & Control",
+        route: Route::GovernanceControl {},
+        badge: "Policy",
+    },
+    NavItem {
+        label: "Settings & Security",
+        route: Route::SettingsSecurity {},
+        badge: "Boundary",
+    },
+];
+
 #[component]
 pub fn Header() -> Element {
     let language = match std::env::var("AOXCHUB_LANG").ok().as_deref() {
@@ -11,21 +71,21 @@ pub fn Header() -> Element {
         _ => Language::EN,
     };
     let language_label = match language {
-        Language::TR => "Language: TR",
-        Language::EN => "Language: EN",
+        Language::TR => "TR",
+        Language::EN => "EN",
     };
     let profile = resolve_profile();
 
     rsx! {
-        header { class: "flex items-center justify-between border-b border-white/10 bg-[#060a13]/90 px-6 py-4 backdrop-blur-md",
+        header { class: "aox-header",
             div {
-                p { class: "text-xs uppercase tracking-[0.2em] text-blue-300", "AOXCHUB" }
-                h1 { class: "text-lg font-semibold text-white", "Protocol + Operations + Audit" }
+                p { class: "aox-kicker", "AOXC Integrated Control Surface" }
+                h1 { class: "aox-title", "Production Chain Interface" }
             }
-            div { class: "flex items-center gap-3 text-xs",
-                span { class: "rounded-full bg-emerald-500/20 px-3 py-1 text-emerald-300 border border-emerald-400/30", "Desktop Role: Control Plane" }
-                span { class: "rounded-full bg-blue-500/20 px-3 py-1 text-blue-200 border border-blue-400/30", "Profile: {profile.title()}" }
-                span { class: "rounded-full bg-violet-500/20 px-3 py-1 text-violet-200 border border-violet-400/30", "{language_label}" }
+            div { class: "aox-chip-row",
+                span { class: "aox-chip", "Profile: {profile.title()}" }
+                span { class: "aox-chip", "Language: {language_label}" }
+                span { class: "aox-chip aox-chip--good", "Boundary: Fail-Closed" }
             }
         }
     }
@@ -34,41 +94,54 @@ pub fn Header() -> Element {
 #[component]
 pub fn Sidebar() -> Element {
     rsx! {
-        aside { class: "w-72 border-r border-white/10 bg-[#04070d]/95 p-6 backdrop-blur-xl overflow-y-auto",
-            div { class: "mb-8",
-                h2 { class: "text-xl font-black tracking-tight text-white", "AOXCHAIN" }
-                p { class: "text-xs uppercase tracking-[0.2em] text-blue-300", "Desktop Control Plane" }
+        aside { class: "aox-sidebar",
+            div { class: "aox-brand",
+                p { class: "aox-kicker", "AOXCHAIN" }
+                h2 { "Unified User / Dev / Validator Plane" }
             }
 
-            nav { class: "space-y-2",
-                SidebarLink { to: Route::Overview {}, label: "Overview" }
-                SidebarLink { to: Route::Consensus {}, label: "Consensus" }
-                SidebarLink { to: Route::ValidatorsStaking {}, label: "Validators & Staking" }
-                SidebarLink { to: Route::ExecutionLanes {}, label: "Execution Lanes" }
-                SidebarLink { to: Route::Explorer {}, label: "Explorer" }
-                SidebarLink { to: Route::WalletTreasury {}, label: "Wallet & Treasury" }
-                SidebarLink { to: Route::NodesInfrastructure {}, label: "Nodes & Infrastructure" }
-                SidebarLink { to: Route::TelemetryAudit {}, label: "Telemetry & Audit" }
-                SidebarLink { to: Route::GovernanceControl {}, label: "Governance & Control" }
-                SidebarLink { to: Route::SettingsSecurity {}, label: "Settings & Security" }
+            nav { class: "aox-nav",
+                for item in NAV_ITEMS {
+                    Link {
+                        to: item.route,
+                        class: "aox-nav-link",
+                        span { "{item.label}" }
+                        strong { "{item.badge}" }
+                    }
+                }
             }
 
-            div { class: "mt-8 rounded-2xl border border-white/10 bg-white/5 p-4",
-                p { class: "text-xs uppercase tracking-wide text-slate-400", "Boundary Rule" }
-                p { class: "mt-1 text-sm text-slate-200", "UI never bypasses kernel authority." }
-                p { class: "text-xs text-slate-400", "Read model + signed intent + audit log" }
+            div { class: "aox-security-box",
+                p { class: "aox-kicker", "Security Posture" }
+                p { "Wallet approvals, governance intents, and node operations are constrained behind explicit policy boundaries." }
             }
         }
     }
 }
 
 #[component]
-fn SidebarLink(to: Route, label: &'static str) -> Element {
+pub fn RightOperationsPanel() -> Element {
     rsx! {
-        Link {
-            to,
-            class: "block rounded-xl border border-transparent px-3 py-2 text-sm text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-white",
-            "{label}"
+        aside { class: "aox-right-panel",
+            section { class: "aox-right-card",
+                p { class: "aox-kicker", "Wallet Approval Queue" }
+                h3 { "Pending signature review" }
+                ul {
+                    li { "Transfer Intent • Dry-run verified" }
+                    li { "Treasury Policy Update • Waiting multisig" }
+                    li { "Validator Rotation • Governance checkpoint" }
+                }
+            }
+
+            section { class: "aox-right-card",
+                p { class: "aox-kicker", "Node Operations" }
+                h3 { "Live validator controls" }
+                ul {
+                    li { "Health probes: healthy" }
+                    li { "Snapshot service: synchronized" }
+                    li { "Upgrade channel: locked to signed manifests" }
+                }
+            }
         }
     }
 }
