@@ -49,6 +49,7 @@ pub enum Route {
 
 #[component]
 fn Landing() -> Element {
+    let _integration_checklist = INTEGRATION_CHECKLIST;
     rsx! { OverviewSection {} }
 }
 

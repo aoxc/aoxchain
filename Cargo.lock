@@ -184,6 +184,7 @@ dependencies = [
 name = "aoxchub"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "dioxus",
  "reqwest 0.13.2",
  "serde",
