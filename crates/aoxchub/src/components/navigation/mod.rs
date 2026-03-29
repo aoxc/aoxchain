@@ -155,15 +155,15 @@ pub fn Header() -> Element {
     rsx! {
         header { class: "aox-header",
             div { class: "aox-header-copy",
-                p { class: "aox-kicker", "AOXCHAIN OPERATIONS LEDGER" }
-                h1 { class: "aox-title", "Defter Kalitesinde Operasyon Merkezi" }
-                p { class: "aox-header-subtitle", "Zincir yönetimi, validator süreçleri ve güvenlik kontrolleri için rafine ve denetlenebilir masaüstü deneyimi." }
+                p { class: "aox-kicker", "AOXCHAIN ORBITAL CONSOLE" }
+                h1 { class: "aox-title", "Unified Production Operations" }
+                p { class: "aox-header-subtitle", "Mainnet-grade desktop cockpit for validator, treasury, and governance workflows." }
             }
 
             div { class: "aox-chip-row",
                 span { class: "aox-chip", "Profile: {profile.title()}" }
                 span { class: "aox-chip", "Language: {language_label(language)}" }
-                span { class: "aox-chip aox-chip--good", "Audit Mode: Active" }
+                span { class: "aox-chip aox-chip--good", "Integrity: Enforced" }
             }
         }
     }
@@ -174,9 +174,9 @@ pub fn Sidebar() -> Element {
     rsx! {
         aside { class: "aox-sidebar",
             div { class: "aox-brand",
-                p { class: "aox-kicker", "AOXCHAIN CONTROL LEDGER" }
-                h2 { "AOXCHUB Notebook" }
-                p { class: "aox-brand-subtitle", "Sadece arayüz değil; ritmi, katmanı ve operasyon ruhu olan üretim seviyesi kontrol defteri." }
+                p { class: "aox-kicker", "AOXCHAIN CONTROL PLANE" }
+                h2 { "AOXCHUB Desktop" }
+                p { class: "aox-brand-subtitle", "Production operator experience redesigned for full-flow execution visibility." }
             }
 
             nav { class: "aox-nav",
@@ -193,7 +193,7 @@ pub fn Sidebar() -> Element {
             div { class: "aox-security-box",
                 p { class: "aox-kicker", "Security Baseline" }
                 p {
-                    "Wallet, governance ve node işlemleri; imza, politika ve denetim sınırları altında yürütülür."
+                    "All wallet, governance, and node actions remain policy-gated, auditable, and signer-approved."
                 }
             }
         }
