@@ -169,12 +169,8 @@ pub fn HeaderBar() -> Element {
                                         let action = item.action.clone();
                                         move |_| {
                                             match action.clone() {
-                                                CommandAction::Route(route) => {
-                                                    let _ = navigator.push(route);
-                                                }
-                                                CommandAction::Anchor(anchor) => {
-                                                    scroll_to_anchor(anchor);
-                                                }
+                                                CommandAction::Route(route) => navigator.push(route),
+                                                CommandAction::Anchor(anchor) => scroll_to_anchor(anchor),
                                             }
                                             palette_open.set(false);
                                         }

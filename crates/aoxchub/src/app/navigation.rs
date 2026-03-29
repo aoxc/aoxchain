@@ -1,3 +1,5 @@
+use dioxus::prelude::*;
+
 pub fn scroll_to_anchor(anchor: &str) {
     let section_id = anchor.trim_start_matches('#');
     let script = format!(
