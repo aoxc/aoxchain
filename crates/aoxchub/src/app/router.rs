@@ -7,10 +7,35 @@ use crate::features::operations::page::OperationsSection;
 use crate::features::settings::page::SettingsSection;
 use crate::features::wallet::page::WalletSetupSection;
 
+pub const INTEGRATION_CHECKLIST: [(&str, &str); 5] = [
+    (
+        "Network profile isolation",
+        "Route and endpoint state preserve strict Dev / Testnet / Mainnet boundaries.",
+    ),
+    (
+        "RPC compatibility handshake",
+        "Startup checks validate RPC version, chain id, and genesis hash alignment.",
+    ),
+    (
+        "Wallet security",
+        "Signing operations remain gated by desktop session policy and key-scope rules.",
+    ),
+    (
+        "Observability readiness",
+        "Health panels publish telemetry, logs, and validator risk summaries for operators.",
+    ),
+    (
+        "Release gate",
+        "Build checks and smoke validation must pass before Mainnet promotion.",
+    ),
+];
+
 #[derive(Routable, Clone, PartialEq)]
 pub enum Route {
     #[layout(AppLayout)]
     #[route("/")]
+    Home {},
+    #[route("/dashboard")]
     Dashboard {},
     #[route("/wallet")]
     Wallet {},
@@ -20,6 +45,11 @@ pub enum Route {
     Overview {},
     #[route("/settings")]
     Settings {},
+}
+
+#[component]
+fn Home() -> Element {
+    rsx! { DashboardSection {} }
 }
 
 #[component]

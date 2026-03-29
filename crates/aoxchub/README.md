@@ -54,3 +54,12 @@ The Operations route now includes a production-oriented integration matrix for:
 
 This keeps AOXC Hub usable as a single visual command reference while deeper backend adapters continue to mature.
 
+
+## Navigation Baseline (Production-Oriented)
+
+AOXC Hub now uses a two-level menu model so operators can move fast without losing route context:
+
+- **5 route menus:** Dashboard, Wallet, Operations, Overview, Settings.
+- **9 quick-anchor menus:** Integration checklist, wallet setup, overview, dashboard metrics, validator matrix, bridge, governance, staking, ecosystem.
+
+This structure keeps top-level navigation stable while preserving deep-link access to operational panels.
