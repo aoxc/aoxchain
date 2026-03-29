@@ -13,7 +13,7 @@ pub fn HeaderBar() -> Element {
 
                 Link {
                     class: "header-home-link",
-                    to: Route::Home {},
+                    to: Route::Landing {},
                     "AOXC Hub Control Center"
                 }
             }
