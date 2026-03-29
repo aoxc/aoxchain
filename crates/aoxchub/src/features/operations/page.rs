@@ -27,6 +27,7 @@ struct CommandEntry {
 enum CommandPanel {
     Make,
     Cli,
+    Runtime,
 }
 
 #[component]
@@ -134,10 +135,38 @@ pub fn OperationsSection() -> Element {
         },
     ];
 
-    let active_commands = if panel() == CommandPanel::Make {
-        &make_commands[..]
-    } else {
-        &cli_commands[..]
+    let runtime_commands = [
+        CommandEntry {
+            command: "aoxc treasury status --vault main",
+            target: "Treasury controls",
+            outcome: "Shows budget windows and multi-signature quorum state",
+        },
+        CommandEntry {
+            command: "aoxc staking validators --top 20",
+            target: "Staking",
+            outcome: "Lists validator APR, commission, and slashing risk score",
+        },
+        CommandEntry {
+            command: "aoxc token supply --symbol AOXC",
+            target: "Token administration",
+            outcome: "Provides circulating, locked, and treasury-held balances",
+        },
+        CommandEntry {
+            command: "aoxc nft collections --owner treasury",
+            target: "NFT administration",
+            outcome: "Returns collection health, royalty policy, and mint windows",
+        },
+        CommandEntry {
+            command: "aoxc node peers --extended",
+            target: "Node fleet",
+            outcome: "Outputs peer geography, latency classes, and failover routes",
+        },
+    ];
+
+    let active_commands = match panel() {
+        CommandPanel::Make => &make_commands[..],
+        CommandPanel::Cli => &cli_commands[..],
+        CommandPanel::Runtime => &runtime_commands[..],
     };
 
     let query_lc = query().to_lowercase();
@@ -216,7 +245,8 @@ pub fn OperationsSection() -> Element {
 
             article {
                 class: "panel glass",
-                h2 { "Command Center" }
+                h2 { "Interactive Command Center" }
+                p { class: "hero-sub", "Use Make, CLI, and runtime command catalogs to operate chain, wallet, treasury, staking, token, and NFT flows from one operator panel." }
                 div { class: "hero-actions",
                     button {
                         class: "btn btn-primary",
@@ -227,6 +257,11 @@ pub fn OperationsSection() -> Element {
                         class: "btn btn-ghost",
                         onclick: move |_| panel.set(CommandPanel::Cli),
                         "CLI Commands"
+                    }
+                    button {
+                        class: "btn btn-ghost",
+                        onclick: move |_| panel.set(CommandPanel::Runtime),
+                        "Runtime Commands"
                     }
                     input {
                         class: "wallet-input",

@@ -57,19 +57,59 @@ pub fn WalletSetupSection() -> Element {
         ),
     ];
 
+    let wallet_books = [
+        (
+            "Treasury Wallet",
+            "aoxc1treasury...",
+            "96.4M AOXC",
+            "Multi-sig",
+        ),
+        (
+            "Staking Rewards Vault",
+            "aoxc1staking...",
+            "12.8M AOXC",
+            "Policy lock",
+        ),
+        (
+            "NFT Royalty Sink",
+            "aoxc1nftroy...",
+            "2.7M AOXC",
+            "Automated",
+        ),
+    ];
+
+    let token_and_nft_controls = [
+        (
+            "Token mint policy",
+            "Mint controls are bound to governance-approved binary hashes.",
+        ),
+        (
+            "Treasury spending",
+            "Budget releases require quorum proof and signature threshold checks.",
+        ),
+        (
+            "NFT collection gate",
+            "Collection creation enforces metadata schema and royalty floor.",
+        ),
+        (
+            "Cross-chain wallet relay",
+            "Outbound transfers validate bridge risk score before final signing.",
+        ),
+    ];
+
     rsx! {
         section {
             id: "wallet-setup",
             class: "panel glass",
-            h2 { "Wallet Onboarding" }
-            p { class: "hero-sub", "İlk menü cüzdan oluşturma ile başlar: adres üretimi, yedekleme, fonlama ve politika bağlama adımları tek akışta yönetilir." }
+            h2 { "Wallet and Treasury Administration" }
+            p { class: "hero-sub", "The wallet workspace covers address generation, treasury custody, staking funding paths, token/NFT controls, and policy-bound signing." }
 
             article {
                 class: "wallet-generator",
                 h3 { "Quick Address Generator" }
                 p {
                     class: "wallet-generator-note",
-                    "This panel generates deterministic operator-format addresses for real workflow rehearsal and policy verification."
+                    "This panel generates deterministic operator-format addresses for workflow rehearsal and policy verification."
                 }
                 div {
                     class: "wallet-generator-row",
@@ -121,6 +161,52 @@ pub fn WalletSetupSection() -> Element {
                         div {
                             p { class: "wallet-step-title", "{title}" }
                             p { class: "wallet-step-detail", "{detail}" }
+                        }
+                    }
+                }
+            }
+
+            article {
+                class: "panel glass",
+                h3 { "Treasury and Staking Wallet Book" }
+                table {
+                    class: "hub-table integration-table",
+                    thead {
+                        tr {
+                            th { "Wallet" }
+                            th { "Address" }
+                            th { "Balance" }
+                            th { "Control" }
+                        }
+                    }
+                    tbody {
+                        for (name, address, balance, control) in wallet_books {
+                            tr {
+                                td { "{name}" }
+                                td { class: "mono-line", "{address}" }
+                                td { "{balance}" }
+                                td { "{control}" }
+                            }
+                        }
+                    }
+                }
+            }
+
+            article {
+                class: "wallet-policy panel glass",
+                h3 { "Token and NFT Control Checklist" }
+                ul {
+                    class: "activity-list",
+                    for (name, detail) in token_and_nft_controls {
+                        li {
+                            div {
+                                p { class: "activity-kind", "{name}" }
+                                p { class: "activity-pair", "{detail}" }
+                            }
+                            div {
+                                p { class: "activity-amount", "Enforced" }
+                                p { class: "activity-time", "Live" }
+                            }
                         }
                     }
                 }

@@ -34,7 +34,7 @@ pub const INTEGRATION_CHECKLIST: [(&str, &str); 5] = [
 pub enum Route {
     #[layout(AppLayout)]
     #[route("/")]
-    Home {},
+    Landing {},
     #[route("/dashboard")]
     Dashboard {},
     #[route("/wallet")]
@@ -48,8 +48,8 @@ pub enum Route {
 }
 
 #[component]
-fn Home() -> Element {
-    rsx! { DashboardSection {} }
+fn Landing() -> Element {
+    rsx! { OverviewSection {} }
 }
 
 #[component]
