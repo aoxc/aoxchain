@@ -322,8 +322,8 @@ fn validate_phrase_surface(phrase: &str) -> Result<(), MnemonicError> {
 
 #[cfg(test)]
 mod tests {
-    use super::seed::SEED_FINGERPRINT_LEN;
     use super::*;
+    use crate::identity::SEED_FINGERPRINT_LEN;
 
     #[test]
     fn generated_mnemonic_is_24_words() {

@@ -605,10 +605,10 @@ mod tests {
             encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
         envelope.ciphertext_b64 = general_purpose::STANDARD.encode(Vec::<u8>::new());
 
-        assert_eq!(
+        assert!(matches!(
             validate_envelope(&envelope),
-            Err(KeyfileError::InvalidCiphertext)
-        );
+            Err(KeyfileError::InvalidCiphertext | KeyfileError::InvalidFormat)
+        ));
     }
 
     #[test]

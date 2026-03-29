@@ -20,7 +20,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::asset::SupplyModel;
-use crate::receipts::{Event, Receipt, ReceiptError, HASH_SIZE};
+use crate::receipts::{Event, HASH_SIZE, Receipt, ReceiptError};
 
 /// Native AOXC token symbol.
 pub const NATIVE_TOKEN_SYMBOL: &str = "AOXC";
@@ -679,6 +679,7 @@ pub fn compute_quantum_transfer_digest(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::mem::size_of;
 
     fn addr(byte: u8) -> Address {
         [byte; 32]
@@ -714,8 +715,7 @@ mod tests {
 
     #[test]
     fn mint_updates_supply_and_balance() {
-        let mut ledger =
-            NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
 
         ledger.mint(addr(1), 100).unwrap();
 
@@ -726,8 +726,7 @@ mod tests {
 
     #[test]
     fn transfer_moves_balance_without_changing_supply() {
-        let mut ledger =
-            NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
         ledger.mint(addr(1), 100).unwrap();
 
         ledger.transfer(addr(1), addr(2), 30).unwrap();
@@ -739,8 +738,7 @@ mod tests {
 
     #[test]
     fn transfer_fails_when_balance_is_insufficient() {
-        let mut ledger =
-            NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
         ledger.mint(addr(1), 10).unwrap();
 
         let err = ledger.transfer(addr(1), addr(2), 11).unwrap_err();
@@ -749,10 +747,11 @@ mod tests {
 
     #[test]
     fn receipts_emit_expected_events_and_codes() {
-        let ledger =
-            NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        let ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
 
-        let mint_receipt = ledger.mint_receipt([7; HASH_SIZE], addr(9), 42, 21).unwrap();
+        let mint_receipt = ledger
+            .mint_receipt([7; HASH_SIZE], addr(9), 42, 21)
+            .unwrap();
         assert!(mint_receipt.success);
         assert_eq!(mint_receipt.events.len(), 1);
         assert_eq!(mint_receipt.events[0].event_type, EVENT_NATIVE_MINT);
@@ -771,7 +770,7 @@ mod tests {
     #[test]
     fn mint_is_rejected_when_supply_model_disables_mint() {
         let mut ledger = NativeTokenLedger::new(NativeTokenPolicy {
-            supply_model: SupplyModel::MintDisabled,
+            supply_model: SupplyModel::FixedGenesis,
             ..NativeTokenPolicy::default()
         })
         .unwrap();
@@ -801,8 +800,7 @@ mod tests {
 
     #[test]
     fn quantum_transfer_rejects_empty_proof_tag() {
-        let mut ledger =
-            NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
         ledger.mint(addr(1), 1_000).unwrap();
 
         let error = ledger
@@ -814,8 +812,7 @@ mod tests {
 
     #[test]
     fn quantum_transfer_rejects_replay_and_nonce_regression() {
-        let mut ledger =
-            NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
         ledger.mint(addr(1), 1_000).unwrap();
 
         ledger
@@ -835,8 +832,7 @@ mod tests {
 
     #[test]
     fn quantum_transfer_rejects_duplicate_commitment_even_if_nonce_path_is_bypassed() {
-        let mut ledger =
-            NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
         ledger.mint(addr(1), 1_000).unwrap();
 
         let digest = ledger.quantum_transfer_digest(addr(1), addr(2), 100, 9, b"proof");
@@ -851,8 +847,7 @@ mod tests {
 
     #[test]
     fn quantum_transfer_updates_nonce_and_commitment_store() {
-        let mut ledger =
-            NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
         ledger.mint(addr(1), 500).unwrap();
 
         let digest = ledger.quantum_transfer_digest(addr(1), addr(2), 50, 3, b"proof");
@@ -867,17 +862,31 @@ mod tests {
 
     #[test]
     fn quantum_transfer_event_encoding_contains_expected_layout() {
+        let from = addr(1);
+        let to = addr(2);
+        let amount = 77u128;
+        let nonce = 9u64;
         let payload = encode_quantum_transfer_event_v1(
             "AOXC/NATIVE_TOKEN/TESTNET/V1",
-            addr(1),
-            addr(2),
-            77,
-            9,
+            from,
+            to,
+            amount,
+            nonce,
             b"proof",
         );
 
+        let expected_len = 1
+            + size_of::<Address>()
+            + size_of::<Address>()
+            + size_of::<u128>()
+            + size_of::<u64>()
+            + HASH_SIZE;
         assert_eq!(payload[0], NATIVE_TOKEN_QUANTUM_EVENT_VERSION);
-        assert_eq!(payload.len(), 89);
+        assert_eq!(payload.len(), expected_len);
+        assert_eq!(&payload[1..33], &from);
+        assert_eq!(&payload[33..65], &to);
+        assert_eq!(&payload[65..81], &amount.to_le_bytes());
+        assert_eq!(&payload[81..89], &nonce.to_le_bytes());
     }
 
     #[test]
@@ -904,8 +913,7 @@ mod tests {
 
     #[test]
     fn quantum_receipt_is_constructed_successfully() {
-        let ledger =
-            NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        let ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
 
         let receipt = ledger
             .transfer_quantum_receipt([9; HASH_SIZE], addr(1), addr(2), 55, 4, b"proof", 88)
@@ -917,6 +925,13 @@ mod tests {
             receipt.events[0].event_type,
             EVENT_NATIVE_TRANSFER_QUANTUM_V1
         );
-        assert_eq!(receipt.events[0].data.len(), 89);
+        assert_eq!(
+            receipt.events[0].data.len(),
+            1 + size_of::<Address>()
+                + size_of::<Address>()
+                + size_of::<u128>()
+                + size_of::<u64>()
+                + HASH_SIZE
+        );
     }
 }

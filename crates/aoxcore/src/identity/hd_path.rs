@@ -324,7 +324,7 @@ fn validate_variable_component(value: u32) -> Result<(), HdPathError> {
 mod tests {
     use super::*;
     use rand::rngs::StdRng;
-    use rand::{RngCore, SeedableRng};
+    use rand::{RngExt, SeedableRng};
 
     #[test]
     fn hd_path_creation() {
@@ -487,10 +487,10 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0xA0C0_2026_u64);
 
         for _ in 0..2_000 {
-            let chain = rng.next_u32() & MAX_HD_INDEX;
-            let role = rng.next_u32() & MAX_HD_INDEX;
-            let zone = rng.next_u32() & MAX_HD_INDEX;
-            let index = rng.next_u32() & MAX_HD_INDEX;
+            let chain = rng.random::<u32>() & MAX_HD_INDEX;
+            let role = rng.random::<u32>() & MAX_HD_INDEX;
+            let zone = rng.random::<u32>() & MAX_HD_INDEX;
+            let index = rng.random::<u32>() & MAX_HD_INDEX;
 
             let original = HdPath::new(chain, role, zone, index).unwrap();
             let serialized = original.to_string();

@@ -24,7 +24,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use super::hash::{compute_hash, HASH_SIZE};
+use super::hash::{HASH_SIZE, compute_hash};
 use super::{Block, BlockError, BlockType, TargetOutpost, Task};
 
 /// Canonical format version for block assembly commitments.
@@ -173,7 +173,11 @@ impl fmt::Display for AssemblyError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BlockTypeNotAssemblable { found } => {
-                write!(f, "block type {:?} is not eligible for canonical assembly", found)
+                write!(
+                    f,
+                    "block type {:?} is not eligible for canonical assembly",
+                    found
+                )
             }
             Self::EmptyTaskSet => write!(f, "canonical assembly requires at least one task"),
             Self::TaskCountOverflow { count } => {
@@ -219,11 +223,10 @@ impl CanonicalBlockAssemblyPlan {
             return Err(AssemblyError::EmptyTaskSet);
         }
 
-        let task_count = u32::try_from(block.tasks.len()).map_err(|_| {
-            AssemblyError::TaskCountOverflow {
+        let task_count =
+            u32::try_from(block.tasks.len()).map_err(|_| AssemblyError::TaskCountOverflow {
                 count: block.tasks.len(),
-            }
-        })?;
+            })?;
 
         let total_payload_bytes_usize = block.total_payload_bytes();
         let total_payload_bytes = u32::try_from(total_payload_bytes_usize).map_err(|_| {
@@ -268,27 +271,24 @@ pub fn build_lane_commitments(
     let mut commitments = Vec::with_capacity(lanes.len());
 
     for (lane, lane_tasks) in lanes {
-        let task_count = u32::try_from(lane_tasks.len()).map_err(|_| {
-            AssemblyError::TaskCountOverflow {
+        let task_count =
+            u32::try_from(lane_tasks.len()).map_err(|_| AssemblyError::TaskCountOverflow {
                 count: lane_tasks.len(),
-            }
-        })?;
+            })?;
 
         let mut total_payload_bytes_usize = 0usize;
         for (_, task) in &lane_tasks {
-            total_payload_bytes_usize = total_payload_bytes_usize
-                .checked_add(task.payload_len())
-                .ok_or(AssemblyError::PayloadLengthOverflow {
-                    size: usize::MAX,
-                })?;
+            total_payload_bytes_usize =
+                total_payload_bytes_usize
+                    .checked_add(task.payload_len())
+                    .ok_or(AssemblyError::PayloadLengthOverflow { size: usize::MAX })?;
         }
 
-        let total_payload_bytes =
-            u32::try_from(total_payload_bytes_usize).map_err(|_| {
-                AssemblyError::PayloadLengthOverflow {
-                    size: total_payload_bytes_usize,
-                }
-            })?;
+        let total_payload_bytes = u32::try_from(total_payload_bytes_usize).map_err(|_| {
+            AssemblyError::PayloadLengthOverflow {
+                size: total_payload_bytes_usize,
+            }
+        })?;
 
         let lane_root = derive_lane_root(lane, &lane_tasks)?;
 
@@ -325,11 +325,10 @@ fn derive_lane_root(
     bytes.push(ASSEMBLY_FORMAT_VERSION);
     bytes.extend_from_slice(&lane.code().to_le_bytes());
 
-    let lane_task_count = u32::try_from(lane_tasks.len()).map_err(|_| {
-        AssemblyError::TaskCountOverflow {
+    let lane_task_count =
+        u32::try_from(lane_tasks.len()).map_err(|_| AssemblyError::TaskCountOverflow {
             count: lane_tasks.len(),
-        }
-    })?;
+        })?;
     bytes.extend_from_slice(&lane_task_count.to_le_bytes());
 
     for (index, task) in lane_tasks {
@@ -340,9 +339,8 @@ fn derive_lane_root(
                 source,
             })?;
 
-        let ordinal = u32::try_from(*index).map_err(|_| AssemblyError::TaskCountOverflow {
-            count: *index,
-        })?;
+        let ordinal = u32::try_from(*index)
+            .map_err(|_| AssemblyError::TaskCountOverflow { count: *index })?;
 
         let payload_len = u32::try_from(task.payload_len()).map_err(|_| {
             AssemblyError::PayloadLengthOverflow {
@@ -376,25 +374,22 @@ pub fn derive_execution_root(
     block: &Block,
     lane_commitments: &[AssemblyLaneCommitment],
 ) -> Result<[u8; HASH_SIZE], AssemblyError> {
-    let task_count = u32::try_from(block.tasks.len()).map_err(|_| {
-        AssemblyError::TaskCountOverflow {
+    let task_count =
+        u32::try_from(block.tasks.len()).map_err(|_| AssemblyError::TaskCountOverflow {
             count: block.tasks.len(),
-        }
-    })?;
-
-    let total_payload_bytes_usize = block.total_payload_bytes();
-    let total_payload_bytes =
-        u32::try_from(total_payload_bytes_usize).map_err(|_| {
-            AssemblyError::PayloadLengthOverflow {
-                size: total_payload_bytes_usize,
-            }
         })?;
 
-    let lane_count = u32::try_from(lane_commitments.len()).map_err(|_| {
-        AssemblyError::TaskCountOverflow {
-            count: lane_commitments.len(),
+    let total_payload_bytes_usize = block.total_payload_bytes();
+    let total_payload_bytes = u32::try_from(total_payload_bytes_usize).map_err(|_| {
+        AssemblyError::PayloadLengthOverflow {
+            size: total_payload_bytes_usize,
         }
     })?;
+
+    let lane_count =
+        u32::try_from(lane_commitments.len()).map_err(|_| AssemblyError::TaskCountOverflow {
+            count: lane_commitments.len(),
+        })?;
 
     let mut bytes = Vec::new();
     bytes.extend_from_slice(EXECUTION_ROOT_DOMAIN);
@@ -421,7 +416,7 @@ pub fn derive_execution_root(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block::{Capability, TargetOutpost, Task};
+    use crate::block::{Capability, TargetOutpost, Task, ZERO_HASH};
 
     fn bytes32(v: u8) -> [u8; 32] {
         [v; 32]
@@ -539,12 +534,10 @@ mod tests {
         let task_a = task(1, TargetOutpost::AovmNative, 10);
         let task_b = task(1, TargetOutpost::AovmNative, 11);
 
-        let root_a = build_lane_commitments(&[task_a])
-            .expect("lane commitments must build")[0]
-            .lane_root;
-        let root_b = build_lane_commitments(&[task_b])
-            .expect("lane commitments must build")[0]
-            .lane_root;
+        let root_a =
+            build_lane_commitments(&[task_a]).expect("lane commitments must build")[0].lane_root;
+        let root_b =
+            build_lane_commitments(&[task_b]).expect("lane commitments must build")[0].lane_root;
 
         assert_ne!(root_a, root_b);
     }
