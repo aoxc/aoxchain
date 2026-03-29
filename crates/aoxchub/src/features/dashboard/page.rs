@@ -157,7 +157,7 @@ pub fn DashboardSection() -> Element {
             class: "menu-cards",
             Link {
                 class: "menu-card glass",
-                to: Route::Home {},
+                to: Route::Dashboard {},
                 h3 { "Dashboard" }
                 p { "Real-time KPI view, spotlight cards, and operator summaries." }
             }
