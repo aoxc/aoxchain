@@ -116,6 +116,53 @@ pub fn OperationsSection() -> Element {
         },
     ];
 
+    let cli_commands = [
+        CommandEntry {
+            command: "aoxc node status --home ~/.AOXCData/home/default",
+            target: "Node health",
+            outcome: "Returns sync head, peers, and liveness",
+        },
+        CommandEntry {
+            command: "aoxc ledger verify --db ~/.AOXCData/home/default/ledger/db/main.redb",
+            target: "Ledger verification",
+            outcome: "Checks state integrity and canonical root",
+        },
+        CommandEntry {
+            command: "aoxckit key info --file ~/.AOXCData/keys/operator_key.json",
+            target: "Key audit",
+            outcome: "Displays key metadata without private payload",
+        },
+        CommandEntry {
+            command: "aoxchub --profile real",
+            target: "Operations UI",
+            outcome: "Starts production-oriented control surface",
+        },
+    ];
+
+    let query_lc = query().to_lowercase();
+    let active_commands = if panel() == CommandPanel::Make {
+        &make_commands[..]
+    } else {
+        &cli_commands[..]
+    };
+
+    let mut filtered_commands: Vec<CommandEntry> = Vec::new();
+    for entry in active_commands {
+        if query_lc.is_empty()
+            || entry.command.to_lowercase().contains(&query_lc)
+            || entry.target.to_lowercase().contains(&query_lc)
+            || entry.outcome.to_lowercase().contains(&query_lc)
+        {
+            filtered_commands.push(*entry);
+        }
+    }
+
+    let total_assets = binaries.len() + paths.len();
+    let critical_assets = paths
+        .iter()
+        .filter(|entry| entry.criticality == "Critical")
+        .count();
+
     rsx! {
         section {
             class: "content-grid integration-grid",
