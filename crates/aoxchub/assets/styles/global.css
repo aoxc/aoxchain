@@ -943,3 +943,56 @@ h3 {
     scroll-behavior: auto !important;
   }
 }
+
+.integration-grid {
+  grid-template-columns: 1fr;
+}
+
+.integration-subtitle {
+  margin: 6px 0 16px;
+  color: var(--text-secondary);
+}
+
+.integration-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.integration-card {
+  padding: 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-2);
+}
+
+.integration-card h3 {
+  margin: 0 0 8px;
+}
+
+.integration-card p {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+}
+
+.integration-tag {
+  display: inline-flex;
+  margin-top: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(79, 140, 255, 0.12);
+  border: 1px solid rgba(79, 140, 255, 0.22);
+  color: #cfe0ff !important;
+  font-size: 0.75rem;
+}
+
+.mono-line {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: #c9dbff !important;
+  word-break: break-all;
+}
+
+.integration-table td {
+  vertical-align: top;
+}
