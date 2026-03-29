@@ -1,8 +1,8 @@
 use aoxchub::app::router::{INTEGRATION_CHECKLIST, Route};
 
 #[test]
-fn home_route_is_root_path() {
-    assert_eq!(Route::Home {}.to_string(), "/");
+fn landing_route_is_root_path() {
+    assert_eq!(Route::Landing {}.to_string(), "/");
 }
 
 #[test]
