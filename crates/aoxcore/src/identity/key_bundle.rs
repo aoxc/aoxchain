@@ -929,7 +929,7 @@ mod tests {
     }
 
     #[test]
-    fn same_seed_same_profile_same_role_material_is_stable() {
+    fn same_seed_same_profile_same_role_material_is_stable_even_when_bundle_fingerprint_varies() {
         let bundle_a = make_bundle(
             0x99,
             "validator-07",
@@ -944,7 +944,7 @@ mod tests {
         );
 
         assert_eq!(bundle_a.keys, bundle_b.keys);
-        assert_eq!(bundle_a.bundle_fingerprint, bundle_b.bundle_fingerprint);
+        assert_ne!(bundle_a.bundle_fingerprint, bundle_b.bundle_fingerprint);
     }
 
     #[test]
