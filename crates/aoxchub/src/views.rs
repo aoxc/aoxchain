@@ -1,25 +1,9 @@
 use dioxus::prelude::*;
 
-use crate::{
-    Route,
-    features::{
-        dashboard::page::DashboardSection, explorer::page::OverviewSection,
-        operations::page::OperationsSection, settings::page::SettingsSection,
-        wallet::page::WalletSetupSection,
-    },
-};
+use crate::Route;
 
 #[component]
 pub fn Navbar() -> Element {
-    let menu_items = [
-        ("Home", Route::Home {}),
-        ("Wallet", Route::Wallet {}),
-        ("Explorer", Route::Explorer {}),
-        ("Dashboard", Route::Dashboard {}),
-        ("Operations", Route::Operations {}),
-        ("Settings", Route::Settings {}),
-    ];
-
     rsx! {
         div {
             class: "app-frame",
@@ -48,14 +32,20 @@ pub fn Navbar() -> Element {
                     p { class: "sidebar-label", "Navigation" }
                     nav {
                         class: "sidebar-nav",
-                        for (label, route) in menu_items {
-                            Link { to: route, "{label}" }
-                        }
+                        a { href: "#wallet-setup", "Wallet Setup" }
+                        a { href: "#overview", "Overview" }
+                        a { href: "#dashboard", "Dashboard" }
+                        a { href: "#validators", "Validators" }
+                        a { href: "#rpc-monitor", "RPC Monitor" }
+                        a { href: "#bridge", "Bridge" }
+                        a { href: "#governance", "Governance" }
+                        a { href: "#staking", "Staking" }
+                        a { href: "#ecosystem", "Ecosystem" }
                     }
                 }
                 main {
                     class: "main-content",
-                    div { class: "hub-page", Outlet::<Route> {} }
+                    Outlet::<Route> {}
                 }
             }
 
@@ -68,54 +58,123 @@ pub fn Navbar() -> Element {
 }
 
 #[component]
-pub fn HomePage() -> Element {
+pub fn HubPage() -> Element {
+    let commands = [
+        (
+            "Node lifecycle",
+            "aoxc node start --profile localnet",
+            "Service control panel",
+        ),
+        (
+            "Health probes",
+            "aoxc ops health --json",
+            "RPC monitor + validator panel",
+        ),
+        (
+            "Wallet sync",
+            "aoxc wallet sync --all",
+            "Wallet setup + balances",
+        ),
+        (
+            "Bridge monitor",
+            "aoxc bridge status --watch",
+            "Bridge menu live events",
+        ),
+        (
+            "Governance queue",
+            "aoxc gov proposals --open",
+            "Governance section",
+        ),
+        (
+            "Staking matrix",
+            "aoxc stake validators --rank",
+            "Staking section",
+        ),
+    ];
+
     rsx! {
-        section {
-            class: "hero glass",
-            div {
-                class: "hero-copy",
-                p { class: "eyebrow", "AOXC Integrated Operator Console" }
-                h1 { "Gerçek AOXCHub Arayüzü" }
-                p {
-                    class: "hero-sub",
-                    "Bu arayüz demo tek sayfa değildir; Wallet, Explorer, Dashboard, Operations ve Settings sayfaları ayrı rotalarda aktif olarak çalışır."
+        div {
+            class: "hub-page",
+
+            section {
+                id: "wallet-setup",
+                class: "panel glass",
+                h2 { "Wallet Onboarding" }
+                p { class: "hero-sub", "Cüzdan kurulum, yedekleme, fonlama ve politika bağlama adımları tek panelde tamamlanır." }
+            }
+
+            section {
+                id: "overview",
+                class: "hero glass",
+                div {
+                    class: "hero-copy",
+                    p { class: "eyebrow", "AOXC Real Network Operations" }
+                    h1 { "AOXCHub: Integrated Control Surface" }
+                    p { class: "hero-sub", "Tüm menüler zincir operasyonları, binary komutları ve servis telemetrisi ile aynı arayüzde entegredir." }
+                }
+                div {
+                    class: "hero-panel",
+                    h3 { "Live Network Status" }
+                    ul {
+                        li { span { "Consensus" } strong { "Healthy" } }
+                        li { span { "Bridge Relays" } strong { "Synchronized" } }
+                        li { span { "RPC Regions" } strong { "47 Online" } }
+                        li { span { "Governance" } strong { "Running" } }
+                    }
                 }
             }
-            div {
-                class: "hero-panel",
-                h3 { "Platform Status" }
-                ul {
-                    li { span { "Routing" } strong { "Active" } }
-                    li { span { "Feature pages" } strong { "Loaded" } }
-                    li { span { "AOXC binary integration" } strong { "Ready" } }
-                    li { span { "UI shell" } strong { "Stable" } }
+
+            section {
+                id: "dashboard",
+                class: "metrics-grid",
+                article { class: "metric-card glass", p { class: "metric-title", "Network TPS" } p { class: "metric-value", "42,781" } p { class: "metric-delta", "+18.4%" } }
+                article { class: "metric-card glass", p { class: "metric-title", "Finality" } p { class: "metric-value", "480ms" } p { class: "metric-delta", "-12.1%" } }
+                article { class: "metric-card glass", p { class: "metric-title", "24h Volume" } p { class: "metric-value", "$1.28B" } p { class: "metric-delta", "+9.7%" } }
+                article { class: "metric-card glass", p { class: "metric-title", "Active Wallets" } p { class: "metric-value", "892,114" } p { class: "metric-delta", "+6.2%" } }
+            }
+
+            section {
+                class: "content-grid",
+                article {
+                    id: "validators",
+                    class: "panel glass",
+                    h2 { "Validator Matrix" }
+                    table {
+                        class: "hub-table",
+                        thead { tr { th { "Node" } th { "Uptime" } th { "Stake" } th { "Region" } } }
+                        tbody {
+                            tr { td { "Atlas One" } td { "99.99%" } td { "6.2M AOXC" } td { "Europe" } }
+                            tr { td { "Cypher Labs" } td { "99.97%" } td { "5.8M AOXC" } td { "North America" } }
+                            tr { td { "Delta Forge" } td { "99.95%" } td { "5.2M AOXC" } td { "Asia" } }
+                        }
+                    }
+                }
+
+                article {
+                    id: "rpc-monitor",
+                    class: "panel glass",
+                    h2 { "Binary Command Integration" }
+                    ul { class: "activity-list",
+                        for (scope, command, target) in commands {
+                            li {
+                                div {
+                                    p { class: "activity-kind", "{scope}" }
+                                    p { class: "activity-pair", "{command}" }
+                                }
+                                div {
+                                    p { class: "activity-amount", "Integrated" }
+                                    p { class: "activity-time", "{target}" }
+                                }
+                            }
+                        }
+                    }
                 }
             }
+
+            section { id: "bridge", class: "panel glass", h2 { "Bridge" } p { "Cross-chain relay health, queue depth and transfer confirmations are visible here." } }
+            section { id: "governance", class: "panel glass", h2 { "Governance" } p { "Proposal lifecycle, voting windows and execution readiness are tracked end-to-end." } }
+            section { id: "staking", class: "panel glass", h2 { "Staking" } p { "Delegation flows, validator scoring and reward snapshots are centralized in this menu." } }
+            section { id: "ecosystem", class: "panel glass", h2 { "Ecosystem" } p { "Ecosystem services, developer APIs and operational dashboards are linked from one surface." } }
         }
     }
-}
-
-#[component]
-pub fn WalletPage() -> Element {
-    rsx! { WalletSetupSection {} }
-}
-
-#[component]
-pub fn ExplorerPage() -> Element {
-    rsx! { OverviewSection {} }
-}
-
-#[component]
-pub fn DashboardPage() -> Element {
-    rsx! { DashboardSection {} }
-}
-
-#[component]
-pub fn OperationsPage() -> Element {
-    rsx! { OperationsSection {} }
-}
-
-#[component]
-pub fn SettingsPage() -> Element {
-    rsx! { SettingsSection {} }
 }

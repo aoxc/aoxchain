@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
-mod features;
 mod views;
+use views::{HubPage, Navbar};
 
 use views::{
     DashboardPage, ExplorerPage, HomePage, Navbar, OperationsPage, SettingsPage, WalletPage,
@@ -43,30 +43,5 @@ fn App() -> Element {
 
 #[component]
 fn Home() -> Element {
-    rsx! { HomePage {} }
-}
-
-#[component]
-fn Wallet() -> Element {
-    rsx! { WalletPage {} }
-}
-
-#[component]
-fn Explorer() -> Element {
-    rsx! { ExplorerPage {} }
-}
-
-#[component]
-fn Dashboard() -> Element {
-    rsx! { DashboardPage {} }
-}
-
-#[component]
-fn Operations() -> Element {
-    rsx! { OperationsPage {} }
-}
-
-#[component]
-fn Settings() -> Element {
-    rsx! { SettingsPage {} }
+    rsx! { HubPage {} }
 }
