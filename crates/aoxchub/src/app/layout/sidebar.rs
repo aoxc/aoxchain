@@ -2,12 +2,13 @@ use dioxus::prelude::*;
 
 use crate::app::router::Route;
 
-const ROUTE_MENU_ITEMS: [(&str, &str, Route); 5] = [
-    ("◉", "Dashboard", Route::Home {}),
-    ("◎", "Wallet", Route::Wallet {}),
-    ("◌", "Operations", Route::Operations {}),
-    ("◈", "Overview", Route::Overview {}),
-    ("◍", "Settings", Route::Settings {}),
+const ROUTE_MENU_ITEMS: [(&str, &str, Route); 6] = [
+    ("◉", "Landing", Route::Landing {}),
+    ("◎", "Dashboard", Route::Dashboard {}),
+    ("◌", "Wallet", Route::Wallet {}),
+    ("◈", "Operations", Route::Operations {}),
+    ("◍", "Chain Overview", Route::Overview {}),
+    ("◐", "Settings", Route::Settings {}),
 ];
 
 pub const SIDEBAR_MENU_ITEMS: [(&str, &str); 9] = [
