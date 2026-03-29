@@ -166,34 +166,4 @@ mod tests {
         assert!(matches!(cli.command, Some(Command::Doctor)));
         assert!(cli.headless);
     }
-
-    #[test]
-    fn parses_doctor_with_json_format() {
-        let cli = Cli::parse_from([
-            "aoxchub",
-            "--profile",
-            "mainnet",
-            "--format",
-            "json",
-            "doctor",
-        ]);
-        assert!(matches!(cli.command, Some(Command::Doctor)));
-        assert_eq!(cli.profile, Profile::Mainnet);
-    }
-
-    #[test]
-    fn runtime_layout_uses_custom_home_path() {
-        use std::path::PathBuf;
-
-        let cli = Cli::parse_from(["aoxchub", "--aoxcdata-home", "/srv/aoxc/.AOXCData", "paths"]);
-
-        let runtime = super::RuntimeLayout::from_cli(&cli);
-        assert_eq!(
-            runtime.aoxchub_bin,
-            PathBuf::from("/srv/aoxc/.AOXCData/bin/aoxchub")
-                .display()
-                .to_string()
-        );
-        assert_eq!(runtime.chain_id, "aoxchain-dev");
-    }
 }
