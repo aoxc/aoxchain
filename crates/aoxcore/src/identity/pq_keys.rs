@@ -334,25 +334,25 @@ mod tests {
     #[test]
     fn invalid_public_key_bytes_are_rejected() {
         let result = public_key_from_bytes(&[0u8; 8]);
-        assert_eq!(result, Err("INVALID_PUBLIC_KEY".to_string()));
+        assert!(matches!(result, Err(err) if err == "INVALID_PUBLIC_KEY"));
     }
 
     #[test]
     fn invalid_secret_key_bytes_are_rejected() {
         let result = secret_key_from_bytes(&[0u8; 8]);
-        assert_eq!(result, Err("INVALID_SECRET_KEY".to_string()));
+        assert!(matches!(result, Err(err) if err == "INVALID_SECRET_KEY"));
     }
 
     #[test]
     fn invalid_public_key_hex_is_rejected() {
         let result = public_key_from_hex("ZZ_NOT_HEX");
-        assert_eq!(result, Err("INVALID_PUBLIC_KEY_HEX".to_string()));
+        assert!(matches!(result, Err(err) if err == "INVALID_PUBLIC_KEY_HEX"));
     }
 
     #[test]
     fn invalid_secret_key_hex_is_rejected() {
         let result = secret_key_from_hex("ZZ_NOT_HEX");
-        assert_eq!(result, Err("INVALID_SECRET_KEY_HEX".to_string()));
+        assert!(matches!(result, Err(err) if err == "INVALID_SECRET_KEY_HEX"));
     }
 
     #[test]

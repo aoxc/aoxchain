@@ -96,11 +96,9 @@ impl fmt::Display for InvalidPoolConfig {
             Self::ZeroMaxTransactions => {
                 f.write_str("transaction pool max_transactions must be greater than zero")
             }
-            Self::ZeroMaxTransactionsPerSender => {
-                f.write_str(
-                    "transaction pool max_transactions_per_sender must be greater than zero",
-                )
-            }
+            Self::ZeroMaxTransactionsPerSender => f.write_str(
+                "transaction pool max_transactions_per_sender must be greater than zero",
+            ),
             Self::PerSenderLimitExceedsGlobalLimit { per_sender, global } => write!(
                 f,
                 "transaction pool max_transactions_per_sender ({}) exceeds max_transactions ({})",
@@ -448,7 +446,10 @@ impl TransactionPool {
         self.sender_nonces.insert(sender_nonce, tx_id);
         self.sender_counts.insert(tx.sender, sender_count + 1);
 
-        debug_assert!(self.validate().is_ok(), "pool invariants must hold after add");
+        debug_assert!(
+            self.validate().is_ok(),
+            "pool invariants must hold after add"
+        );
         Ok(tx_id)
     }
 
@@ -477,7 +478,10 @@ impl TransactionPool {
             _ => return Err(TransactionPoolError::IndexInconsistency),
         }
 
-        debug_assert!(self.validate().is_ok(), "pool invariants must hold after remove");
+        debug_assert!(
+            self.validate().is_ok(),
+            "pool invariants must hold after remove"
+        );
         Ok(tx)
     }
 
@@ -507,7 +511,11 @@ impl TransactionPool {
     /// model is introduced.
     #[must_use]
     pub fn snapshot_ordered(&self) -> Vec<(TransactionId, &Transaction)> {
-        let mut entries: Vec<_> = self.pending.iter().map(|(tx_id, tx)| (*tx_id, tx)).collect();
+        let mut entries: Vec<_> = self
+            .pending
+            .iter()
+            .map(|(tx_id, tx)| (*tx_id, tx))
+            .collect();
 
         entries.sort_unstable_by(|(a_id, a_tx), (b_id, b_tx)| {
             a_tx.sender
@@ -625,12 +633,12 @@ mod tests {
             max_transactions_per_sender: 1,
         });
 
-        assert_eq!(
+        assert!(matches!(
             result,
             Err(TransactionPoolError::InvalidConfig(
                 InvalidPoolConfig::ZeroMaxTransactions
             ))
-        );
+        ));
     }
 
     #[test]
@@ -759,7 +767,10 @@ mod tests {
         let selected = pool.select_for_block(2, 6);
         assert_eq!(selected.len(), 2);
         assert_eq!(
-            selected.iter().map(|(_, tx)| tx.payload_len()).sum::<usize>(),
+            selected
+                .iter()
+                .map(|(_, tx)| tx.payload_len())
+                .sum::<usize>(),
             6
         );
     }
@@ -773,9 +784,7 @@ mod tests {
         pool.add(signed_transaction(2, 1, vec![2]))
             .expect("tx2 must be admitted");
 
-        let drained = pool
-            .drain_for_block(1, 1024)
-            .expect("drain must succeed");
+        let drained = pool.drain_for_block(1, 1024).expect("drain must succeed");
 
         assert_eq!(drained.len(), 1);
         assert_eq!(pool.len(), 1);

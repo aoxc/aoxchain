@@ -249,7 +249,7 @@ mod tests {
     use crate::block::Capability;
 
     fn sample_capability() -> Capability {
-        Capability::User
+        Capability::UserSigned
     }
 
     #[test]
@@ -299,8 +299,12 @@ mod tests {
     fn increment_nonce_advances_monotonically() {
         let mut account = Account::new(sample_capability());
 
-        account.increment_nonce().expect("nonce increment must succeed");
-        account.increment_nonce().expect("nonce increment must succeed");
+        account
+            .increment_nonce()
+            .expect("nonce increment must succeed");
+        account
+            .increment_nonce()
+            .expect("nonce increment must succeed");
 
         assert_eq!(account.nonce(), 2);
     }
@@ -335,7 +339,9 @@ mod tests {
     fn consume_energy_uses_checked_subtraction() {
         let mut account = Account::with_energy(sample_capability(), 100);
 
-        account.consume_energy(40).expect("energy consumption must succeed");
+        account
+            .consume_energy(40)
+            .expect("energy consumption must succeed");
 
         assert_eq!(account.energy(), 60);
     }
