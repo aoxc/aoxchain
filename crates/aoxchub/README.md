@@ -45,12 +45,12 @@ dx serve --platform desktop
 
 ## AOXCData Deep Integration Surface
 
-The Operations route now includes an interactive integration console for:
+The Operations route now includes a production-oriented integration matrix for:
 
-- Binary mapping for `aoxc`, `aoxchub`, and `aoxckit` under `~/.AOXCData/bin` with health indicators.
-- Directory coverage for ledger, runtime index, IPFS cache, logs, and operator key locations with criticality markers.
-- Profile switcher for `default`, `local-dev`, and `real` operator modes.
-- Make and CLI command center with panel toggle and command filtering.
+- Binary mapping for `aoxc`, `aoxchub`, and `aoxckit` under `~/.AOXCData/bin`.
+- Directory coverage for ledger, runtime index, IPFS cache, logs, and operator key locations.
+- Make command control plane examples for build, test, release checks, and hub execution.
+- CLI command surface examples aligned to real operator workflows.
 
-This keeps AOXC Hub usable as a live visual command cockpit while deeper backend adapters continue to mature.
+This keeps AOXC Hub usable as a single visual command reference while deeper backend adapters continue to mature.
 
