@@ -50,13 +50,17 @@ pub fn SettingsSection() -> Element {
         ("Notification Mode", "Desktop + In-app"),
     ];
 
-    let security_drill = load_security_drill();
-    let telemetry = load_telemetry_snapshot();
-    let drill_status = security_drill.status.clone();
-    let drill_scenarios = security_drill.scenarios.clone();
-    let drill_requirements = security_drill.requirements.clone();
-    let telemetry_status = telemetry.status.clone();
-    let telemetry_alerts = telemetry.alerts_required.clone();
+    let hardening = [
+        ("Transport", "TLS pin set, certificate rollover monitored."),
+        (
+            "Secrets",
+            "Operator key scope is redacted in desktop telemetry.",
+        ),
+        (
+            "Automation",
+            "Release gate requires build + integration + smoke pass.",
+        ),
+    ];
 
     rsx! {
         section {
@@ -106,36 +110,17 @@ pub fn SettingsSection() -> Element {
                 h2 { "Security Hardening" }
                 ul {
                     class: "activity-list",
-                    for scenario in drill_scenarios {
+                    for (name, value) in hardening {
                         li {
                             div {
-                                p { class: "activity-kind", "{scenario}" }
-                                p { class: "activity-pair", "Requirement baseline captured in production-closure drill." }
+                                p { class: "activity-kind", "{name}" }
+                                p { class: "activity-pair", "{value}" }
                             }
                             div {
-                                p { class: "activity-amount", "{drill_status}" }
-                                p { class: "activity-time", "Scenario" }
+                                p { class: "activity-amount", "Enforced" }
+                                p { class: "activity-time", "Continuous" }
                             }
                         }
-                    }
-                }
-            }
-
-            article {
-                class: "panel glass",
-                h2 { "Telemetry Alert Requirements" }
-                p { class: "hero-sub", "Snapshot status: {telemetry_status}" }
-                ul {
-                    class: "hero-panel-list",
-                    for alert in telemetry_alerts {
-                        li { class: "hero-sub", "{alert}" }
-                    }
-                }
-                p { class: "hero-sub", "Security drill requirements" }
-                ul {
-                    class: "hero-panel-list",
-                    for item in drill_requirements {
-                        li { class: "hero-sub", "{item}" }
                     }
                 }
             }

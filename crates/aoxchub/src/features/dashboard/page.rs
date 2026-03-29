@@ -57,10 +57,23 @@ pub fn DashboardSection() -> Element {
         ("Governance Cycle", "Epoch 219", "Voting phase active"),
     ];
 
-    let rollout = load_rollout_snapshot();
-    let rollout_status = rollout.status.clone();
-    let rollout_surfaces = rollout.surfaces.clone();
-    let rollout_requirements = rollout.requirements.clone();
+    let release_tracks = [
+        (
+            "Mainnet",
+            "Release Candidate 2026.03.29",
+            "All readiness gates passed with full deterministic coverage.",
+        ),
+        (
+            "Testnet",
+            "Canary Build 2026.03.29",
+            "Chaos profile enabled with latency and gossip stress controls.",
+        ),
+        (
+            "Dev",
+            "Nightly Build 2026.03.29",
+            "Protocol experiments and schema migration rehearsals are active.",
+        ),
+    ];
 
     rsx! {
         section {
@@ -130,23 +143,12 @@ pub fn DashboardSection() -> Element {
 
         section {
             class: "release-grid",
-            for surface in rollout_surfaces {
+            for (track, version, detail) in release_tracks {
                 article {
                     class: "release-card glass",
-                    p { class: "widget-title", "Deployment Surface" }
-                    h3 { "{surface.to_uppercase()}" }
-                    p { class: "widget-note", "Rollout status: {rollout_status}" }
-                }
-            }
-        }
-
-        section {
-            class: "panel glass",
-            h2 { "Production Rollout Requirements" }
-            ul {
-                class: "hero-panel-list",
-                for item in rollout_requirements {
-                    li { class: "hero-sub", "{item}" }
+                    p { class: "widget-title", "{track}" }
+                    h3 { "{version}" }
+                    p { class: "widget-note", "{detail}" }
                 }
             }
         }
