@@ -26,8 +26,6 @@ AOXC_HOME ?= $(AOXC_DATA_ROOT)/home/default
 AOXC_BIN_DIR ?= $(AOXC_DATA_ROOT)/bin
 AOXC_BIN_PATH ?= $(AOXC_BIN_DIR)/aoxc
 AOXC_RELEASES_DIR ?= $(AOXC_DATA_ROOT)/releases
-PROJECT_ROOT ?= $(CURDIR)
-RELEASE_OUTPUT_ROOT ?= $(AOXC_BIN_DIR)
 
 AOXC_HOME_LOCAL ?= $(AOXC_DATA_ROOT)/home/local-dev
 AOXC_HOME_REAL ?= $(AOXC_DATA_ROOT)/home/real
@@ -48,13 +46,13 @@ CHECK_FLAGS ?= --workspace
 RELEASE_VERSION ?= $(shell $(CARGO) pkgid -p aoxcmd 2>/dev/null | sed -E 's|.*#||; s|.*@||')
 RELEASE_TAG ?= v$(RELEASE_VERSION)
 RELEASE_BUNDLE_NAME ?= aoxc-$(RELEASE_TAG)
-RELEASE_BUNDLE_DIR ?= $(RELEASE_OUTPUT_ROOT)/$(RELEASE_BUNDLE_NAME)
+RELEASE_BUNDLE_DIR ?= $(AOXC_RELEASES_DIR)/$(RELEASE_BUNDLE_NAME)
 RELEASE_BUNDLE_BIN_DIR ?= $(RELEASE_BUNDLE_DIR)/bin
 RELEASE_BUNDLE_MANIFEST ?= $(RELEASE_BUNDLE_DIR)/BUILD-MANIFEST.txt
 RELEASE_BUNDLE_CHECKSUMS ?= $(RELEASE_BUNDLE_DIR)/SHA256SUMS
 RELEASE_ARCHIVE_BASENAME ?= $(RELEASE_BUNDLE_NAME)-linux-amd64
 RELEASE_ARCHIVE_PATH ?= $(AOXC_RELEASES_DIR)/$(RELEASE_ARCHIVE_BASENAME).tar.gz
-RELEASE_BINARIES ?= $(shell $(CARGO) metadata --no-deps --format-version 1 2>/dev/null | python3 -c 'import json,sys; data=json.load(sys.stdin); bins=sorted({t["name"] for p in data.get("packages",[]) for t in p.get("targets",[]) if "bin" in t.get("kind",[])}); print(" ".join(bins))')
+RELEASE_BINARIES ?= aoxc aoxchub aoxckit
 
 # --------------------------------------------------------------------
 # Shared shell helpers
@@ -77,7 +75,6 @@ endef
 .PHONY: \
 	help paths env-check bootstrap-paths clean-home clean-logs \
 	bootstrap-desktop-paths build build-release build-release-all package-bin package-all-bin package-versioned-bin package-versioned-archive package-desktop-testnet install-bin \
-	release-binary-list test-release-packaging \
 	test test-lib test-workspace check fmt clippy audit \
 	quality quality-quick quality-release ci \
 	version manifest policy \
@@ -123,9 +120,8 @@ help:
 	@printf "  make package-bin       - install release binary into %s\n" "$(AOXC_BIN_DIR)"
 	@printf "  make build-release-all - build all workspace release binaries\n"
 	@printf "  make release-binary-list - print detected workspace binary names\n"
-	@printf "  make test-release-packaging - run Makefile packaging verification flow\n"
 	@printf "  make package-all-bin   - install all release binaries into %s\n" "$(AOXC_BIN_DIR)"
-	@printf "  make package-versioned-bin - install all binaries into versioned bundle under %s\n" "$(RELEASE_OUTPUT_ROOT)"
+	@printf "  make package-versioned-bin - install all binaries into versioned bundle under %s\n" "$(AOXC_RELEASES_DIR)"
 	@printf "  make package-versioned-archive - create tar.gz archive for the versioned bundle\n"
 	@printf "  make package-desktop-testnet - install all binaries under desktop/testnet root\n"
 	@printf "  make version           - show AOXC build/version metadata\n"
@@ -204,8 +200,6 @@ paths:
 	@printf "AOXC_BIN_DIR=%s\n" "$(AOXC_BIN_DIR)"
 	@printf "AOXC_BIN_PATH=%s\n" "$(AOXC_BIN_PATH)"
 	@printf "AOXC_RELEASES_DIR=%s\n" "$(AOXC_RELEASES_DIR)"
-	@printf "PROJECT_ROOT=%s\n" "$(PROJECT_ROOT)"
-	@printf "RELEASE_OUTPUT_ROOT=%s\n" "$(RELEASE_OUTPUT_ROOT)"
 	@printf "AOXC_LOG_ROOT=%s\n" "$(AOXC_LOG_ROOT)"
 	@printf "AOXC_REAL_LOG_DIR=%s\n" "$(AOXC_REAL_LOG_DIR)"
 	@printf "AOXC_DESKTOP_ROOT=%s\n" "$(AOXC_DESKTOP_ROOT)"
@@ -214,7 +208,6 @@ paths:
 	@printf "RELEASE_TAG=%s\n" "$(RELEASE_TAG)"
 	@printf "RELEASE_BUNDLE_DIR=%s\n" "$(RELEASE_BUNDLE_DIR)"
 	@printf "RELEASE_ARCHIVE_PATH=%s\n" "$(RELEASE_ARCHIVE_PATH)"
-	@printf "RELEASE_BINARIES=%s\n" "$(RELEASE_BINARIES)"
 
 env-check:
 	$(call print_banner,Validating local build environment)
@@ -284,10 +277,6 @@ release-binary-list:
 	fi
 	@for binary in $(RELEASE_BINARIES); do echo "$$binary"; done
 
-test-release-packaging:
-	$(call print_banner,Running packaging verification script)
-	./scripts/test_makefile_release.sh
-
 package-bin: build-release bootstrap-paths
 	$(call print_banner,Packaging release binary)
 	@mkdir -p "$(AOXC_BIN_DIR)" bin
@@ -313,7 +302,6 @@ package-all-bin: build-release-all bootstrap-paths
 package-versioned-bin: build-release-all
 	$(call print_banner,Packaging versioned release bundle)
 	@set -euo pipefail; \
-	if [ -z "$(RELEASE_BINARIES)" ]; then echo "No binaries detected from cargo metadata."; exit 1; fi; \
 	mkdir -p "$(RELEASE_BUNDLE_BIN_DIR)"; \
 	for binary in $(RELEASE_BINARIES); do \
 		cp "target/release/$$binary" "$(RELEASE_BUNDLE_BIN_DIR)/$$binary"; \
