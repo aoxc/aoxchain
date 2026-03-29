@@ -42,3 +42,15 @@ dx serve --platform desktop
 
 - This crate remains under active integration; interface composition is complete, while deep business content and production connectors can be layered in subsequent iterations.
 - The repository is MIT-licensed; operational responsibility and deployment risk remain with integrators.
+
+## AOXCData Deep Integration Surface
+
+The Operations route now includes a production-oriented integration matrix for:
+
+- Binary mapping for `aoxc`, `aoxchub`, and `aoxckit` under `~/.AOXCData/bin`.
+- Directory coverage for ledger, runtime index, IPFS cache, logs, and operator key locations.
+- Make command control plane examples for build, test, release checks, and hub execution.
+- CLI command surface examples aligned to real operator workflows.
+
+This keeps AOXC Hub usable as a single visual command reference while deeper backend adapters continue to mature.
+
