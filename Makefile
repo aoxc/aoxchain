@@ -28,9 +28,13 @@ AOXC_BIN_PATH ?= $(AOXC_BIN_DIR)/aoxc
 
 AOXC_HOME_LOCAL ?= $(AOXC_DATA_ROOT)/home/local-dev
 AOXC_HOME_REAL ?= $(AOXC_DATA_ROOT)/home/real
+AOXC_HOME_DESKTOP_TESTNET ?= $(AOXC_DATA_ROOT)/desktop/testnet/home
 
 AOXC_LOG_ROOT ?= $(AOXC_DATA_ROOT)/logs
 AOXC_REAL_LOG_DIR ?= $(AOXC_LOG_ROOT)/real-chain
+AOXC_DESKTOP_ROOT ?= $(AOXC_DATA_ROOT)/desktop/testnet
+AOXC_DESKTOP_BIN_DIR ?= $(AOXC_DESKTOP_ROOT)/bin
+AOXC_DESKTOP_LOG_DIR ?= $(AOXC_DESKTOP_ROOT)/logs
 
 CARGO ?= cargo
 RUSTFMT ?= rustfmt
@@ -58,7 +62,7 @@ endef
 # --------------------------------------------------------------------
 .PHONY: \
 	help paths env-check bootstrap-paths clean-home clean-logs \
-	build build-release package-bin install-bin \
+	bootstrap-desktop-paths build build-release build-release-all package-bin package-all-bin package-desktop-testnet install-bin \
 	test test-lib test-workspace check fmt clippy audit \
 	quality quality-quick quality-release ci \
 	version manifest policy \
@@ -85,6 +89,8 @@ help:
 	@printf "  AOXC_DATA_ROOT : %s\n" "$(AOXC_DATA_ROOT)"
 	@printf "  AOXC_HOME      : %s\n" "$(AOXC_HOME)"
 	@printf "  AOXC_BIN_PATH  : %s\n\n" "$(AOXC_BIN_PATH)"
+	@printf "  Desktop testnet home : %s\n" "$(AOXC_HOME_DESKTOP_TESTNET)"
+	@printf "  Desktop bin root     : %s\n\n" "$(AOXC_DESKTOP_BIN_DIR)"
 
 	@printf "Workspace quality\n"
 	@printf "  make fmt               - format the workspace\n"
@@ -100,6 +106,9 @@ help:
 	@printf "  make build             - build the workspace\n"
 	@printf "  make build-release     - build the release AOXC CLI\n"
 	@printf "  make package-bin       - install release binary into %s\n" "$(AOXC_BIN_DIR)"
+	@printf "  make build-release-all - build all release binaries (aoxc, aoxchub, aoxckit)\n"
+	@printf "  make package-all-bin   - install all release binaries into %s\n" "$(AOXC_BIN_DIR)"
+	@printf "  make package-desktop-testnet - install all binaries under desktop/testnet root\n"
 	@printf "  make version           - show AOXC build/version metadata\n"
 	@printf "  make manifest          - print build manifest\n"
 	@printf "  make policy            - print node connection policy\n\n"
@@ -108,6 +117,7 @@ help:
 	@printf "  make paths             - print resolved AOXC paths\n"
 	@printf "  make env-check         - validate required local tools and scripts\n"
 	@printf "  make bootstrap-paths   - create canonical AOXC directories\n"
+	@printf "  make bootstrap-desktop-paths - create desktop/testnet directories\n"
 	@printf "  make clean-home        - remove AOXC_HOME only\n"
 	@printf "  make clean-logs        - remove AOXC log directories only\n\n"
 
@@ -171,10 +181,14 @@ paths:
 	@printf "AOXC_HOME=%s\n" "$(AOXC_HOME)"
 	@printf "AOXC_HOME_LOCAL=%s\n" "$(AOXC_HOME_LOCAL)"
 	@printf "AOXC_HOME_REAL=%s\n" "$(AOXC_HOME_REAL)"
+	@printf "AOXC_HOME_DESKTOP_TESTNET=%s\n" "$(AOXC_HOME_DESKTOP_TESTNET)"
 	@printf "AOXC_BIN_DIR=%s\n" "$(AOXC_BIN_DIR)"
 	@printf "AOXC_BIN_PATH=%s\n" "$(AOXC_BIN_PATH)"
 	@printf "AOXC_LOG_ROOT=%s\n" "$(AOXC_LOG_ROOT)"
 	@printf "AOXC_REAL_LOG_DIR=%s\n" "$(AOXC_REAL_LOG_DIR)"
+	@printf "AOXC_DESKTOP_ROOT=%s\n" "$(AOXC_DESKTOP_ROOT)"
+	@printf "AOXC_DESKTOP_BIN_DIR=%s\n" "$(AOXC_DESKTOP_BIN_DIR)"
+	@printf "AOXC_DESKTOP_LOG_DIR=%s\n" "$(AOXC_DESKTOP_LOG_DIR)"
 
 env-check:
 	$(call print_banner,Validating local build environment)
@@ -203,6 +217,14 @@ bootstrap-paths:
 	$(call ensure_dir,$(AOXC_DATA_ROOT)/.test)
 	@echo "AOXC path bootstrap complete."
 
+bootstrap-desktop-paths:
+	$(call print_banner,Creating AOXC desktop testnet directories)
+	$(call ensure_dir,$(AOXC_DESKTOP_ROOT))
+	$(call ensure_dir,$(AOXC_HOME_DESKTOP_TESTNET))
+	$(call ensure_dir,$(AOXC_DESKTOP_BIN_DIR))
+	$(call ensure_dir,$(AOXC_DESKTOP_LOG_DIR))
+	@echo "AOXC desktop testnet path bootstrap complete."
+
 clean-home:
 	$(call print_banner,Removing effective AOXC home)
 	@rm -rf "$(AOXC_HOME)"
@@ -224,6 +246,12 @@ build-release:
 	$(call print_banner,Building release AOXC CLI)
 	$(CARGO) build --release -p aoxcmd --bin aoxc
 
+build-release-all:
+	$(call print_banner,Building all release AOXC binaries)
+	$(CARGO) build --release -p aoxcmd --bin aoxc
+	$(CARGO) build --release -p aoxchub --bin aoxchub
+	$(CARGO) build --release -p aoxckit --bin aoxckit
+
 package-bin: build-release bootstrap-paths
 	$(call print_banner,Packaging release binary)
 	@mkdir -p "$(AOXC_BIN_DIR)" bin
@@ -232,6 +260,29 @@ package-bin: build-release bootstrap-paths
 	@ln -sf "$(AOXC_BIN_PATH)" bin/aoxc
 	@echo "Installed binary: $(AOXC_BIN_PATH)"
 	@echo "Compatibility symlink: ./bin/aoxc -> $(AOXC_BIN_PATH)"
+
+package-all-bin: build-release-all bootstrap-paths
+	$(call print_banner,Packaging all release binaries)
+	@mkdir -p "$(AOXC_BIN_DIR)" bin
+	@cp target/release/aoxc "$(AOXC_BIN_DIR)/aoxc"
+	@cp target/release/aoxchub "$(AOXC_BIN_DIR)/aoxchub"
+	@cp target/release/aoxckit "$(AOXC_BIN_DIR)/aoxckit"
+	@chmod +x "$(AOXC_BIN_DIR)/aoxc" "$(AOXC_BIN_DIR)/aoxchub" "$(AOXC_BIN_DIR)/aoxckit"
+	@ln -sf "$(AOXC_BIN_DIR)/aoxc" bin/aoxc
+	@ln -sf "$(AOXC_BIN_DIR)/aoxchub" bin/aoxchub
+	@ln -sf "$(AOXC_BIN_DIR)/aoxckit" bin/aoxckit
+	@echo "Installed binaries under: $(AOXC_BIN_DIR)"
+	@echo "Compatibility symlinks created under ./bin"
+
+package-desktop-testnet: build-release-all bootstrap-desktop-paths
+	$(call print_banner,Packaging desktop testnet binaries and profile layout)
+	@mkdir -p "$(AOXC_DESKTOP_BIN_DIR)"
+	@cp target/release/aoxc "$(AOXC_DESKTOP_BIN_DIR)/aoxc"
+	@cp target/release/aoxchub "$(AOXC_DESKTOP_BIN_DIR)/aoxchub"
+	@cp target/release/aoxckit "$(AOXC_DESKTOP_BIN_DIR)/aoxckit"
+	@chmod +x "$(AOXC_DESKTOP_BIN_DIR)/aoxc" "$(AOXC_DESKTOP_BIN_DIR)/aoxchub" "$(AOXC_DESKTOP_BIN_DIR)/aoxckit"
+	@echo "Desktop binaries installed under: $(AOXC_DESKTOP_BIN_DIR)"
+	@echo "Use AOXC_HOME=$(AOXC_HOME_DESKTOP_TESTNET) for desktop-testnet runtime isolation."
 
 install-bin: package-bin
 
