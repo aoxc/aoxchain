@@ -29,168 +29,126 @@ struct HubSnapshot {
 
 #[component]
 pub fn Home() -> Element {
-    let snapshot = use_resource(move || async move { hub_snapshot().await });
+    let metrics = [
+        ("Network TPS", "42,781", "+18.4%"),
+        ("Finality", "480ms", "-12.1%"),
+        ("24h Volume", "$1.28B", "+9.7%"),
+        ("Active Wallets", "892,114", "+6.2%"),
+    ];
+
+    let validators = [
+        ("Atlas One", "99.99%", "6.2M AOX", "Europe"),
+        ("Cypher Labs", "99.97%", "5.8M AOX", "North America"),
+        ("Delta Forge", "99.95%", "5.2M AOX", "Asia"),
+        ("Boreal Node", "99.92%", "4.9M AOX", "South America"),
+    ];
+
+    let activity = [
+        ("Bridge", "Ethereum → AOX", "$12.4M", "2m ago"),
+        ("Swap", "AOX / USDC", "$4.8M", "5m ago"),
+        ("Staking", "Validator delegation", "$7.1M", "9m ago"),
+        ("Mint", "Identity credential", "$1.2M", "13m ago"),
+    ];
 
     rsx! {
         main {
-            class: "hub-shell",
-            aside {
-                class: "sidebar glass",
+            class: "hub-page",
+            section {
+                id: "overview",
+                class: "hero",
                 div {
-                    class: "sidebar-brand",
-                    div { class: "sidebar-logo", "AOX" }
+                    class: "hero-copy",
+                    p { class: "eyebrow", "AOXChain Infrastructure Console" }
+                    h1 { "Operate AOX Hub with full-network visibility." }
+                    p {
+                        class: "hero-sub",
+                        "Production-grade monitoring, validator intelligence, and ecosystem telemetry in a unified command interface."
+                    }
                     div {
-                        p { class: "sidebar-title", "AOX Hub Control" }
-                        p { class: "sidebar-subtitle", "Chain-integrated operations" }
+                        class: "hero-actions",
+                        button { class: "btn btn-primary", "Launch Console" }
+                        button { class: "btn btn-ghost", "Open Docs" }
                     }
                 }
-                nav {
-                    class: "side-nav",
-                    a { href: "#overview", "Overview" }
-                    a { href: "#profiles", "Profiles" }
-                    a { href: "#rpc", "RPC Health" }
-                    a { href: "#validators", "Validators" }
-                    a { href: "#ops", "Operations" }
-                }
-                section {
-                    class: "side-card",
-                    p { class: "side-card-title", "CLI + API" }
+                div {
+                    class: "hero-panel glass",
+                    h3 { "System Health" }
                     ul {
-                        li { code { "aoxcmd boot --profile mainnet" } }
-                        li { code { "aoxcmd telemetry refresh" } }
-                        li { code { "curl :28657/status" } }
+                        li { span { "Consensus" } strong { "Healthy" } }
+                        li { span { "Bridge" } strong { "Synced" } }
+                        li { span { "RPC" } strong { "47 regions online" } }
                     }
                 }
             }
 
             section {
-                class: "workspace",
-                section {
-                    id: "overview",
-                    class: "hero glass",
-                    div {
-                        p { class: "eyebrow", "AOXCHAIN COMMAND CENTER" }
-                        h1 { "Fully integrated AOX Hub surface for chain, CLI, and RPC operations." }
-                        p {
-                            class: "hero-sub",
-                            "Interface aligns with runtime profiles, validator operations, telemetry endpoints, and API observability."
-                        }
-                    }
-                    div {
-                        class: "hero-chart",
-                        p { "Throughput Envelope" }
-                        div { class: "chart-bars",
-                            span { class: "bar b1" }
-                            span { class: "bar b2" }
-                            span { class: "bar b3" }
-                            span { class: "bar b4" }
-                            span { class: "bar b5" }
-                            span { class: "bar b6" }
-                        }
+                class: "metrics-grid",
+                for (title, value, delta) in metrics {
+                    article {
+                        class: "metric-card glass",
+                        p { class: "metric-title", "{title}" }
+                        p { class: "metric-value", "{value}" }
+                        p { class: "metric-delta", "{delta}" }
                     }
                 }
+            }
 
-                {
-                    match snapshot() {
-                        None => rsx! {
-                            section { class: "panel glass", h2 { "Loading integrated hub snapshot..." } }
-                        },
-                        Some(Err(error)) => rsx! {
-                            section {
-                                class: "panel glass",
-                                h2 { "Snapshot unavailable" }
-                                p { "{error}" }
-                            }
-                        },
-                        Some(Ok(data)) => rsx! {
-                            section { class: "kpi-grid",
-                                article { class: "kpi glass", p { "Profiles" } strong { "{data.profiles.len()}" } }
-                                article { class: "kpi glass", p { "RPC Probes" } strong { "{data.probes.len()}" } }
-                                article {
-                                    class: "kpi glass",
-                                    p { "Healthy Endpoints" }
-                                    strong { "{data.probes.iter().filter(|probe| probe.ok).count()}" }
-                                }
-                                article { class: "kpi glass", p { "Snapshot (UTC)" } strong { "{data.generated_at}" } }
-                            }
-
-                            section {
-                                id: "profiles",
-                                class: "panel glass",
-                                h2 { "Network Profiles" }
-                                table { class: "hub-table",
-                                    thead {
-                                        tr {
-                                            th { "Profile" }
-                                            th { "Chain" }
-                                            th { "RPC" }
-                                            th { "P2P" }
-                                            th { "Telemetry" }
-                                            th { "Validators" }
-                                        }
-                                    }
-                                    tbody {
-                                        for profile in data.profiles {
-                                            tr {
-                                                td { "{profile.profile}" }
-                                                td { "{profile.chain_id}" }
-                                                td { "{profile.rpc_addr}" }
-                                                td { "{profile.p2p_port}" }
-                                                td { "{profile.telemetry_port}" }
-                                                td { "{profile.validators_path}" }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            section {
-                                id: "rpc",
-                                class: "panel glass",
-                                h2 { "RPC Endpoint Health" }
-                                div { class: "probe-grid",
-                                    for probe in data.probes {
-                                        article { class: if probe.ok { "probe ok" } else { "probe fail" },
-                                            p { class: "probe-title", "{probe.profile}" }
-                                            p { class: "probe-url", "{probe.url}" }
-                                            p { class: "probe-latency", "{probe.latency_ms} ms" }
-                                            p { class: "probe-note", "{probe.note}" }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                    }
-                }
-
-                section {
+            section {
+                class: "content-grid",
+                article {
                     id: "validators",
                     class: "panel glass",
-                    h2 { "Validator Operations Checklist" }
-                    ul { class: "ops-list",
-                        li { "Genesis validator set loaded and non-empty." }
-                        li { "RPC, P2P, and telemetry ports remain distinct per profile policy." }
-                        li { "Metrics snapshots persisted under canonical telemetry path." }
-                        li { "Governance serial and network profile family values remain coherent." }
+                    h2 { "Top Validators" }
+                    table {
+                        class: "hub-table",
+                        thead {
+                            tr {
+                                th { "Node" }
+                                th { "Uptime" }
+                                th { "Stake" }
+                                th { "Region" }
+                            }
+                        }
+                        tbody {
+                            for (node, uptime, stake, region) in validators {
+                                tr {
+                                    td { "{node}" }
+                                    td { "{uptime}" }
+                                    td { "{stake}" }
+                                    td { "{region}" }
+                                }
+                            }
+                        }
                     }
                 }
 
-                section {
-                    id: "ops",
+                article {
+                    id: "activity",
                     class: "panel glass",
-                    h2 { "Operator Commands" }
-                    div { class: "cmd-grid",
-                        code { "make up" }
-                        code { "aoxcmd describe profile --name mainnet" }
-                        code { "aoxcmd ops status --profile testnet" }
-                        code { "aoxcmd telemetry refresh --profile localnet" }
+                    h2 { "Recent Activity" }
+                    ul {
+                        class: "activity-list",
+                        for (kind, pair, amount, time) in activity {
+                            li {
+                                div {
+                                    p { class: "activity-kind", "{kind}" }
+                                    p { class: "activity-pair", "{pair}" }
+                                }
+                                div {
+                                    p { class: "activity-amount", "{amount}" }
+                                    p { class: "activity-time", "{time}" }
+                                }
+                            }
+                        }
                     }
                 }
+            }
 
-                footer {
-                    class: "footer glass",
-                    p { "AOX Hub integrates runtime profiles, RPC probes, and operator workflows into a single control plane." }
-                }
+            section {
+                id: "ecosystem",
+                class: "ecosystem glass",
+                h2 { "Ecosystem Overview" }
+                p { "AOX Hub is fully integrated with staking, bridge operations, observability pipelines, and governance automation." }
             }
         }
     }

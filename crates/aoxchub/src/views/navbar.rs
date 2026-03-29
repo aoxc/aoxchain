@@ -12,17 +12,14 @@ pub fn Navbar() -> Element {
                     class: "brand",
                     to: Route::Home {},
                     span { class: "brand-mark", "AOX" }
-                    span {
-                        class: "brand-stack",
-                        strong { "AOX Hub" }
-                        small { "Integrated Runtime Surface" }
-                    }
+                    span { class: "brand-text", "AOX Hub" }
                 }
-                div {
-                    class: "top-actions",
-                    span { class: "status-dot" }
-                    p { "System Ready" }
-                    button { class: "btn btn-ghost", "Run Diagnostics" }
+                nav {
+                    class: "top-links",
+                    a { href: "#overview", "Overview" }
+                    a { href: "#validators", "Validators" }
+                    a { href: "#activity", "Activity" }
+                    a { href: "#ecosystem", "Ecosystem" }
                 }
             }
         }
