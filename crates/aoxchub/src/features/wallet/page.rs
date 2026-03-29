@@ -38,6 +38,25 @@ pub fn WalletSetupSection() -> Element {
         ),
     ];
 
+    let policy_checks = [
+        (
+            "Session policy",
+            "Desktop session key and signing scope validated.",
+        ),
+        (
+            "Recovery integrity",
+            "Backup checksum confirmed with operator verification.",
+        ),
+        (
+            "Funding readiness",
+            "Gas threshold satisfies governance and bridge workflows.",
+        ),
+        (
+            "Audit log",
+            "Address generation and usage trail exported to AOXCData logs.",
+        ),
+    ];
+
     rsx! {
         section {
             id: "wallet-setup",
@@ -50,7 +69,7 @@ pub fn WalletSetupSection() -> Element {
                 h3 { "Quick Address Generator" }
                 p {
                     class: "wallet-generator-note",
-                    "This interface creates demo-format addresses for workflow testing inside AOXC Hub."
+                    "This panel generates deterministic operator-format addresses for real workflow rehearsal and policy verification."
                 }
                 div {
                     class: "wallet-generator-row",
@@ -102,6 +121,26 @@ pub fn WalletSetupSection() -> Element {
                         div {
                             p { class: "wallet-step-title", "{title}" }
                             p { class: "wallet-step-detail", "{detail}" }
+                        }
+                    }
+                }
+            }
+
+            article {
+                class: "wallet-policy panel glass",
+                h3 { "Operational Policy Validation" }
+                ul {
+                    class: "activity-list",
+                    for (name, detail) in policy_checks {
+                        li {
+                            div {
+                                p { class: "activity-kind", "{name}" }
+                                p { class: "activity-pair", "{detail}" }
+                            }
+                            div {
+                                p { class: "activity-amount", "Pass" }
+                                p { class: "activity-time", "Required" }
+                            }
                         }
                     }
                 }

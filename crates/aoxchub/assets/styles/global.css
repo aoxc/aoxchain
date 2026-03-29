@@ -815,6 +815,24 @@ h3 {
   gap: 12px;
 }
 
+.release-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.release-card {
+  padding: 16px;
+  min-height: 142px;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.wallet-policy {
+  margin-top: 14px;
+}
+
 .menu-card {
   display: grid;
   gap: 8px;
@@ -852,7 +870,8 @@ h3 {
   .widget-grid,
   .content-grid,
   .hero,
-  .menu-cards {
+  .menu-cards,
+  .release-grid {
     grid-template-columns: 1fr;
   }
 }
