@@ -752,6 +752,12 @@ h3 {
   flex: 1;
 }
 
+.sidebar-anchor-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+}
+
 .sidebar-banner {
   margin-top: var(--space-6);
   padding: 14px;

@@ -22,6 +22,14 @@ pub const SIDEBAR_MENU_ITEMS: [(&str, &str); 9] = [
     ("Ecosystem", "#ecosystem"),
 ];
 
+fn scroll_to_anchor(anchor: &str) {
+    let section_id = anchor.trim_start_matches('#');
+    let script = format!(
+        "const node = document.getElementById('{section_id}'); if (node) {{ node.scrollIntoView({{ behavior: 'smooth', block: 'start' }}); }}"
+    );
+    dioxus::document::eval(&script);
+}
+
 #[component]
 pub fn SidebarMenu() -> Element {
     rsx! {
@@ -51,9 +59,10 @@ pub fn SidebarMenu() -> Element {
             nav {
                 class: "sidebar-nav",
                 for (label, href) in SIDEBAR_MENU_ITEMS {
-                    a {
-                        class: "sidebar-link",
-                        href: href,
+                    button {
+                        class: "sidebar-link sidebar-anchor-btn",
+                        r#type: "button",
+                        onclick: move |_| scroll_to_anchor(href),
                         span { class: "sidebar-link-icon", "•" }
                         span { class: "sidebar-link-text", "{label}" }
                     }
