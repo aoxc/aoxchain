@@ -1,8 +1,7 @@
 use dioxus::prelude::*;
 
-use views::{Home, Navbar};
-
 mod views;
+use views::{HubPage, Navbar};
 
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
@@ -12,8 +11,8 @@ enum Route {
         Home {},
 }
 
-const FAVICON: Asset = asset!("/assets/favicon.ico");
-const MAIN_CSS: Asset = asset!("/assets/styling/main.css");
+const FAVICON: Asset = asset!("/assets/images/favicon.ico");
+const MAIN_CSS: Asset = asset!("/assets/styles/global.css");
 
 fn main() {
     dioxus::launch(App);
@@ -26,4 +25,9 @@ fn App() -> Element {
         document::Link { rel: "stylesheet", href: MAIN_CSS }
         Router::<Route> {}
     }
+}
+
+#[component]
+fn Home() -> Element {
+    rsx! { HubPage {} }
 }
