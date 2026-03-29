@@ -1,50 +1,53 @@
-# Development
+# AOXCHUB
 
-Your new bare-bones project includes minimal organization with a single `main.rs` file and a few assets.
+AOXCHUB is the desktop and web operator interface for AOXChain. It provides a
+single control surface for consensus visibility, execution-lane monitoring,
+treasury workflows, node operations, governance intents, and security posture
+inspection.
 
-```
-project/
-├─ assets/ # Any assets that are used by the app should be placed here
-├─ src/
-│  ├─ main.rs # main.rs is the entry point to your application and currently contains all components for the app
-├─ Cargo.toml # The Cargo.toml file defines the dependencies and feature flags for your project
-```
+## Purpose
 
-### Automatic Tailwind (Dioxus 0.7+)
+- Provide production-oriented operational visibility from authoritative chain
+  and telemetry integrations.
+- Keep custody and protocol-kernel boundaries explicit: AOXCHUB is a control
+  plane, not a consensus kernel or signing engine.
+- Offer profile-aware behavior across mainnet, devnet, and testnet routing.
 
-As of Dioxus 0.7, there no longer is a need to manually install tailwind. Simply `dx serve` and you're good to go!
+## Contents
 
-Automatic tailwind is supported by checking for a file called `tailwind.css` in your app's manifest directory (next to Cargo.toml). To customize the file, use the dioxus.toml:
+- `src/views/operations.rs`: routed operator screens (overview, consensus,
+  staking, telemetry, governance, settings).
+- `src/services/`: read models and profile-aware integration adapters consumed
+  by the UI.
+- `src/components/` and `assets/`: reusable UI primitives and desktop styling.
+- `SECURITY.md`, `TESTING.md`, `SCOPE.md`, `ARCHITECTURE.md`: governance and
+  engineering boundaries for production operation.
 
-```toml
-[application]
-tailwind_input = "my.css"
-tailwind_output = "assets/out.css" # also customize the location of the out file!
-```
+## Usage
 
-### Tailwind Manual Install
-
-To use tailwind plugins or manually customize tailwind, you can can install the Tailwind CLI and use it directly.
-
-### Tailwind
-1. Install npm: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm
-2. Install the Tailwind CSS CLI: https://tailwindcss.com/docs/installation/tailwind-cli
-3. Run the following command in the root of the project to start the Tailwind CSS compiler:
-
-```bash
-npx @tailwindcss/cli -i ./input.css -o ./assets/tailwind.css --watch
-```
-
-### Serving Your App
-
-Run the following command in the root of your project to start developing with the default platform:
+### Local desktop development
 
 ```bash
 dx serve --platform desktop
 ```
 
-To run for a different platform, use the `--platform platform` flag. E.g.
+### Cargo execution
+
 ```bash
-dx serve --platform desktop
+cargo run -p aoxchub
 ```
 
+### Feature selection
+
+- `desktop` (default): desktop runtime.
+- `web`: browser runtime.
+- `mobile`: mobile runtime.
+- `server`: server/fullstack feature set.
+
+## Notes
+
+- AOXCHUB does not execute privileged chain-kernel logic.
+- Wallet approvals and governance actions remain policy-gated through external
+  signer and approval systems.
+- This repository is distributed under the MIT License; no warranty is
+  provided.
