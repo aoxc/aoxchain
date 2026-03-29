@@ -1,5 +1,7 @@
 use dioxus::prelude::*;
 
+use crate::app::router::Route;
+
 #[component]
 pub fn DashboardSection() -> Element {
     let kpis = [
@@ -7,6 +9,24 @@ pub fn DashboardSection() -> Element {
         ("Finality", "480ms", "-12.1%"),
         ("24h Volume", "$1.28B", "+9.7%"),
         ("Active Wallets", "892,114", "+6.2%"),
+    ];
+
+    let spotlight = [
+        (
+            "Cross-chain relay expansion",
+            "New relays for Ethereum, Cardano, and Sui are synchronized with policy-safe execution windows.",
+            "Bridge Health: 99.997%",
+        ),
+        (
+            "Governance voting week",
+            "Epoch 219 proposal review is active. Operators can sign, audit, and publish voting evidence.",
+            "Live Proposals: 14",
+        ),
+        (
+            "Validator quality matrix",
+            "Regional validator telemetry indicates stable performance and no unresolved consensus faults.",
+            "Incidents: 0 critical",
+        ),
     ];
 
     let widgets = [
@@ -19,6 +39,46 @@ pub fn DashboardSection() -> Element {
     ];
 
     rsx! {
+        section {
+            class: "hero glass dashboard-hero",
+            div {
+                class: "hero-copy",
+                p { class: "eyebrow", "AOXC Control Tower" }
+                h1 { "Cam gibi net, tam kapsamlı operasyon arayüzü" }
+                p {
+                    class: "hero-sub",
+                    "Dashboard, banner, widget, menü ve kritik zincir akışlarını tek panelde toplayan genişletilmiş AOXC Hub deneyimi."
+                }
+                div {
+                    class: "hero-actions",
+                    Link { class: "btn btn-primary", to: Route::Operations {}, "Open Operations Center" }
+                    Link { class: "btn btn-ghost", to: Route::Wallet {}, "Manage Wallet Flows" }
+                }
+            }
+            div {
+                class: "hero-panel",
+                h3 { "Today at a glance" }
+                ul {
+                    li { span { "Consensus" } strong { "Stable" } }
+                    li { span { "Bridge Relays" } strong { "Synchronized" } }
+                    li { span { "Governance" } strong { "Voting Active" } }
+                    li { span { "Alert Status" } strong { "3 Non-Critical" } }
+                }
+            }
+        }
+
+        section {
+            class: "spotlight-slider",
+            for (title, body, tag) in spotlight {
+                article {
+                    class: "spotlight-card glass",
+                    p { class: "spotlight-tag", "{tag}" }
+                    h3 { "{title}" }
+                    p { class: "hero-sub", "{body}" }
+                }
+            }
+        }
+
         section {
             id: "dashboard",
             class: "metrics-grid",
@@ -41,6 +101,40 @@ pub fn DashboardSection() -> Element {
                     h3 { "{value}" }
                     p { class: "widget-note", "{note}" }
                 }
+            }
+        }
+
+        section {
+            class: "menu-cards",
+            Link {
+                class: "menu-card glass",
+                to: Route::Dashboard {},
+                h3 { "Dashboard" }
+                p { "Real-time KPI view, spotlight cards, and operator summaries." }
+            }
+            Link {
+                class: "menu-card glass",
+                to: Route::Wallet {},
+                h3 { "Wallet" }
+                p { "Address lifecycle, funding flow, and policy binding actions." }
+            }
+            Link {
+                class: "menu-card glass",
+                to: Route::Operations {},
+                h3 { "Operations" }
+                p { "Validator matrix, runtime health, and stream diagnostics." }
+            }
+            Link {
+                class: "menu-card glass",
+                to: Route::Overview {},
+                h3 { "Overview" }
+                p { "Network-level architecture and ecosystem health snapshot." }
+            }
+            Link {
+                class: "menu-card glass",
+                to: Route::Settings {},
+                h3 { "Settings" }
+                p { "Endpoint controls, language preferences, and automation setup." }
             }
         }
     }

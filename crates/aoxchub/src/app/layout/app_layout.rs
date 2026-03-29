@@ -20,7 +20,10 @@ pub fn AppLayout() -> Element {
 
                 main {
                     class: "main-content",
-                    Outlet::<Route> {}
+                    section {
+                        class: "hub-page",
+                        Outlet::<Route> {}
+                    }
                 }
             }
 
