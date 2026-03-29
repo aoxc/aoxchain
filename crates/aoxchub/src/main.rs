@@ -2,7 +2,6 @@ use dioxus::prelude::*;
 
 use views::{Home, Navbar};
 
-mod components;
 mod views;
 
 #[derive(Debug, Clone, Routable, PartialEq)]
