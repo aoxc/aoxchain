@@ -118,7 +118,8 @@ help:
 	@printf "  make build             - build the workspace\n"
 	@printf "  make build-release     - build the release AOXC CLI\n"
 	@printf "  make package-bin       - install release binary into %s\n" "$(AOXC_BIN_DIR)"
-	@printf "  make build-release-all - build all release binaries (aoxc, aoxchub, aoxckit)\n"
+	@printf "  make build-release-all - build all workspace release binaries\n"
+	@printf "  make release-binary-list - print detected workspace binary names\n"
 	@printf "  make package-all-bin   - install all release binaries into %s\n" "$(AOXC_BIN_DIR)"
 	@printf "  make package-versioned-bin - install all binaries into versioned bundle under %s\n" "$(AOXC_RELEASES_DIR)"
 	@printf "  make package-versioned-archive - create tar.gz archive for the versioned bundle\n"
@@ -266,9 +267,15 @@ build-release:
 
 build-release-all:
 	$(call print_banner,Building all release AOXC binaries)
-	$(CARGO) build --release -p aoxcmd --bin aoxc
-	$(CARGO) build --release -p aoxchub --bin aoxchub
-	$(CARGO) build --release -p aoxckit --bin aoxckit
+	$(CARGO) build --release --workspace --bins
+
+release-binary-list:
+	$(call print_banner,Detected workspace binary names)
+	@if [ -z "$(RELEASE_BINARIES)" ]; then \
+		echo "No binaries detected from cargo metadata."; \
+		exit 1; \
+	fi
+	@for binary in $(RELEASE_BINARIES); do echo "$$binary"; done
 
 package-bin: build-release bootstrap-paths
 	$(call print_banner,Packaging release binary)
@@ -281,14 +288,14 @@ package-bin: build-release bootstrap-paths
 
 package-all-bin: build-release-all bootstrap-paths
 	$(call print_banner,Packaging all release binaries)
-	@mkdir -p "$(AOXC_BIN_DIR)" bin
-	@cp target/release/aoxc "$(AOXC_BIN_DIR)/aoxc"
-	@cp target/release/aoxchub "$(AOXC_BIN_DIR)/aoxchub"
-	@cp target/release/aoxckit "$(AOXC_BIN_DIR)/aoxckit"
-	@chmod +x "$(AOXC_BIN_DIR)/aoxc" "$(AOXC_BIN_DIR)/aoxchub" "$(AOXC_BIN_DIR)/aoxckit"
-	@ln -sf "$(AOXC_BIN_DIR)/aoxc" bin/aoxc
-	@ln -sf "$(AOXC_BIN_DIR)/aoxchub" bin/aoxchub
-	@ln -sf "$(AOXC_BIN_DIR)/aoxckit" bin/aoxckit
+	@set -euo pipefail; \
+	mkdir -p "$(AOXC_BIN_DIR)" bin; \
+	if [ -z "$(RELEASE_BINARIES)" ]; then echo "No binaries detected from cargo metadata."; exit 1; fi; \
+	for binary in $(RELEASE_BINARIES); do \
+		cp "target/release/$$binary" "$(AOXC_BIN_DIR)/$$binary"; \
+		chmod +x "$(AOXC_BIN_DIR)/$$binary"; \
+		ln -sf "$(AOXC_BIN_DIR)/$$binary" "bin/$$binary"; \
+	done
 	@echo "Installed binaries under: $(AOXC_BIN_DIR)"
 	@echo "Compatibility symlinks created under ./bin"
 
