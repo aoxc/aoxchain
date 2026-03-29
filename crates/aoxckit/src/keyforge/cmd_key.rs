@@ -2,9 +2,10 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
-use crate::keyforge::cli::{KeyCommand, KeySubcommand};
+use crate::keyforge::cli::{KeyCommand, KeySubcommand, OutputFormat};
 use crate::keyforge::util::read_text_file;
 use aoxcore::identity::key_bundle::NodeKeyBundleV1;
+use aoxcore::identity::pq_keys;
 use serde::Serialize;
 
 /// Dispatches supported `keyforge` subcommands.
@@ -18,12 +19,38 @@ use serde::Serialize;
 ///   implicitly, which provides a clearer operator-facing failure mode.
 pub fn handle(command: KeyCommand) -> Result<(), String> {
     match command.command {
+        KeySubcommand::GeneratePublic { format } => generate_public(format),
         KeySubcommand::InspectBundle { file, .. } => inspect_bundle(&file),
         other => Err(format!(
             "UNSUPPORTED_KEY_SUBCOMMAND: {:?}. The command dispatcher is not wired for this variant.",
             other
         )),
     }
+}
+
+#[derive(Debug, Serialize)]
+struct PublicKeyGenerateOutput {
+    algorithm: String,
+    fingerprint: String,
+    public_key: String,
+}
+
+/// Generates a Dilithium3 keypair and emits only the public representation.
+///
+/// Security boundary:
+/// - This operation must never print secret key material.
+/// - Output remains public-safe for operator terminals and automation logs.
+fn generate_public(format: OutputFormat) -> Result<(), String> {
+    let (public_key, _secret_key) = pq_keys::generate_keypair();
+    let output = PublicKeyGenerateOutput {
+        algorithm: "dilithium3".to_string(),
+        fingerprint: pq_keys::fingerprint(&public_key),
+        public_key: pq_keys::serialize_public_key_hex(&public_key),
+    };
+
+    let body = serialize_output(&output, format)?;
+    println!("{}", body);
+    Ok(())
 }
 
 /// Reads, validates, and reprints a canonical AOXC node key bundle.
@@ -60,6 +87,19 @@ where
     T: Serialize,
 {
     serde_json::to_string_pretty(value).map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error))
+}
+
+fn serialize_output<T>(value: &T, format: OutputFormat) -> Result<String, String>
+where
+    T: Serialize,
+{
+    match format {
+        OutputFormat::Json => {
+            serde_json::to_string(value).map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error))
+        }
+        OutputFormat::PrettyJson => serde_json::to_string_pretty(value)
+            .map_err(|error| format!("JSON_SERIALIZE_ERROR: {}", error)),
+    }
 }
 
 #[cfg(test)]
@@ -189,5 +229,28 @@ mod tests {
             serde_json::from_str(&body).expect("output must be valid JSON");
 
         assert_eq!(parsed["status"], "ok");
+    }
+
+    #[test]
+    fn generate_public_output_has_expected_shape() {
+        let (public_key, _secret_key) = pq_keys::generate_keypair();
+        let output = PublicKeyGenerateOutput {
+            algorithm: "dilithium3".to_string(),
+            fingerprint: pq_keys::fingerprint(&public_key),
+            public_key: pq_keys::serialize_public_key_hex(&public_key),
+        };
+
+        let body = serialize_output(&output, OutputFormat::PrettyJson)
+            .expect("public output serialization must succeed");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&body).expect("serialized output must be valid JSON");
+
+        assert_eq!(parsed["algorithm"], "dilithium3");
+        assert!(parsed.get("fingerprint").is_some());
+        assert!(parsed.get("public_key").is_some());
+        assert!(
+            parsed.get("secret_key").is_none(),
+            "public output must never expose secret_key"
+        );
     }
 }
