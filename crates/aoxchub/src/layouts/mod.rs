@@ -1,19 +1,28 @@
 use dioxus::prelude::*;
 
-use crate::components::navigation::{Header, Sidebar};
+use crate::components::navigation::{Header, RightOperationsPanel, Sidebar};
 use crate::route::Route;
 
 #[component]
 pub fn AdminLayout() -> Element {
     rsx! {
-        div { class: "flex h-screen overflow-hidden bg-[#03050a] text-slate-100",
+        div { class: "aox-shell",
             Sidebar {}
-            div { class: "flex min-w-0 flex-1 flex-col",
+
+            div { class: "aox-main-column",
                 Header {}
-                main { class: "min-h-0 flex-1 overflow-y-auto p-6 md:p-8",
+
+                main { class: "aox-workspace",
                     Outlet::<Route> {}
                 }
+
+                footer { class: "aox-footer",
+                    span { "AOXC • Fully open-source chain interface" }
+                    span { "Protocol core remains isolated from presentation and custody boundaries." }
+                }
             }
+
+            RightOperationsPanel {}
         }
     }
 }
