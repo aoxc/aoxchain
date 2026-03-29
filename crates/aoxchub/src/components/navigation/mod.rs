@@ -4,7 +4,7 @@ use crate::i18n::Language;
 use crate::route::Route;
 use crate::services::network_profile::resolve_profile;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct NavItem {
     label: &'static str,
     route: Route,
