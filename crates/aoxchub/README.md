@@ -30,6 +30,20 @@ For Dioxus development workflow:
 dx serve --platform desktop
 ```
 
+## CLI Binary (Advanced Compatibility)
+
+AOXC Hub now exposes a compatibility-oriented CLI layer in the same `aoxchub` binary.
+
+Examples:
+
+```bash
+aoxchub --profile real
+aoxchub doctor --profile testnet --format json --headless
+aoxchub paths --aoxcdata-home /srv/aoxc/.AOXCData
+```
+
+The CLI layer is designed for deterministic operator automation while preserving desktop launch behavior when no headless-only workflow is requested.
+
 ## Integration Checklist (UI-aligned)
 
 1. Network profile selector (Dev/Testnet/Mainnet) with strict environment isolation.
