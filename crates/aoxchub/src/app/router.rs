@@ -1,5 +1,35 @@
 use dioxus::prelude::*;
 
+use crate::features::dashboard::page::DashboardSection;
+use crate::features::explorer::domains::DomainSections;
+use crate::features::explorer::page::OverviewSection;
+use crate::features::operations::page::OperationsSection;
+use crate::features::settings::page::SettingsSection;
+use crate::features::wallet::page::WalletSetupSection;
+
+pub const INTEGRATION_CHECKLIST: [(&str, &str); 5] = [
+    (
+        "Network profile selector",
+        "Dev / Testnet / Mainnet context toggles and isolation rules.",
+    ),
+    (
+        "RPC capability handshake",
+        "Version, chain-id, genesis hash, and method support validation.",
+    ),
+    (
+        "Wallet security baseline",
+        "Seed backup flow, session policy, and signing boundaries.",
+    ),
+    (
+        "Observability hooks",
+        "Structured logs, health telemetry, and operator-visible diagnostics.",
+    ),
+    (
+        "Release gate",
+        "Build checks, smoke tests, and deployment readiness evidence.",
+    ),
+];
+
 /// Defines the canonical routing contract for AOXC Hub.
 ///
 /// The router is intentionally minimal at this stage and exposes a single
@@ -20,19 +50,42 @@ pub enum Route {
 pub fn Home() -> Element {
     rsx! {
         div {
-            class: "page page-home",
+            class: "hub-page",
 
             header {
-                class: "page-header",
+                class: "hero glass",
                 h1 { "AOXC Hub Control Center" }
-                p { "Main operational interface is online." }
+                p { class: "hero-sub", "Main operational interface is online. UI integration skeleton is now connected end-to-end." }
             }
 
             section {
-                class: "page-section",
-                h2 { "Status" }
-                p { "Routing has been normalized through the centralized app router." }
+                id: "integration-checklist",
+                class: "panel glass",
+                h2 { "System Integration Checklist" }
+                p { class: "hero-sub", "Core checklist is embedded in the interface so content details can be expanded incrementally without leaving empty screens." }
+                ul {
+                    class: "activity-list",
+                    for (item, detail) in INTEGRATION_CHECKLIST {
+                        li {
+                            div {
+                                p { class: "activity-kind", "{item}" }
+                                p { class: "activity-pair", "{detail}" }
+                            }
+                            div {
+                                p { class: "activity-amount", "Pending Detail" }
+                                p { class: "activity-time", "Ready for content input" }
+                            }
+                        }
+                    }
+                }
             }
+
+            WalletSetupSection {}
+            OverviewSection {}
+            DashboardSection {}
+            OperationsSection {}
+            SettingsSection {}
+            DomainSections {}
         }
     }
 }
