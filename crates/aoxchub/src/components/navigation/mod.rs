@@ -154,15 +154,16 @@ pub fn Header() -> Element {
 
     rsx! {
         header { class: "aox-header",
-            div {
-                p { class: "aox-kicker", "AOXC Integrated Control Surface" }
-                h1 { class: "aox-title", "Production Chain Interface" }
+            div { class: "aox-header-copy",
+                p { class: "aox-kicker", "AOXCHAIN OPERATIONS LEDGER" }
+                h1 { class: "aox-title", "Defter Kalitesinde Operasyon Merkezi" }
+                p { class: "aox-header-subtitle", "Zincir yönetimi, validator süreçleri ve güvenlik kontrolleri için rafine ve denetlenebilir masaüstü deneyimi." }
             }
 
             div { class: "aox-chip-row",
                 span { class: "aox-chip", "Profile: {profile.title()}" }
                 span { class: "aox-chip", "Language: {language_label(language)}" }
-                span { class: "aox-chip aox-chip--good", "Boundary: Fail-Closed" }
+                span { class: "aox-chip aox-chip--good", "Audit Mode: Active" }
             }
         }
     }
@@ -173,8 +174,9 @@ pub fn Sidebar() -> Element {
     rsx! {
         aside { class: "aox-sidebar",
             div { class: "aox-brand",
-                p { class: "aox-kicker", "AOXCHAIN" }
-                h2 { "Unified User / Dev / Validator Plane" }
+                p { class: "aox-kicker", "AOXCHAIN CONTROL LEDGER" }
+                h2 { "AOXCHUB Notebook" }
+                p { class: "aox-brand-subtitle", "Sadece arayüz değil; ritmi, katmanı ve operasyon ruhu olan üretim seviyesi kontrol defteri." }
             }
 
             nav { class: "aox-nav",
@@ -189,10 +191,9 @@ pub fn Sidebar() -> Element {
             }
 
             div { class: "aox-security-box",
-                p { class: "aox-kicker", "Security Posture" }
+                p { class: "aox-kicker", "Security Baseline" }
                 p {
-                    "Wallet approvals, governance intents, and node operations \
-                    are constrained behind explicit policy boundaries."
+                    "Wallet, governance ve node işlemleri; imza, politika ve denetim sınırları altında yürütülür."
                 }
             }
         }
@@ -204,22 +205,22 @@ pub fn RightOperationsPanel() -> Element {
     rsx! {
         aside { class: "aox-right-panel",
             section { class: "aox-right-card",
-                p { class: "aox-kicker", "Wallet Approval Queue" }
-                h3 { "Pending signature review" }
+                p { class: "aox-kicker", "Operator Queue" }
+                h3 { "Critical approvals" }
                 ul {
-                    li { "Transfer Intent • Dry-run verified" }
-                    li { "Treasury Policy Update • Waiting multisig" }
-                    li { "Validator Rotation • Governance checkpoint" }
+                    li { "Treasury transfer intent • dry-run complete" }
+                    li { "Governance policy uplift • multisig waiting" }
+                    li { "Validator rotation set • checkpoint ready" }
                 }
             }
 
             section { class: "aox-right-card",
-                p { class: "aox-kicker", "Node Operations" }
-                h3 { "Live validator controls" }
+                p { class: "aox-kicker", "Runtime Status" }
+                h3 { "Live network posture" }
                 ul {
-                    li { "Health probes: healthy" }
-                    li { "Snapshot service: synchronized" }
-                    li { "Upgrade channel: locked to signed manifests" }
+                    li { "Health probes: nominal" }
+                    li { "Snapshot sync: in policy window" }
+                    li { "Upgrade channel: signed manifest only" }
                 }
             }
         }
