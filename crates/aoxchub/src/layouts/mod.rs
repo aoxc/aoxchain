@@ -17,8 +17,8 @@ pub fn AdminLayout() -> Element {
                 }
 
                 footer { class: "aox-footer",
-                    span { "AOXC • Fully open-source chain interface" }
-                    span { "Protocol core remains isolated from presentation and custody boundaries." }
+                    span { "AOXCHUB • Production Desktop Control Surface" }
+                    span { "Consensus kernel, custody, and signer boundaries remain isolated by design." }
                 }
             }
 

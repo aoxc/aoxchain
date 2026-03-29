@@ -1,4 +1,5 @@
 pub mod consensus_service;
+pub mod desktop_readiness_service;
 pub mod execution_service;
 pub mod explorer_service;
 pub mod governance_service;
