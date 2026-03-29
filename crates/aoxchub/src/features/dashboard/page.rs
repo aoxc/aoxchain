@@ -1,25 +1,6 @@
 use dioxus::prelude::*;
-use serde::Deserialize;
 
 use crate::app::router::Route;
-
-#[derive(Debug, Deserialize, Clone)]
-struct RolloutSnapshot {
-    status: String,
-    surfaces: Vec<String>,
-    requirements: Vec<String>,
-}
-
-fn load_rollout_snapshot() -> RolloutSnapshot {
-    serde_json::from_str(include_str!(
-        "../../../../../artifacts/network-production-closure/aoxhub-rollout.json"
-    ))
-    .unwrap_or_else(|_| RolloutSnapshot {
-        status: String::from("unknown"),
-        surfaces: Vec::new(),
-        requirements: Vec::new(),
-    })
-}
 
 #[component]
 pub fn DashboardSection() -> Element {
