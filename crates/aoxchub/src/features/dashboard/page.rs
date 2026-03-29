@@ -1,6 +1,25 @@
 use dioxus::prelude::*;
+use serde::Deserialize;
 
 use crate::app::router::Route;
+
+#[derive(Debug, Deserialize, Clone)]
+struct RolloutSnapshot {
+    status: String,
+    surfaces: Vec<String>,
+    requirements: Vec<String>,
+}
+
+fn load_rollout_snapshot() -> RolloutSnapshot {
+    serde_json::from_str(include_str!(
+        "../../../../../artifacts/network-production-closure/aoxhub-rollout.json"
+    ))
+    .unwrap_or_else(|_| RolloutSnapshot {
+        status: String::from("unknown"),
+        surfaces: Vec::new(),
+        requirements: Vec::new(),
+    })
+}
 
 #[component]
 pub fn DashboardSection() -> Element {
@@ -37,6 +56,11 @@ pub fn DashboardSection() -> Element {
         ("Treasury Balance", "94.2M AOXC", "Policy constrained"),
         ("Governance Cycle", "Epoch 219", "Voting phase active"),
     ];
+
+    let rollout = load_rollout_snapshot();
+    let rollout_status = rollout.status.clone();
+    let rollout_surfaces = rollout.surfaces.clone();
+    let rollout_requirements = rollout.requirements.clone();
 
     rsx! {
         section {
@@ -100,6 +124,29 @@ pub fn DashboardSection() -> Element {
                     p { class: "widget-title", "{title}" }
                     h3 { "{value}" }
                     p { class: "widget-note", "{note}" }
+                }
+            }
+        }
+
+        section {
+            class: "release-grid",
+            for surface in rollout_surfaces {
+                article {
+                    class: "release-card glass",
+                    p { class: "widget-title", "Deployment Surface" }
+                    h3 { "{surface.to_uppercase()}" }
+                    p { class: "widget-note", "Rollout status: {rollout_status}" }
+                }
+            }
+        }
+
+        section {
+            class: "panel glass",
+            h2 { "Production Rollout Requirements" }
+            ul {
+                class: "hero-panel-list",
+                for item in rollout_requirements {
+                    li { class: "hero-sub", "{item}" }
                 }
             }
         }
