@@ -278,6 +278,45 @@ h1 {
   margin-top: 0;
 }
 
+.wallet-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.wallet-step {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  gap: 10px;
+}
+
+.wallet-step-index {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(37, 99, 235, 0.25);
+  color: #bfdbfe;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.wallet-step-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.wallet-step-detail {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .hub-table {
   width: 100%;
   border-collapse: collapse;
