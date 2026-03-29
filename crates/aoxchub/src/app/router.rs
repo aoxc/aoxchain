@@ -10,16 +10,16 @@ use crate::features::wallet::page::WalletSetupSection;
 #[derive(Routable, Clone, PartialEq)]
 pub enum Route {
     #[layout(AppLayout)]
-        #[route("/")]
-        Dashboard {},
-        #[route("/wallet")]
-        Wallet {},
-        #[route("/operations")]
-        Operations {},
-        #[route("/overview")]
-        Overview {},
-        #[route("/settings")]
-        Settings {},
+    #[route("/")]
+    Dashboard {},
+    #[route("/wallet")]
+    Wallet {},
+    #[route("/operations")]
+    Operations {},
+    #[route("/overview")]
+    Overview {},
+    #[route("/settings")]
+    Settings {},
 }
 
 #[component]
