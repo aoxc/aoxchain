@@ -3,6 +3,7 @@ use dioxus::prelude::*;
 #[component]
 pub fn SidebarMenu() -> Element {
     let menu_items = [
+        ("Integration Checklist", "#integration-checklist"),
         ("Wallet Setup", "#wallet-setup"),
         ("Overview", "#overview"),
         ("Dashboard", "#dashboard"),
