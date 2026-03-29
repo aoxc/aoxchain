@@ -1,34 +1,44 @@
-# Development
+# AOXC Hub
 
-Your new jumpstart project includes basic organization with an organized `assets` folder and a `components` folder.
-If you chose to develop with the router feature, you will also have a `views` folder.
+AOXC Hub is the desktop-facing operational surface for AOXChain.  
+This crate currently provides an integrated UI shell that connects navigation, route hosting, and all feature sections in one frame while allowing content depth to be expanded iteratively.
 
+## Purpose
+
+- Provide a single operator interface for wallet onboarding, explorer overview, dashboard metrics, operations monitoring, settings, and ecosystem domains.
+- Keep the interface non-empty and presentation-complete while backend integrations are hardened step-by-step.
+- Preserve a deterministic structure for Dev, Testnet, and Mainnet rollout preparation.
+
+## Current Contents
+
+- **App shell:** top header, left sidebar, route outlet, and footer.
+- **Feature sections:** wallet, overview, dashboard, operations, settings, and domain panels.
+- **Embedded integration checklist:** visible in UI as an implementation tracker for system-level readiness.
+- **Global styling:** desktop-oriented theme and layout primitives.
+
+## Usage
+
+From repository root:
+
+```bash
+cargo run -p aoxchub
 ```
-project/
-├─ assets/ # Any assets that are used by the app should be placed here
-├─ src/
-│  ├─ main.rs # The entrypoint for the app. It also defines the routes for the app.
-│  ├─ components/
-│  │  ├─ mod.rs # Defines the components module
-│  │  ├─ hero.rs # The Hero component for use in the home page
-│  │  ├─ echo.rs # The echo component uses server functions to communicate with the server
-│  ├─ views/ # The views each route will render in the app.
-│  │  ├─ mod.rs # Defines the module for the views route and re-exports the components for each route
-│  │  ├─ blog.rs # The component that will render at the /blog/:id route
-│  │  ├─ home.rs # The component that will render at the / route
-├─ Cargo.toml # The Cargo.toml file defines the dependencies and feature flags for your project
-```
 
-### Serving Your App
-
-Run the following command in the root of your project to start developing with the default platform:
+For Dioxus development workflow:
 
 ```bash
 dx serve --platform desktop
 ```
 
-To run for a different platform, use the `--platform platform` flag. E.g.
-```bash
-dx serve --platform desktop
-```
+## Integration Checklist (UI-aligned)
 
+1. Network profile selector (Dev/Testnet/Mainnet) with strict environment isolation.
+2. RPC compatibility handshake (version, chain-id, genesis hash, capability checks).
+3. Wallet policy and signature boundary enforcement.
+4. Observability wiring (logs, health signals, operator diagnostics).
+5. Release gate with build checks and smoke validation.
+
+## Notes
+
+- This crate remains under active integration; interface composition is complete, while deep business content and production connectors can be layered in subsequent iterations.
+- The repository is MIT-licensed; operational responsibility and deployment risk remain with integrators.

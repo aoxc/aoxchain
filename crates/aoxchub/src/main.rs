@@ -6,8 +6,14 @@ mod infrastructure;
 mod shared;
 mod testing;
 
-use crate::app::app_root::AppRoot;
-
 fn main() {
-    dioxus::launch(AppRoot);
+    #[cfg(all(feature = "web", not(target_arch = "wasm32"), not(feature = "desktop")))]
+    {
+        eprintln!(
+            "aoxchub(web): non-wasm target detected. Build for wasm32-unknown-unknown (dx serve) or enable desktop feature."
+        );
+    }
+
+    #[cfg(not(all(feature = "web", not(target_arch = "wasm32"), not(feature = "desktop"))))]
+    dioxus::launch(crate::app::app_root::AppRoot);
 }
