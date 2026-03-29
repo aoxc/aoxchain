@@ -7,29 +7,6 @@ use crate::features::operations::page::OperationsSection;
 use crate::features::settings::page::SettingsSection;
 use crate::features::wallet::page::WalletSetupSection;
 
-pub const INTEGRATION_CHECKLIST: [(&str, &str); 5] = [
-    (
-        "Network profile selector",
-        "Dev / Testnet / Mainnet context toggles and isolation rules.",
-    ),
-    (
-        "RPC capability handshake",
-        "Version, chain-id, genesis hash, and method support validation.",
-    ),
-    (
-        "Wallet security baseline",
-        "Seed backup flow, session policy, and signing boundaries.",
-    ),
-    (
-        "Observability hooks",
-        "Structured logs, health telemetry, and operator-visible diagnostics.",
-    ),
-    (
-        "Release gate",
-        "Build checks, smoke tests, and deployment readiness evidence.",
-    ),
-];
-
 /// Defines the canonical routing contract for AOXC Hub.
 ///
 /// The router is intentionally minimal at this stage and exposes a single
@@ -48,6 +25,29 @@ pub enum Route {
 /// route target while the broader application shell continues to evolve.
 #[component]
 pub fn Home() -> Element {
+    let integration_checklist = [
+        (
+            "Network profile selector",
+            "Dev / Testnet / Mainnet context toggles and isolation rules.",
+        ),
+        (
+            "RPC capability handshake",
+            "Version, chain-id, genesis hash, and method support validation.",
+        ),
+        (
+            "Wallet security baseline",
+            "Seed backup flow, session policy, and signing boundaries.",
+        ),
+        (
+            "Observability hooks",
+            "Structured logs, health telemetry, and operator-visible diagnostics.",
+        ),
+        (
+            "Release gate",
+            "Build checks, smoke tests, and deployment readiness evidence.",
+        ),
+    ];
+
     rsx! {
         div {
             class: "hub-page",
@@ -65,7 +65,7 @@ pub fn Home() -> Element {
                 p { class: "hero-sub", "Core checklist is embedded in the interface so content details can be expanded incrementally without leaving empty screens." }
                 ul {
                     class: "activity-list",
-                    for (item, detail) in INTEGRATION_CHECKLIST {
+                    for (item, detail) in integration_checklist {
                         li {
                             div {
                                 p { class: "activity-kind", "{item}" }
