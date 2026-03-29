@@ -3,18 +3,9 @@ use dioxus::prelude::*;
 use crate::i18n::Language;
 use crate::route::Route;
 use crate::services::network_profile::resolve_profile;
+use crate::services::rpc_client::RpcClient;
+use crate::services::telemetry::latest_snapshot;
 
-/// Represents a stable, compile-safe identifier for a sidebar destination.
-///
-/// This enum intentionally stores only lightweight discriminants rather than
-/// full `Route` values. The design avoids unnecessary trait constraints on
-/// configuration records and keeps the navigation model resilient if `Route`
-/// evolves to include non-`Copy` or otherwise richer state in the future.
-///
-/// Security and maintainability rationale:
-/// - Prevents invalid `Copy` assumptions for route-bearing structures.
-/// - Keeps static navigation metadata deterministic and side-effect free.
-/// - Provides a single conversion boundary from UI intent to router state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NavKey {
     Overview,
@@ -30,10 +21,6 @@ enum NavKey {
 }
 
 impl NavKey {
-    /// Resolves the stable navigation key into the concrete router destination.
-    ///
-    /// This conversion is intentionally explicit to preserve auditability and
-    /// reduce the probability of silent routing drift during future refactors.
     #[inline]
     fn route(self) -> Route {
         match self {
@@ -51,21 +38,10 @@ impl NavKey {
     }
 }
 
-/// Immutable navigation descriptor used by the control surface sidebar.
-///
-/// The structure is deliberately limited to `'static` metadata and a stable
-/// route key. This allows the record to remain `Copy`, trivially analyzable,
-/// and suitable for static initialization without imposing trait requirements
-/// on higher-order routing types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct NavItem {
-    /// Human-readable navigation label rendered in the sidebar.
     label: &'static str,
-
-    /// Stable internal destination identifier.
     key: NavKey,
-
-    /// Short operational classification badge shown beside the label.
     badge: &'static str,
 }
 
@@ -122,11 +98,6 @@ const NAV_ITEMS: [NavItem; 10] = [
     },
 ];
 
-/// Resolves the effective interface language from process-level configuration.
-///
-/// The function applies a fail-safe default to English when the environment
-/// variable is absent, malformed, or unsupported. This behavior is intentional
-/// for operational predictability in production deployments.
 #[inline]
 fn resolve_language() -> Language {
     match std::env::var("AOXCHUB_LANG").ok().as_deref() {
@@ -135,10 +106,6 @@ fn resolve_language() -> Language {
     }
 }
 
-/// Returns the compact language marker displayed in the header.
-///
-/// The function is separated from the component body to keep the render path
-/// declarative and to centralize presentation mapping for future expansion.
 #[inline]
 fn language_label(language: Language) -> &'static str {
     match language {
@@ -156,14 +123,14 @@ pub fn Header() -> Element {
         header { class: "aox-header",
             div { class: "aox-header-copy",
                 p { class: "aox-kicker", "AOXCHAIN ORBITAL CONSOLE" }
-                h1 { class: "aox-title", "Unified Production Operations" }
-                p { class: "aox-header-subtitle", "Mainnet-grade desktop cockpit for validator, treasury, and governance workflows." }
+                h1 { class: "aox-title", "AOXCHUB Advanced Command Deck" }
+                p { class: "aox-header-subtitle", "Real-time operations dashboard with RPC-backed telemetry, governance controls, and release automation surfaces." }
             }
 
             div { class: "aox-chip-row",
                 span { class: "aox-chip", "Profile: {profile.title()}" }
                 span { class: "aox-chip", "Language: {language_label(language)}" }
-                span { class: "aox-chip aox-chip--good", "Integrity: Enforced" }
+                span { class: "aox-chip aox-chip--good", "Transport: RPC Live" }
             }
         }
     }
@@ -175,8 +142,8 @@ pub fn Sidebar() -> Element {
         aside { class: "aox-sidebar",
             div { class: "aox-brand",
                 p { class: "aox-kicker", "AOXCHAIN CONTROL PLANE" }
-                h2 { "AOXCHUB Desktop" }
-                p { class: "aox-brand-subtitle", "Production operator experience redesigned for full-flow execution visibility." }
+                h2 { "AOXCHUB Admin" }
+                p { class: "aox-brand-subtitle", "Glassmorphism workspace for production orchestration across consensus, execution, explorer, and security domains." }
             }
 
             nav { class: "aox-nav",
@@ -193,7 +160,7 @@ pub fn Sidebar() -> Element {
             div { class: "aox-security-box",
                 p { class: "aox-kicker", "Security Baseline" }
                 p {
-                    "All wallet, governance, and node actions remain policy-gated, auditable, and signer-approved."
+                    "Signer-gated mutation model is preserved. Every critical action remains policy verified and auditable before execution."
                 }
             }
         }
@@ -202,25 +169,57 @@ pub fn Sidebar() -> Element {
 
 #[component]
 pub fn RightOperationsPanel() -> Element {
+    let telemetry = use_resource(move || async move { latest_snapshot().await });
+
+    let endpoint = RpcClient::endpoint();
+    let (status, block, peers, chain_id) = match telemetry() {
+        Some(snapshot) => (
+            if snapshot.healthy {
+                "Healthy"
+            } else {
+                "Degraded"
+            }
+            .to_string(),
+            snapshot
+                .latest_block
+                .map(|value| format!("#{value}"))
+                .unwrap_or_else(|| "N/A".to_string()),
+            snapshot
+                .peer_count
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "N/A".to_string()),
+            snapshot.chain_id.unwrap_or_else(|| "N/A".to_string()),
+        ),
+        None => (
+            "Loading".to_string(),
+            "...".to_string(),
+            "...".to_string(),
+            "...".to_string(),
+        ),
+    };
+
     rsx! {
         aside { class: "aox-right-panel",
             section { class: "aox-right-card",
-                p { class: "aox-kicker", "Operator Queue" }
-                h3 { "Critical approvals" }
+                p { class: "aox-kicker", "Live RPC Signal" }
+                h3 { "Network transport" }
                 ul {
-                    li { "Treasury transfer intent • dry-run complete" }
-                    li { "Governance policy uplift • multisig waiting" }
-                    li { "Validator rotation set • checkpoint ready" }
+                    li { "Endpoint: {endpoint}" }
+                    li { "Health: {status}" }
+                    li { "Head: {block}" }
+                    li { "Peers: {peers}" }
+                    li { "Chain ID: {chain_id}" }
                 }
             }
 
             section { class: "aox-right-card",
-                p { class: "aox-kicker", "Runtime Status" }
-                h3 { "Live network posture" }
+                p { class: "aox-kicker", "Operator Toolchain" }
+                h3 { "CLI + Make Surface" }
                 ul {
-                    li { "Health probes: nominal" }
-                    li { "Snapshot sync: in policy window" }
-                    li { "Upgrade channel: signed manifest only" }
+                    li { "aoxc telemetry snapshot" }
+                    li { "aoxc explorer block latest" }
+                    li { "make test-mainnet-compat" }
+                    li { "make telemetry-drill" }
                 }
             }
         }

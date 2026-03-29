@@ -29,7 +29,10 @@ pub async fn read_overview() -> OverviewReadModel {
         .unwrap_or_else(|| "unavailable".to_string());
 
     OverviewReadModel {
-        chain_id: "AOXC-L1".to_string(),
+        chain_id: telemetry
+            .chain_id
+            .clone()
+            .unwrap_or_else(|| "unavailable".to_string()),
         network_profile,
         latest_finalized_block: finalized.clone(),
         head_block: finalized,
