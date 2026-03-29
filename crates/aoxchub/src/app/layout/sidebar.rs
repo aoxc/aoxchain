@@ -1,5 +1,6 @@
 use dioxus::prelude::*;
 
+use crate::app::navigation::scroll_to_anchor;
 use crate::app::router::Route;
 
 const ROUTE_MENU_ITEMS: [(&str, &str, Route); 6] = [
@@ -22,14 +23,6 @@ pub const SIDEBAR_MENU_ITEMS: [(&str, &str); 9] = [
     ("Staking", "#staking"),
     ("Ecosystem", "#ecosystem"),
 ];
-
-fn scroll_to_anchor(anchor: &str) {
-    let section_id = anchor.trim_start_matches('#');
-    let script = format!(
-        "const node = document.getElementById('{section_id}'); if (node) {{ node.scrollIntoView({{ behavior: 'smooth', block: 'start' }}); }}"
-    );
-    dioxus::document::eval(&script);
-}
 
 #[component]
 pub fn SidebarMenu() -> Element {

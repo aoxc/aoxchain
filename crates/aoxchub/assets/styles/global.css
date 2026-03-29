@@ -1029,3 +1029,117 @@ h3 {
 .integration-table td {
   vertical-align: top;
 }
+
+.command-palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgba(2, 6, 18, 0.76);
+  backdrop-filter: blur(8px);
+}
+
+.command-palette {
+  width: min(760px, 100%);
+  max-height: min(82vh, 720px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(7, 12, 24, 0.98), rgba(9, 16, 30, 0.98));
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.command-palette-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.command-palette-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.command-close-btn {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: rgba(16, 24, 42, 0.72);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+}
+
+.command-search-input {
+  margin: 14px 16px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: rgba(10, 17, 32, 0.9);
+  color: var(--text-primary);
+}
+
+.command-list {
+  overflow: auto;
+  padding: 0 16px 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.command-item {
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: rgba(16, 26, 46, 0.6);
+  transition: border-color var(--transition-fast), transform var(--transition-fast), background var(--transition-fast);
+}
+
+.command-item:hover {
+  border-color: rgba(79, 140, 255, 0.55);
+  background: rgba(21, 34, 59, 0.82);
+  transform: translateY(-1px);
+}
+
+.command-item-label {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.command-item-description {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.command-item-category {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.36);
+  color: #8fd9ff;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.command-empty-state {
+  border: 1px dashed var(--border-default);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}

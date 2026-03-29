@@ -15,6 +15,7 @@ This crate currently provides an integrated UI shell that connects navigation, r
 - **Feature sections:** wallet, overview, dashboard, operations, settings, and domain panels.
 - **Embedded integration checklist:** visible in UI as an implementation tracker for system-level readiness.
 - **Global styling:** desktop-oriented theme and layout primitives.
+- **Ultra Command Center:** searchable command palette in the header for rapid route and anchor execution.
 
 ## Usage
 
@@ -77,3 +78,15 @@ AOXC Hub now uses a two-level menu model so operators can move fast without losi
 - **9 quick-anchor menus:** Integration checklist, wallet setup, overview, dashboard metrics, validator matrix, bridge, governance, staking, ecosystem.
 
 This structure keeps top-level navigation stable while preserving deep-link access to operational panels.
+
+## Ultra Command Center
+
+The header now includes an **Ultra Command Center** trigger that opens a searchable command palette.
+
+Capabilities:
+
+- Route-level execution: Landing, Dashboard, Wallet, Operations, Overview, and Settings.
+- In-page anchor execution: integration checklist, validator matrix, and governance sections.
+- Operator-focused discovery: each command includes category and execution intent text to reduce navigation latency.
+
+This addition is intentionally deterministic and local-first; it does not depend on remote services and remains consistent across Desktop, Dev, Testnet, and Mainnet profiles.
