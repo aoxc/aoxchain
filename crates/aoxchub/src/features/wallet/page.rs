@@ -1,7 +1,20 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use dioxus::prelude::*;
+
+fn build_demo_address(seed: u128) -> String {
+    let mut body = format!("{seed:032x}");
+    if body.len() < 38 {
+        body = format!("{body:0<38}");
+    }
+    format!("aoxc1{}", &body[..38])
+}
 
 #[component]
 pub fn WalletSetupSection() -> Element {
+    let mut wallet_label = use_signal(|| String::from("operator-main"));
+    let mut generated = use_signal(Vec::<String>::new);
+
     let wallet_steps = [
         (
             "1",
@@ -31,6 +44,55 @@ pub fn WalletSetupSection() -> Element {
             class: "panel glass",
             h2 { "Wallet Onboarding" }
             p { class: "hero-sub", "İlk menü cüzdan oluşturma ile başlar: adres üretimi, yedekleme, fonlama ve politika bağlama adımları tek akışta yönetilir." }
+
+            article {
+                class: "wallet-generator",
+                h3 { "Quick Address Generator" }
+                p {
+                    class: "wallet-generator-note",
+                    "This interface creates demo-format addresses for workflow testing inside AOXC Hub."
+                }
+                div {
+                    class: "wallet-generator-row",
+                    input {
+                        class: "wallet-input",
+                        r#type: "text",
+                        value: wallet_label,
+                        placeholder: "Wallet label",
+                        oninput: move |evt| wallet_label.set(evt.value()),
+                    }
+                    button {
+                        class: "wallet-generate-btn",
+                        onclick: move |_| {
+                            let nanos = SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .map(|duration| duration.as_nanos())
+                                .unwrap_or(0);
+                            let seed = nanos ^ (wallet_label().len() as u128 * 97_531);
+                            let address = format!("{}  ({})", build_demo_address(seed), wallet_label());
+                            generated.with_mut(|addresses| {
+                                addresses.insert(0, address);
+                                if addresses.len() > 5 {
+                                    addresses.pop();
+                                }
+                            });
+                        },
+                        "Generate Address"
+                    }
+                }
+
+                if generated().is_empty() {
+                    p { class: "wallet-empty", "No address generated yet." }
+                } else {
+                    ul {
+                        class: "wallet-address-list",
+                        for address in generated() {
+                            li { class: "mono-line", "{address}" }
+                        }
+                    }
+                }
+            }
+
             div {
                 class: "wallet-steps",
                 for (index, title, detail) in wallet_steps {
