@@ -1,6 +1,10 @@
-use crate::Route;
+use crate::app::router::Route;
 use dioxus::prelude::*;
 
+/// Renders the persistent top navigation bar for the AOXC Hub shell.
+///
+/// This component is strictly responsible for layout-level navigation chrome.
+/// It must not own route declarations or page business logic.
 #[component]
 pub fn HeaderBar() -> Element {
     rsx! {
