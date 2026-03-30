@@ -17,3 +17,102 @@
   max-height: 280px;
   overflow-y: auto;
 }
+
+.terminal-workspace {
+  min-height: calc(100vh - 14rem);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(89, 128, 255, 0.18), transparent 42%),
+    radial-gradient(circle at 100% 100%, rgba(95, 242, 229, 0.14), transparent 46%),
+    linear-gradient(145deg, rgba(3, 8, 20, 0.95), rgba(8, 16, 32, 0.82));
+  border: 1px solid rgba(122, 164, 255, 0.28);
+  box-shadow: 0 28px 60px rgba(5, 10, 22, 0.4), inset 0 0 0 1px rgba(147, 177, 255, 0.08);
+}
+
+.terminal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.terminal-header-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.terminal-header-actions button {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(15, 26, 47, 0.75);
+  color: var(--text);
+  padding: 0.65rem 0.95rem;
+  cursor: pointer;
+}
+
+.terminal-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(380px, 1.6fr) minmax(260px, 1fr);
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.terminal-sidebar-left,
+.terminal-sidebar-right,
+.terminal-main {
+  background: rgba(11, 19, 37, 0.74);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-height: 0;
+}
+
+.terminal-main {
+  grid-template-rows: auto 1fr;
+}
+
+.terminal-main-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.terminal-main-head button {
+  border: 1px solid var(--line);
+  background: rgba(8, 17, 32, 0.86);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.7rem;
+}
+
+.terminal-screen {
+  min-height: 400px;
+  max-height: 60vh;
+  overflow-y: auto;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px rgba(172, 203, 255, 0.08);
+}
+
+.terminal-command-list {
+  max-height: 40vh;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.terminal-card {
+  text-align: left;
+}
+
+.terminal-footer {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
