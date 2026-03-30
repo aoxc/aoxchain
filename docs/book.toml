@@ -1,4 +1,6 @@
 [book]
-title = "AOXCDocs"
-authors = ["aoxc"]
+title = "AOXChain Engineering Docs"
+authors = ["AOXChain Contributors"]
 language = "en"
+multilingual = false
+src = "src"

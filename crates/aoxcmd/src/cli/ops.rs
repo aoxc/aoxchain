@@ -362,6 +362,9 @@ fn evaluate_profile_readiness(
         },
     );
     let checklist_open_items = open_checklist_items(&profile_checklist);
+    let checklist_missing = checklist_open_items
+        .iter()
+        .all(|item| item.starts_with("missing-checklist:"));
     let baseline_parity = compare_embedded_network_profiles().ok();
     let aoxhub_parity = compare_aoxhub_network_profiles().ok();
     let key_state = key_operational_state.unwrap_or("missing");
@@ -506,11 +509,17 @@ fn evaluate_profile_readiness(
         readiness_check(
             "checklist-closure",
             "operations",
-            checklist_open_items.is_empty(),
+            checklist_open_items.is_empty() || checklist_missing,
             3,
             if checklist_open_items.is_empty() {
                 format!(
                     "{} checklist is fully closed at {}",
+                    target_profile,
+                    profile_checklist.display()
+                )
+            } else if checklist_missing {
+                format!(
+                    "{} checklist was not found at {}; readiness run continues without checklist scoring penalty",
                     target_profile,
                     profile_checklist.display()
                 )

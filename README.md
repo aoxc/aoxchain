@@ -4,45 +4,69 @@
   <img src="./logos/aoxc.png" alt="AOXChain Logo" width="180" />
 </p>
 
-AOXChain is a modular Layer-1 engineering workspace focused on deterministic execution, auditable operations, and production-grade tooling.
+AOXChain is an experimental, modular Layer-1 engineering workspace focused on deterministic execution, auditable operations, and production-governed release evidence.
 
-> **Project status:** Experimental and under active development. Interfaces, behavior, and operational procedures can change at any time.
+> **Current repository status (as of March 30, 2026):** Active development. Interfaces and operational procedures can change while readiness controls mature.
 
-## Start here
+## 1) Purpose and operating intent
 
-- Canonical system definition: [READ.md](./READ.md)
-- Architecture map: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
-- Security model: [docs/SECURITY_MODEL.md](./docs/SECURITY_MODEL.md)
-- Licensing policy: [docs/LICENSING.md](./docs/LICENSING.md)
-- Experimental + liability disclaimer: [docs/EXPERIMENTAL_NOTICE.md](./docs/EXPERIMENTAL_NOTICE.md)
+This repository exists to build and validate:
+- deterministic state transition and execution paths,
+- consensus and networking safety envelopes,
+- operator-grade runtime controls,
+- auditable release evidence suitable for internal and external audits.
 
-## Repository map
+The codebase is organized for engineering assurance: every important operational claim is expected to be supportable by tests, machine-readable artifacts, and reviewable documentation.
 
-| Scope | Purpose | Entry doc |
-|---|---|---|
-| `crates/` | Rust workspace crates for protocol, runtime, network, RPC, SDK, and tooling | [crates/README.md](./crates/README.md) |
-| `configs/` | Environment profiles and deterministic network materials | [configs/README.md](./configs/README.md) |
-| `docs/` | Architecture, security, state, execution, and operations documentation | [docs/src/READ.md](./docs/src/READ.md) |
-| `scripts/` | Automation for local runs, validation, release evidence, and operations | [scripts/READ.md](./scripts/READ.md) |
-| `tests/` | Integration and readiness validation workspace | [tests/READ.md](./tests/READ.md) |
-| `models/` | Readiness, risk, and network profile model artifacts | [models/README.md](./models/README.md) |
-| `contracts/` | System contract references and deployment matrices | [contracts/README.md](./contracts/README.md) |
-| `artifacts/` | Generated release and production-closure evidence snapshots | [artifacts/README.md](./artifacts/README.md) |
+## 2) System status model (single root view)
 
-## Core subsystem quick links
+AOXChain tracks status through evidence-driven gates instead of subjective labels:
+- **Code status:** workspace crates compile and test under pinned toolchains,
+- **Operations status:** readiness checks evaluate profile, key state, artifacts, and closure controls,
+- **Audit status:** release-evidence and production-closure bundles are generated and retained in `artifacts/`.
 
-- Consensus and safety kernel: [crates/aoxcunity/READ.md](./crates/aoxcunity/READ.md)
-- Core types and state primitives: [crates/aoxcore/READ.md](./crates/aoxcore/READ.md)
-- Runtime and operator CLI: [crates/aoxcmd/READ.md](./crates/aoxcmd/READ.md)
-- Multi-VM execution: [crates/aoxcvm/READ.md](./crates/aoxcvm/READ.md)
-- Networking and resilience: [crates/aoxcnet/READ.md](./crates/aoxcnet/READ.md)
-- RPC/API services: [crates/aoxcrpc/READ.md](./crates/aoxcrpc/READ.md)
-- Desktop control plane: [crates/aoxchub/README.md](./crates/aoxchub/README.md)
+Primary status signals are produced by the CLI/readiness flow in `crates/aoxcmd` and persisted as markdown/JSON evidence artifacts.
 
-## License
+## 3) Repository map
 
-This repository is licensed under the [MIT License](./LICENSE).
+| Path | Role |
+|---|---|
+| `crates/` | Rust workspace crates (protocol, runtime, networking, RPC, SDK, operator tooling). |
+| `configs/` | Environment profiles and deterministic network definitions (mainnet, testnet, devnet, localnet, sovereign templates). |
+| `docs/` | mdBook-backed governance and technical documentation set. |
+| `models/` | Canonical readiness/risk/profile models used for operational checks. |
+| `scripts/` | Automation for runtime, quality gates, and release evidence generation. |
+| `tests/` | Integration and readiness validation suite. |
+| `artifacts/` | Generated evidence bundles (release-evidence and production-closure snapshots). |
+| `contracts/` | System-contract reference surfaces and deployment matrix inputs. |
 
-## Important notice
+## 4) Documentation baseline (audit-oriented)
 
-This repository and its documents are provided for engineering and educational information. They do not provide legal, financial, or operational guarantees, and they do not create liability assumptions by maintainers or contributors.
+Top-level governance documents:
+- `README.md` (this file): system intent, repository status, and navigation.
+- `READ.md`: canonical technical definition and invariants.
+- `SCOPE.md`: in-scope/out-of-scope and compatibility boundaries.
+- `ARCHITECTURE.md`: component/data-flow boundaries.
+- `SECURITY.md`: vulnerability handling and security expectations.
+- `TESTING.md`: validation strategy and mandatory checks.
+
+mdBook entry points:
+- `docs/src/README.md`
+- `docs/src/SYSTEM_STATUS.md`
+- `docs/src/AI_TRAINING_AND_AUDIT_GUIDE.md`
+
+## 5) AI training and audit usage
+
+For AI training or audit pipelines, treat this repository as a **traceable corpus**:
+1. Ingest crate-level READMEs and root governance docs first.
+2. Bind claims to source files and generated artifacts.
+3. Use readiness and matrix models from `models/` as structured labels.
+4. Preserve evidence lineage from scripts -> artifacts -> reports.
+
+This approach supports reproducible model training, compliance reviews, and institutional reporting.
+
+## 6) License and liability context
+
+AOXChain is distributed under the [MIT License](./LICENSE). Repository content is provided on an "as is" basis, without warranties or liability assumptions by maintainers or contributors.
+
+Nothing in this repository constitutes legal, financial, or production-readiness certification.
