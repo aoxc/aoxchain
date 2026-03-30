@@ -45,9 +45,6 @@ Usage:
   ./scripts/aoxc_easy.sh logs [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh auto-start
   ./scripts/aoxc_easy.sh auto-once
-  ./scripts/aoxc_easy.sh flow [mainnet|testnet|devnet]
-  ./scripts/aoxc_easy.sh dashboard
-  ./scripts/aoxc_easy.sh makectl <start|once|stop|status|restart> [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh menu
 EOF
 }
@@ -242,15 +239,6 @@ case "${cmd}" in
     env="$(resolve_env_or_default "${AOXC_ENV:-}")"
     echo "[easy] auto-once selected env=${env}"
     "${DAEMON_SCRIPT}" once "${env}"
-    ;;
-  flow)
-    full_auto_flow "${env}"
-    ;;
-  dashboard)
-    dashboard
-    ;;
-  makectl)
-    makectl "${2:-}" "${3:-}"
     ;;
   menu)
     cat <<'EOF'

@@ -87,7 +87,6 @@ endef
 	net-dual-start net-dual-once net-dual-status net-dual-stop net-dual-restart \
 	ops-help ops-doctor \
 	ops-start-mainnet ops-start-testnet ops-start-devnet ops-start-dual ops-auto-start ops-auto-once \
-	ops-once-mainnet ops-once-testnet ops-once-devnet \
 	ops-stop-mainnet ops-stop-testnet ops-stop-devnet ops-stop-dual \
 	ops-status-mainnet ops-status-testnet ops-status-devnet ops-status-dual \
 	ops-restart-mainnet ops-restart-testnet ops-restart-devnet ops-restart-dual \
@@ -180,9 +179,6 @@ help:
 	@printf "  make ops-start-dual       - start testnet+mainnet together\n"
 	@printf "  make ops-auto-start       - start AOXC_ENV (default devnet) automatically\n"
 	@printf "  make ops-auto-once        - run one cycle on AOXC_ENV (default devnet)\n"
-	@printf "  make ops-once-mainnet     - run one bounded cycle on mainnet\n"
-	@printf "  make ops-once-testnet     - run one bounded cycle on testnet\n"
-	@printf "  make ops-once-devnet      - run one bounded cycle on devnet\n"
 	@printf "  make ops-stop-mainnet     - stop mainnet\n"
 	@printf "  make ops-stop-testnet     - stop testnet\n"
 	@printf "  make ops-stop-devnet      - stop devnet\n"
@@ -541,15 +537,6 @@ ops-auto-start: package-bin
 
 ops-auto-once: package-bin
 	./scripts/aoxc_easy.sh auto-once
-
-ops-once-mainnet: package-bin
-	./scripts/aoxc_easy.sh once mainnet
-
-ops-once-testnet: package-bin
-	./scripts/aoxc_easy.sh once testnet
-
-ops-once-devnet: package-bin
-	./scripts/aoxc_easy.sh once devnet
 
 ops-stop-mainnet:
 	./scripts/aoxc_easy.sh stop mainnet
