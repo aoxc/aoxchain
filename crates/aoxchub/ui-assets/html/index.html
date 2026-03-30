@@ -3,57 +3,145 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AOXCHub Operator Console</title>
+  <title>AOXCHub Local Experience</title>
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 <body data-env="mainnet">
-  <header class="topbar glass">
-    <div>
-      <h1>AOXCHub</h1>
-      <p>Local-only AOXChain operator control plane</p>
+  <div class="app-shell">
+    <aside class="sidebar glass">
+      <div class="brand-block">
+        <p class="eyebrow">AOXC Local Console</p>
+        <h1>AOXCHub</h1>
+        <p class="muted">Secure localhost experience for operators and end-users.</p>
+      </div>
+
+      <nav class="nav-menu" aria-label="Main navigation">
+        <button class="nav-item active" data-view-target="landing">Landing</button>
+        <button class="nav-item" data-view-target="wallet">Wallet</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="badge">127.0.0.1 only</div>
+        <p class="muted">Technical controls stay available under wallet transparency panels.</p>
+      </div>
+    </aside>
+
+    <div class="main-column">
+      <header class="topbar glass">
+        <div>
+          <h2>Welcome to AOXC</h2>
+          <p class="muted">Start from your address, then unlock wallet and network actions.</p>
+        </div>
+        <div class="header-stats">
+          <div class="stat-pill">
+            <span>Environment</span>
+            <strong id="header-environment">MAINNET</strong>
+          </div>
+          <div class="stat-pill">
+            <span>Balance</span>
+            <strong id="header-balance">-- AOXC</strong>
+          </div>
+          <div class="stat-pill">
+            <span>Address</span>
+            <strong id="header-address">Not created</strong>
+          </div>
+        </div>
+      </header>
+
+      <main class="content-stack">
+        <section class="view active" data-view="landing">
+          <section class="hero glass">
+            <p class="eyebrow">Premium Local-First Onboarding</p>
+            <h3>Run AOXC confidently on your machine with a user-friendly onboarding flow.</h3>
+            <p class="muted">AOXC is designed for people who want an elegant dashboard while keeping full local control. You can create your first address in minutes, use wallet features, stake assets, interact with NFTs, and participate in node-level operations without losing transparency.</p>
+            <div class="hero-actions">
+              <button class="cta" id="go-wallet-from-landing">Step 1: Create Your Address</button>
+              <span class="muted">Address creation is required before all other actions.</span>
+            </div>
+          </section>
+
+          <section class="panel glass">
+            <h4>AOXC Node Types</h4>
+            <p class="muted">Choose your preferred participation model as your ecosystem role evolves.</p>
+            <div class="node-grid">
+              <article class="node-card"><h5>Validator Node</h5><p>Participates in consensus and secures finality.</p></article>
+              <article class="node-card"><h5>Relay Node</h5><p>Coordinates multi-network communication and message routing.</p></article>
+              <article class="node-card"><h5>Archive Node</h5><p>Keeps complete history for audits, analytics, and compliance.</p></article>
+              <article class="node-card"><h5>Edge Node</h5><p>Optimized for light infrastructure and local service proximity.</p></article>
+              <article class="node-card"><h5>Gateway Node</h5><p>Exposes secure API entry points for apps and tooling.</p></article>
+              <article class="node-card"><h5>Observer Node</h5><p>Monitors health and risk metrics without signing authority.</p></article>
+              <article class="node-card"><h5>Builder Node</h5><p>Focused on contract deployment and developer workflows.</p></article>
+            </div>
+          </section>
+
+          <section class="panel glass">
+            <h4>What You Can Do in AOXC</h4>
+            <div class="capability-grid">
+              <article class="capability"><h5>Wallet</h5><p>Create and manage your local-first account identity.</p></article>
+              <article class="capability"><h5>Staking</h5><p>Participate in network security and earn ecosystem-aligned rewards.</p></article>
+              <article class="capability"><h5>NFT Support</h5><p>Store and interact with digital collectibles and utility assets.</p></article>
+              <article class="capability"><h5>Smart Contracts</h5><p>Create and deploy contracts through guided workflows.</p></article>
+              <article class="capability"><h5>Cross-Chain Interaction</h5><p>Connect with external chains through controlled relay paths.</p></article>
+              <article class="capability"><h5>Node Participation</h5><p>Join and scale your node role based on your infrastructure goals.</p></article>
+              <article class="capability"><h5>Network Ecosystem</h5><p>Use relay-style services and broader AOXC network integrations.</p></article>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" data-view="wallet">
+          <section class="panel glass wallet-hero">
+            <p class="eyebrow">Step 1: Required Entry</p>
+            <h3>Create your AOXC address to begin.</h3>
+            <p class="muted">Your address is the first identity anchor for wallet actions, staking, NFT operations, contracts, and network participation. Without it, onboarding cannot continue.</p>
+            <div class="wallet-actions">
+              <button id="create-wallet" class="cta">Create Wallet</button>
+              <button id="import-wallet">Import Wallet</button>
+            </div>
+            <p id="wallet-status" class="muted">No address found yet. Please create or import.</p>
+          </section>
+
+          <details class="panel glass">
+            <summary>Operator transparency (advanced)</summary>
+            <div class="inner-stack">
+              <h4>Environment Selection</h4>
+              <div class="env-grid">
+                <button id="env-mainnet" class="env mainnet">MAINNET</button>
+                <button id="env-testnet" class="env testnet">TESTNET</button>
+              </div>
+              <div id="env-banner" class="banner">MAINNET • PRODUCTION CONTROL SURFACE</div>
+              <article id="binary-policy-card" class="policy-card">
+                <h5 id="binary-policy-title">Mainnet Binary Policy</h5>
+                <p id="binary-policy-text">Mainnet only allows official hashed and certified release binaries.</p>
+                <p class="muted">Official source: <a href="https://github.com/aoxc/aoxchain/releases" target="_blank" rel="noopener noreferrer">github.com/aoxc/aoxchain/releases</a></p>
+                <p id="release-update-warning" class="warning-text"></p>
+              </article>
+
+              <h4>Binary Source Status</h4>
+              <div class="row">
+                <select id="binary-select"></select>
+              </div>
+              <div class="row">
+                <input id="custom-binary" placeholder="/path/to/custom/test/binary" />
+                <button id="add-custom">Add Testnet Binary</button>
+              </div>
+              <pre id="binary-details" class="preview"></pre>
+
+              <h4>Command Catalog</h4>
+              <div id="commands" class="cards"></div>
+
+              <h4>Command Preview</h4>
+              <div id="selected-label"></div>
+              <pre id="preview" class="preview"></pre>
+              <button id="execute" class="cta" disabled>Confirm and Execute</button>
+
+              <h4>Terminal Activity</h4>
+              <pre id="terminal" class="preview terminal"></pre>
+            </div>
+          </details>
+        </section>
+      </main>
     </div>
-    <div class="badge">127.0.0.1 only</div>
-  </header>
-
-  <main class="grid">
-    <section class="panel hero glass">
-      <h2>Environment Selection</h2>
-      <div class="env-grid">
-        <button id="env-mainnet" class="env mainnet">MAINNET</button>
-        <button id="env-testnet" class="env testnet">TESTNET</button>
-      </div>
-      <div id="env-banner" class="banner">MAINNET • PRODUCTION CONTROL SURFACE</div>
-    </section>
-
-    <section class="panel glass">
-      <h3>Binary Source Status</h3>
-      <div class="row">
-        <select id="binary-select"></select>
-      </div>
-      <div class="row">
-        <input id="custom-binary" placeholder="/path/to/custom/test/binary" />
-        <button id="add-custom">Add Testnet Binary</button>
-      </div>
-      <pre id="binary-details" class="preview"></pre>
-    </section>
-
-    <section class="panel glass">
-      <h3>Command Catalog</h3>
-      <div id="commands" class="cards"></div>
-    </section>
-
-    <section class="panel glass">
-      <h3>Command Preview</h3>
-      <div id="selected-label"></div>
-      <pre id="preview" class="preview"></pre>
-      <button id="execute" class="cta" disabled>Confirm and Execute</button>
-    </section>
-
-    <section class="panel terminal glass">
-      <h3>Terminal Activity</h3>
-      <pre id="terminal"></pre>
-    </section>
-  </main>
+  </div>
 
   <script src="/assets/app.js"></script>
 </body>
