@@ -15,6 +15,7 @@
 #   - Materialize one runtime root and one log root
 #   - Support `start`, `once`, `status`, `stop`, and `tail`
 #   - Persist PID-based lifecycle state for managed background execution
+#   - Emit deterministic status and health receipts
 #   - Fail closed on invalid prerequisites or runtime drift
 #
 # Exit Codes:
@@ -33,6 +34,7 @@ IFS=$'\n\t'
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 readonly DEFAULT_NETWORK_TIMEOUT_MS=3000
 readonly DEFAULT_DAEMON_SLEEP_SECS=2
 readonly DEFAULT_STOP_WAIT_SECS=10
@@ -66,6 +68,7 @@ log_error() {
 die() {
   local message="$1"
   local exit_code="$2"
+
   log_error "${message}"
   exit "${exit_code}"
 }
@@ -84,15 +87,18 @@ require_command() {
 
 ensure_directory() {
   local dir_path="$1"
+
   if [[ -e "${dir_path}" && ! -d "${dir_path}" ]]; then
     die "Path exists but is not a directory: ${dir_path}" 6
   fi
+
   mkdir -p "${dir_path}"
 }
 
 validate_non_negative_integer() {
   local value="$1"
   local name="$2"
+
   [[ "${value}" =~ ^[0-9]+$ ]] || die "Invalid value for ${name}: '${value}'. A non-negative integer is required." 6
 }
 
@@ -173,9 +179,11 @@ bootstrap_runtime() {
   fi
 
   log_info "Bootstrap started for runtime root '${AOXC_RUNTIME_ROOT}'."
+
   copy_runtime_source_if_present
 
-  if ! run_and_tee "${RUNTIME_LOG}" "${bin_path}" db-init --backend redb --format json; then
+  if ! run_and_tee "${RUNTIME_LOG}" \
+    "${bin_path}" db-init --backend redb --format json; then
     die "db-init failed during runtime bootstrap." 7
   fi
 
@@ -236,9 +244,11 @@ start_daemon() {
     daemon_pid="$(cat "${PID_FILE}")"
     if [[ "${daemon_pid}" =~ ^[0-9]+$ ]] && is_managed_pid_running "${daemon_pid}"; then
       write_status_receipt "running" "${daemon_pid}"
+      write_health_receipt
       log_info "Runtime is already running with PID ${daemon_pid}."
       return 0
     fi
+
     rm -f "${PID_FILE}"
   fi
 
@@ -345,6 +355,7 @@ main() {
   require_command sha256sum
   require_command awk
   require_command tail
+
   validate_non_negative_integer "${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}" "NETWORK_TIMEOUT_MS"
   validate_non_negative_integer "${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}" "DAEMON_SLEEP_SECS"
 

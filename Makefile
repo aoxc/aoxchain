@@ -345,11 +345,10 @@ env-check:
 	@command -v sha256sum >/dev/null 2>&1 || { echo "sha256sum not found"; exit 1; }
 	$(call require_file,./scripts/quality_gate.sh)
 	$(call require_file,./scripts/run_runtime.sh)
-	$(call require_file,./scripts/runtime_supervisor.sh)
-	$(call require_file,./scripts/runtime_producer.sh)
-	$(call require_file,./scripts/runtime_real_daemon.sh)
 	$(call require_file,./scripts/runtime_daemon.sh)
-	$(call require_file,./scripts/aoxc_easy.sh)
+	$(call require_file,./scripts/release/generate_release_evidence.sh)
+	$(call require_file,./scripts/release_artifact_certify.sh)
+	$(call require_file,./scripts/READ.md)
 	@echo "Environment check passed."
 
 # --------------------------------------------------------------------
