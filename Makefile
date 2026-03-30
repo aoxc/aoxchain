@@ -162,8 +162,12 @@ AOXC_RUNTIME_HEALTH_FILE ?= $(AOXC_AUDIT_ROOT)/runtime-health.latest.txt
 # --------------------------------------------------------------------
 # Canonical runtime source contract
 # These files are expected to be maintained by the repository workflow.
+# Single-system policy:
+# - Runtime lifecycle remains one-path.
+# - Network identity is selected by AOXC_NETWORK_KIND.
 # --------------------------------------------------------------------
-AOXC_RUNTIME_SOURCE_ROOT ?= configs/runtime
+AOXC_NETWORK_KIND ?= mainnet
+AOXC_RUNTIME_SOURCE_ROOT ?= configs/environments/$(AOXC_NETWORK_KIND)
 
 SRC_MANIFEST_FILE ?= manifest.v1.json
 SRC_GENESIS_FILE ?= genesis.v1.json
@@ -255,6 +259,7 @@ help:
 	@printf "  AOXC_ROOT                : %s\n" "$(AOXC_ROOT)"
 	@printf "  AOXC_BIN_PATH            : %s\n" "$(AOXC_BIN_PATH)"
 	@printf "  AOXC_RUNTIME_ROOT        : %s\n" "$(AOXC_RUNTIME_ROOT)"
+	@printf "  AOXC_NETWORK_KIND        : %s\n" "$(AOXC_NETWORK_KIND)"
 	@printf "  AOXC_RUNTIME_SOURCE_ROOT : %s\n\n" "$(AOXC_RUNTIME_SOURCE_ROOT)"
 
 	@printf "Build and quality\n"
@@ -330,6 +335,7 @@ paths:
 	@printf "AOXC_CACHE_ROOT=%s\n" "$(AOXC_CACHE_ROOT)"
 	@printf "AOXC_TMP_ROOT=%s\n" "$(AOXC_TMP_ROOT)"
 	@printf "AOXC_ACTIVE_PROFILE_FILE=%s\n" "$(AOXC_ACTIVE_PROFILE_FILE)"
+	@printf "AOXC_NETWORK_KIND=%s\n" "$(AOXC_NETWORK_KIND)"
 	@printf "AOXC_RUNTIME_SOURCE_ROOT=%s\n" "$(AOXC_RUNTIME_SOURCE_ROOT)"
 	@printf "RELEASE_TAG=%s\n" "$(RELEASE_TAG)"
 	@printf "RELEASE_ARCHIVE_PATH=%s\n" "$(RELEASE_ARCHIVE_PATH)"
@@ -600,6 +606,7 @@ policy:
 runtime-print:
 	$(call print_banner,Printing resolved runtime paths)
 	@printf "AOXC_ROOT=%s\n" "$(AOXC_ROOT)"
+	@printf "AOXC_NETWORK_KIND=%s\n" "$(AOXC_NETWORK_KIND)"
 	@printf "AOXC_RUNTIME_SOURCE_ROOT=%s\n" "$(AOXC_RUNTIME_SOURCE_ROOT)"
 	@printf "AOXC_RUNTIME_ROOT=%s\n" "$(AOXC_RUNTIME_ROOT)"
 	@printf "AOXC_RUNTIME_IDENTITY_DIR=%s\n" "$(AOXC_RUNTIME_IDENTITY_DIR)"

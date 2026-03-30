@@ -1,24 +1,38 @@
-# AOXC Configurations (Production-Grade)
+# AOXC Configurations (Single-System Runtime Source)
 
-This directory is the root configuration surface for AOXC runtime deployments.
-It provides complete, environment-specific configuration coverage for:
-
-- **Mainnet**
-- **Testnet**
-- **Devnet**
+This directory is the canonical configuration surface for AOXC runtime source
+material. The operational model is **single-system runtime code** with
+**network identity selected by configuration**.
 
 ## Goals
 
-- Maintain one clear, auditable source of environment configuration.
-- Keep all environment files production-oriented and operationally readable.
-- Ensure release teams can validate compatibility before rollout.
+- Keep one runtime lifecycle path in scripts/Make targets.
+- Select network identity (`mainnet`/`testnet`/`devnet`) via config, not via
+  divergent operational scripts.
+- Keep source material auditable and release-ready.
 
 ## Core Files
 
-- `mainnet.toml` — canonical public mainnet node defaults.
-- `testnet.toml` — canonical public testnet node defaults.
-- `devnet.toml` — canonical development network defaults.
+- `environments/<network-kind>/` — canonical runtime source bundle.
 - `network-matrix.toml` — environment matrix with security/runtime expectations.
+- `mainnet.toml`, `testnet.toml`, `devnet.toml` — legacy compatibility presets.
+
+## Single-System Selection
+
+Use one code path and set:
+
+```bash
+AOXC_NETWORK_KIND=mainnet   # or testnet/devnet
+```
+
+`Makefile` and `scripts/runtime_daemon.sh` resolve runtime source from:
+
+```text
+configs/environments/${AOXC_NETWORK_KIND}/
+```
+
+Genesis metadata remains the source of truth for chain type (for example,
+`environment = "mainnet"` in `genesis.v1.json`).
 
 ## Environment Compatibility Model
 
