@@ -1,0 +1,36 @@
+# AOXC Environment Profile - Testnet
+
+[profile]
+schema_version = 1
+environment = "testnet"
+display_name = "AOXC PUSULA"
+network_class = "public_testnet"
+profile_type = "pre-production"
+status = "active"
+
+[identity]
+family_id = 2626
+network_serial = "2626-002"
+chain_id = 2626010001
+network_id = "aoxc-testnet-2626-002"
+
+[execution]
+single_binary_multi_network = true
+compile_time_network_binding_forbidden = true
+deterministic_genesis_required = true
+manifest_validation_required = true
+
+[operations]
+allow_public_access = true
+allow_operator_launch = true
+allow_local_multi_node_mode = false
+require_release_evidence = true
+require_signed_artifacts = true
+
+[security]
+require_certificate_file = true
+require_validators_file = true
+require_bootnodes_file = true
+require_genesis_hash_verification = true
+reject_identity_mismatch = true
+reject_missing_bundle_components = true

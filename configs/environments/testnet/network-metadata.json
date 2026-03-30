@@ -1,0 +1,41 @@
+{
+  "network_name": "AOXC PUSULA",
+  "chain_id": 2626010001,
+  "network_id": "aoxc-testnet-2626-002",
+  "native_symbol": "AOXC",
+  "rpc": {
+    "primary": "https://rpc1.testnet.aoxchain.io",
+    "secondary": "https://rpc2.testnet.aoxchain.io",
+    "ws": "wss://rpc1.testnet.aoxchain.io/ws"
+  },
+  "public_endpoints": {
+    "faucet": "https://faucet.testnet.aoxchain.io",
+    "explorer": "https://explorer.testnet.aoxchain.io",
+    "status": "https://status.testnet.aoxchain.io"
+  },
+  "genesis": {
+    "file": "genesis.v1.json",
+    "sha256_file": "genesis.v1.sha256",
+    "publish_hash": true
+  },
+  "topology": [
+    {
+      "node": "node-1",
+      "roles": ["validator", "seed"],
+      "p2p": "seed1.testnet.aoxchain.io:26656",
+      "rpc_public": false
+    },
+    {
+      "node": "node-2",
+      "roles": ["validator"],
+      "p2p": "val2.testnet.aoxchain.io:26656",
+      "rpc_public": false
+    },
+    {
+      "node": "node-3",
+      "roles": ["validator", "rpc"],
+      "p2p": "rpc1.testnet.aoxchain.io:26656",
+      "rpc_public": true
+    }
+  ]
+}

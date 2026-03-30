@@ -1,0 +1,131 @@
+# AOXC Binary Compatibility Policy
+#
+# This file defines the canonical binary compatibility and provenance policy
+# for AOXC node artifacts. The purpose is to guarantee that:
+#
+# - the same binary can operate across multiple AOXC environments,
+# - environment identity is derived from configuration rather than compilation,
+# - binary-to-manifest compatibility is explicit and auditable.
+
+[policy]
+name = "AOXC Binary Compatibility Policy"
+schema_version = 1
+product_name = "AOXC Node"
+product_code = "aoxc-node"
+binary_series = "AOXC-BIN-SERIES-001"
+description = "Canonical binary compatibility policy for AOXC multi-network single-binary operation."
+
+[compatibility]
+single_binary_multi_network = true
+environment_identity_from_manifest = true
+environment_identity_from_genesis = true
+compile_time_network_binding_forbidden = true
+manual_chain_id_override_forbidden = true
+manual_network_id_override_forbidden = true
+manual_network_serial_override_forbidden = true
+
+[compatibility.supported_schema_versions]
+network_registry = [1]
+manifest = [1]
+genesis = [1]
+profile = [1]
+release_policy = [1]
+certificate = [1]
+
+[compatibility.supported_network_classes]
+public_mainnet = true
+public_testnet = true
+devnet = true
+validation = true
+sovereign_private = true
+consortium = true
+regulated_private = true
+localnet = true
+
+[binary_identity]
+artifact_name = "aoxc"
+artifact_kind = "node-binary"
+artifact_hash_algorithms = ["sha256", "blake3"]
+sbom_required = true
+signature_required = true
+provenance_manifest_required = true
+
+[build_requirements]
+reproducible_build_expected = true
+cargo_lock_required = true
+pinned_rust_toolchain_required = true
+workspace_frozen_dependency_policy = true
+release_profile_required = true
+panic_strategy = "abort"
+lto_required = true
+codegen_units = 1
+
+[manifest_requirements]
+manifest_file_required = true
+manifest_schema_version_required = true
+manifest_network_identity_required = true
+manifest_chain_id_required = true
+manifest_network_id_required = true
+manifest_network_serial_required = true
+manifest_network_class_required = true
+manifest_binary_series_required = true
+manifest_genesis_reference_required = true
+manifest_genesis_hash_reference_required = true
+
+[genesis_requirements]
+genesis_file_required = true
+genesis_hash_required = true
+genesis_hash_algorithm = "sha256"
+deterministic_serialization_required = true
+validator_set_required = true
+bootnode_set_required = true
+
+[runtime_enforcement]
+reject_unknown_network_class = true
+reject_chain_id_mismatch = true
+reject_network_id_mismatch = true
+reject_network_serial_mismatch = true
+reject_manifest_genesis_hash_mismatch = true
+reject_missing_certificate = true
+reject_missing_release_policy = true
+reject_missing_profile = true
+
+[release_requirements]
+release_manifest_required = true
+binary_hash_required = true
+source_commit_required = true
+source_tag_recommended = true
+signature_required = true
+sbom_required = true
+compatibility_statement_required = true
+
+[allowed_binary_series.AOXC_BIN_SERIES_001]
+series = "AOXC-BIN-SERIES-001"
+status = "active"
+minimum_registry_schema_version = 1
+minimum_manifest_schema_version = 1
+minimum_genesis_schema_version = 1
+supported_network_classes = [
+  "public_mainnet",
+  "public_testnet",
+  "devnet",
+  "validation",
+  "sovereign_private",
+  "consortium",
+  "regulated_private",
+  "localnet",
+]
+
+[operator_expectations]
+operators_must_verify_hashes_before_boot = true
+operators_must_verify_signatures_before_boot = true
+operators_must_use_environment_manifest = true
+operators_must_not_hand_edit_chain_identity = true
+operators_must_not_reuse_foreign_genesis_artifacts = true
+
+[audit_expectations]
+binary_provenance_must_be_traceable = true
+manifest_to_binary_compatibility_must_be_explicit = true
+genesis_identity_must_be_deterministic = true
+release_policy_must_be_environment_scoped = true
+certificate_chain_must_be_environment_scoped = true

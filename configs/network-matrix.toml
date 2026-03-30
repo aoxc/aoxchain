@@ -1,0 +1,29 @@
+version = "aoxc-config-matrix/v1"
+
+[mainnet]
+config = "configs/mainnet.toml"
+network_type = "public"
+release_tier = "production"
+security_mode = "audit_strict"
+requires_change_control = true
+required_artifacts = ["checksum", "signature", "provenance", "production_audit"]
+
+[testnet]
+config = "configs/testnet.toml"
+network_type = "public"
+release_tier = "pre-production"
+security_mode = "audit_strict"
+requires_change_control = true
+required_artifacts = ["checksum", "signature", "compat_matrix"]
+
+[devnet]
+config = "configs/devnet.toml"
+network_type = "development"
+release_tier = "engineering"
+security_mode = "developer_guarded"
+requires_change_control = false
+required_artifacts = ["checksum", "compat_matrix"]
+
+[desktop_interface]
+supported_environments = ["mainnet", "testnet", "devnet"]
+required_compat_report = "artifacts/network-production-closure/desktop-wallet-compat.json"

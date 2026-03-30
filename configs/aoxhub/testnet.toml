@@ -1,0 +1,43 @@
+# AOXC Hub Environment Mapping - Testnet
+#
+# This file defines how AOXC Hub resolves and launches the canonical
+# AOXC public testnet environment bundle.
+
+[hub]
+schema_version = 1
+application = "aoxhub"
+environment = "testnet"
+display_name = "AOXC PUSULA"
+status = "active"
+
+[identity]
+family_id = 2626
+chain_name = "AOXC PUSULA"
+network_class = "public_testnet"
+network_serial = "2626-002"
+chain_id = 2626010001
+network_id = "aoxc-testnet-2626-002"
+
+[paths]
+environment_root = "configs/environments/testnet"
+manifest = "configs/environments/testnet/manifest.v1.json"
+genesis = "configs/environments/testnet/genesis.v1.json"
+genesis_hash = "configs/environments/testnet/genesis.v1.sha256"
+validators = "configs/environments/testnet/validators.json"
+bootnodes = "configs/environments/testnet/bootnodes.json"
+profile = "configs/environments/testnet/profile.toml"
+release_policy = "configs/environments/testnet/release-policy.toml"
+certificate = "configs/environments/testnet/certificate.json"
+
+[runtime]
+single_binary_multi_network = true
+environment_identity_from_manifest = true
+compile_time_network_binding_forbidden = true
+hub_must_validate_identity_before_launch = true
+hub_must_validate_genesis_hash_before_launch = true
+hub_must_reject_missing_bundle_files = true
+
+[ui]
+badge = "TESTNET"
+theme_hint = "pre-production"
+operator_visibility = "public"

@@ -1,0 +1,16 @@
+[package]
+name = "aoxcmob"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde_json = { workspace = true }
+sha3 = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+ed25519-dalek = { workspace = true }
+aoxcore = { path = "../aoxcore" }
+aoxcsdk = { path = "../aoxcsdk" }

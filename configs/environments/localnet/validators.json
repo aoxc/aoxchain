@@ -1,0 +1,88 @@
+{
+  "schema_version": 2,
+  "environment": "localnet",
+  "identity": {
+    "chain_name": "AOXC LOCALNET ATLAS",
+    "network_class": "localnet",
+    "network_serial": "2626-900",
+    "chain_id": 2626900001,
+    "network_id": "aoxc-localnet-2626-900"
+  },
+  "validators": [
+    {
+      "validator_id": "aoxc-val-localnet-atlas-001",
+      "display_name": "AOXC Localnet Atlas Validator 001",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aoxc_consensus_pk_localnet_atlas_001_pending_real_value",
+      "consensus_key_fingerprint": "aoxc_consensus_fp_localnet_atlas_001_pending_real_value",
+      "network_key_algorithm": "ed25519",
+      "network_public_key_encoding": "hex",
+      "network_public_key": "aoxc_network_pk_localnet_atlas_001_pending_real_value",
+      "network_key_fingerprint": "aoxc_network_fp_localnet_atlas_001_pending_real_value",
+      "weight": 1,
+      "status": "active"
+    },
+    {
+      "validator_id": "aoxc-val-localnet-boreal-001",
+      "display_name": "AOXC Localnet Boreal Validator 001",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aoxc_consensus_pk_localnet_boreal_001_pending_real_value",
+      "consensus_key_fingerprint": "aoxc_consensus_fp_localnet_boreal_001_pending_real_value",
+      "network_key_algorithm": "ed25519",
+      "network_public_key_encoding": "hex",
+      "network_public_key": "aoxc_network_pk_localnet_boreal_001_pending_real_value",
+      "network_key_fingerprint": "aoxc_network_fp_localnet_boreal_001_pending_real_value",
+      "weight": 1,
+      "status": "active"
+    },
+    {
+      "validator_id": "aoxc-val-localnet-cypher-001",
+      "display_name": "AOXC Localnet Cypher Validator 001",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aoxc_consensus_pk_localnet_cypher_001_pending_real_value",
+      "consensus_key_fingerprint": "aoxc_consensus_fp_localnet_cypher_001_pending_real_value",
+      "network_key_algorithm": "ed25519",
+      "network_public_key_encoding": "hex",
+      "network_public_key": "aoxc_network_pk_localnet_cypher_001_pending_real_value",
+      "network_key_fingerprint": "aoxc_network_fp_localnet_cypher_001_pending_real_value",
+      "weight": 1,
+      "status": "active"
+    },
+    {
+      "validator_id": "aoxc-val-localnet-delta-001",
+      "display_name": "AOXC Localnet Delta Validator 001",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aoxc_consensus_pk_localnet_delta_001_pending_real_value",
+      "consensus_key_fingerprint": "aoxc_consensus_fp_localnet_delta_001_pending_real_value",
+      "network_key_algorithm": "ed25519",
+      "network_public_key_encoding": "hex",
+      "network_public_key": "aoxc_network_pk_localnet_delta_001_pending_real_value",
+      "network_key_fingerprint": "aoxc_network_fp_localnet_delta_001_pending_real_value",
+      "weight": 1,
+      "status": "active"
+    },
+    {
+      "validator_id": "aoxc-val-localnet-ember-001",
+      "display_name": "AOXC Localnet Ember Validator 001",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aoxc_consensus_pk_localnet_ember_001_pending_real_value",
+      "consensus_key_fingerprint": "aoxc_consensus_fp_localnet_ember_001_pending_real_value",
+      "network_key_algorithm": "ed25519",
+      "network_public_key_encoding": "hex",
+      "network_public_key": "aoxc_network_pk_localnet_ember_001_pending_real_value",
+      "network_key_fingerprint": "aoxc_network_fp_localnet_ember_001_pending_real_value",
+      "weight": 1,
+      "status": "active"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+version: 2
+release_line: aoxc.v.0.1.1-akdeniz
+objective: >
+  Canonical full-surface production readiness matrix covering mainnet, testnet,
+  devnet, AOXHub, desktop wallet, and telemetry for one release decision.
+surfaces:
+  - id: mainnet
+    owner: protocol-release
+    status: in_progress
+    required_evidence:
+      - configs/environments/mainnet/genesis.v1.json
+      - artifacts/network-production-closure/production-audit.json
+    verification_command: aoxc mainnet-readiness --format json
+    blocker: "Mainnet sign-off requires all checks green or exception-approved."
+  - id: testnet
+    owner: network-operations
+    status: in_progress
+    required_evidence:
+      - configs/environments/testnet/genesis.v1.json
+      - scripts/validation/multi_host_validation.sh
+    verification_command: scripts/validation/multi_host_validation.sh
+    blocker: "Testnet soak and cross-host evidence must be current."
+  - id: devnet
+    owner: engineering-platform
+    status: in_progress
+    required_evidence:
+      - configs/environments/devnet/genesis.v1.json
+      - artifacts/network-production-closure/telemetry-snapshot.json
+    verification_command: scripts/validation/network_production_closure.sh --scenario soak
+    blocker: "Devnet regression and telemetry evidence must be current for release prep."
+  - id: aoxhub
+    owner: hub-platform
+    status: in_progress
+    required_evidence:
+      - artifacts/network-production-closure/aoxhub-rollout.json
+      - artifacts/network-production-closure/runtime-status.json
+    verification_command: scripts/validation/network_production_closure.sh --scenario soak
+    blocker: "AOXHub routing parity must match release baselines."
+  - id: desktop-wallet
+    owner: client-platform
+    status: in_progress
+    required_evidence:
+      - artifacts/network-production-closure/desktop-wallet-compat.json
+      - artifacts/release-evidence/compat-matrix-20260323T144016Z.json
+    verification_command: aoxc production-audit --format json
+    blocker: "Desktop signing/routing compatibility evidence is mandatory."
+  - id: telemetry
+    owner: sre-observability
+    status: in_progress
+    required_evidence:
+      - artifacts/network-production-closure/telemetry-snapshot.json
+      - artifacts/network-production-closure/alert-rules.md
+    verification_command: scripts/validation/network_production_closure.sh --scenario soak
+    blocker: "Alert coverage and readiness telemetry must be retained and fresh."
+next_actions:
+  - "Refresh evidence timestamps per surface and set ready/blocked state explicitly."
+  - "Do not promote release when any mandatory surface lacks current evidence."

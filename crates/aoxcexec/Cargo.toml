@@ -1,0 +1,11 @@
+[package]
+name = "aoxcexec"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+tokio = { workspace = true }
+hex = { workspace = true }
+blake3 = { workspace = true }
+serde_json = { workspace = true }

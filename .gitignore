@@ -1,0 +1,108 @@
+# =============================================================================
+# AOXCHAIN - Workspace & Multi-Crate Rust Project Template
+# Full Coverage: Rust, Node.js, Docker, Web & Security
+# =============================================================================
+
+# --- Node.js & Web Dependencies (CRITICAL) ---
+# npm, yarn and pnpm folders anywhere in the tree
+**/node_modules/
+**/.pnpm-store/
+**/.yarn/cache/
+**/.yarn/unplugged/
+**/.yarn/build-state.yml
+**/.yarn/install-state.gz
+**/.pnp.*
+# Build outputs for frontend (React, Vue, Next.js vb.)
+**/dist/
+**/build/
+**/.next/
+**/.svelte-kit/
+**/.nuxt/
+# npm logs
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# --- Rust Workspace & Compilation (Global Coverage) ---
+**/target/
+**/*.rs.bk
+**/cargo-incremental/
+**/*.exe
+**/*.so
+**/*.dylib
+**/*.dll
+**/*.wasm
+**/*.rlib
+
+# --- Environment & Sensitive Data (SECURITY) ---
+**/.env
+**/.env.local
+**/.env.*.local
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.crt
+**/secrets/
+**/config/local_config.toml
+**/credentials.json
+.local
+**/.local
+# Cloud provider configs
+**/.aws/
+**/.gcloud/
+
+# --- Blockchain / Node Specifics (Data & DBs) ---
+**/data/
+**/db/
+**/ledger/
+**/chain-data/
+**/snapshots/
+**/*.log
+**/logs/
+**/keystore/
+**/wallets/*.json
+!**/wallets/example.json
+
+# --- Testing, Benchmarking & CI ---
+**/tarpaulin-report.html
+**/coverage/
+**/target/criterion/
+**/.nyc_output/
+**/.cache/
+
+# --- Docker & Containerization ---
+**/.docker/
+**/*.tar
+**/*.tar.gz
+
+# --- Python (If used for scripts/tools) ---
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/.venv/
+**/venv/
+**/env/
+
+# --- IDEs & Editors (Clean Workspace) ---
+**/.vscode/*
+!**/.vscode/settings.json
+!**/.vscode/tasks.json
+!**/.vscode/launch.json
+!**/.vscode/extensions.json
+*.code-workspace
+**/.idea/
+**/*.iml
+**/.helix/
+**/.project
+**/.settings/
+
+# --- System Files ---
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+desktop.ini
+**/*.swp
+**/*~
+**/*.tmp
+**/*.bak

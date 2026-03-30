@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AOXC Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">AOXC Hub</div>
+    <div class="badge">Local Only</div>
+  </header>
+
+  <main class="shell">
+    <section class="panel hero">
+      <h1>AOXC Local Operator Console</h1>
+      <p>
+        Transparent command preview, explicit confirmation, and local-only execution surface.
+      </p>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <h2>System Status</h2>
+        <ul>
+          <li>Bind Address: <code>127.0.0.1:7070</code></li>
+          <li>Visibility: <strong>Not publicly exposed</strong></li>
+          <li>Execution Model: <strong>Immutable command catalog</strong></li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h2>Preview Example</h2>
+        <pre><code>aoxc doctor --profile local</code></pre>
+        <button id="preview-btn">Preview Ready</button>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Terminal Surface</h2>
+      <div class="terminal" id="terminal">
+[BOOT] AOXC Hub initialized
+[INFO] Local-only control plane active
+[INFO] Awaiting command catalog integration
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    AOXC Hub · Embedded UI · Local Operator Control Plane
+  </footer>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

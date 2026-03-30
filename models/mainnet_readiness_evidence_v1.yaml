@@ -1,0 +1,77 @@
+version: aoxc-readiness-evidence-v2
+target_environment: mainnet
+previous_score: 36.0
+criteria:
+  - name: Deterministic mainnet genesis and manifest integrity
+    area: bootstrap
+    status: partial
+    weight: 10
+    done_definition: Mainnet genesis, manifest, and checksum are aligned and current.
+    evidence:
+      - configs/environments/mainnet/genesis.v1.json
+      - configs/environments/mainnet/manifest.v1.json
+      - configs/environments/mainnet/genesis.v1.sha256
+    blocker: true
+    stretch_goal: false
+  - name: Multi-host network validation
+    area: network
+    status: partial
+    weight: 15
+    done_definition: Multi-host propagation and stability evidence is current.
+    evidence:
+      - scripts/validation/multi_host_validation.sh
+      - artifacts/network-production-closure/runtime-status.json
+    blocker: true
+    stretch_goal: false
+  - name: Partition and recovery scenarios
+    area: resilience
+    status: partial
+    weight: 15
+    done_definition: Partition and recovery drills are executed and documented.
+    evidence:
+      - scripts/validation/network_production_closure.sh --scenario partition
+      - scripts/validation/network_production_closure.sh --scenario recovery
+    blocker: true
+    stretch_goal: false
+  - name: Long-run soak and telemetry readiness
+    area: operations
+    status: partial
+    weight: 15
+    done_definition: Soak and observability evidence are current for release window.
+    evidence:
+      - scripts/validation/network_production_closure.sh --scenario soak
+      - artifacts/network-production-closure/telemetry-snapshot.json
+      - artifacts/network-production-closure/alert-rules.md
+    blocker: true
+    stretch_goal: false
+  - name: Wallet and AOXHub compatibility
+    area: client-integration
+    status: partial
+    weight: 10
+    done_definition: Desktop wallet and AOXHub compatibility evidence available.
+    evidence:
+      - artifacts/network-production-closure/desktop-wallet-compat.json
+      - artifacts/network-production-closure/aoxhub-rollout.json
+    blocker: false
+    stretch_goal: false
+  - name: Release evidence integrity
+    area: release
+    status: partial
+    weight: 20
+    done_definition: Provenance, compatibility matrix, and audit are up to date.
+    evidence:
+      - artifacts/release-evidence/provenance-20260323T144016Z.json
+      - artifacts/release-evidence/compat-matrix-20260323T144016Z.json
+      - artifacts/release-evidence/production-audit-20260323T144016Z.json
+    blocker: true
+    stretch_goal: false
+  - name: Operator runbook readiness
+    area: operations
+    status: partial
+    weight: 15
+    done_definition: Operational runbook is current and release-approved.
+    evidence:
+      - docs/src/MAINNET_READINESS_CHECKLIST.md
+      - artifacts/network-production-closure/production-audit.json
+    blocker: false
+    stretch_goal: true

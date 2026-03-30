@@ -1,0 +1,10 @@
+[package]
+name = "aoxconfig"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+aoxcontract = { path = "../aoxcontract" }

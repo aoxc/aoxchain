@@ -1,0 +1,43 @@
+# AOXC Hub Environment Mapping - Validation
+#
+# This file defines how AOXC Hub resolves and launches the canonical
+# AOXC validation environment bundle.
+
+[hub]
+schema_version = 1
+application = "aoxhub"
+environment = "validation"
+display_name = "AOXC MIZAN"
+status = "active"
+
+[identity]
+family_id = 2626
+chain_name = "AOXC MIZAN"
+network_class = "validation"
+network_serial = "2626-004"
+chain_id = 2626030001
+network_id = "aoxc-validation-2626-004"
+
+[paths]
+environment_root = "configs/environments/validation"
+manifest = "configs/environments/validation/manifest.v1.json"
+genesis = "configs/environments/validation/genesis.v1.json"
+genesis_hash = "configs/environments/validation/genesis.v1.sha256"
+validators = "configs/environments/validation/validators.json"
+bootnodes = "configs/environments/validation/bootnodes.json"
+profile = "configs/environments/validation/profile.toml"
+release_policy = "configs/environments/validation/release-policy.toml"
+certificate = "configs/environments/validation/certificate.json"
+
+[runtime]
+single_binary_multi_network = true
+environment_identity_from_manifest = true
+compile_time_network_binding_forbidden = true
+hub_must_validate_identity_before_launch = true
+hub_must_validate_genesis_hash_before_launch = true
+hub_must_reject_missing_bundle_files = true
+
+[ui]
+badge = "VALIDATION"
+theme_hint = "verification"
+operator_visibility = "internal"

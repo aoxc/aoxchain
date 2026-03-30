@@ -1,0 +1,8 @@
+chain_id = "aoxhub-mainnet-1"
+listen_addr = "0.0.0.0:27656"
+rpc_addr = "0.0.0.0:9545"
+peers = [
+  "hub-seed-1.aoxc.net:27656",
+  "hub-seed-2.aoxc.net:27656",
+]
+security_mode = "audit_strict"

@@ -1,0 +1,143 @@
+# AOXC Network Registry
+#
+# This file defines the canonical network identity policy for the AOXC family.
+# All environment manifests, genesis bundles, and binary compatibility checks
+# must conform to the rules declared here.
+#
+# The registry is governance-controlled and should be treated as a long-lived
+# policy artifact rather than an ad hoc runtime configuration file.
+
+[registry]
+name = "AOXC Canonical Network Registry"
+schema_version = 1
+family_name = "AOXC"
+family_code = "aoxc"
+family_id = 2626
+network_id_prefix = "aoxc"
+governance_model = "registry-controlled"
+description = "Canonical registry for AOXC public, validation, local, and sovereign network identity policy."
+
+[identity_policy]
+chain_id_format = "FFFFCCNNNN"
+chain_id_type = "u64"
+network_serial_format = "FFFF-NNN"
+network_id_format = "aoxc-<network-class>-<network-serial>"
+canonical_hash_policy = "sha256"
+genesis_filename = "genesis.v1.json"
+manifest_filename = "manifest.v1.json"
+genesis_hash_filename = "genesis.v1.sha256"
+
+[identity_policy.bounds]
+min_family_id = 1
+max_family_id = 9999
+min_network_serial_ordinal = 1
+max_network_serial_ordinal = 999
+min_class_instance_ordinal = 1
+max_class_instance_ordinal = 9999
+
+[class_codes]
+public_mainnet = 0
+public_testnet = 1
+devnet = 2
+validation = 3
+sovereign_private = 10
+consortium = 20
+regulated_private = 30
+localnet = 90
+
+[class_slugs]
+public_mainnet = "mainnet"
+public_testnet = "testnet"
+devnet = "devnet"
+validation = "validation"
+sovereign_private = "sovereign-private"
+consortium = "consortium"
+regulated_private = "regulated-private"
+localnet = "localnet"
+
+[canonical_networks.mainnet]
+enabled = true
+chain_name = "AOXC AKDENIZ"
+network_class = "public_mainnet"
+network_serial = "2626-001"
+chain_id = 2626000001
+network_id = "aoxc-mainnet-2626-001"
+environment_path = "configs/environments/mainnet"
+description = "Canonical AOXC public mainnet."
+
+[canonical_networks.testnet]
+enabled = true
+chain_name = "AOXC PUSULA"
+network_class = "public_testnet"
+network_serial = "2626-002"
+chain_id = 2626010001
+network_id = "aoxc-testnet-2626-002"
+environment_path = "configs/environments/testnet"
+description = "Canonical AOXC public testnet."
+
+[canonical_networks.validation]
+enabled = true
+chain_name = "AOXC MIZAN"
+network_class = "validation"
+network_serial = "2626-004"
+chain_id = 2626030001
+network_id = "aoxc-validation-2626-004"
+environment_path = "configs/environments/validation"
+description = "Canonical AOXC validation network for pre-production verification."
+
+[canonical_networks.localnet]
+enabled = true
+chain_name = "AOXC LOCALNET ATLAS"
+network_class = "localnet"
+network_serial = "2626-900"
+chain_id = 2626900001
+network_id = "aoxc-localnet-2626-900"
+environment_path = "configs/environments/localnet"
+description = "Canonical AOXC local multi-node deterministic operator network."
+
+[reserved_ranges]
+public_mainnet_serials = "2626-001..2626-009"
+public_testnet_serials = "2626-010..2626-049"
+devnet_serials = "2626-050..2626-099"
+validation_serials = "2626-100..2626-149"
+sovereign_private_serials = "2626-150..2626-249"
+consortium_serials = "2626-250..2626-349"
+regulated_private_serials = "2626-350..2626-449"
+localnet_serials = "2626-900..2626-949"
+deprecated_or_retired_serials = "2626-950..2626-999"
+
+[governance_rules]
+allow_manual_chain_id_assignment = false
+allow_duplicate_network_serial = false
+allow_duplicate_network_id = false
+allow_duplicate_chain_id = false
+require_manifest_for_all_networks = true
+require_genesis_hash_for_all_networks = true
+require_release_policy_for_all_networks = true
+require_profile_for_all_networks = true
+require_certificate_for_all_networks = true
+require_validators_file_for_all_networks = true
+require_bootnodes_file_for_all_networks = true
+
+[naming_rules]
+mainnet_name = "AOXC AKDENIZ"
+testnet_name = "AOXC PUSULA"
+validation_name = "AOXC MIZAN"
+devnet_name = "AOXC KIVILCIM"
+localnet_name = "AOXC LOCALNET ATLAS"
+sovereign_template_name = "AOXC SOVEREIGN PRIVATE TEMPLATE"
+consortium_template_name = "AOXC CONSORTIUM TEMPLATE"
+regulated_template_name = "AOXC REGULATED PRIVATE TEMPLATE"
+
+[derivation_examples]
+public_mainnet_example = "family=2626 class=00 ordinal=0001 => chain_id=2626000001"
+public_testnet_example = "family=2626 class=01 ordinal=0001 => chain_id=2626010001"
+validation_example = "family=2626 class=03 ordinal=0001 => chain_id=2626030001"
+localnet_example = "family=2626 class=90 ordinal=0001 => chain_id=2626900001"
+
+[operator_rules]
+single_binary_multi_network = true
+binary_must_not_embed_environment_identity = true
+network_identity_must_be_loaded_from_manifest = true
+genesis_hash_must_match_registry_referenced_bundle = true
+runtime_must_reject_invalid_identity_combinations = true

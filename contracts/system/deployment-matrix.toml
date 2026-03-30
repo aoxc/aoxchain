@@ -1,0 +1,31 @@
+version = "aoxc-contracts-deployment-matrix/v1"
+
+[mainnet]
+environment = "mainnet"
+deployment_tier = "production"
+governance_timelock_hours = 72
+governance_quorum_bps = 6700
+upgrade_policy = "multi-stage-reviewed"
+bridge_emergency_pause = true
+staking_slash_mode = "strict"
+required_signoff = ["protocol", "security", "operations"]
+
+[testnet]
+environment = "testnet"
+deployment_tier = "pre-production"
+governance_timelock_hours = 24
+governance_quorum_bps = 5100
+upgrade_policy = "reviewed"
+bridge_emergency_pause = true
+staking_slash_mode = "moderate"
+required_signoff = ["protocol", "qa"]
+
+[devnet]
+environment = "devnet"
+deployment_tier = "engineering"
+governance_timelock_hours = 2
+governance_quorum_bps = 3000
+upgrade_policy = "rapid-iteration"
+bridge_emergency_pause = true
+staking_slash_mode = "guarded"
+required_signoff = ["engineering"]

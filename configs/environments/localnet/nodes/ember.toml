@@ -1,0 +1,15 @@
+chain_id = "AOXC-0077-MAIN"
+node_name = "ember"
+listen_addr = "127.0.0.1:39005"
+rpc_addr = "127.0.0.1:19105"
+peers = [
+  "127.0.0.1:39001",
+  "127.0.0.1:39002",
+  "127.0.0.1:39003",
+  "127.0.0.1:39004"
+]
+security_mode = "mutual_auth_test_fixture"
+hd_path = "m/44/2626/77/1/5/0"
+validator_id_hex = "70B616606DBABAE26909D091CCD188ACC53593F4C71127CE6908099221355F0C"
+account_address = "AOXC_TEST_4F7FD92DEA7AA536FF01E767E7510D962AA0B5F3"
+warning = "TEST ONLY - public fixture seed"

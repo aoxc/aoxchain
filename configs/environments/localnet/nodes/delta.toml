@@ -1,0 +1,15 @@
+chain_id = "AOXC-0077-MAIN"
+node_name = "delta"
+listen_addr = "127.0.0.1:39004"
+rpc_addr = "127.0.0.1:19104"
+peers = [
+  "127.0.0.1:39001",
+  "127.0.0.1:39002",
+  "127.0.0.1:39003",
+  "127.0.0.1:39005"
+]
+security_mode = "mutual_auth_test_fixture"
+hd_path = "m/44/2626/77/1/4/0"
+validator_id_hex = "43112070F9B543B647EA87A8E8207D462D5D2886CB002A041C50EEFA75F603F2"
+account_address = "AOXC_TEST_55A1E82E6A386D5D9562B8BFDD5CADEF4503BAE8"
+warning = "TEST ONLY - public fixture seed"

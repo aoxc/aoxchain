@@ -1,0 +1,35 @@
+{
+  "schema_version": 2,
+  "environment": "testnet",
+  "identity": {
+    "chain_name": "AOXC PUSULA",
+    "network_class": "public_testnet",
+    "network_serial": "2626-002",
+    "chain_id": 2626010001,
+    "network_id": "aoxc-testnet-2626-002"
+  },
+  "bootnodes": [
+    {
+      "node_id": "aoxc-boot-testnet-001",
+      "display_name": "AOXC Testnet Seed/Bootnode 001",
+      "transport_key_algorithm": "ed25519",
+      "transport_public_key_encoding": "hex",
+      "transport_public_key": "REPLACE_WITH_REAL_TRANSPORT_PUBKEY_NODE_1",
+      "transport_key_fingerprint": "REPLACE_WITH_REAL_TRANSPORT_FINGERPRINT_NODE_1",
+      "address": "/dns4/seed1.testnet.aoxchain.io/tcp/26656",
+      "transport": "tcp",
+      "status": "active"
+    },
+    {
+      "node_id": "aoxc-boot-testnet-002",
+      "display_name": "AOXC Testnet Seed/Bootnode 002",
+      "transport_key_algorithm": "ed25519",
+      "transport_public_key_encoding": "hex",
+      "transport_public_key": "REPLACE_WITH_REAL_TRANSPORT_PUBKEY_NODE_3",
+      "transport_key_fingerprint": "REPLACE_WITH_REAL_TRANSPORT_FINGERPRINT_NODE_3",
+      "address": "/dns4/rpc1.testnet.aoxchain.io/tcp/26656",
+      "transport": "tcp",
+      "status": "active"
+    }
+  ]
+}

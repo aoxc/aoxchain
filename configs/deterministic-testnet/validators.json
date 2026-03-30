@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "environment": "testnet",
+  "identity": {
+    "chain_name": "AOXC PUSULA",
+    "network_class": "public_testnet",
+    "network_serial": "2626-002",
+    "chain_id": 2626010001,
+    "network_id": "aoxc-testnet-2626-002"
+  },
+  "validators": [
+    {
+      "validator_id": "aoxc-val-testnet-001",
+      "display_name": "AOXC Testnet Validator 001",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aoxc_consensus_pk_testnet_001_pending_real_value",
+      "consensus_key_fingerprint": "aoxc_consensus_fp_testnet_001_pending_real_value",
+      "network_key_algorithm": "ed25519",
+      "network_public_key_encoding": "hex",
+      "network_public_key": "aoxc_network_pk_testnet_001_pending_real_value",
+      "network_key_fingerprint": "aoxc_network_fp_testnet_001_pending_real_value",
+      "weight": 1,
+      "status": "active"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+chain_id = "AOXC-0077-MAIN"
+node_name = "atlas"
+listen_addr = "127.0.0.1:39001"
+rpc_addr = "127.0.0.1:19101"
+peers = [
+  "127.0.0.1:39002",
+  "127.0.0.1:39003",
+  "127.0.0.1:39004",
+  "127.0.0.1:39005"
+]
+security_mode = "mutual_auth_test_fixture"
+hd_path = "m/44/2626/77/1/1/0"
+validator_id_hex = "444F33A9C2D32F09AD23A53917F6BB9DC86A464C11C78E4A1B2C1C974F0598D3"
+account_address = "AOXC_TEST_5E5FAB724D3F4EF6041FC403310559D432890CFC"
+warning = "TEST ONLY - public fixture seed"

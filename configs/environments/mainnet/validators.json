@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "environment": "mainnet",
+  "identity": {
+    "chain_name": "AOXC AKDENIZ",
+    "network_class": "public_mainnet",
+    "network_serial": "2626-001",
+    "chain_id": 2626000001,
+    "network_id": "aoxc-mainnet-2626-001"
+  },
+  "validators": [
+    {
+      "validator_id": "aoxc-val-mainnet-001",
+      "display_name": "AOXC Mainnet Validator 001",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aoxc_consensus_pk_mainnet_001_pending_real_value",
+      "consensus_key_fingerprint": "aoxc_consensus_fp_mainnet_001_pending_real_value",
+      "network_key_algorithm": "ed25519",
+      "network_public_key_encoding": "hex",
+      "network_public_key": "aoxc_network_pk_mainnet_001_pending_real_value",
+      "network_key_fingerprint": "aoxc_network_fp_mainnet_001_pending_real_value",
+      "weight": 1,
+      "status": "active"
+    }
+  ]
+}

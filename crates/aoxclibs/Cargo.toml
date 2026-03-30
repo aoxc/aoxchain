@@ -1,0 +1,12 @@
+[package]
+name = "aoxclibs"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+base64.workspace = true
+hex.workspace = true
+serde = { workspace = true, features = ["derive"] }
+thiserror.workspace = true
+
+

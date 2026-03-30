@@ -1,0 +1,41 @@
+{
+  "chain_num": 77,
+  "chain_id": "AOXC-0077-MAIN",
+  "block_time": 4,
+  "accounts": [
+    {
+      "address": "AOXC_TREASURY",
+      "balance": 5000000000000
+    },
+    {
+      "address": "AOXC_TEST_5E5FAB724D3F4EF6041FC403310559D432890CFC",
+      "balance": 2500000000000000000000
+    },
+    {
+      "address": "AOXC_TEST_A67AFF66569331EB6716F950DEE5082F2769628B",
+      "balance": 2500000000000000000000
+    },
+    {
+      "address": "AOXC_TEST_072A6043BC9D9345CC80D6103185A3574F6F7E17",
+      "balance": 2500000000000000000000
+    },
+    {
+      "address": "AOXC_TEST_55A1E82E6A386D5D9562B8BFDD5CADEF4503BAE8",
+      "balance": 2500000000000000000000
+    },
+    {
+      "address": "AOXC_TEST_4F7FD92DEA7AA536FF01E767E7510D962AA0B5F3",
+      "balance": 2500000000000000000000
+    }
+  ],
+  "treasury": 5000000000000,
+  "settlement_link": {
+    "native_symbol": "AOXC",
+    "native_decimals": 18,
+    "settlement_network": "xlayer",
+    "settlement_token_address": "0xeb9580c3946bb47d73aae1d4f7a94148b554b2f4",
+    "settlement_main_contract": "0x97bdd1fd1caf756e00efd42eba9406821465b365",
+    "settlement_multisig_contract": "0x20c0dd8b6559912acfac2ce061b8d5b19db8ca84",
+    "equivalence_mode": "1:1"
+  }
+}

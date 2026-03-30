@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "environment": "validation",
+  "identity": {
+    "chain_name": "AOXC MIZAN",
+    "network_class": "validation",
+    "network_serial": "2626-004",
+    "chain_id": 2626030001,
+    "network_id": "aoxc-validation-2626-004"
+  },
+  "bootnodes": [
+    {
+      "node_id": "aoxc-boot-validation-001",
+      "display_name": "AOXC Validation Bootnode 001",
+      "transport_key_algorithm": "ed25519",
+      "transport_public_key_encoding": "hex",
+      "transport_public_key": "aoxc_transport_pk_validation_001_pending_real_value",
+      "transport_key_fingerprint": "aoxc_transport_fp_validation_001_pending_real_value",
+      "address": "REPLACE_WITH_REAL_BOOTNODE_ADDRESS",
+      "transport": "tcp",
+      "status": "active"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+# AOXC Hub Environment Mapping - Mainnet
+#
+# This file defines how AOXC Hub resolves and launches the canonical
+# AOXC public mainnet environment bundle.
+
+[hub]
+schema_version = 1
+application = "aoxhub"
+environment = "mainnet"
+display_name = "AOXC AKDENIZ"
+status = "active"
+
+[identity]
+family_id = 2626
+chain_name = "AOXC AKDENIZ"
+network_class = "public_mainnet"
+network_serial = "2626-001"
+chain_id = 2626000001
+network_id = "aoxc-mainnet-2626-001"
+
+[paths]
+environment_root = "configs/environments/mainnet"
+manifest = "configs/environments/mainnet/manifest.v1.json"
+genesis = "configs/environments/mainnet/genesis.v1.json"
+genesis_hash = "configs/environments/mainnet/genesis.v1.sha256"
+validators = "configs/environments/mainnet/validators.json"
+bootnodes = "configs/environments/mainnet/bootnodes.json"
+profile = "configs/environments/mainnet/profile.toml"
+release_policy = "configs/environments/mainnet/release-policy.toml"
+certificate = "configs/environments/mainnet/certificate.json"
+
+[runtime]
+single_binary_multi_network = true
+environment_identity_from_manifest = true
+compile_time_network_binding_forbidden = true
+hub_must_validate_identity_before_launch = true
+hub_must_validate_genesis_hash_before_launch = true
+hub_must_reject_missing_bundle_files = true
+
+[ui]
+badge = "MAINNET"
+theme_hint = "production"
+operator_visibility = "public"
