@@ -90,7 +90,7 @@ endef
 	ops-stop-mainnet ops-stop-testnet ops-stop-devnet ops-stop-dual \
 	ops-status-mainnet ops-status-testnet ops-status-devnet ops-status-dual \
 	ops-restart-mainnet ops-restart-testnet ops-restart-devnet ops-restart-dual \
-	ops-logs-mainnet ops-logs-testnet ops-logs-devnet \
+	ops-logs-mainnet ops-logs-testnet ops-logs-devnet ops-dashboard ops-flow-mainnet ops-flow-testnet ops-flow-devnet \
 	alpha
 
 # --------------------------------------------------------------------
@@ -194,6 +194,10 @@ help:
 	@printf "  make ops-logs-mainnet     - tail mainnet logs\n"
 	@printf "  make ops-logs-testnet     - tail testnet logs\n"
 	@printf "  make ops-logs-devnet      - tail devnet logs\n\n"
+	@printf "  make ops-dashboard        - show full multi-env dashboard\n"
+	@printf "  make ops-flow-mainnet     - full auto operational flow (mainnet)\n"
+	@printf "  make ops-flow-testnet     - full auto operational flow (testnet)\n"
+	@printf "  make ops-flow-devnet      - full auto operational flow (devnet)\n\n"
 
 paths:
 	@printf "AOXC_DATA_ROOT=%s\n" "$(AOXC_DATA_ROOT)"
@@ -578,6 +582,18 @@ ops-logs-testnet:
 
 ops-logs-devnet:
 	./scripts/aoxc_easy.sh logs devnet
+
+ops-dashboard:
+	./scripts/aoxc_easy.sh dashboard
+
+ops-flow-mainnet:
+	./scripts/aoxc_easy.sh flow mainnet
+
+ops-flow-testnet:
+	./scripts/aoxc_easy.sh flow testnet
+
+ops-flow-devnet:
+	./scripts/aoxc_easy.sh flow devnet
 
 # --------------------------------------------------------------------
 # Legacy / alpha convenience surface
