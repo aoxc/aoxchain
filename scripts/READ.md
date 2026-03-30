@@ -55,12 +55,11 @@ Intended quality flows include:
 Cross-environment identity and checksum compatibility validator for the
 single-system runtime model.
 
-This validator checks the active single-system bundle selected by
-`AOXC_NETWORK_KIND` for:
+This validator checks mainnet/testnet/devnet bundles for:
 
 - Identity consistency (`environment`, `network_id`, `chain_id`)
 - `genesis.v1.sha256` correctness
-- AOXHub profile alignment with canonical bundle root (if available)
+- AOXHub profile alignment with canonical bundle roots
 
 ### `scripts/release/generate_release_evidence.sh`
 Release evidence generation workflow.

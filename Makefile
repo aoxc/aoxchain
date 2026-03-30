@@ -166,8 +166,6 @@ AOXC_RUNTIME_HEALTH_FILE ?= $(AOXC_AUDIT_ROOT)/runtime-health.latest.txt
 # - Runtime lifecycle remains one-path.
 # - Network identity is selected by AOXC_NETWORK_KIND.
 # --------------------------------------------------------------------
-# Allowed operational values include:
-# mainnet, testnet, devnet, localnet, validation
 AOXC_NETWORK_KIND ?= mainnet
 AOXC_RUNTIME_SOURCE_ROOT ?= configs/environments/$(AOXC_NETWORK_KIND)
 
@@ -648,8 +646,8 @@ runtime-source-check:
 	@echo "Canonical runtime source bundle is valid."
 
 runtime-bundle-compat-check:
-	$(call print_banner,Validating active single-system environment bundle)
-	@AOXC_NETWORK_KIND="$(AOXC_NETWORK_KIND)" python3 scripts/validate_environment_bundle.py
+	$(call print_banner,Validating full environment bundle compatibility)
+	@python3 scripts/validate_environment_bundle.py
 
 runtime-install: runtime-source-check bootstrap-paths
 	$(call print_banner,Installing canonical runtime bundle into AOXC runtime root)
