@@ -75,9 +75,10 @@ endef
 # --------------------------------------------------------------------
 .PHONY: \
 	help paths env-check bootstrap-paths clean-home clean-logs \
-	bootstrap-desktop-paths build build-release build-release-all package-bin package-all-bin package-versioned-bin package-versioned-archive package-network-versioned-bin package-desktop-testnet install-bin \
+	bootstrap-desktop-paths build build-release build-release-all build-release-mainnet build-release-testnet build-release-devnet build-release-matrix package-bin package-all-bin package-versioned-bin package-versioned-archive package-network-versioned-bin package-desktop-testnet install-bin publish-release \
 	test test-lib test-workspace check fmt clippy audit \
 	quality quality-quick quality-release ci \
+	db-init-sqlite db-status-sqlite db-event-sqlite db-release-sqlite db-history-sqlite \
 	version manifest policy \
 	dev-bootstrap run-local supervise-local audit-install produce-loop \
 	real-chain-prep real-chain-run real-chain-run-once real-chain-health real-chain-tail \
@@ -91,7 +92,7 @@ endef
 	ops-status-mainnet ops-status-testnet ops-status-devnet ops-status-dual \
 	ops-restart-mainnet ops-restart-testnet ops-restart-devnet ops-restart-dual \
 	ops-logs-mainnet ops-logs-testnet ops-logs-devnet ops-dashboard ops-flow-mainnet ops-flow-testnet ops-flow-devnet ops-autonomy-blueprint \
-	alpha
+	ui-mainnet ui-testnet ui-devnet alpha
 
 # --------------------------------------------------------------------
 # Help / diagnostics
@@ -118,6 +119,10 @@ help:
 	@printf "Build and packaging\n"
 	@printf "  make build             - build the workspace\n"
 	@printf "  make build-release     - build the release AOXC CLI\n"
+	@printf "  make build-release-mainnet - produce mainnet-scoped binary artifact\n"
+	@printf "  make build-release-testnet - produce testnet-scoped binary artifact\n"
+	@printf "  make build-release-devnet - produce devnet-scoped binary artifact\n"
+	@printf "  make build-release-matrix - build all network-scoped release artifacts\n"
 	@printf "  make package-bin       - install release binary into %s\n" "$(AOXC_BIN_DIR)"
 	@printf "  make build-release-all - build all workspace release binaries\n"
 	@printf "  make release-binary-list - print detected workspace binary names\n"
@@ -125,6 +130,7 @@ help:
 	@printf "  make package-versioned-bin - install all binaries into versioned bundle under %s\n" "$(AOXC_RELEASES_DIR)"
 	@printf "  make package-versioned-archive - create tar.gz archive for the versioned bundle\n"
 	@printf "  make package-network-versioned-bin - install per-network versioned AOXC CLI copies under %s\n" "$(AOXC_NETWORK_BIN_ROOT)"
+	@printf "  make publish-release   - create release archive and generate release evidence bundle\n"
 	@printf "  make package-desktop-testnet - install all binaries under desktop/testnet root\n"
 	@printf "  make version           - show AOXC build/version metadata\n"
 	@printf "  make manifest          - print build manifest\n"
@@ -135,6 +141,9 @@ help:
 	@printf "  make env-check         - validate required local tools and scripts\n"
 	@printf "  make bootstrap-paths   - create canonical AOXC directories\n"
 	@printf "  make bootstrap-desktop-paths - create desktop/testnet directories\n"
+	@printf "  make db-init-sqlite    - initialize sqlite-backed operator memory and AOXC db layout\n"
+	@printf "  make db-status-sqlite  - print sqlite-backed operator memory status\n"
+	@printf "  make db-history-sqlite - print recent autonomous operation history\n"
 	@printf "  make clean-home        - remove AOXC_HOME only\n"
 	@printf "  make clean-logs        - remove AOXC log directories only\n\n"
 
@@ -199,6 +208,10 @@ help:
 	@printf "  make ops-flow-testnet     - full auto operational flow (testnet)\n"
 	@printf "  make ops-flow-devnet      - full auto operational flow (devnet)\n\n"
 	@printf "  make ops-autonomy-blueprint - print autonomous system delivery blueprint\n\n"
+	@printf "AOXCHub UI surfaces\n"
+	@printf "  make ui-mainnet        - run AOXCHub with mainnet profile\n"
+	@printf "  make ui-testnet        - run AOXCHub with testnet profile\n"
+	@printf "  make ui-devnet         - run AOXCHub with testnet-safe defaults and devnet label\n\n"
 
 paths:
 	@printf "AOXC_DATA_ROOT=%s\n" "$(AOXC_DATA_ROOT)"
@@ -279,6 +292,30 @@ build-release-all:
 	$(call print_banner,Building all release AOXC binaries)
 	$(CARGO) build --release --workspace --bins
 
+build-release-mainnet: build-release bootstrap-paths
+	$(call print_banner,Producing mainnet-scoped AOXC binary)
+	@mkdir -p "$(AOXC_NETWORK_BIN_ROOT)/mainnet"
+	@cp target/release/aoxc "$(AOXC_NETWORK_BIN_ROOT)/mainnet/aoxc-$(RELEASE_TAG)-mainnet"
+	@chmod +x "$(AOXC_NETWORK_BIN_ROOT)/mainnet/aoxc-$(RELEASE_TAG)-mainnet"
+	@ln -sfn "$(AOXC_NETWORK_BIN_ROOT)/mainnet/aoxc-$(RELEASE_TAG)-mainnet" "$(AOXC_NETWORK_BIN_ROOT)/mainnet/aoxc-current"
+
+build-release-testnet: build-release bootstrap-paths
+	$(call print_banner,Producing testnet-scoped AOXC binary)
+	@mkdir -p "$(AOXC_NETWORK_BIN_ROOT)/testnet"
+	@cp target/release/aoxc "$(AOXC_NETWORK_BIN_ROOT)/testnet/aoxc-$(RELEASE_TAG)-testnet"
+	@chmod +x "$(AOXC_NETWORK_BIN_ROOT)/testnet/aoxc-$(RELEASE_TAG)-testnet"
+	@ln -sfn "$(AOXC_NETWORK_BIN_ROOT)/testnet/aoxc-$(RELEASE_TAG)-testnet" "$(AOXC_NETWORK_BIN_ROOT)/testnet/aoxc-current"
+
+build-release-devnet: build-release bootstrap-paths
+	$(call print_banner,Producing devnet-scoped AOXC binary)
+	@mkdir -p "$(AOXC_NETWORK_BIN_ROOT)/devnet"
+	@cp target/release/aoxc "$(AOXC_NETWORK_BIN_ROOT)/devnet/aoxc-$(RELEASE_TAG)-devnet"
+	@chmod +x "$(AOXC_NETWORK_BIN_ROOT)/devnet/aoxc-$(RELEASE_TAG)-devnet"
+	@ln -sfn "$(AOXC_NETWORK_BIN_ROOT)/devnet/aoxc-$(RELEASE_TAG)-devnet" "$(AOXC_NETWORK_BIN_ROOT)/devnet/aoxc-current"
+
+build-release-matrix: build-release-mainnet build-release-testnet build-release-devnet
+	$(call print_banner,Completed release matrix build for mainnet/testnet/devnet)
+
 release-binary-list:
 	$(call print_banner,Detected workspace binary names)
 	@if [ -z "$(RELEASE_BINARIES)" ]; then \
@@ -337,6 +374,10 @@ package-versioned-archive: package-versioned-bin
 	mkdir -p "$(AOXC_RELEASES_DIR)"; \
 	tar -C "$(AOXC_RELEASES_DIR)" -czf "$(RELEASE_ARCHIVE_PATH)" "$(RELEASE_BUNDLE_NAME)"; \
 	echo "Versioned release archive: $(RELEASE_ARCHIVE_PATH)"
+
+publish-release: package-versioned-archive
+	$(call print_banner,Generating release evidence for publication)
+	@./scripts/release/generate_release_evidence.sh "$(RELEASE_ARCHIVE_PATH)"
 
 package-network-versioned-bin: build-release bootstrap-paths
 	$(call print_banner,Packaging network-scoped AOXC release binaries)
@@ -401,6 +442,28 @@ quality-release:
 	./scripts/quality_gate.sh release
 
 ci: fmt check test clippy audit
+
+db-init-sqlite:
+	$(call print_banner,Initializing sqlite-backed AOXC operator state)
+	@$(CARGO) run -p aoxcmd -- db-init --backend sqlite
+	@python3 ./scripts/autonomy_sqlite_ctl.py init
+
+db-status-sqlite:
+	$(call print_banner,Printing sqlite-backed AOXC operator state)
+	@$(CARGO) run -p aoxcmd -- db-status --backend sqlite
+	@python3 ./scripts/autonomy_sqlite_ctl.py status
+
+db-event-sqlite:
+	$(call print_banner,Recording autonomous event into sqlite operator memory)
+	@python3 ./scripts/autonomy_sqlite_ctl.py event --env "$${AOXC_ENV:-devnet}" --action "$${ACTION:-heartbeat}" --status "$${STATUS:-ok}" --detail "$${DETAIL:-make-db-event-sqlite}"
+
+db-release-sqlite:
+	$(call print_banner,Recording release publication metadata in sqlite operator memory)
+	@python3 ./scripts/autonomy_sqlite_ctl.py release --version "$(RELEASE_TAG)" --artifact "$(RELEASE_ARCHIVE_PATH)"
+
+db-history-sqlite:
+	$(call print_banner,Recent autonomous sqlite event history)
+	@python3 ./scripts/autonomy_sqlite_ctl.py history --limit "$${LIMIT:-30}"
 
 # --------------------------------------------------------------------
 # Informational CLI surfaces
@@ -634,3 +697,11 @@ cli-mainnet-version:
 cli-testnet-version:
 	$(call print_banner,AOXC CLI version in TESTNET context)
 	@AOXC_ENV=testnet AOXHUB_CONFIG=$(AOXHUB_ROOT_CONFIG_TESTNET) AOXC_HOME=$(AOXHUB_HOME_TESTNET) $(AOXC_BIN_PATH) version
+
+ui-mainnet: hub-mainnet
+
+ui-testnet: hub-testnet
+
+ui-devnet:
+	$(call print_banner,Launching AOXCHub in DEVNET-labelled compatibility mode)
+	@AOXCHUB_DEFAULT_ENV=testnet AOXC_ENV=devnet cargo run -p aoxchub
