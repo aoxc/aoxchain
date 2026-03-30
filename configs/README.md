@@ -7,19 +7,32 @@ material. The operational model is **single-system runtime code** with
 ## Goals
 
 - Keep one runtime lifecycle path in scripts/Make targets.
-- Select network identity via config, not via
+- Select network identity (`mainnet`/`testnet`/`devnet`) via config, not via
   divergent operational scripts.
 - Keep source material auditable and release-ready.
 
 ## Canonical Structure
 
-- `environments/mainnet/` — public production bundle.
-- `environments/testnet/` — public pre-production bundle.
-- `environments/devnet/` — development bundle.
-- `environments/localnet/` — deterministic local multi-node operator bundle.
-- `environments/validation/` — validation / release-gate bundle.
-- `aoxhub/*.toml` — AOXHub mappings for canonical environment bundles.
+- `environments/<network-kind>/` — canonical runtime source bundle.
 - `network-matrix.toml` — environment matrix with security/runtime expectations.
+- `mainnet.toml`, `testnet.toml`, `devnet.toml` — legacy compatibility presets.
+
+## Single-System Selection
+
+Use one code path and set:
+
+```bash
+AOXC_NETWORK_KIND=mainnet   # or testnet/devnet
+```
+
+`Makefile` and `scripts/runtime_daemon.sh` resolve runtime source from:
+
+```text
+configs/environments/${AOXC_NETWORK_KIND}/
+```
+
+Genesis metadata remains the source of truth for chain type (for example,
+`environment = "mainnet"` in `genesis.v1.json`).
 
 ## Single-System Selection
 
