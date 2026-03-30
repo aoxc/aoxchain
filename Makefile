@@ -344,12 +344,11 @@ env-check:
 	@command -v bash >/dev/null 2>&1 || { echo "bash not found"; exit 1; }
 	@command -v sha256sum >/dev/null 2>&1 || { echo "sha256sum not found"; exit 1; }
 	$(call require_file,./scripts/quality_gate.sh)
-	$(call require_file,./scripts/run-local.sh)
-	$(call require_file,./scripts/node_supervisor.sh)
-	$(call require_file,./scripts/continuous_producer.sh)
-	$(call require_file,./scripts/real_chain_daemon.sh)
-	$(call require_file,./scripts/network_env_daemon.sh)
-	$(call require_file,./scripts/network_stack.sh)
+	$(call require_file,./scripts/run_runtime.sh)
+	$(call require_file,./scripts/runtime_supervisor.sh)
+	$(call require_file,./scripts/runtime_producer.sh)
+	$(call require_file,./scripts/runtime_real_daemon.sh)
+	$(call require_file,./scripts/runtime_daemon.sh)
 	$(call require_file,./scripts/aoxc_easy.sh)
 	@echo "Environment check passed."
 
@@ -795,19 +794,19 @@ ops-prepare:
 
 ops-start: package-bin runtime-activate
 	$(call print_banner,Starting AOXC runtime)
-	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" AOXC_LOG_DIR="$(AOXC_LOG_DIR)" ./scripts/network_env_daemon.sh start
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" AOXC_LOG_DIR="$(AOXC_LOG_DIR)" ./scripts/runtime_daemon.sh start
 
 ops-once: package-bin runtime-activate
 	$(call print_banner,Running one AOXC runtime cycle)
-	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" AOXC_LOG_DIR="$(AOXC_LOG_DIR)" ./scripts/network_env_daemon.sh once
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" AOXC_LOG_DIR="$(AOXC_LOG_DIR)" ./scripts/runtime_daemon.sh once
 
 ops-stop:
 	$(call print_banner,Stopping AOXC runtime)
-	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" AOXC_LOG_DIR="$(AOXC_LOG_DIR)" ./scripts/network_env_daemon.sh stop
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" AOXC_LOG_DIR="$(AOXC_LOG_DIR)" ./scripts/runtime_daemon.sh stop
 
 ops-status:
 	$(call print_banner,Showing AOXC runtime status)
-	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" AOXC_LOG_DIR="$(AOXC_LOG_DIR)" ./scripts/network_env_daemon.sh status
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" AOXC_LOG_DIR="$(AOXC_LOG_DIR)" ./scripts/runtime_daemon.sh status
 
 ops-restart:
 	$(call print_banner,Restarting AOXC runtime)
@@ -816,7 +815,7 @@ ops-restart:
 
 ops-logs:
 	$(call print_banner,Tailing AOXC runtime logs)
-	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" AOXC_LOG_DIR="$(AOXC_LOG_DIR)" ./scripts/network_env_daemon.sh tail
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" AOXC_LOG_DIR="$(AOXC_LOG_DIR)" ./scripts/runtime_daemon.sh tail
 
 ops-flow:
 	$(call print_banner,Executing full automatic AOXC operational flow)
