@@ -213,6 +213,23 @@ surface.
 - `make ops-logs`
 - `make ops-flow`
 
+### Full multi-node local system
+- `make aoxc-full-4nodes`
+- `make aoxc-full-4nodes-docker`
+- `make aoxc-full-4nodes-plan`
+- `make aoxc-full-4nodes-clean AOXC_FULL_FORCE_CLEAN=1`
+- `scripts/aoxc_full_4nodes.sh --help`
+
+The `aoxc_full_4nodes.sh` flow provisions a production-oriented local four-node
+layout under a dedicated root, copies canonical genesis/config materials,
+bootstraps node homes, creates per-node snapshots, and can emit Docker assets
+for isolated node services.
+
+Operational extensions:
+- `--plan` supports no-write execution planning and optional `--plan-out`.
+- Password source can be selected (`generated`, `env`, `file`, `inline`).
+- Snapshot integrity manifest is generated at `system/snapshots/SHA256SUMS`.
+
 ### Quality
 - `make fmt`
 - `make check`

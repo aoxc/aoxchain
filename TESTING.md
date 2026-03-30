@@ -12,6 +12,8 @@
 - `cargo test --workspace`
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - `cargo fmt --all --check`
+- `make test`
+- `make quality`
 
 ## Change-driven requirements
 
