@@ -1,11 +1,27 @@
-# README.md
+# AOXHub Environment Profiles
 
 > Scope: `configs/aoxhub`
 
 ## Purpose
-Contains AoxHub client/runtime profile configurations.
+This directory contains canonical AOXHub environment profile mappings for the
+single-system AOXC runtime model.
 
-## Contents at a glance
-- The code and files in this directory define the runtime behavior of this scope.
-- The folder contains modules and supporting assets bounded by this responsibility domain.
-- Any change should be evaluated together with its testing and compatibility impact.
+## Profiles
+- `mainnet.toml`
+- `testnet.toml`
+- `localnet.toml`
+- `validation.toml`
+
+Each profile binds AOXHub to one canonical runtime bundle under
+`configs/environments/<network-kind>/`.
+
+## Operational Contract
+- AOXHub must read identity from the mapped manifest/genesis bundle.
+- AOXHub must validate genesis checksum before runtime launch.
+- AOXHub must fail closed on missing bundle files.
+- AOXHub profile identity fields must match canonical environment identity
+  fields (`environment`, `network_id`, `chain_id`).
+
+## Change Policy
+- Treat these files as release-critical configuration surfaces.
+- Validate updates with `python3 scripts/validate_environment_bundle.py`.
