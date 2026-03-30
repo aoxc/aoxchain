@@ -9,6 +9,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+const UNAVAILABLE_DIGEST: &str = "unavailable";
+
 /// Resolves the effective AOXC data root for build-time metadata derivation.
 ///
 /// Resolution order:
@@ -53,9 +55,8 @@ fn resolve_home() -> Result<PathBuf, String> {
 
 /// Computes the SHA-256 digest for the supplied file.
 fn sha256_file(path: &Path) -> Result<String, String> {
-    let bytes = fs::read(path).map_err(|error| {
-        format!("Failed to read {}: {}", path.display(), error)
-    })?;
+    let bytes =
+        fs::read(path).map_err(|error| format!("Failed to read {}: {}", path.display(), error))?;
 
     let mut hasher = Sha256::new();
     hasher.update(bytes);
@@ -102,7 +103,7 @@ fn main() {
                 "cargo:warning=AOXC build genesis path resolution failed: {}",
                 error
             );
-            println!("cargo:rustc-env=AOXC_BUILD_GENESIS_SHA256=unavailable");
+            println!("cargo:rustc-env=AOXC_BUILD_GENESIS_SHA256={}", UNAVAILABLE_DIGEST);
             return;
         }
     };
@@ -111,13 +112,13 @@ fn main() {
 
     let digest = match try_resolve_genesis_digest(&genesis_path) {
         Ok(Some(digest)) => digest,
-        Ok(None) => String::from("unavailable"),
+        Ok(None) => String::from(UNAVAILABLE_DIGEST),
         Err(error) => {
             println!(
                 "cargo:warning=AOXC build genesis fingerprint resolution failed: {}",
                 error
             );
-            String::from("unavailable")
+            String::from(UNAVAILABLE_DIGEST)
         }
     };
 
