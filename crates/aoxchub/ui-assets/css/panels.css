@@ -1,0 +1,20 @@
+.panel {
+  background: linear-gradient(165deg, var(--surface-1), rgba(9, 17, 28, 0.88));
+}
+
+details.panel {
+  border-radius: var(--radius-lg);
+}
+
+summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+
+summary::marker {
+  color: var(--accent);
+}

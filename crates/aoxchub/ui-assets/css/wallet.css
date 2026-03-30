@@ -1,0 +1,21 @@
+.wallet-hero {
+  background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 30%, transparent), rgba(12, 20, 34, 0.72));
+}
+
+.wallet-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  flex-wrap: wrap;
+}
+
+.wallet-readiness,
+.wallet-address-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.wallet-address-card { margin-top: var(--space-4); }
+.wallet-address-card h4 { margin-bottom: var(--space-2); }

@@ -1,0 +1,17 @@
+.inner-stack {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+#selected-label {
+  font-size: var(--text-sm);
+  color: var(--accent-2);
+  font-weight: 600;
+}

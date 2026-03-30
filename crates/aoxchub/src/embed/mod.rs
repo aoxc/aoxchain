@@ -1,3 +1,22 @@
 pub static INDEX_HTML: &str = include_str!("../../ui-assets/html/index.html");
-pub static APP_CSS: &str = include_str!("../../ui-assets/css/app.css");
 pub static APP_JS: &str = include_str!("../../ui-assets/js/app.js");
+
+pub static APP_CSS: &str = include_str!("../../ui-assets/css/app.css");
+pub static RESET_CSS: &str = include_str!("../../ui-assets/css/reset.css");
+pub static TOKENS_CSS: &str = include_str!("../../ui-assets/css/tokens.css");
+pub static THEME_MAINNET_CSS: &str = include_str!("../../ui-assets/css/theme-mainnet.css");
+pub static THEME_TESTNET_CSS: &str = include_str!("../../ui-assets/css/theme-testnet.css");
+pub static LAYOUT_CSS: &str = include_str!("../../ui-assets/css/layout.css");
+pub static HEADER_CSS: &str = include_str!("../../ui-assets/css/header.css");
+pub static SIDEBAR_CSS: &str = include_str!("../../ui-assets/css/sidebar.css");
+pub static HERO_CSS: &str = include_str!("../../ui-assets/css/hero.css");
+pub static CARDS_CSS: &str = include_str!("../../ui-assets/css/cards.css");
+pub static WALLET_CSS: &str = include_str!("../../ui-assets/css/wallet.css");
+pub static ACTIONS_CSS: &str = include_str!("../../ui-assets/css/actions.css");
+pub static BANNERS_CSS: &str = include_str!("../../ui-assets/css/banners.css");
+pub static BUTTONS_CSS: &str = include_str!("../../ui-assets/css/buttons.css");
+pub static BADGES_CSS: &str = include_str!("../../ui-assets/css/badges.css");
+pub static FORMS_CSS: &str = include_str!("../../ui-assets/css/forms.css");
+pub static PANELS_CSS: &str = include_str!("../../ui-assets/css/panels.css");
+pub static TERMINAL_CSS: &str = include_str!("../../ui-assets/css/terminal.css");
+pub static RESPONSIVE_CSS: &str = include_str!("../../ui-assets/css/responsive.css");
