@@ -51,6 +51,23 @@ configs/environments/${AOXC_NETWORK_KIND}/
 Genesis metadata remains the source of truth for chain type (for example,
 `environment = "mainnet"` in `genesis.v1.json`).
 
+## Single-System Selection
+
+Use one code path and set:
+
+```bash
+AOXC_NETWORK_KIND=mainnet   # or testnet/devnet/localnet/validation
+```
+
+`Makefile` and `scripts/runtime_daemon.sh` resolve runtime source from:
+
+```text
+configs/environments/${AOXC_NETWORK_KIND}/
+```
+
+Genesis metadata remains the source of truth for chain type (for example,
+`environment = "mainnet"` in `genesis.v1.json`).
+
 ## Environment Compatibility Model
 
 A selected runtime bundle is treated as **100% complete** when all are true:
