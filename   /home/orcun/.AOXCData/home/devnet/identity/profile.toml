@@ -1,0 +1,36 @@
+# AOXC Environment Profile - Devnet
+
+[profile]
+schema_version = 1
+environment = "devnet"
+display_name = "AOXC KIVILCIM"
+network_class = "devnet"
+profile_type = "development"
+status = "active"
+
+[identity]
+family_id = 2626
+network_serial = "2626-003"
+chain_id = 2626020001
+network_id = "aoxc-devnet-2626-003"
+
+[execution]
+single_binary_multi_network = true
+compile_time_network_binding_forbidden = true
+deterministic_genesis_required = true
+manifest_validation_required = true
+
+[operations]
+allow_public_access = false
+allow_operator_launch = true
+allow_local_multi_node_mode = false
+require_release_evidence = false
+require_signed_artifacts = false
+
+[security]
+require_certificate_file = true
+require_validators_file = true
+require_bootnodes_file = true
+require_genesis_hash_verification = true
+reject_identity_mismatch = true
+reject_missing_bundle_components = true

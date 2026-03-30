@@ -411,7 +411,7 @@ env-check:
 	$(call require_file,./scripts/network_env_daemon.sh)
 	$(call require_file,./scripts/network_stack.sh)
 	$(call require_file,./scripts/aoxc_easy.sh)
-	$(call require_file,./scripts/autonomy_sqlite_ctl.py)
+	$(call require_file,./scripts/autonomy_sqlite_ctl.sh)
 	@echo "Environment check passed."
 
 # --------------------------------------------------------------------

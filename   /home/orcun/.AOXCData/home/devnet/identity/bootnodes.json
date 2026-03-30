@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "environment": "devnet",
+  "identity": {
+    "chain_name": "AOXC KIVILCIM",
+    "network_class": "devnet",
+    "network_serial": "2626-003",
+    "chain_id": 2626020001,
+    "network_id": "aoxc-devnet-2626-003"
+  },
+  "bootnodes": [
+    {
+      "node_id": "aoxc-boot-devnet-001",
+      "display_name": "AOXC Devnet Bootnode 001",
+      "transport_key_algorithm": "ed25519",
+      "transport_public_key_encoding": "hex",
+      "transport_public_key": "aoxc_transport_pk_devnet_001_pending_real_value",
+      "transport_key_fingerprint": "aoxc_transport_fp_devnet_001_pending_real_value",
+      "address": "REPLACE_WITH_REAL_BOOTNODE_ADDRESS",
+      "transport": "tcp",
+      "status": "active"
+    }
+  ]
+}
