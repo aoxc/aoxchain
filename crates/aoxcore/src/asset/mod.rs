@@ -498,10 +498,10 @@ impl AssetRegistryEntry {
                     });
                 }
 
-                if let Some(max_supply) = self.max_supply {
-                    if max_supply == 0 {
-                        return Err(AssetRegistryError::ZeroMaxSupply);
-                    }
+                if let Some(max_supply) = self.max_supply
+                    && max_supply == 0
+                {
+                    return Err(AssetRegistryError::ZeroMaxSupply);
                 }
             }
             SupplyModel::GovernanceAuthorizedEmission => {
@@ -512,10 +512,10 @@ impl AssetRegistryEntry {
                     });
                 }
 
-                if let Some(max_supply) = self.max_supply {
-                    if max_supply == 0 {
-                        return Err(AssetRegistryError::ZeroMaxSupply);
-                    }
+                if let Some(max_supply) = self.max_supply
+                    && max_supply == 0
+                {
+                    return Err(AssetRegistryError::ZeroMaxSupply);
                 }
             }
             SupplyModel::ProgrammaticEmission => {
@@ -642,19 +642,16 @@ impl AssetRegistryEntry {
     }
 
     fn validate_status_policy(&self) -> Result<(), AssetRegistryError> {
-        match self.asset_class {
-            AssetClass::Native => {
-                if matches!(
-                    self.registry_status,
-                    RegistryStatus::Proposed | RegistryStatus::Registered
-                ) {
-                    return Err(AssetRegistryError::InvalidStatusForAssetClass {
-                        asset_class: self.asset_class,
-                        status: self.registry_status,
-                    });
-                }
-            }
-            _ => {}
+        if self.asset_class == AssetClass::Native
+            && matches!(
+                self.registry_status,
+                RegistryStatus::Proposed | RegistryStatus::Registered
+            )
+        {
+            return Err(AssetRegistryError::InvalidStatusForAssetClass {
+                asset_class: self.asset_class,
+                status: self.registry_status,
+            });
         }
 
         Ok(())

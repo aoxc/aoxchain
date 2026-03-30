@@ -557,6 +557,7 @@ impl NativeTokenLedger {
     }
 
     /// Builds a receipt for a successful replay-hardened quantum transfer.
+    #[allow(clippy::too_many_arguments)]
     pub fn transfer_quantum_receipt(
         &self,
         tx_hash: [u8; HASH_SIZE],
@@ -706,8 +707,10 @@ mod tests {
 
     #[test]
     fn new_ledger_rejects_invalid_policy() {
-        let mut policy = NativeTokenPolicy::default();
-        policy.version = 99;
+        let policy = NativeTokenPolicy {
+            version: 99,
+            ..NativeTokenPolicy::default()
+        };
 
         let err = NativeTokenLedger::new(policy).unwrap_err();
         assert_eq!(err, NativeTokenError::InvalidPolicy);

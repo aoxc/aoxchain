@@ -30,27 +30,27 @@ pub fn discover() -> Vec<BinaryCandidate> {
     }
 
     let releases_root = PathBuf::from(format!("{home}/.AOXCData/releases"));
-    if releases_root.is_dir() {
-        if let Ok(entries) = fs::read_dir(&releases_root) {
-            let mut dirs: Vec<PathBuf> = entries
-                .flatten()
-                .map(|e| e.path())
-                .filter(|p| p.is_dir())
-                .collect();
-            dirs.sort();
-            if let Some(bundle) = dirs.last() {
-                let path = bundle.join("bin/aoxc");
-                if path.is_file() {
-                    let p = path.display().to_string();
-                    out.push(BinaryCandidate {
-                        id: "versioned-bundle".into(),
-                        kind: BinarySourceKind::VersionedBundle,
-                        path: p.clone(),
-                        version: read_version(&p),
-                        trust: TrustLevel::Trusted,
-                        checksum_verified: None,
-                    });
-                }
+    if releases_root.is_dir()
+        && let Ok(entries) = fs::read_dir(&releases_root)
+    {
+        let mut dirs: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect();
+        dirs.sort();
+        if let Some(bundle) = dirs.last() {
+            let path = bundle.join("bin/aoxc");
+            if path.is_file() {
+                let p = path.display().to_string();
+                out.push(BinaryCandidate {
+                    id: "versioned-bundle".into(),
+                    kind: BinarySourceKind::VersionedBundle,
+                    path: p.clone(),
+                    version: read_version(&p),
+                    trust: TrustLevel::Trusted,
+                    checksum_verified: None,
+                });
             }
         }
     }

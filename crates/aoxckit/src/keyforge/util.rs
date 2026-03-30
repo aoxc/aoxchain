@@ -101,10 +101,10 @@ fn normalize_required_path(path: &str) -> Result<String, String> {
 /// - creates the full parent directory tree when needed,
 /// - treats paths without a parent as valid and leaves them unchanged.
 fn ensure_parent_dir_exists(path: &str) -> Result<(), String> {
-    if let Some(parent) = Path::new(path).parent() {
-        if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent).map_err(|error| format!("DIR_CREATE_ERROR: {}", error))?;
-        }
+    if let Some(parent) = Path::new(path).parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent).map_err(|error| format!("DIR_CREATE_ERROR: {}", error))?;
     }
 
     Ok(())

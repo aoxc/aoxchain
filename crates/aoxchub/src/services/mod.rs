@@ -183,6 +183,12 @@ impl HubService {
     }
 }
 
+impl Default for HubService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn environment_prefix(env: Environment) -> String {
     format!(
         "AOXC_ENV={} AOXC_HOME={} AOXHUB_CONFIG={}",

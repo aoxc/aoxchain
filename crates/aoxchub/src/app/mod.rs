@@ -7,10 +7,10 @@ pub struct App {
 impl App {
     pub async fn bootstrap() -> Result<Self, std::io::Error> {
         let service = HubService::new();
-        if let Ok(raw) = std::env::var("AOXCHUB_DEFAULT_ENV") {
-            if let Some(env) = Environment::from_slug(&raw) {
-                service.set_environment(env).await;
-            }
+        if let Ok(raw) = std::env::var("AOXCHUB_DEFAULT_ENV")
+            && let Some(env) = Environment::from_slug(&raw)
+        {
+            service.set_environment(env).await;
         }
 
         Ok(Self { service })

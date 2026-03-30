@@ -615,7 +615,7 @@ fn validate_signature_hex(signature: &str) -> Result<(), HexaQuorumError> {
         return Err(HexaQuorumError::InvalidSignatureFormat);
     }
 
-    if signature.len() > MAX_SIGNATURE_HEX_LEN || signature.len() % 2 != 0 {
+    if signature.len() > MAX_SIGNATURE_HEX_LEN || !signature.len().is_multiple_of(2) {
         return Err(HexaQuorumError::InvalidSignatureFormat);
     }
 
