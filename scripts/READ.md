@@ -17,6 +17,8 @@ The script surface is designed to be production-oriented and compatible with:
   - Unified orchestrator for `start|once|status|stop` across `mainnet|testnet|devnet`.
 - `scripts/network_stack.sh`
   - Dual-stack orchestrator for synchronized `testnet + mainnet` operations with rollback safety.
+- `scripts/autonomy_control_plane.sh`
+  - Autonomous operating blueprint and readiness profile for mainnet-first and multi-network sidebars.
 - `scripts/real_chain_daemon.sh`
   - Legacy loop daemon for local real-chain simulation.
 - `scripts/validation/*`
@@ -39,6 +41,7 @@ Use Make targets for environment operations:
 - `make ops-restart-mainnet|ops-restart-testnet|ops-restart-devnet`
 - `make ops-start-dual|ops-status-dual|ops-stop-dual|ops-restart-dual`
 - `make ops-logs-mainnet|ops-logs-testnet|ops-logs-devnet`
+- `make ops-autonomy-blueprint`
 
 ## Operational Safety Notes
 
