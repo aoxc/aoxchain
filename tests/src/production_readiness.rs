@@ -241,9 +241,9 @@ fn identity_surface_stays_stable_under_randomized_roundtrip_pressure() {
         let parsed = parse_actor_id(&actor_id).expect("actor-id should parse");
         assert_eq!(parsed.prefix, "AOXC");
 
-        let chain = rng.next_u32();
-        let role_idx = rng.next_u32();
-        let zone_idx = rng.next_u32();
+        let chain = rng.next_u32() & MAX_HD_INDEX;
+        let role_idx = rng.next_u32() & MAX_HD_INDEX;
+        let zone_idx = rng.next_u32() & MAX_HD_INDEX;
         let index = rng.next_u32() & MAX_HD_INDEX;
 
         let hd = HdPath::new(chain, role_idx, zone_idx, index).expect("hd path should build");
