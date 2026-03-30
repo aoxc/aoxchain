@@ -83,11 +83,7 @@ fn try_resolve_genesis_digest(path: &Path) -> Result<Option<String>, String> {
             sha256_file(path).map(Some)
         }
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(format!(
-            "Failed to access {}: {}",
-            path.display(),
-            error
-        )),
+        Err(error) => Err(format!("Failed to access {}: {}", path.display(), error)),
     }
 }
 
@@ -103,7 +99,10 @@ fn main() {
                 "cargo:warning=AOXC build genesis path resolution failed: {}",
                 error
             );
-            println!("cargo:rustc-env=AOXC_BUILD_GENESIS_SHA256={}", UNAVAILABLE_DIGEST);
+            println!(
+                "cargo:rustc-env=AOXC_BUILD_GENESIS_SHA256={}",
+                UNAVAILABLE_DIGEST
+            );
             return;
         }
     };

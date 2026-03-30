@@ -47,7 +47,10 @@ A configuration set is treated as **100% complete** when all are true:
 
 ```bash
 python - <<'PY'
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 for path in [
     'configs/mainnet.toml',
     'configs/testnet.toml',
@@ -58,6 +61,7 @@ for path in [
         tomllib.load(f)
 print('OK')
 PY
+python3 scripts/validate_environment_bundle.py
 ```
 
 ## Operational Notes

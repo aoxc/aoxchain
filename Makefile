@@ -246,6 +246,7 @@ endef
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
+	runtime-bundle-compat-check \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
 	ui alpha
 
@@ -283,6 +284,7 @@ help:
 	@printf "Runtime lifecycle\n"
 	@printf "  make runtime-print\n"
 	@printf "  make runtime-source-check\n"
+	@printf "  make runtime-bundle-compat-check\n"
 	@printf "  make runtime-install\n"
 	@printf "  make runtime-verify\n"
 	@printf "  make runtime-activate\n"
@@ -642,6 +644,10 @@ runtime-source-check:
 	@$(MAKE) --no-print-directory runtime-refresh-genesis-sha256
 	@cd "$(AOXC_RUNTIME_SOURCE_ROOT)" && $(SHA256SUM) -c "$(SRC_GENESIS_SHA256_FILE)"
 	@echo "Canonical runtime source bundle is valid."
+
+runtime-bundle-compat-check:
+	$(call print_banner,Validating full environment bundle compatibility)
+	@python3 scripts/validate_environment_bundle.py
 
 runtime-install: runtime-source-check bootstrap-paths
 	$(call print_banner,Installing canonical runtime bundle into AOXC runtime root)

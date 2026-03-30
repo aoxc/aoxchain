@@ -51,6 +51,16 @@ Intended quality flows include:
 - full
 - release
 
+### `scripts/validate_environment_bundle.py`
+Cross-environment identity and checksum compatibility validator for the
+single-system runtime model.
+
+This validator checks mainnet/testnet/devnet bundles for:
+
+- Identity consistency (`environment`, `network_id`, `chain_id`)
+- `genesis.v1.sha256` correctness
+- AOXHub profile alignment with canonical bundle roots
+
 ### `scripts/release/generate_release_evidence.sh`
 Release evidence generation workflow.
 
