@@ -1,0 +1,82 @@
+:root {
+  --font-sans: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.4rem;
+  --text-2xl: clamp(1.55rem, 1.15rem + 1vw, 2rem);
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius-sm: 0.625rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.1rem;
+  --radius-xl: 1.4rem;
+  --radius-pill: 999px;
+
+  --shadow-soft: 0 14px 42px rgba(2, 9, 20, 0.35);
+  --shadow-panel: 0 22px 60px rgba(1, 8, 20, 0.45);
+  --shadow-glow: 0 0 0 1px rgba(125, 162, 255, 0.2), 0 0 24px rgba(93, 140, 255, 0.16);
+
+  --blur-surface: blur(12px);
+  --surface-opacity: 0.8;
+
+  --bg: #070c15;
+  --bg-elevated: #0f1724;
+  --surface-1: rgba(14, 22, 36, 0.8);
+  --surface-2: rgba(11, 18, 30, 0.92);
+  --surface-3: rgba(18, 27, 44, 0.9);
+  --line: rgba(153, 179, 214, 0.24);
+  --line-strong: rgba(153, 179, 214, 0.42);
+  --text: #e9f1ff;
+  --muted: #9db0cd;
+
+  --accent: #5f94ff;
+  --accent-2: #6ec8ff;
+  --success: #4ad1a8;
+  --warning: #ffb156;
+  --danger: #ff6d72;
+  --focus: rgba(108, 154, 255, 0.5);
+
+  --hero-bg: linear-gradient(145deg, rgba(75, 112, 172, 0.25), rgba(9, 16, 28, 0.9));
+  --banner-bg: linear-gradient(125deg, rgba(57, 84, 129, 0.35), rgba(9, 14, 24, 0.85));
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  color: var(--text);
+  line-height: 1.5;
+  background: radial-gradient(circle at 8% 8%, rgba(89, 120, 173, 0.2), transparent 38%), radial-gradient(circle at 90% 0%, rgba(86, 125, 192, 0.24), transparent 42%), var(--bg);
+}
+
+.muted { color: var(--muted); }
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  font-size: var(--text-xs);
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.surface-1 {
+  backdrop-filter: var(--blur-surface);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-panel);
+}
+
+::selection { background: rgba(110, 155, 255, 0.35); }

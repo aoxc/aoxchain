@@ -1,1 +1,53 @@
-/* buttons styles */
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.env-grid {
+  margin-top: var(--space-2);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(90px, 1fr));
+  gap: var(--space-2);
+}
+
+.env {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  padding: 0.6rem 0.85rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.env.active {
+  border-color: var(--line-strong);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 36%, transparent), rgba(0, 0, 0, 0.22));
+  box-shadow: var(--shadow-glow);
+}
+
+.cta {
+  border: 1px solid color-mix(in srgb, var(--accent) 58%, white 10%);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent-2) 76%, var(--accent) 24%));
+  color: #fff;
+  font-weight: 700;
+  padding: 0.72rem 1rem;
+}
+
+#execute {
+  justify-self: start;
+}
+
+button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}

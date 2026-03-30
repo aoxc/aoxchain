@@ -1,0 +1,42 @@
+.node-grid,
+.capability-grid,
+.cards {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.node-card,
+.capability,
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: linear-gradient(160deg, var(--surface-3), rgba(11, 19, 34, 0.58));
+  box-shadow: var(--shadow-soft);
+}
+
+.node-card h5,
+.capability h5 { margin-bottom: var(--space-2); }
+
+.node-card p,
+.capability p,
+.card small {
+  color: var(--muted);
+}
+
+.node-card small {
+  color: var(--accent-2);
+  font-size: var(--text-xs);
+}
+
+.card {
+  text-align: left;
+  color: var(--text);
+}
+
+.card small {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+}
