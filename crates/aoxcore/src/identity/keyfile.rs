@@ -60,6 +60,20 @@ const MAX_ARGON2_P_COST: u32 = 32;
 /// This protects the parser from obviously malformed or unbounded envelopes.
 const MAX_CIPHERTEXT_B64_LEN: usize = 1_048_576;
 
+/// Upper bound for accepted base64-encoded salt length.
+///
+/// The canonical salt is 16 bytes (24 chars in padded base64). This cap keeps
+/// validation strict enough to reject oversized attacker-supplied payloads
+/// before any decode allocation.
+const MAX_SALT_B64_LEN: usize = 64;
+
+/// Upper bound for accepted base64-encoded nonce length.
+///
+/// The canonical nonce is 12 bytes (16 chars in padded base64). This cap keeps
+/// validation strict enough to reject oversized attacker-supplied payloads
+/// before any decode allocation.
+const MAX_NONCE_B64_LEN: usize = 64;
+
 /// Canonical serialized keyfile envelope.
 ///
 /// This structure is suitable for persistence, transport, and deterministic
@@ -379,6 +393,14 @@ pub fn validate_envelope(envelope: &KeyfileEnvelope) -> Result<(), KeyfileError>
     validate_nonempty_canonical_text(&envelope.nonce_b64)?;
     validate_nonempty_canonical_text(&envelope.ciphertext_b64)?;
 
+    if envelope.salt_b64.len() > MAX_SALT_B64_LEN {
+        return Err(KeyfileError::InvalidSaltLength);
+    }
+
+    if envelope.nonce_b64.len() > MAX_NONCE_B64_LEN {
+        return Err(KeyfileError::InvalidNonceLength);
+    }
+
     if envelope.ciphertext_b64.len() > MAX_CIPHERTEXT_B64_LEN {
         return Err(KeyfileError::InvalidCiphertext);
     }
@@ -588,10 +610,34 @@ mod tests {
     }
 
     #[test]
+    fn validate_envelope_rejects_oversized_salt_b64_before_decode() {
+        let mut envelope =
+            encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
+        envelope.salt_b64 = "A".repeat(MAX_SALT_B64_LEN + 1);
+
+        assert_eq!(
+            validate_envelope(&envelope),
+            Err(KeyfileError::InvalidSaltLength)
+        );
+    }
+
+    #[test]
     fn validate_envelope_rejects_invalid_nonce_length() {
         let mut envelope =
             encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
         envelope.nonce_b64 = general_purpose::STANDARD.encode([0u8; 8]);
+
+        assert_eq!(
+            validate_envelope(&envelope),
+            Err(KeyfileError::InvalidNonceLength)
+        );
+    }
+
+    #[test]
+    fn validate_envelope_rejects_oversized_nonce_b64_before_decode() {
+        let mut envelope =
+            encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
+        envelope.nonce_b64 = "A".repeat(MAX_NONCE_B64_LEN + 1);
 
         assert_eq!(
             validate_envelope(&envelope),
