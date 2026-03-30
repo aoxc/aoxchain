@@ -1,39 +1,60 @@
-# AOXC Configurations (Production-Grade)
+# AOXC Configurations (Single-System Runtime Source)
 
-This directory is the root configuration surface for AOXC runtime deployments.
-It provides complete, environment-specific configuration coverage for:
-
-- **Mainnet**
-- **Testnet**
-- **Devnet**
+This directory is the canonical configuration surface for AOXC runtime source
+material. The operational model is **single-system runtime code** with
+**network identity selected by configuration**.
 
 ## Goals
 
-- Maintain one clear, auditable source of environment configuration.
-- Keep all environment files production-oriented and operationally readable.
-- Ensure release teams can validate compatibility before rollout.
+- Keep one runtime lifecycle path in scripts/Make targets.
+- Select network identity via config, not via
+  divergent operational scripts.
+- Keep source material auditable and release-ready.
 
-## Core Files
+## Canonical Structure
 
-- `mainnet.toml` — canonical public mainnet node defaults.
-- `testnet.toml` — canonical public testnet node defaults.
-- `devnet.toml` — canonical development network defaults.
+- `environments/mainnet/` — public production bundle.
+- `environments/testnet/` — public pre-production bundle.
+- `environments/devnet/` — development bundle.
+- `environments/localnet/` — deterministic local multi-node operator bundle.
+- `environments/validation/` — validation / release-gate bundle.
+- `aoxhub/*.toml` — AOXHub mappings for canonical environment bundles.
 - `network-matrix.toml` — environment matrix with security/runtime expectations.
+
+## Single-System Selection
+
+Use one code path and set:
+
+```bash
+AOXC_NETWORK_KIND=mainnet   # or testnet/devnet/localnet/validation
+```
+
+`Makefile` and `scripts/runtime_daemon.sh` resolve runtime source from:
+
+```text
+configs/environments/${AOXC_NETWORK_KIND}/
+```
+
+Genesis metadata remains the source of truth for chain type (for example,
+`environment = "mainnet"` in `genesis.v1.json`).
 
 ## Environment Compatibility Model
 
-A configuration set is treated as **100% complete** when all are true:
+A selected runtime bundle is treated as **100% complete** when all are true:
 
-1. Mainnet/Testnet/Devnet files exist and parse as valid TOML.
-2. Each environment has chain identity, P2P, RPC, and security profile fields.
+1. Required files exist under `configs/environments/${AOXC_NETWORK_KIND}/`.
+2. The selected bundle has chain identity, P2P, RPC, and security profile fields.
 3. Security mode is explicit (no implicit defaults in production).
-4. Peer lists and endpoint values are non-empty and environment-correct.
+4. AOXHub mapping (if present for that network kind) is aligned with the selected canonical bundle root.
 
 ## Recommended Validation Commands
 
 ```bash
 python - <<'PY'
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 for path in [
     'configs/mainnet.toml',
     'configs/testnet.toml',
@@ -44,6 +65,7 @@ for path in [
         tomllib.load(f)
 print('OK')
 PY
+python3 scripts/validate_environment_bundle.py
 ```
 
 ## Operational Notes

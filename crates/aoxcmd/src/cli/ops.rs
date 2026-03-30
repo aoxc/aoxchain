@@ -674,20 +674,35 @@ fn evaluate_full_surface_readiness(
     let closure_dir = repo_root
         .join("artifacts")
         .join("network-production-closure");
-    let mainnet_config = repo_root.join("configs").join("mainnet.toml");
-    let testnet_config = repo_root.join("configs").join("testnet.toml");
-    let devnet_config = repo_root.join("configs").join("devnet.toml");
-    let aoxhub_mainnet = repo_root.join("configs").join("aoxhub-mainnet.toml");
-    let aoxhub_testnet = repo_root.join("configs").join("aoxhub-testnet.toml");
+    let mainnet_config = repo_root
+        .join("configs")
+        .join("environments")
+        .join("mainnet")
+        .join("profile.toml");
+    let testnet_config = repo_root
+        .join("configs")
+        .join("environments")
+        .join("testnet")
+        .join("profile.toml");
+    let devnet_config = repo_root
+        .join("configs")
+        .join("environments")
+        .join("devnet")
+        .join("profile.toml");
+    let aoxhub_mainnet = repo_root
+        .join("configs")
+        .join("aoxhub")
+        .join("mainnet.toml");
+    let aoxhub_testnet = repo_root
+        .join("configs")
+        .join("aoxhub")
+        .join("testnet.toml");
     let testnet_fixture_v1 = repo_root
         .join("configs")
-        .join("deterministic-testnet")
+        .join("environments")
+        .join("testnet")
         .join("genesis.v1.json");
-    let testnet_fixture_legacy = repo_root
-        .join("configs")
-        .join("deterministic-testnet")
-        .join("genesis.json");
-    let testnet_fixture_exists = testnet_fixture_v1.exists() || testnet_fixture_legacy.exists();
+    let testnet_fixture_exists = testnet_fixture_v1.exists();
     let devnet_fixture = repo_root
         .join("configs")
         .join("environments")
@@ -695,8 +710,9 @@ fn evaluate_full_surface_readiness(
         .join("genesis.v1.json");
     let testnet_launch = repo_root
         .join("configs")
-        .join("deterministic-testnet")
-        .join("launch-testnet.sh");
+        .join("environments")
+        .join("localnet")
+        .join("launch-localnet.sh");
     let multi_host = repo_root
         .join("scripts")
         .join("validation")
@@ -752,9 +768,8 @@ fn evaluate_full_surface_readiness(
                     "deterministic-fixture",
                     testnet_fixture_exists,
                     format!(
-                        "expected deterministic fixture at {} or {}",
-                        testnet_fixture_v1.display(),
-                        testnet_fixture_legacy.display()
+                        "expected canonical testnet genesis fixture at {}",
+                        testnet_fixture_v1.display()
                     ),
                 ),
                 surface_check(
@@ -769,11 +784,7 @@ fn evaluate_full_surface_readiness(
                 ),
             ],
             vec![
-                if testnet_fixture_v1.exists() {
-                    testnet_fixture_v1.display().to_string()
-                } else {
-                    testnet_fixture_legacy.display().to_string()
-                },
+                testnet_fixture_v1.display().to_string(),
                 multi_host.display().to_string(),
             ],
         ),
@@ -1575,7 +1586,7 @@ fn remediation_plan(checks: &[ReadinessCheck]) -> Vec<String> {
                 "Run `aoxc profile-baseline --enforce` and align embedded mainnet/testnet configs before promotion."
             }
             "aoxhub-baseline-parity" => {
-                "Align `configs/aoxhub-mainnet.toml` and `configs/aoxhub-testnet.toml` so AOXHub rollout controls match promotion policy."
+                "Align `configs/aoxhub/mainnet.toml` and `configs/aoxhub/testnet.toml` so AOXHub rollout controls match promotion policy."
             }
             "release-evidence" => {
                 "Regenerate release evidence under `artifacts/release-evidence/` before promotion."
