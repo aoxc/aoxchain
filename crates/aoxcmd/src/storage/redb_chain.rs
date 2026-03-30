@@ -150,7 +150,7 @@ pub fn append_chain_log(domain: &str, action: &str, details: &str) -> Result<(),
             )
         })?;
 
-        let mut iter = table.iter().map_err(|error| {
+        let iter = table.iter().map_err(|error| {
             AppError::with_source(
                 ErrorCode::FilesystemIoFailed,
                 "Failed to iterate chain_log table for sequence allocation",
@@ -159,7 +159,7 @@ pub fn append_chain_log(domain: &str, action: &str, details: &str) -> Result<(),
         })?;
 
         let mut last_sequence: Option<u64> = None;
-        while let Some(item) = iter.next() {
+        for item in iter {
             let (key, _) = item.map_err(|error| {
                 AppError::with_source(
                     ErrorCode::FilesystemIoFailed,
@@ -240,7 +240,7 @@ pub fn load_chain_logs(
     })?;
 
     let mut entries = Vec::new();
-    let mut iter = table.iter().map_err(|error| {
+    let iter = table.iter().map_err(|error| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
             "Failed to iterate chain_log table",
@@ -248,7 +248,7 @@ pub fn load_chain_logs(
         )
     })?;
 
-    while let Some(item) = iter.next() {
+    for item in iter {
         let (_, value) = item.map_err(|error| {
             AppError::with_source(
                 ErrorCode::FilesystemIoFailed,

@@ -204,6 +204,7 @@ impl MessageEnvelope {
     /// The constructor normalizes `payload_type` before validation so that
     /// callers receive a safe-by-default instance instead of needing to
     /// replicate canonicalization logic externally.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_module: ModuleId,
         destination_module: ModuleId,
@@ -257,16 +258,16 @@ impl MessageEnvelope {
             return Err(MessageEnvelopeError::ZeroReplayProtectionTag);
         }
 
-        if let Some(proof_reference) = self.proof_reference {
-            if proof_reference == ZERO32 {
-                return Err(MessageEnvelopeError::ZeroProofReference);
-            }
+        if let Some(proof_reference) = self.proof_reference
+            && proof_reference == ZERO32
+        {
+            return Err(MessageEnvelopeError::ZeroProofReference);
         }
 
-        if let Some(expiry) = self.expiry {
-            if expiry == 0 {
-                return Err(MessageEnvelopeError::ExpiryMustBeNonZeroWhenPresent);
-            }
+        if let Some(expiry) = self.expiry
+            && expiry == 0
+        {
+            return Err(MessageEnvelopeError::ExpiryMustBeNonZeroWhenPresent);
         }
 
         if self.payload_type.is_empty() {

@@ -55,7 +55,6 @@ fn build_passport_inspection_output(file: &str) -> Result<PassportInspectionOutp
 }
 
 /// Loads a passport from disk and decodes it from JSON.
-
 fn current_unix_timestamp() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

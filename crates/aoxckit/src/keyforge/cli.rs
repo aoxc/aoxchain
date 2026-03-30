@@ -71,16 +71,11 @@ pub struct KeyCommand {
 }
 
 /// Supported output encodings for operator-visible command responses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Default)]
 pub enum OutputFormat {
     Json,
+    #[default]
     PrettyJson,
-}
-
-impl Default for OutputFormat {
-    fn default() -> Self {
-        Self::PrettyJson
-    }
 }
 
 /// Canonical key subcommands.
