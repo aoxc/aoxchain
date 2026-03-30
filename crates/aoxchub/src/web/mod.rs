@@ -36,8 +36,7 @@ struct CustomBinaryRequest {
 pub async fn serve(service: HubService) -> Result<(), std::io::Error> {
     let app = Router::new()
         .route("/", get(index))
-        .route("/assets/app.css", get(css))
-        .route("/assets/app.js", get(js))
+        .route("/assets/{*path}", get(asset))
         .route("/api/state", get(state))
         .route("/api/environment", post(set_environment))
         .route("/api/binary/select", post(select_binary))
@@ -57,17 +56,50 @@ pub async fn serve(service: HubService) -> Result<(), std::io::Error> {
 async fn index() -> Html<&'static str> {
     Html(embed::INDEX_HTML)
 }
-async fn css() -> impl IntoResponse {
-    (
-        [("content-type", "text/css; charset=utf-8")],
-        embed::APP_CSS,
-    )
-}
-async fn js() -> impl IntoResponse {
-    (
-        [("content-type", "application/javascript; charset=utf-8")],
-        embed::APP_JS,
-    )
+async fn asset(Path(path): Path<String>) -> impl IntoResponse {
+    if path == "app.js" {
+        return (
+            StatusCode::OK,
+            [("content-type", "application/javascript; charset=utf-8")],
+            embed::APP_JS,
+        );
+    }
+
+    let css = match path.as_str() {
+        "app.css" => Some(embed::APP_CSS),
+        "reset.css" => Some(embed::RESET_CSS),
+        "tokens.css" => Some(embed::TOKENS_CSS),
+        "theme-mainnet.css" => Some(embed::THEME_MAINNET_CSS),
+        "theme-testnet.css" => Some(embed::THEME_TESTNET_CSS),
+        "layout.css" => Some(embed::LAYOUT_CSS),
+        "header.css" => Some(embed::HEADER_CSS),
+        "sidebar.css" => Some(embed::SIDEBAR_CSS),
+        "hero.css" => Some(embed::HERO_CSS),
+        "cards.css" => Some(embed::CARDS_CSS),
+        "wallet.css" => Some(embed::WALLET_CSS),
+        "actions.css" => Some(embed::ACTIONS_CSS),
+        "banners.css" => Some(embed::BANNERS_CSS),
+        "buttons.css" => Some(embed::BUTTONS_CSS),
+        "badges.css" => Some(embed::BADGES_CSS),
+        "forms.css" => Some(embed::FORMS_CSS),
+        "panels.css" => Some(embed::PANELS_CSS),
+        "terminal.css" => Some(embed::TERMINAL_CSS),
+        "responsive.css" => Some(embed::RESPONSIVE_CSS),
+        _ => None,
+    };
+
+    match css {
+        Some(content) => (
+            StatusCode::OK,
+            [("content-type", "text/css; charset=utf-8")],
+            content,
+        ),
+        None => (
+            StatusCode::NOT_FOUND,
+            [("content-type", "text/plain; charset=utf-8")],
+            "asset not found",
+        ),
+    }
 }
 
 async fn state(State(service): State<HubService>) -> Json<crate::domain::HubStateView> {
