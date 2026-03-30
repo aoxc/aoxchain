@@ -158,3 +158,9 @@ impl Runner {
         self.jobs.lock().await.get(id).map(|r| r.tx.subscribe())
     }
 }
+
+impl Default for Runner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
