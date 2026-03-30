@@ -11,7 +11,7 @@ material. The operational model is **single-system runtime code** with
   divergent operational scripts.
 - Keep source material auditable and release-ready.
 
-## Core Files
+## Canonical Structure
 
 - `environments/<network-kind>/` — canonical runtime source bundle.
 - `network-matrix.toml` — environment matrix with security/runtime expectations.
@@ -34,14 +34,31 @@ configs/environments/${AOXC_NETWORK_KIND}/
 Genesis metadata remains the source of truth for chain type (for example,
 `environment = "mainnet"` in `genesis.v1.json`).
 
+## Single-System Selection
+
+Use one code path and set:
+
+```bash
+AOXC_NETWORK_KIND=mainnet   # or testnet/devnet/localnet/validation
+```
+
+`Makefile` and `scripts/runtime_daemon.sh` resolve runtime source from:
+
+```text
+configs/environments/${AOXC_NETWORK_KIND}/
+```
+
+Genesis metadata remains the source of truth for chain type (for example,
+`environment = "mainnet"` in `genesis.v1.json`).
+
 ## Environment Compatibility Model
 
-A configuration set is treated as **100% complete** when all are true:
+A selected runtime bundle is treated as **100% complete** when all are true:
 
-1. Mainnet/Testnet/Devnet files exist and parse as valid TOML.
-2. Each environment has chain identity, P2P, RPC, and security profile fields.
+1. Required files exist under `configs/environments/${AOXC_NETWORK_KIND}/`.
+2. The selected bundle has chain identity, P2P, RPC, and security profile fields.
 3. Security mode is explicit (no implicit defaults in production).
-4. Peer lists and endpoint values are non-empty and environment-correct.
+4. AOXHub mapping (if present for that network kind) is aligned with the selected canonical bundle root.
 
 ## Recommended Validation Commands
 
