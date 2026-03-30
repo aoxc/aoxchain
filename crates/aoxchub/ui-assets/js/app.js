@@ -1,52 +1,24 @@
-console.log("navigation module loaded");
-
 let state = null;
 let selectedCommand = null;
 let eventSource = null;
-let releaseWarningCache = '';
 
-const ONBOARDING_KEY = 'aoxc.onboarding.v1';
+const UI_STATE_KEY = 'aoxc.ui-state.v2';
 
-function loadOnboarding() {
+function loadUiState() {
   try {
-    return JSON.parse(localStorage.getItem(ONBOARDING_KEY) || '{}');
+    return JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}');
   } catch {
     return {};
   }
 }
 
-function saveOnboarding(next) {
-  localStorage.setItem(ONBOARDING_KEY, JSON.stringify(next));
+function saveUiState(next) {
+  localStorage.setItem(UI_STATE_KEY, JSON.stringify(next));
 }
 
 function abbreviateAddress(address) {
-  if (!address || address.length < 12) return address || 'Not created';
-  return `${address.slice(0, 8)}...${address.slice(-6)}`;
-}
-
-function generateLocalAddress() {
-  const bytes = new Uint8Array(20);
-  crypto.getRandomValues(bytes);
-  return `AOXC${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
-}
-
-const ONBOARDING_KEY = 'aoxc.onboarding.v1';
-
-function loadOnboarding() {
-  try {
-    return JSON.parse(localStorage.getItem(ONBOARDING_KEY) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function saveOnboarding(next) {
-  localStorage.setItem(ONBOARDING_KEY, JSON.stringify(next));
-}
-
-function abbreviateAddress(address) {
-  if (!address || address.length < 12) return address || 'Not created';
-  return `${address.slice(0, 8)}...${address.slice(-6)}`;
+  if (!address || address.length < 16) return address || 'No address yet';
+  return `${address.slice(0, 10)}...${address.slice(-8)}`;
 }
 
 function generateLocalAddress() {
@@ -68,19 +40,48 @@ function setView(viewName) {
   document.querySelectorAll('.view').forEach((node) => {
     node.classList.toggle('active', node.dataset.view === viewName);
   });
-  document.querySelectorAll('.nav-item').forEach((node) => {
+  document.querySelectorAll('.nav-item[data-view-target]').forEach((node) => {
     node.classList.toggle('active', node.dataset.viewTarget === viewName);
   });
+
+  const ui = loadUiState();
+  ui.last_view = viewName;
+  saveUiState(ui);
+}
+
+function upsertWallet(patch) {
+  const ui = loadUiState();
+  ui.wallet = { ...(ui.wallet || {}), ...patch };
+  ui.onboarding_completed = Boolean(ui.wallet.address);
+  saveUiState(ui);
+}
+
+function walletData() {
+  return loadUiState().wallet || {};
 }
 
 function renderHeader() {
-  const onboarding = loadOnboarding();
-  document.getElementById('header-environment').textContent = (state?.environment || 'mainnet').toUpperCase();
-  document.getElementById('header-balance').textContent = onboarding.address ? `${onboarding.balance_placeholder || '0.00'} AOXC` : '-- AOXC';
-  document.getElementById('header-address').textContent = abbreviateAddress(onboarding.address);
-  document.getElementById('wallet-status').textContent = onboarding.address
-    ? `Address ready: ${onboarding.address}`
-    : 'No address found yet. Please create or import.';
+  const wallet = walletData();
+  const env = (state?.environment || 'mainnet').toUpperCase();
+  const walletReady = Boolean(wallet.address);
+
+  document.getElementById('header-environment').textContent = env;
+  document.getElementById('header-wallet-state').textContent = walletReady ? 'Ready' : 'Not ready';
+  document.getElementById('header-balance').textContent = walletReady
+    ? `${wallet.balance_placeholder || '0.00'} AOXC`
+    : '-- AOXC';
+  document.getElementById('header-address').textContent = walletReady
+    ? abbreviateAddress(wallet.address)
+    : 'No address yet';
+
+  const readinessNode = document.getElementById('wallet-readiness');
+  const statusNode = document.getElementById('wallet-status');
+  readinessNode.textContent = walletReady ? 'Wallet status: ready' : 'Wallet status: not ready';
+  statusNode.textContent = walletReady
+    ? `${wallet.label ? `${wallet.label} • ` : ''}${wallet.address}`
+    : 'No address found yet. Create a new one or import an existing public address.';
+
+  document.getElementById('wallet-label').value = wallet.label || '';
 }
 
 function render() {
@@ -88,6 +89,7 @@ function render() {
 
   document.body.dataset.env = state.environment;
   document.getElementById('env-banner').textContent = state.banner;
+  document.getElementById('home-environment-banner').textContent = state.banner;
 
   const binSelect = document.getElementById('binary-select');
   binSelect.innerHTML = '';
@@ -100,7 +102,9 @@ function render() {
   });
 
   const selected = state.binaries.find((b) => b.id === state.selected_binary_id);
-  document.getElementById('binary-details').textContent = selected ? JSON.stringify(selected, null, 2) : 'No binary selected';
+  document.getElementById('binary-details').textContent = selected
+    ? JSON.stringify(selected, null, 2)
+    : 'No binary selected';
 
   const commands = document.getElementById('commands');
   commands.innerHTML = '';
@@ -128,6 +132,9 @@ async function refresh() {
 
 async function setEnvironment(environment) {
   await j('/api/environment', { method: 'POST', body: JSON.stringify({ environment }) });
+  const ui = loadUiState();
+  ui.selected_environment = environment;
+  saveUiState(ui);
   await refresh();
 }
 
@@ -152,36 +159,48 @@ async function executeSelected() {
 }
 
 function createWallet() {
-  const onboarding = loadOnboarding();
-  if (onboarding.address) {
-    alert('Address already exists. Use import only if you need to replace it.');
+  const wallet = walletData();
+  if (wallet.address) {
+    alert('An active address already exists. Import only if you intend to replace it.');
     return;
   }
 
-  onboarding.address = generateLocalAddress();
-  onboarding.balance_placeholder = '0.00';
-  onboarding.created_at = new Date().toISOString();
-  onboarding.source = 'generated_local';
-  saveOnboarding(onboarding);
+  const label = document.getElementById('wallet-label').value.trim();
+  upsertWallet({
+    address: generateLocalAddress(),
+    label,
+    balance_placeholder: '0.00',
+    created_at: new Date().toISOString(),
+    source: 'generated_local',
+  });
   renderHeader();
 }
 
-function importWallet() {
-  const value = prompt('Enter existing AOXC address (public identifier only):', 'AOXC');
-  if (!value) return;
-  const trimmed = value.trim();
-  if (!/^AOXC[a-fA-F0-9]{16,}$/.test(trimmed)) {
-    alert('Invalid address format. Please provide a public AOXC address only.');
+function importWallet(event) {
+  event.preventDefault();
+  const address = document.getElementById('wallet-address-input').value.trim();
+  if (!/^AOXC[a-fA-F0-9]{16,}$/.test(address)) {
+    alert('Please provide a valid public AOXC address. Private key material is never requested here.');
     return;
   }
 
-  const onboarding = loadOnboarding();
-  onboarding.address = trimmed;
-  onboarding.balance_placeholder = onboarding.balance_placeholder || '0.00';
-  onboarding.imported_at = new Date().toISOString();
-  onboarding.source = 'imported_public_address';
-  saveOnboarding(onboarding);
+  const label = document.getElementById('wallet-label').value.trim();
+  upsertWallet({
+    address,
+    label,
+    balance_placeholder: '0.00',
+    imported_at: new Date().toISOString(),
+    source: 'imported_public_address',
+  });
+  document.getElementById('wallet-address-input').value = '';
   renderHeader();
+}
+
+async function applyStoredEnvironmentPreference() {
+  const ui = loadUiState();
+  if (ui.selected_environment && ui.selected_environment !== state.environment) {
+    await setEnvironment(ui.selected_environment);
+  }
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -191,7 +210,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('go-wallet-from-landing').onclick = () => setView('wallet');
   document.getElementById('create-wallet').onclick = createWallet;
-  document.getElementById('import-wallet').onclick = importWallet;
+  document.getElementById('import-wallet-form').addEventListener('submit', importWallet);
 
   document.getElementById('env-mainnet').onclick = () => setEnvironment('mainnet');
   document.getElementById('env-testnet').onclick = () => setEnvironment('testnet');
@@ -203,7 +222,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('add-custom').onclick = async () => {
     if (state?.environment === 'mainnet') {
-      alert('Mainnet mode only accepts certified release binaries.');
+      alert('Mainnet mode accepts only certified release binaries.');
       return;
     }
     const path = document.getElementById('custom-binary').value.trim();
@@ -216,5 +235,11 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('execute').onclick = executeSelected;
 
   await refresh();
+  await applyStoredEnvironmentPreference();
+
+  const lastView = loadUiState().last_view;
+  if (lastView === 'wallet' || lastView === 'home') {
+    setView(lastView);
+  }
   renderHeader();
 });

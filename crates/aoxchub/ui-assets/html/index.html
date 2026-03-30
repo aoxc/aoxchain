@@ -10,27 +10,33 @@
   <div class="app-shell">
     <aside class="sidebar glass">
       <div class="brand-block">
-        <p class="eyebrow">AOXC Local Console</p>
+        <p class="eyebrow">AOXC Local Control Panel</p>
         <h1>AOXCHub</h1>
-        <p class="muted">Secure localhost experience for operators and end-users.</p>
+        <p class="muted">Premium local-first experience for managing your AOXC identity and node journey.</p>
       </div>
 
       <nav class="nav-menu" aria-label="Main navigation">
-        <button class="nav-item active" data-view-target="landing">Landing</button>
+        <button class="nav-item active" data-view-target="home">Home</button>
         <button class="nav-item" data-view-target="wallet">Wallet</button>
+        <button class="nav-item upcoming" disabled>Node <span>Upcoming</span></button>
+        <button class="nav-item upcoming" disabled>Dashboard <span>Upcoming</span></button>
+        <button class="nav-item upcoming" disabled>Actions <span>Upcoming</span></button>
+        <button class="nav-item upcoming" disabled>Terminal <span>Upcoming</span></button>
+        <button class="nav-item upcoming" disabled>Settings <span>Upcoming</span></button>
       </nav>
 
       <div class="sidebar-footer">
         <div class="badge">127.0.0.1 only</div>
-        <p class="muted">Technical controls stay available under wallet transparency panels.</p>
+        <p class="muted">AOXCHub remains local by default. Advanced technical controls are available in secondary panels.</p>
       </div>
     </aside>
 
     <div class="main-column">
       <header class="topbar glass">
         <div>
-          <h2>Welcome to AOXC</h2>
-          <p class="muted">Start from your address, then unlock wallet and network actions.</p>
+          <p class="eyebrow">Local Identity Bar</p>
+          <h2>AOXC onboarding is wallet-first.</h2>
+          <p class="muted">Create your address, confirm readiness, and continue with confidence.</p>
         </div>
         <div class="header-stats">
           <div class="stat-pill">
@@ -38,97 +44,122 @@
             <strong id="header-environment">MAINNET</strong>
           </div>
           <div class="stat-pill">
+            <span>Wallet state</span>
+            <strong id="header-wallet-state">Not ready</strong>
+          </div>
+          <div class="stat-pill">
             <span>Balance</span>
             <strong id="header-balance">-- AOXC</strong>
           </div>
           <div class="stat-pill">
-            <span>Address</span>
-            <strong id="header-address">Not created</strong>
+            <span>Active address</span>
+            <strong id="header-address">No address yet</strong>
           </div>
         </div>
       </header>
 
       <main class="content-stack">
-        <section class="view active" data-view="landing">
+        <section class="view active" data-view="home">
           <section class="hero glass">
-            <p class="eyebrow">Premium Local-First Onboarding</p>
-            <h3>Run AOXC confidently on your machine with a user-friendly onboarding flow.</h3>
-            <p class="muted">AOXC is designed for people who want an elegant dashboard while keeping full local control. You can create your first address in minutes, use wallet features, stake assets, interact with NFTs, and participate in node-level operations without losing transparency.</p>
+            <p class="eyebrow">Welcome to AOXCHub</p>
+            <h3>Your calm, local-first control experience for AOXChain.</h3>
+            <p class="muted">AOXCHub helps everyday users and advanced operators run AOXC confidently from their own machine. The default experience stays simple and guided, while technical transparency remains available when you need it.</p>
+            <div class="environment-banner" id="home-environment-banner">MAINNET • PRODUCTION CONTROL SURFACE</div>
             <div class="hero-actions">
               <button class="cta" id="go-wallet-from-landing">Step 1: Create Your Address</button>
-              <span class="muted">Address creation is required before all other actions.</span>
+              <p class="muted">Address creation is the first onboarding milestone.</p>
             </div>
           </section>
 
           <section class="panel glass">
-            <h4>AOXC Node Types</h4>
-            <p class="muted">Choose your preferred participation model as your ecosystem role evolves.</p>
+            <h4>What is AOXC?</h4>
+            <p class="muted">AOXC is the network client and command surface for identity, staking, NFT support, smart contract workflows, and node participation. AOXCHub gives it a polished local interface that keeps important actions understandable and transparent.</p>
+          </section>
+
+          <section class="panel glass">
+            <h4>Choose your node journey</h4>
+            <p class="muted">Seven participation profiles are available as your needs evolve.</p>
             <div class="node-grid">
-              <article class="node-card"><h5>Validator Node</h5><p>Participates in consensus and secures finality.</p></article>
-              <article class="node-card"><h5>Relay Node</h5><p>Coordinates multi-network communication and message routing.</p></article>
-              <article class="node-card"><h5>Archive Node</h5><p>Keeps complete history for audits, analytics, and compliance.</p></article>
-              <article class="node-card"><h5>Edge Node</h5><p>Optimized for light infrastructure and local service proximity.</p></article>
-              <article class="node-card"><h5>Gateway Node</h5><p>Exposes secure API entry points for apps and tooling.</p></article>
-              <article class="node-card"><h5>Observer Node</h5><p>Monitors health and risk metrics without signing authority.</p></article>
-              <article class="node-card"><h5>Builder Node</h5><p>Focused on contract deployment and developer workflows.</p></article>
+              <article class="node-card"><h5>Home Node</h5><p>For everyday home users who want a simple, reliable local setup.</p><small>Best for: personal local participation</small></article>
+              <article class="node-card"><h5>Full Node</h5><p>Maintains full chain data and validates network activity with confidence.</p><small>Best for: dedicated participants</small></article>
+              <article class="node-card"><h5>Validator Node</h5><p>Supports consensus and contributes directly to network security.</p><small>Best for: advanced operators</small></article>
+              <article class="node-card"><h5>Archive Node</h5><p>Retains complete historical data for audits and deep analytics.</p><small>Best for: compliance and research</small></article>
+              <article class="node-card"><h5>Relay Node</h5><p>Helps route communication across ecosystems and integrations.</p><small>Best for: ecosystem connectors</small></article>
+              <article class="node-card"><h5>Observer Node</h5><p>Monitors network health without participating in signing operations.</p><small>Best for: monitoring teams</small></article>
+              <article class="node-card"><h5>Builder Node</h5><p>Supports contract development, testing, and deployment workflows.</p><small>Best for: builders and developers</small></article>
             </div>
           </section>
 
           <section class="panel glass">
-            <h4>What You Can Do in AOXC</h4>
+            <h4>AOXC capabilities</h4>
             <div class="capability-grid">
-              <article class="capability"><h5>Wallet</h5><p>Create and manage your local-first account identity.</p></article>
-              <article class="capability"><h5>Staking</h5><p>Participate in network security and earn ecosystem-aligned rewards.</p></article>
-              <article class="capability"><h5>NFT Support</h5><p>Store and interact with digital collectibles and utility assets.</p></article>
-              <article class="capability"><h5>Smart Contracts</h5><p>Create and deploy contracts through guided workflows.</p></article>
-              <article class="capability"><h5>Cross-Chain Interaction</h5><p>Connect with external chains through controlled relay paths.</p></article>
-              <article class="capability"><h5>Node Participation</h5><p>Join and scale your node role based on your infrastructure goals.</p></article>
-              <article class="capability"><h5>Network Ecosystem</h5><p>Use relay-style services and broader AOXC network integrations.</p></article>
+              <article class="capability"><h5>Wallet</h5><p>Create your local identity anchor and manage your AOXC presence.</p></article>
+              <article class="capability"><h5>Staking</h5><p>Participate in network security with guided local controls.</p></article>
+              <article class="capability"><h5>NFT Support</h5><p>Handle digital assets in an interface designed for clarity.</p></article>
+              <article class="capability"><h5>Smart Contracts</h5><p>Prepare and run contract workflows with transparent previews.</p></article>
+              <article class="capability"><h5>Cross-Chain Interaction</h5><p>Coordinate ecosystem activity through controlled relay paths.</p></article>
+              <article class="capability"><h5>Node Participation</h5><p>Scale from home usage to advanced operator responsibilities.</p></article>
+              <article class="capability"><h5>Network Ecosystem</h5><p>Connect local operations to the broader AOXC service landscape.</p></article>
             </div>
           </section>
         </section>
 
         <section class="view" data-view="wallet">
           <section class="panel glass wallet-hero">
-            <p class="eyebrow">Step 1: Required Entry</p>
-            <h3>Create your AOXC address to begin.</h3>
-            <p class="muted">Your address is the first identity anchor for wallet actions, staking, NFT operations, contracts, and network participation. Without it, onboarding cannot continue.</p>
+            <p class="eyebrow">Wallet onboarding</p>
+            <h3>Your address is your AOXC identity anchor.</h3>
+            <p class="muted">You need an address before wallet actions, staking, NFT workflows, or node-linked operations can continue. This is the required first onboarding step.</p>
+
+            <div class="wallet-readiness" id="wallet-readiness">Wallet status: not ready</div>
+
             <div class="wallet-actions">
-              <button id="create-wallet" class="cta">Create Wallet</button>
-              <button id="import-wallet">Import Wallet</button>
+              <button id="create-wallet" class="cta">Create wallet address</button>
             </div>
-            <p id="wallet-status" class="muted">No address found yet. Please create or import.</p>
+
+            <form id="import-wallet-form" class="wallet-import">
+              <label for="wallet-label">Wallet label (optional)</label>
+              <input id="wallet-label" maxlength="48" placeholder="My AOXC Wallet" />
+              <label for="wallet-address-input">Import existing public address</label>
+              <input id="wallet-address-input" placeholder="AOXC..." />
+              <button id="import-wallet" type="submit">Import address</button>
+            </form>
+
+            <div class="wallet-address-card" id="wallet-address-card">
+              <h4>Active Address</h4>
+              <p id="wallet-status" class="muted">No address found yet.</p>
+              <p id="wallet-meaning" class="muted">This address will become your visible local identity in AOXCHub.</p>
+            </div>
           </section>
 
           <details class="panel glass">
-            <summary>Operator transparency (advanced)</summary>
+            <summary>Technical transparency (advanced)</summary>
             <div class="inner-stack">
-              <h4>Environment Selection</h4>
+              <h4>Environment selection</h4>
               <div class="env-grid">
                 <button id="env-mainnet" class="env mainnet">MAINNET</button>
                 <button id="env-testnet" class="env testnet">TESTNET</button>
               </div>
               <div id="env-banner" class="banner">MAINNET • PRODUCTION CONTROL SURFACE</div>
 
-              <h4>Binary Source Status</h4>
+              <h4>Binary source status</h4>
               <div class="row">
                 <select id="binary-select"></select>
               </div>
               <div class="row">
                 <input id="custom-binary" placeholder="/path/to/custom/test/binary" />
-                <button id="add-custom">Add Testnet Binary</button>
+                <button id="add-custom">Add testnet binary</button>
               </div>
               <pre id="binary-details" class="preview"></pre>
 
-              <h4>Command Catalog</h4>
+              <h4>Command catalog</h4>
               <div id="commands" class="cards"></div>
 
-              <h4>Command Preview</h4>
+              <h4>Command preview</h4>
               <div id="selected-label"></div>
               <pre id="preview" class="preview"></pre>
-              <button id="execute" class="cta" disabled>Confirm and Execute</button>
+              <button id="execute" class="cta" disabled>Confirm and execute</button>
 
-              <h4>Terminal Activity</h4>
+              <h4>Terminal activity</h4>
               <pre id="terminal" class="preview terminal"></pre>
             </div>
           </details>
