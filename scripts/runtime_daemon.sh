@@ -35,6 +35,7 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly DEFAULT_NETWORK_TIMEOUT_MS=3000
 readonly DEFAULT_DAEMON_SLEEP_SECS=2
+readonly DEFAULT_STOP_WAIT_SECS=10
 
 readonly COMMAND="${1:-}"
 
@@ -42,10 +43,13 @@ AOXC_ROOT="${AOXC_ROOT:-${HOME}/.aoxc}"
 AOXC_RUNTIME_ROOT="${AOXC_RUNTIME_ROOT:-${AOXC_ROOT}/runtime}"
 AOXC_LOG_DIR="${AOXC_LOG_DIR:-${AOXC_ROOT}/logs}"
 AOXC_BIN_PATH_OVERRIDE="${BIN_PATH:-}"
+AOXC_RUNTIME_SOURCE_ROOT="${AOXC_RUNTIME_SOURCE_ROOT:-${ROOT_DIR}/configs/runtime}"
 
 PID_FILE="${AOXC_LOG_DIR}/runtime.pid"
 RUNTIME_LOG="${AOXC_LOG_DIR}/runtime.log"
 BOOTSTRAP_MARKER="${AOXC_RUNTIME_ROOT}/.bootstrap_done"
+HEALTH_RECEIPT="${AOXC_LOG_DIR}/runtime-health.latest.txt"
+STATUS_RECEIPT="${AOXC_LOG_DIR}/runtime-status.latest.txt"
 
 log_info() {
   printf '[runtime-daemon][info] %s\n' "$*"
@@ -67,10 +71,10 @@ die() {
 }
 
 print_usage() {
-  cat <<'EOF'
+  cat <<'USAGE'
 Usage:
   ./scripts/runtime_daemon.sh <start|once|status|stop|tail>
-EOF
+USAGE
 }
 
 require_command() {
@@ -80,18 +84,15 @@ require_command() {
 
 ensure_directory() {
   local dir_path="$1"
-
   if [[ -e "${dir_path}" && ! -d "${dir_path}" ]]; then
     die "Path exists but is not a directory: ${dir_path}" 6
   fi
-
   mkdir -p "${dir_path}"
 }
 
 validate_non_negative_integer() {
   local value="$1"
   local name="$2"
-
   [[ "${value}" =~ ^[0-9]+$ ]] || die "Invalid value for ${name}: '${value}'. A non-negative integer is required." 6
 }
 
@@ -139,6 +140,28 @@ run_and_tee() {
   return "${cmd_exit}"
 }
 
+copy_runtime_source_if_present() {
+  if [[ ! -d "${AOXC_RUNTIME_SOURCE_ROOT}" ]]; then
+    log_warn "Runtime source root is absent: ${AOXC_RUNTIME_SOURCE_ROOT}. Source materialization will be skipped."
+    return 0
+  fi
+
+  ensure_directory "${AOXC_RUNTIME_ROOT}/identity"
+  ensure_directory "${AOXC_RUNTIME_ROOT}/config"
+
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/manifest.v1.json" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/manifest.v1.json" "${AOXC_RUNTIME_ROOT}/identity/manifest.json"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/genesis.v1.json" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/genesis.v1.json" "${AOXC_RUNTIME_ROOT}/identity/genesis.json"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/validators.json" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/validators.json" "${AOXC_RUNTIME_ROOT}/identity/validators.json"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/bootnodes.json" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/bootnodes.json" "${AOXC_RUNTIME_ROOT}/identity/bootnodes.json"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/certificate.json" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/certificate.json" "${AOXC_RUNTIME_ROOT}/identity/certificate.json"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/profile.toml" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/profile.toml" "${AOXC_RUNTIME_ROOT}/config/profile.toml"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/release-policy.toml" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/release-policy.toml" "${AOXC_RUNTIME_ROOT}/config/release-policy.toml"
+
+  if [[ -f "${AOXC_RUNTIME_ROOT}/identity/genesis.json" ]]; then
+    sha256sum "${AOXC_RUNTIME_ROOT}/identity/genesis.json" > "${AOXC_RUNTIME_ROOT}/identity/genesis.sha256"
+  fi
+}
+
 bootstrap_runtime() {
   local bin_path="$1"
 
@@ -150,9 +173,9 @@ bootstrap_runtime() {
   fi
 
   log_info "Bootstrap started for runtime root '${AOXC_RUNTIME_ROOT}'."
+  copy_runtime_source_if_present
 
-  if ! run_and_tee "${RUNTIME_LOG}" \
-    "${bin_path}" db-init --backend redb --format json; then
+  if ! run_and_tee "${RUNTIME_LOG}" "${bin_path}" db-init --backend redb --format json; then
     die "db-init failed during runtime bootstrap." 7
   fi
 
@@ -181,6 +204,30 @@ is_managed_pid_running() {
   kill -0 "${pid}" >/dev/null 2>&1
 }
 
+write_status_receipt() {
+  local state="$1"
+  local pid_value="$2"
+
+  {
+    printf 'state=%s\n' "${state}"
+    printf 'pid=%s\n' "${pid_value}"
+    printf 'runtime_root=%s\n' "${AOXC_RUNTIME_ROOT}"
+    printf 'log_dir=%s\n' "${AOXC_LOG_DIR}"
+    printf 'timestamp_utc=%s\n' "$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
+  } > "${STATUS_RECEIPT}"
+}
+
+write_health_receipt() {
+  {
+    printf 'runtime_root=%s\n' "${AOXC_RUNTIME_ROOT}"
+    printf 'log_dir=%s\n' "${AOXC_LOG_DIR}"
+    printf 'pid_file=%s\n' "${PID_FILE}"
+    printf 'runtime_log=%s\n' "${RUNTIME_LOG}"
+    printf 'bootstrap_marker_present=%s\n' "$([[ -f "${BOOTSTRAP_MARKER}" ]] && echo yes || echo no)"
+    printf 'timestamp_utc=%s\n' "$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
+  } > "${HEALTH_RECEIPT}"
+}
+
 start_daemon() {
   local bin_path="$1"
   local daemon_pid=''
@@ -188,6 +235,7 @@ start_daemon() {
   if [[ -f "${PID_FILE}" ]]; then
     daemon_pid="$(cat "${PID_FILE}")"
     if [[ "${daemon_pid}" =~ ^[0-9]+$ ]] && is_managed_pid_running "${daemon_pid}"; then
+      write_status_receipt "running" "${daemon_pid}"
       log_info "Runtime is already running with PID ${daemon_pid}."
       return 0
     fi
@@ -218,6 +266,8 @@ start_daemon() {
     die "Managed daemon failed to start." 8
   fi
 
+  write_status_receipt "running" "${daemon_pid}"
+  write_health_receipt
   log_info "Started runtime with PID ${daemon_pid}. Log: ${RUNTIME_LOG}"
 }
 
@@ -227,18 +277,28 @@ status_daemon() {
   if [[ -f "${PID_FILE}" ]]; then
     daemon_pid="$(cat "${PID_FILE}")"
     if [[ "${daemon_pid}" =~ ^[0-9]+$ ]] && is_managed_pid_running "${daemon_pid}"; then
+      write_status_receipt "running" "${daemon_pid}"
+      write_health_receipt
       log_info "Runtime is running with PID ${daemon_pid}."
       return 0
     fi
   fi
 
+  write_status_receipt "stopped" "none"
+  write_health_receipt
   log_info "Runtime is stopped."
 }
 
 stop_daemon() {
   local daemon_pid=''
+  local wait_round=0
+  local max_wait="${STOP_WAIT_SECS:-$DEFAULT_STOP_WAIT_SECS}"
+
+  validate_non_negative_integer "${max_wait}" "STOP_WAIT_SECS"
 
   if [[ ! -f "${PID_FILE}" ]]; then
+    write_status_receipt "stopped" "none"
+    write_health_receipt
     log_info "No PID file exists for runtime."
     return 0
   fi
@@ -252,22 +312,25 @@ stop_daemon() {
 
   if ! is_managed_pid_running "${daemon_pid}"; then
     rm -f "${PID_FILE}"
+    write_status_receipt "stopped" "none"
+    write_health_receipt
     log_info "Managed process is no longer running. Stale PID file removed."
     return 0
   fi
 
   kill "${daemon_pid}" >/dev/null 2>&1 || die "Failed to send termination signal to PID ${daemon_pid}." 9
 
-  local wait_round=0
   while is_managed_pid_running "${daemon_pid}"; do
     wait_round=$((wait_round + 1))
-    if (( wait_round >= 5 )); then
+    if (( wait_round >= max_wait )); then
       die "Managed process did not terminate within the expected interval." 9
     fi
     sleep 1
   done
 
   rm -f "${PID_FILE}"
+  write_status_receipt "stopped" "none"
+  write_health_receipt
   log_info "Stopped runtime with PID ${daemon_pid}."
 }
 
@@ -282,7 +345,6 @@ main() {
   require_command sha256sum
   require_command awk
   require_command tail
-
   validate_non_negative_integer "${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}" "NETWORK_TIMEOUT_MS"
   validate_non_negative_integer "${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}" "DAEMON_SLEEP_SECS"
 
@@ -304,6 +366,7 @@ main() {
     once)
       bootstrap_runtime "${bin_path}"
       run_once "${bin_path}"
+      write_health_receipt
       ;;
     status)
       status_daemon

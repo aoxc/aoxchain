@@ -38,7 +38,6 @@ log_error() {
 die() {
   local message="$1"
   local exit_code="$2"
-
   log_error "${message}"
   exit "${exit_code}"
 }
