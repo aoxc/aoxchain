@@ -26,6 +26,7 @@ AOXC_HOME ?= $(AOXC_DATA_ROOT)/home/default
 AOXC_BIN_DIR ?= $(AOXC_DATA_ROOT)/bin
 AOXC_BIN_PATH ?= $(AOXC_BIN_DIR)/aoxc
 AOXC_RELEASES_DIR ?= $(AOXC_DATA_ROOT)/releases
+AOXC_NETWORK_BIN_ROOT ?= $(AOXC_DATA_ROOT)/binary
 
 AOXC_HOME_LOCAL ?= $(AOXC_DATA_ROOT)/home/local-dev
 AOXC_HOME_REAL ?= $(AOXC_DATA_ROOT)/home/real
@@ -74,7 +75,7 @@ endef
 # --------------------------------------------------------------------
 .PHONY: \
 	help paths env-check bootstrap-paths clean-home clean-logs \
-	bootstrap-desktop-paths build build-release build-release-all package-bin package-all-bin package-versioned-bin package-versioned-archive package-desktop-testnet install-bin \
+	bootstrap-desktop-paths build build-release build-release-all package-bin package-all-bin package-versioned-bin package-versioned-archive package-network-versioned-bin package-desktop-testnet install-bin \
 	test test-lib test-workspace check fmt clippy audit \
 	quality quality-quick quality-release ci \
 	version manifest policy \
@@ -85,11 +86,12 @@ endef
 	net-devnet-start net-devnet-once net-devnet-status net-devnet-stop \
 	net-dual-start net-dual-once net-dual-status net-dual-stop net-dual-restart \
 	ops-help ops-doctor \
-	ops-start-mainnet ops-start-testnet ops-start-devnet ops-start-dual \
+	ops-start-mainnet ops-start-testnet ops-start-devnet ops-start-dual ops-auto-start ops-auto-once \
+	ops-once-mainnet ops-once-testnet ops-once-devnet \
 	ops-stop-mainnet ops-stop-testnet ops-stop-devnet ops-stop-dual \
 	ops-status-mainnet ops-status-testnet ops-status-devnet ops-status-dual \
 	ops-restart-mainnet ops-restart-testnet ops-restart-devnet ops-restart-dual \
-	ops-logs-mainnet ops-logs-testnet ops-logs-devnet \
+	ops-logs-mainnet ops-logs-testnet ops-logs-devnet ops-dashboard ops-flow-mainnet ops-flow-testnet ops-flow-devnet \
 	alpha
 
 # --------------------------------------------------------------------
@@ -123,6 +125,7 @@ help:
 	@printf "  make package-all-bin   - install all release binaries into %s\n" "$(AOXC_BIN_DIR)"
 	@printf "  make package-versioned-bin - install all binaries into versioned bundle under %s\n" "$(AOXC_RELEASES_DIR)"
 	@printf "  make package-versioned-archive - create tar.gz archive for the versioned bundle\n"
+	@printf "  make package-network-versioned-bin - install per-network versioned AOXC CLI copies under %s\n" "$(AOXC_NETWORK_BIN_ROOT)"
 	@printf "  make package-desktop-testnet - install all binaries under desktop/testnet root\n"
 	@printf "  make version           - show AOXC build/version metadata\n"
 	@printf "  make manifest          - print build manifest\n"
@@ -175,6 +178,11 @@ help:
 	@printf "  make ops-start-testnet    - start testnet quickly\n"
 	@printf "  make ops-start-devnet     - start devnet quickly\n"
 	@printf "  make ops-start-dual       - start testnet+mainnet together\n"
+	@printf "  make ops-auto-start       - start AOXC_ENV (default devnet) automatically\n"
+	@printf "  make ops-auto-once        - run one cycle on AOXC_ENV (default devnet)\n"
+	@printf "  make ops-once-mainnet     - run one bounded cycle on mainnet\n"
+	@printf "  make ops-once-testnet     - run one bounded cycle on testnet\n"
+	@printf "  make ops-once-devnet      - run one bounded cycle on devnet\n"
 	@printf "  make ops-stop-mainnet     - stop mainnet\n"
 	@printf "  make ops-stop-testnet     - stop testnet\n"
 	@printf "  make ops-stop-devnet      - stop devnet\n"
@@ -190,6 +198,10 @@ help:
 	@printf "  make ops-logs-mainnet     - tail mainnet logs\n"
 	@printf "  make ops-logs-testnet     - tail testnet logs\n"
 	@printf "  make ops-logs-devnet      - tail devnet logs\n\n"
+	@printf "  make ops-dashboard        - show full multi-env dashboard\n"
+	@printf "  make ops-flow-mainnet     - full auto operational flow (mainnet)\n"
+	@printf "  make ops-flow-testnet     - full auto operational flow (testnet)\n"
+	@printf "  make ops-flow-devnet      - full auto operational flow (devnet)\n\n"
 
 paths:
 	@printf "AOXC_DATA_ROOT=%s\n" "$(AOXC_DATA_ROOT)"
@@ -200,6 +212,7 @@ paths:
 	@printf "AOXC_BIN_DIR=%s\n" "$(AOXC_BIN_DIR)"
 	@printf "AOXC_BIN_PATH=%s\n" "$(AOXC_BIN_PATH)"
 	@printf "AOXC_RELEASES_DIR=%s\n" "$(AOXC_RELEASES_DIR)"
+	@printf "AOXC_NETWORK_BIN_ROOT=%s\n" "$(AOXC_NETWORK_BIN_ROOT)"
 	@printf "AOXC_LOG_ROOT=%s\n" "$(AOXC_LOG_ROOT)"
 	@printf "AOXC_REAL_LOG_DIR=%s\n" "$(AOXC_REAL_LOG_DIR)"
 	@printf "AOXC_DESKTOP_ROOT=%s\n" "$(AOXC_DESKTOP_ROOT)"
@@ -327,6 +340,18 @@ package-versioned-archive: package-versioned-bin
 	mkdir -p "$(AOXC_RELEASES_DIR)"; \
 	tar -C "$(AOXC_RELEASES_DIR)" -czf "$(RELEASE_ARCHIVE_PATH)" "$(RELEASE_BUNDLE_NAME)"; \
 	echo "Versioned release archive: $(RELEASE_ARCHIVE_PATH)"
+
+package-network-versioned-bin: build-release bootstrap-paths
+	$(call print_banner,Packaging network-scoped AOXC release binaries)
+	@set -euo pipefail; \
+	mkdir -p "$(AOXC_NETWORK_BIN_ROOT)/mainnet" "$(AOXC_NETWORK_BIN_ROOT)/testnet" "$(AOXC_NETWORK_BIN_ROOT)/devnet"; \
+	for env in mainnet testnet devnet; do \
+		target_path="$(AOXC_NETWORK_BIN_ROOT)/$$env/aoxc-$(RELEASE_TAG)"; \
+		cp target/release/aoxc "$$target_path"; \
+		chmod +x "$$target_path"; \
+		ln -sfn "$$target_path" "$(AOXC_NETWORK_BIN_ROOT)/$$env/aoxc-current"; \
+		echo "[$$env] installed $$target_path"; \
+	done
 
 package-desktop-testnet: build-release-all bootstrap-desktop-paths
 	$(call print_banner,Packaging desktop testnet binaries and profile layout)
@@ -511,6 +536,21 @@ ops-start-devnet: package-bin
 ops-start-dual: package-bin
 	./scripts/aoxc_easy.sh start-dual
 
+ops-auto-start: package-bin
+	./scripts/aoxc_easy.sh auto-start
+
+ops-auto-once: package-bin
+	./scripts/aoxc_easy.sh auto-once
+
+ops-once-mainnet: package-bin
+	./scripts/aoxc_easy.sh once mainnet
+
+ops-once-testnet: package-bin
+	./scripts/aoxc_easy.sh once testnet
+
+ops-once-devnet: package-bin
+	./scripts/aoxc_easy.sh once devnet
+
 ops-stop-mainnet:
 	./scripts/aoxc_easy.sh stop mainnet
 
@@ -555,6 +595,18 @@ ops-logs-testnet:
 
 ops-logs-devnet:
 	./scripts/aoxc_easy.sh logs devnet
+
+ops-dashboard:
+	./scripts/aoxc_easy.sh dashboard
+
+ops-flow-mainnet:
+	./scripts/aoxc_easy.sh flow mainnet
+
+ops-flow-testnet:
+	./scripts/aoxc_easy.sh flow testnet
+
+ops-flow-devnet:
+	./scripts/aoxc_easy.sh flow devnet
 
 # --------------------------------------------------------------------
 # Legacy / alpha convenience surface

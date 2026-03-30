@@ -32,17 +32,22 @@ AOXC Easy CLI (for everyone: beginner to advanced)
 Usage:
   ./scripts/aoxc_easy.sh help
   ./scripts/aoxc_easy.sh doctor
-  ./scripts/aoxc_easy.sh start <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh start [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh start-dual
-  ./scripts/aoxc_easy.sh once <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh once [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh once-dual
-  ./scripts/aoxc_easy.sh stop <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh stop [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh stop-dual
-  ./scripts/aoxc_easy.sh status <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh status [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh status-dual
-  ./scripts/aoxc_easy.sh restart <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh restart [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh restart-dual
-  ./scripts/aoxc_easy.sh logs <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh logs [mainnet|testnet|devnet]
+  ./scripts/aoxc_easy.sh auto-start
+  ./scripts/aoxc_easy.sh auto-once
+  ./scripts/aoxc_easy.sh flow [mainnet|testnet|devnet]
+  ./scripts/aoxc_easy.sh dashboard
+  ./scripts/aoxc_easy.sh makectl <start|once|stop|status|restart> [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh menu
 EOF
 }
@@ -79,9 +84,112 @@ require_env() {
   esac
 }
 
+resolve_env_or_default() {
+  local candidate="${1:-${AOXC_ENV:-devnet}}"
+  case "${candidate}" in
+    mainnet|testnet|devnet)
+      printf "%s" "${candidate}"
+      ;;
+    *)
+      echo "[easy][warn] unknown AOXC_ENV=${candidate}; falling back to devnet"
+      printf "devnet"
+      ;;
+  esac
+}
+
 run_dual() {
   local cmd="${1:?missing-cmd}"
   "${SCRIPT_DIR}/network_stack.sh" "${cmd}"
+}
+
+print_dashboard_header() {
+  echo
+  echo "=============================================================="
+  echo "                   AOXC OPERATIONS DASHBOARD                 "
+  echo "=============================================================="
+  echo "Data Root : ${AOXC_DATA_ROOT}"
+  echo "Binary    : $(resolve_bin_path || echo "<not-found>")"
+  echo "AOXC_ENV  : ${AOXC_ENV:-devnet}"
+  echo "Time (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "--------------------------------------------------------------"
+  printf "%-10s | %-8s | %-10s | %-10s | %-10s\n" "ENV" "DAEMON" "GENESIS" "ACCOUNTS" "LAST-LOG"
+  echo "--------------------------------------------------------------"
+}
+
+env_row() {
+  local env="${1:?missing-env}"
+  local log_path="${AOXC_DATA_ROOT}/logs/network/${env}/runtime.log"
+  local home_path="${AOXC_DATA_ROOT}/home/${env}"
+  local daemon_status genesis_status accounts_status last_log
+
+  daemon_status="$("${DAEMON_SCRIPT}" status "${env}" 2>/dev/null | awk '{print $2}' || true)"
+  [[ "${daemon_status}" == "running" ]] || daemon_status="stopped"
+  [[ -f "${home_path}/identity/genesis.json" ]] && genesis_status="present" || genesis_status="missing"
+  [[ -f "${home_path}/identity/accounts.generated.json" ]] && accounts_status="present" || accounts_status="missing"
+  if [[ -f "${log_path}" ]]; then
+    last_log="$(tail -n 1 "${log_path}" 2>/dev/null | cut -c1-40)"
+    [[ -n "${last_log}" ]] || last_log="<empty>"
+  else
+    last_log="<none>"
+  fi
+
+  printf "%-10s | %-8s | %-10s | %-10s | %-10s\n" "${env}" "${daemon_status}" "${genesis_status}" "${accounts_status}" "${last_log}"
+}
+
+dashboard() {
+  print_dashboard_header
+  env_row mainnet
+  env_row testnet
+  env_row devnet
+  echo "--------------------------------------------------------------"
+  echo "Quick actions:"
+  echo "  - Full auto start : ./scripts/aoxc_easy.sh flow devnet"
+  echo "  - Env auto start  : ./scripts/aoxc_easy.sh auto-start"
+  echo "  - Make control    : ./scripts/aoxc_easy.sh makectl start testnet"
+  echo "=============================================================="
+}
+
+ensure_binary_or_build() {
+  local bin_path
+  bin_path="$(resolve_bin_path || true)"
+  if [[ -n "${bin_path}" ]]; then
+    return 0
+  fi
+
+  echo "[easy][auto] AOXC binary missing. running: make package-bin"
+  (cd "${ROOT_DIR}" && make package-bin)
+}
+
+full_auto_flow() {
+  local env
+  env="$(resolve_env_or_default "${1:-}")"
+  echo "[easy][flow] starting full auto flow env=${env}"
+  doctor || true
+  ensure_binary_or_build
+  "${DAEMON_SCRIPT}" start "${env}"
+  "${DAEMON_SCRIPT}" status "${env}"
+  echo "[easy][flow] completed env=${env}. Dashboard:"
+  dashboard
+}
+
+makectl() {
+  local action="${1:-}"
+  local env
+  env="$(resolve_env_or_default "${2:-}")"
+  local target=""
+
+  case "${action}" in
+    start|once|stop|status|restart)
+      target="ops-${action}-${env}"
+      ;;
+    *)
+      echo "[easy][error] invalid makectl action: ${action} (use start|once|stop|status|restart)"
+      return 2
+      ;;
+  esac
+
+  echo "[easy][makectl] executing make ${target}"
+  (cd "${ROOT_DIR}" && make "${target}")
 }
 
 cmd="${1:-help}"
@@ -95,7 +203,8 @@ case "${cmd}" in
     doctor
     ;;
   start|once|stop|status)
-    require_env "${env}"
+    env="$(resolve_env_or_default "${env}")"
+    echo "[easy] command=${cmd} env=${env}"
     "${DAEMON_SCRIPT}" "${cmd}" "${env}"
     ;;
   start-dual)
@@ -111,7 +220,8 @@ case "${cmd}" in
     run_dual status
     ;;
   restart)
-    require_env "${env}"
+    env="$(resolve_env_or_default "${env}")"
+    echo "[easy] command=restart env=${env}"
     "${DAEMON_SCRIPT}" stop "${env}" || true
     "${DAEMON_SCRIPT}" start "${env}"
     ;;
@@ -119,8 +229,28 @@ case "${cmd}" in
     run_dual restart
     ;;
   logs)
-    require_env "${env}"
+    env="$(resolve_env_or_default "${env}")"
+    echo "[easy] following runtime logs env=${env}"
     tail -n 120 -f "${AOXC_DATA_ROOT}/logs/network/${env}/runtime.log"
+    ;;
+  auto-start)
+    env="$(resolve_env_or_default "${AOXC_ENV:-}")"
+    echo "[easy] auto-start selected env=${env}"
+    "${DAEMON_SCRIPT}" start "${env}"
+    ;;
+  auto-once)
+    env="$(resolve_env_or_default "${AOXC_ENV:-}")"
+    echo "[easy] auto-once selected env=${env}"
+    "${DAEMON_SCRIPT}" once "${env}"
+    ;;
+  flow)
+    full_auto_flow "${env}"
+    ;;
+  dashboard)
+    dashboard
+    ;;
+  makectl)
+    makectl "${2:-}" "${3:-}"
     ;;
   menu)
     cat <<'EOF'
@@ -141,6 +271,10 @@ AOXC EASY MENU
 14) make ops-logs-mainnet
 15) make ops-logs-testnet
 16) make ops-logs-devnet
+17) make ops-dashboard
+18) make ops-flow-devnet
+19) make ops-flow-testnet
+20) make ops-flow-mainnet
 EOF
     ;;
   *)
