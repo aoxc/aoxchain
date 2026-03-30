@@ -90,7 +90,7 @@ endef
 	ops-stop-mainnet ops-stop-testnet ops-stop-devnet ops-stop-dual \
 	ops-status-mainnet ops-status-testnet ops-status-devnet ops-status-dual \
 	ops-restart-mainnet ops-restart-testnet ops-restart-devnet ops-restart-dual \
-	ops-logs-mainnet ops-logs-testnet ops-logs-devnet ops-dashboard ops-flow-mainnet ops-flow-testnet ops-flow-devnet \
+	ops-logs-mainnet ops-logs-testnet ops-logs-devnet ops-dashboard ops-flow-mainnet ops-flow-testnet ops-flow-devnet ops-autonomy-blueprint \
 	alpha
 
 # --------------------------------------------------------------------
@@ -198,6 +198,7 @@ help:
 	@printf "  make ops-flow-mainnet     - full auto operational flow (mainnet)\n"
 	@printf "  make ops-flow-testnet     - full auto operational flow (testnet)\n"
 	@printf "  make ops-flow-devnet      - full auto operational flow (devnet)\n\n"
+	@printf "  make ops-autonomy-blueprint - print autonomous system delivery blueprint\n\n"
 
 paths:
 	@printf "AOXC_DATA_ROOT=%s\n" "$(AOXC_DATA_ROOT)"
@@ -594,6 +595,9 @@ ops-flow-testnet:
 
 ops-flow-devnet:
 	./scripts/aoxc_easy.sh flow devnet
+
+ops-autonomy-blueprint:
+	./scripts/autonomy_control_plane.sh plan
 
 # --------------------------------------------------------------------
 # Legacy / alpha convenience surface
