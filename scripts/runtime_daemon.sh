@@ -45,7 +45,8 @@ AOXC_ROOT="${AOXC_ROOT:-${HOME}/.aoxc}"
 AOXC_RUNTIME_ROOT="${AOXC_RUNTIME_ROOT:-${AOXC_ROOT}/runtime}"
 AOXC_LOG_DIR="${AOXC_LOG_DIR:-${AOXC_ROOT}/logs}"
 AOXC_BIN_PATH_OVERRIDE="${BIN_PATH:-}"
-AOXC_RUNTIME_SOURCE_ROOT="${AOXC_RUNTIME_SOURCE_ROOT:-${ROOT_DIR}/configs/runtime}"
+AOXC_NETWORK_KIND="${AOXC_NETWORK_KIND:-mainnet}"
+AOXC_RUNTIME_SOURCE_ROOT="${AOXC_RUNTIME_SOURCE_ROOT:-${ROOT_DIR}/configs/environments/${AOXC_NETWORK_KIND}}"
 
 PID_FILE="${AOXC_LOG_DIR}/runtime.pid"
 RUNTIME_LOG="${AOXC_LOG_DIR}/runtime.log"
@@ -179,6 +180,7 @@ bootstrap_runtime() {
   fi
 
   log_info "Bootstrap started for runtime root '${AOXC_RUNTIME_ROOT}'."
+  log_info "Resolved network kind '${AOXC_NETWORK_KIND}' with source root '${AOXC_RUNTIME_SOURCE_ROOT}'."
 
   copy_runtime_source_if_present
 
