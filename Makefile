@@ -666,9 +666,10 @@ manifest:
 policy:
 	$(CARGO) run -p aoxcmd -- node-connection-policy
 
-# --------------------------------------------------------------------
+## --------------------------------------------------------------------
 # Canonical environment lifecycle
 # --------------------------------------------------------------------
+
 env-print:
 	$(call print_banner,Printing resolved AOXC environment paths)
 	$(call assert_supported_env,$(AOXC_ENV))
@@ -685,6 +686,22 @@ env-print:
 	@printf "ENV_GENESIS_SOURCE=%s\n" "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_FILE)"
 	@printf "ENV_GENESIS_SHA256_SOURCE=%s\n" "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_SHA256_FILE)"
 
+env-refresh-genesis-sha256:
+	$(call print_banner,Refreshing canonical genesis digest sidecar)
+	$(call assert_supported_env,$(AOXC_ENV))
+	$(call require_command,sha256sum)
+	$(call require_dir,$(AOXC_ENV_SOURCE_DIR))
+	$(call require_file,$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_FILE))
+	@cd "$(AOXC_ENV_SOURCE_DIR)" && $(SHA256SUM) "$(ENV_GENESIS_FILE)" > "$(ENV_GENESIS_SHA256_FILE)"
+	@echo "Refreshed: $(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_SHA256_FILE)"
+
+env-refresh-all-genesis-sha256:
+	$(call print_banner,Refreshing canonical genesis digest sidecars for mainnet, testnet, and devnet)
+	@for env in mainnet testnet devnet; do \
+		$(MAKE) --no-print-directory env-refresh-genesis-sha256 AOXC_ENV="$$env" || exit 1; \
+	done
+	@echo "Refreshed genesis digest sidecars for: mainnet testnet devnet"
+
 env-source-check:
 	$(call print_banner,Validating canonical environment bundle)
 	$(call assert_supported_env,$(AOXC_ENV))
@@ -697,12 +714,16 @@ env-source-check:
 	$(call require_file,$(AOXC_ENV_SOURCE_DIR)/$(ENV_CERTIFICATE_FILE))
 	$(call require_file,$(AOXC_ENV_SOURCE_DIR)/$(ENV_PROFILE_FILE))
 	$(call require_file,$(AOXC_ENV_SOURCE_DIR)/$(ENV_RELEASE_POLICY_FILE))
-	@if [ -f "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_SHA256_FILE)" ]; then \
-		cd "$(AOXC_ENV_SOURCE_DIR)" && $(SHA256SUM) -c "$(ENV_GENESIS_SHA256_FILE)"; \
-	else \
-		echo "Warning: $(ENV_GENESIS_SHA256_FILE) is absent; source digest validation was skipped."; \
-	fi
+	@$(MAKE) --no-print-directory env-refresh-genesis-sha256 AOXC_ENV="$(AOXC_ENV)"
+	@cd "$(AOXC_ENV_SOURCE_DIR)" && $(SHA256SUM) -c "$(ENV_GENESIS_SHA256_FILE)"
 	@echo "Canonical environment bundle is valid for: $(AOXC_ENV)"
+
+env-source-check-all:
+	$(call print_banner,Validating canonical environment bundles for mainnet, testnet, and devnet)
+	@for env in mainnet testnet devnet; do \
+		$(MAKE) --no-print-directory env-source-check AOXC_ENV="$$env" || exit 1; \
+	done
+	@echo "Canonical environment bundles are valid for: mainnet testnet devnet"
 
 env-install: env-source-check bootstrap-env-paths
 	$(call print_banner,Installing canonical environment bundle into runtime identity directory)
@@ -715,9 +736,7 @@ env-install: env-source-check bootstrap-env-paths
 	@cp "$(AOXC_ENV_SOURCE_DIR)/$(ENV_CERTIFICATE_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_CERTIFICATE_FILE)"
 	@cp "$(AOXC_ENV_SOURCE_DIR)/$(ENV_PROFILE_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_PROFILE_FILE)"
 	@cp "$(AOXC_ENV_SOURCE_DIR)/$(ENV_RELEASE_POLICY_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_RELEASE_POLICY_FILE)"
-	@if [ -f "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_SHA256_FILE)" ]; then \
-		cp "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_SHA256_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)"; \
-	fi
+	@cp "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_SHA256_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)"
 	@$(SHA256SUM) "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_FILE)" | awk '{print $$1}' > "$(call runtime_identity_dir)/$(ENV_RUNTIME_FINGERPRINT_FILE)"
 	@{ \
 		echo "env=$(AOXC_ENV)"; \
@@ -732,6 +751,8 @@ env-install: env-source-check bootstrap-env-paths
 		echo "certificate_file=$(ENV_RUNTIME_CERTIFICATE_FILE)"; \
 		echo "profile_file=$(ENV_RUNTIME_PROFILE_FILE)"; \
 		echo "release_policy_file=$(ENV_RUNTIME_RELEASE_POLICY_FILE)"; \
+		echo "genesis_sha256_file=$(ENV_RUNTIME_GENESIS_SHA256_FILE)"; \
+		echo "genesis_fingerprint_file=$(ENV_RUNTIME_FINGERPRINT_FILE)"; \
 	} > "$(call runtime_identity_dir)/$(ENV_RUNTIME_INSTALL_RECEIPT)"
 	@echo "$(AOXC_ENV)" > "$(call runtime_identity_dir)/$(ENV_RUNTIME_ACTIVE_FILE)"
 	@echo "Installed canonical runtime identity for: $(AOXC_ENV)"
@@ -743,28 +764,24 @@ env-verify: env-source-check
 	$(call require_dir,$(call runtime_identity_dir))
 	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_MANIFEST_FILE))
 	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_FILE))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE))
 	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_VALIDATORS_FILE))
 	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_BOOTNODES_FILE))
 	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_CERTIFICATE_FILE))
 	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_PROFILE_FILE))
 	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_RELEASE_POLICY_FILE))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_FINGERPRINT_FILE))
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_MANIFEST_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_MANIFEST_FILE)" || { echo "Manifest mismatch between source and runtime"; exit 1; }
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_FILE)" || { echo "Genesis mismatch between source and runtime"; exit 1; }
+	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_SHA256_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)" || { echo "Genesis checksum sidecar mismatch between source and runtime"; exit 1; }
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_VALIDATORS_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_VALIDATORS_FILE)" || { echo "Validators mismatch between source and runtime"; exit 1; }
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_BOOTNODES_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_BOOTNODES_FILE)" || { echo "Bootnodes mismatch between source and runtime"; exit 1; }
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_CERTIFICATE_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_CERTIFICATE_FILE)" || { echo "Certificate mismatch between source and runtime"; exit 1; }
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_PROFILE_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_PROFILE_FILE)" || { echo "Profile mismatch between source and runtime"; exit 1; }
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_RELEASE_POLICY_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_RELEASE_POLICY_FILE)" || { echo "Release policy mismatch between source and runtime"; exit 1; }
-	@if [ -f "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)" ]; then \
-		ACTUAL_DIGEST="$$(sha256sum "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_FILE)" | awk '{print $$1}')"; \
-		EXPECTED_DIGEST="$$(awk '{print $$1}' "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)")"; \
-		[ "$$ACTUAL_DIGEST" = "$$EXPECTED_DIGEST" ] || { echo "Genesis digest mismatch in runtime identity"; exit 1; }; \
-	else \
-		echo "Warning: runtime digest sidecar is absent; digest verification was skipped."; \
-	fi
+	@cd "$(call runtime_identity_dir)" && $(SHA256SUM) -c "$(ENV_RUNTIME_GENESIS_SHA256_FILE)"
 	@ACTUAL_FINGERPRINT="$$(sha256sum "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_FILE)" | awk '{print $$1}')"; \
-	STORED_FINGERPRINT="$$(cat "$(call runtime_identity_dir)/$(ENV_RUNTIME_FINGERPRINT_FILE)" 2>/dev/null || true)"; \
-	[ -n "$$STORED_FINGERPRINT" ] || { echo "Runtime fingerprint file is missing"; exit 1; }; \
+	STORED_FINGERPRINT="$$(cat "$(call runtime_identity_dir)/$(ENV_RUNTIME_FINGERPRINT_FILE)")"; \
 	[ "$$ACTUAL_FINGERPRINT" = "$$STORED_FINGERPRINT" ] || { echo "Runtime fingerprint drift detected"; exit 1; }
 	@ACTIVE_ENV="$$(cat "$(call runtime_identity_dir)/$(ENV_RUNTIME_ACTIVE_FILE)" 2>/dev/null || true)"; \
 	[ "$$ACTIVE_ENV" = "$(AOXC_ENV)" ] || { echo "Active environment marker mismatch: expected $(AOXC_ENV), found '$$ACTIVE_ENV'"; exit 1; }
@@ -774,17 +791,24 @@ env-sync-default: bootstrap-paths
 	$(call print_banner,Syncing selected environment identity into the default runtime home for backward compatibility)
 	$(call assert_supported_env,$(AOXC_ENV))
 	$(call require_dir,$(call runtime_identity_dir))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_MANIFEST_FILE))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_FILE))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_VALIDATORS_FILE))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_BOOTNODES_FILE))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_CERTIFICATE_FILE))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_PROFILE_FILE))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_RELEASE_POLICY_FILE))
+	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_FINGERPRINT_FILE))
 	@mkdir -p "$(call default_identity_dir)"
 	@cp "$(call runtime_identity_dir)/$(ENV_RUNTIME_MANIFEST_FILE)" "$(call default_identity_dir)/$(ENV_RUNTIME_MANIFEST_FILE)"
 	@cp "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_FILE)" "$(call default_identity_dir)/$(ENV_RUNTIME_GENESIS_FILE)"
+	@cp "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)" "$(call default_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)"
 	@cp "$(call runtime_identity_dir)/$(ENV_RUNTIME_VALIDATORS_FILE)" "$(call default_identity_dir)/$(ENV_RUNTIME_VALIDATORS_FILE)"
 	@cp "$(call runtime_identity_dir)/$(ENV_RUNTIME_BOOTNODES_FILE)" "$(call default_identity_dir)/$(ENV_RUNTIME_BOOTNODES_FILE)"
 	@cp "$(call runtime_identity_dir)/$(ENV_RUNTIME_CERTIFICATE_FILE)" "$(call default_identity_dir)/$(ENV_RUNTIME_CERTIFICATE_FILE)"
 	@cp "$(call runtime_identity_dir)/$(ENV_RUNTIME_PROFILE_FILE)" "$(call default_identity_dir)/$(ENV_RUNTIME_PROFILE_FILE)"
 	@cp "$(call runtime_identity_dir)/$(ENV_RUNTIME_RELEASE_POLICY_FILE)" "$(call default_identity_dir)/$(ENV_RUNTIME_RELEASE_POLICY_FILE)"
-	@if [ -f "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)" ]; then \
-		cp "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)" "$(call default_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)"; \
-	fi
 	@cp "$(call runtime_identity_dir)/$(ENV_RUNTIME_FINGERPRINT_FILE)" "$(call default_identity_dir)/$(ENV_RUNTIME_FINGERPRINT_FILE)"
 	@echo "$(AOXC_ENV)" > "$(call default_identity_dir)/$(ENV_RUNTIME_ACTIVE_FILE)"
 	@echo "$(AOXC_ENV)" > "$(AOXC_HOME)/$(ENV_RUNTIME_ACTIVE_FILE)"
@@ -823,6 +847,11 @@ env-status:
 		echo "[genesis fingerprint]"; \
 		cat "$(call runtime_identity_dir)/$(ENV_RUNTIME_FINGERPRINT_FILE)"; \
 	fi
+	@if [ -f "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)" ]; then \
+		echo ""; \
+		echo "[genesis checksum sidecar]"; \
+		cat "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)"; \
+	fi
 	@if [ -f "$(AOXC_HOME)/$(ENV_RUNTIME_ACTIVE_FILE)" ]; then \
 		echo ""; \
 		echo "[default home active environment]"; \
@@ -852,6 +881,13 @@ env-doctor:
 		echo "Default compatibility identity is absent."; \
 	fi
 	@echo "Environment diagnostics completed for: $(AOXC_ENV)"
+
+env-doctor-all:
+	$(call print_banner,Running end-to-end environment diagnostics for mainnet, testnet, and devnet)
+	@for env in mainnet testnet devnet; do \
+		$(MAKE) --no-print-directory env-doctor AOXC_ENV="$$env" || exit 1; \
+	done
+	@echo "Environment diagnostics completed for: mainnet testnet devnet"
 
 env-reinstall:
 	$(call print_banner,Reinstalling runtime identity from canonical bundle)
@@ -939,7 +975,6 @@ env-bootstrap-devnet:
 env-bootstrap-localnet:
 	@$(MAKE) bootstrap-env-paths AOXC_ENV=localnet
 	@$(MAKE) env-activate AOXC_ENV=localnet
-
 # --------------------------------------------------------------------
 # Developer bootstrap and local helpers
 # --------------------------------------------------------------------
