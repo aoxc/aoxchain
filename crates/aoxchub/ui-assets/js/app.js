@@ -106,10 +106,6 @@ function render() {
   document.getElementById('wallet-env-note').textContent = isMainnet
     ? 'Mainnet mode is active. Use a production-safe address and review every action carefully.'
     : 'Testnet mode is active. Use disposable addresses and iterate workflows without production impact.';
-  document.getElementById('env-binding-slug').textContent = state.binding.slug;
-  document.getElementById('env-binding-config').textContent = state.binding.root_config;
-  document.getElementById('env-binding-home').textContent = state.binding.aoxc_home;
-  document.getElementById('env-binding-make').textContent = state.binding.make_scope;
 
   const binSelect = document.getElementById('binary-select');
   binSelect.innerHTML = '';
