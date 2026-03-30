@@ -1,1 +1,14 @@
-/* badges styles */
+.badge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.72rem;
+  font-size: var(--text-xs);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.badge-neutral {
+  background: rgba(36, 50, 73, 0.44);
+}

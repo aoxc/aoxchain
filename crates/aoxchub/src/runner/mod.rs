@@ -38,6 +38,7 @@ impl Runner {
         command_id: String,
         program: String,
         args: Vec<String>,
+        env: Vec<(String, String)>,
         workdir: String,
     ) -> Result<LaunchResult, HubError> {
         let (tx, _) = broadcast::channel(256);
@@ -63,6 +64,7 @@ impl Runner {
         tokio::spawn(async move {
             let mut child = match Command::new(&program)
                 .args(args)
+                .envs(env)
                 .current_dir(workdir)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())

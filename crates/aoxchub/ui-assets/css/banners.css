@@ -1,0 +1,23 @@
+.environment-banner,
+.banner {
+  margin-top: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  background: var(--banner-bg);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: var(--text-sm);
+}
+
+body[data-env='mainnet'] .environment-banner,
+body[data-env='mainnet'] .banner {
+  box-shadow: 0 0 0 1px rgba(99, 155, 255, 0.24), 0 12px 30px rgba(4, 10, 20, 0.46);
+}
+
+body[data-env='testnet'] .environment-banner,
+body[data-env='testnet'] .banner {
+  box-shadow: 0 0 0 1px rgba(153, 129, 255, 0.28), 0 12px 30px rgba(18, 10, 35, 0.48);
+}

@@ -87,9 +87,29 @@ function renderHeader() {
 function render() {
   if (!state) return;
 
+  const isMainnet = state.environment === 'mainnet';
   document.body.dataset.env = state.environment;
+  document.body.dataset.theme = state.environment;
   document.getElementById('env-banner').textContent = state.banner;
   document.getElementById('home-environment-banner').textContent = state.banner;
+  document.getElementById('env-mainnet').classList.toggle('active', isMainnet);
+  document.getElementById('env-testnet').classList.toggle('active', !isMainnet);
+  document.getElementById('header-env-message').textContent = isMainnet
+    ? 'Mainnet: production guardrails and certified binaries only.'
+    : 'Testnet: exploratory mode with custom binary support for safe experimentation.';
+  document.getElementById('hero-title').textContent = isMainnet
+    ? 'Operate AOXChain with production-grade discipline.'
+    : 'Explore AOXChain behavior safely in test mode.';
+  document.getElementById('hero-env-caption').textContent = isMainnet
+    ? 'Mainnet actions carry production risk. Review previews before execution.'
+    : 'Testnet mode emphasizes experimentation. Validate command outcomes before promoting to Mainnet.';
+  document.getElementById('wallet-env-note').textContent = isMainnet
+    ? 'Mainnet mode is active. Use a production-safe address and review every action carefully.'
+    : 'Testnet mode is active. Use disposable addresses and iterate workflows without production impact.';
+  document.getElementById('env-binding-slug').textContent = state.binding.slug;
+  document.getElementById('env-binding-config').textContent = state.binding.root_config;
+  document.getElementById('env-binding-home').textContent = state.binding.aoxc_home;
+  document.getElementById('env-binding-make').textContent = state.binding.make_scope;
 
   const binSelect = document.getElementById('binary-select');
   binSelect.innerHTML = '';

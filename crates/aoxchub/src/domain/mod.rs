@@ -73,9 +73,18 @@ pub struct JobStatus {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct EnvironmentBinding {
+    pub slug: &'static str,
+    pub root_config: &'static str,
+    pub aoxc_home: &'static str,
+    pub make_scope: &'static str,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct HubStateView {
     pub environment: Environment,
     pub banner: &'static str,
+    pub binding: EnvironmentBinding,
     pub selected_binary_id: Option<String>,
     pub binaries: Vec<BinaryCandidate>,
     pub commands: Vec<CommandView>,

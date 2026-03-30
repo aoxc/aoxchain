@@ -1,1 +1,19 @@
-/* terminal styles */
+.preview {
+  margin: var(--space-1) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(165deg, rgba(7, 12, 20, 0.9), rgba(8, 13, 23, 0.72));
+  color: #dbe7ff;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 80px;
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+}
+
+.terminal {
+  min-height: 190px;
+  max-height: 280px;
+  overflow-y: auto;
+}

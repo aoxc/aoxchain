@@ -1,6 +1,9 @@
 use crate::{
     binaries, commands,
-    domain::{BinaryCandidate, BinarySourceKind, CommandProgram, CommandView, HubStateView},
+    domain::{
+        BinaryCandidate, BinarySourceKind, CommandProgram, CommandView, EnvironmentBinding,
+        HubStateView,
+    },
     environments::Environment,
     errors::HubError,
     runner::Runner,
@@ -35,10 +38,7 @@ impl HubService {
         let commands = commands::CATALOG
             .iter()
             .map(|spec| {
-                let preview = match spec.program {
-                    CommandProgram::Aoxc => format!("aoxc {}", spec.args.join(" ")),
-                    CommandProgram::Make => format!("make {}", spec.args.join(" ")),
-                };
+                let preview = self.command_preview(environment, spec.program.clone(), spec.args);
                 let allowed = self.is_command_allowed(environment, spec.id);
                 let policy_note = if allowed {
                     String::from("Allowed by active environment policy")
@@ -57,6 +57,12 @@ impl HubService {
         HubStateView {
             environment,
             banner: environment.banner_text(),
+            binding: EnvironmentBinding {
+                slug: environment.slug(),
+                root_config: environment.root_config_path(),
+                aoxc_home: environment.aoxc_home(),
+                make_scope: environment.make_scope(),
+            },
             selected_binary_id: selected,
             binaries: bins,
             commands,
@@ -112,6 +118,19 @@ impl HubService {
         true
     }
 
+    fn command_preview(
+        &self,
+        env: Environment,
+        program: CommandProgram,
+        args: &[&'static str],
+    ) -> String {
+        let prefix = environment_prefix(env);
+        match program {
+            CommandProgram::Aoxc => format!("{prefix} aoxc {}", args.join(" ")),
+            CommandProgram::Make => format!("{prefix} make {}", args.join(" ")),
+        }
+    }
+
     pub async fn execute(&self, command_id: String) -> Result<String, HubError> {
         let env = *self.environment.read().await;
         if !self.is_command_allowed(env, &command_id) {
@@ -156,11 +175,32 @@ impl HubService {
                 command_id,
                 program,
                 args,
+                environment_bindings(env),
                 String::from("/workspace/aoxchain"),
             )
             .await?;
         Ok(id)
     }
+}
+
+fn environment_prefix(env: Environment) -> String {
+    format!(
+        "AOXC_ENV={} AOXC_HOME={} AOXHUB_CONFIG={}",
+        env.slug(),
+        env.aoxc_home(),
+        env.root_config_path()
+    )
+}
+
+fn environment_bindings(env: Environment) -> Vec<(String, String)> {
+    vec![
+        (String::from("AOXC_ENV"), String::from(env.slug())),
+        (String::from("AOXC_HOME"), String::from(env.aoxc_home())),
+        (
+            String::from("AOXHUB_CONFIG"),
+            String::from(env.root_config_path()),
+        ),
+    ]
 }
 
 pub fn is_binary_allowed(env: Environment, kind: &BinarySourceKind) -> bool {
