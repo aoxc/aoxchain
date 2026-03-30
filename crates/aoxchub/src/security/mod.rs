@@ -1,11 +1,10 @@
-pub mod bind_policy;
-pub mod command_guard;
-pub mod csrf;
-pub mod env_guard;
-pub mod instance_lock;
-pub mod local_session;
-pub mod localhost;
-pub mod origin;
-pub mod output_redaction;
-pub mod path_guard;
-pub mod request_limits;
+use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
+
+pub async fn localhost_only(req: Request, next: Next) -> Result<Response, StatusCode> {
+    if let Some(addr) = req.extensions().get::<std::net::SocketAddr>() {
+        if !addr.ip().is_loopback() {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+    Ok(next.run(req).await)
+}

@@ -2,54 +2,58 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>AOXC Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AOXCHub Operator Console</title>
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
-<body>
-  <header class="topbar">
-    <div class="brand">AOXC Hub</div>
-    <div class="badge">Local Only</div>
+<body data-env="mainnet">
+  <header class="topbar glass">
+    <div>
+      <h1>AOXCHub</h1>
+      <p>Local-only AOXChain operator control plane</p>
+    </div>
+    <div class="badge">127.0.0.1 only</div>
   </header>
 
-  <main class="shell">
-    <section class="panel hero">
-      <h1>AOXC Local Operator Console</h1>
-      <p>
-        Transparent command preview, explicit confirmation, and local-only execution surface.
-      </p>
-    </section>
-
-    <section class="grid">
-      <article class="panel">
-        <h2>System Status</h2>
-        <ul>
-          <li>Bind Address: <code>127.0.0.1:7070</code></li>
-          <li>Visibility: <strong>Not publicly exposed</strong></li>
-          <li>Execution Model: <strong>Immutable command catalog</strong></li>
-        </ul>
-      </article>
-
-      <article class="panel">
-        <h2>Preview Example</h2>
-        <pre><code>aoxc doctor --profile local</code></pre>
-        <button id="preview-btn">Preview Ready</button>
-      </article>
-    </section>
-
-    <section class="panel">
-      <h2>Terminal Surface</h2>
-      <div class="terminal" id="terminal">
-[BOOT] AOXC Hub initialized
-[INFO] Local-only control plane active
-[INFO] Awaiting command catalog integration
+  <main class="grid">
+    <section class="panel hero glass">
+      <h2>Environment Selection</h2>
+      <div class="env-grid">
+        <button id="env-mainnet" class="env mainnet">MAINNET</button>
+        <button id="env-testnet" class="env testnet">TESTNET</button>
       </div>
+      <div id="env-banner" class="banner">MAINNET • PRODUCTION CONTROL SURFACE</div>
+    </section>
+
+    <section class="panel glass">
+      <h3>Binary Source Status</h3>
+      <div class="row">
+        <select id="binary-select"></select>
+      </div>
+      <div class="row">
+        <input id="custom-binary" placeholder="/path/to/custom/test/binary" />
+        <button id="add-custom">Add Testnet Binary</button>
+      </div>
+      <pre id="binary-details" class="preview"></pre>
+    </section>
+
+    <section class="panel glass">
+      <h3>Command Catalog</h3>
+      <div id="commands" class="cards"></div>
+    </section>
+
+    <section class="panel glass">
+      <h3>Command Preview</h3>
+      <div id="selected-label"></div>
+      <pre id="preview" class="preview"></pre>
+      <button id="execute" class="cta" disabled>Confirm and Execute</button>
+    </section>
+
+    <section class="panel terminal glass">
+      <h3>Terminal Activity</h3>
+      <pre id="terminal"></pre>
     </section>
   </main>
-
-  <footer class="footer">
-    AOXC Hub · Embedded UI · Local Operator Control Plane
-  </footer>
 
   <script src="/assets/app.js"></script>
 </body>

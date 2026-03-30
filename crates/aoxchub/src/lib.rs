@@ -1,12 +1,11 @@
 pub mod app;
+pub mod binaries;
 pub mod commands;
-pub mod discovery;
 pub mod domain;
 pub mod embed;
+pub mod environments;
 pub mod errors;
-pub mod infrastructure;
 pub mod runner;
 pub mod security;
 pub mod services;
-pub mod ui;
 pub mod web;

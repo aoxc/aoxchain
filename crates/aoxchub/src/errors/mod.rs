@@ -1,6 +1,11 @@
-pub mod app_error;
-pub mod command_error;
-pub mod discovery_error;
-pub mod runner_error;
-pub mod security_error;
-pub mod web_error;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum HubError {
+    #[error("I/O failure: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("command not found: {0}")]
+    UnknownCommand(String),
+    #[error("security policy violation: {0}")]
+    Security(String),
+}
