@@ -1,21 +1,26 @@
-# Repository Architecture
+# AOXChain Architecture
 
-## Main Components
-AOXChain is organized as a modular workspace with protocol crates, runtime and service crates, environment configuration packs, and operational evidence artifacts.
+## Component topology
 
-## Data Flow
-Configuration and chain parameters flow from `configs/` into node/runtime crates in `crates/`, then into operational workflows through `scripts/` and `tests/`.
+- **Kernel layer:** `aoxcore`, `aoxcunity`
+- **Execution layer:** `aoxcexec`, `aoxcvm`, `aoxcenergy`
+- **Service layer:** `aoxcnet`, `aoxcrpc`, `aoxcdata`, `aoxconfig`
+- **Operations layer:** `aoxcmd`, `aoxckit`, `aoxchub`, `scripts/`
 
-## Dependency Direction
-Top-level dependency direction should remain:
-- Shared primitives (`aoxcore`, utility crates) ->
-- Runtime/network/service crates ->
-- CLI/UI/operator surfaces.
+## Data and control flow
 
-Operational docs and artifacts must not become hard runtime dependencies.
+1. Environment and policy inputs originate in `configs/`.
+2. Runtime and protocol crates consume typed configuration and execute deterministic workflows.
+3. Node/service surfaces expose telemetry and APIs.
+4. Operator workflows assess readiness and emit evidence under `artifacts/`.
 
-## Integration Points
-Key integration points include RPC boundaries, deterministic network configs, contract deployment references, and release evidence pipelines.
+## Dependency direction
 
-## Security and Logic Boundaries
-Consensus, execution, networking, and signing boundaries must remain explicit. Changes affecting deterministic behavior, consensus safety, state transitions, or key handling are security-sensitive and require heightened review.
+Dependencies should flow from shared primitives to higher-level services and tools. Operational artifacts and documentation are outputs and governance controls, not runtime dependencies.
+
+## Boundary controls
+
+- Consensus boundaries must remain isolated from non-deterministic side effects.
+- Execution lanes must preserve deterministic semantics under common policy constraints.
+- Network/API surfaces must not bypass kernel validation.
+- Key material handling must remain explicit, auditable, and least-privilege.
