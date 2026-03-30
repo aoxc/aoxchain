@@ -50,26 +50,6 @@ make ops-start
 make ops-status
 ```
 
-### One-command four-node full layout (including snapshots)
-```bash
-make aoxc-full-4nodes
-```
-
-Optional Docker asset generation:
-```bash
-make aoxc-full-4nodes-docker
-```
-
-Plan mode (no write) and controlled cleanup:
-```bash
-make aoxc-full-4nodes-plan
-make aoxc-full-4nodes-clean AOXC_FULL_FORCE_CLEAN=1
-```
-
-This flow provisions a hardened multi-node directory tree, copies canonical environment/genesis materials, bootstraps four nodes, executes deterministic rounds, and writes compressed snapshots plus an audit report and snapshot checksum manifest under the generated root path.
-
-> **Operational note:** this is a production-oriented local provisioning workflow for deterministic test/validation operations. It is not a production certification or managed mainnet deployment guarantee.
-
 ## 3) How the Make system is organized
 
 The root `Makefile` is a single-runtime operator surface. It intentionally avoids environment fan-out and exposes auditable targets for:
@@ -82,7 +62,6 @@ The root `Makefile` is a single-runtime operator surface. It intentionally avoid
 Key target groups:
 - **Engineering quality:** `build`, `test`, `check`, `fmt`, `clippy`, `quality`, `ci`.
 - **Runtime management:** `runtime-install`, `runtime-verify`, `runtime-activate`, `runtime-status`, `runtime-doctor`, `runtime-reset`.
-- **Full local system provisioning:** `aoxc-full-4nodes`, `aoxc-full-4nodes-docker`, `aoxc-full-4nodes-plan`, `aoxc-full-4nodes-clean`.
 - **Operations:** `ops-prepare`, `ops-start`, `ops-stop`, `ops-restart`, `ops-logs`, `ops-flow`.
 - **Release/evidence:** `package-*`, `publish-release`, `audit`, `db-*`.
 

@@ -58,13 +58,6 @@ make package-versioned-archive
 make audit
 ```
 
-### 4.5 Full four-node local system bring-up
-```bash
-make aoxc-full-4nodes-plan
-make aoxc-full-4nodes
-make aoxc-full-4nodes-docker
-```
-
 ## 5) Canonical key and identity model
 
 ### 5.1 HD path contract
