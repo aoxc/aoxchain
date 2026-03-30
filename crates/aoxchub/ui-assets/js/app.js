@@ -3,6 +3,32 @@ console.log("navigation module loaded");
 let state = null;
 let selectedCommand = null;
 let eventSource = null;
+let releaseWarningCache = '';
+
+const ONBOARDING_KEY = 'aoxc.onboarding.v1';
+
+function loadOnboarding() {
+  try {
+    return JSON.parse(localStorage.getItem(ONBOARDING_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveOnboarding(next) {
+  localStorage.setItem(ONBOARDING_KEY, JSON.stringify(next));
+}
+
+function abbreviateAddress(address) {
+  if (!address || address.length < 12) return address || 'Not created';
+  return `${address.slice(0, 8)}...${address.slice(-6)}`;
+}
+
+function generateLocalAddress() {
+  const bytes = new Uint8Array(20);
+  crypto.getRandomValues(bytes);
+  return `AOXC${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
+}
 
 const ONBOARDING_KEY = 'aoxc.onboarding.v1';
 
@@ -176,6 +202,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   };
 
   document.getElementById('add-custom').onclick = async () => {
+    if (state?.environment === 'mainnet') {
+      alert('Mainnet mode only accepts certified release binaries.');
+      return;
+    }
     const path = document.getElementById('custom-binary').value.trim();
     if (!path) return;
     await j('/api/binary/custom', { method: 'POST', body: JSON.stringify({ path }) });
