@@ -1,12 +1,116 @@
-pub mod aoxc_specs;
-pub mod catalog;
-pub mod groups;
-pub mod ids;
-pub mod make_specs;
-pub mod policy;
-pub mod presets;
-pub mod preview;
-pub mod target;
-pub mod timeout;
-pub mod validation;
-pub mod workdir;
+use crate::domain::{CommandProgram, CommandSpec, RiskClass};
+
+pub const CATALOG: &[CommandSpec] = &[
+    CommandSpec {
+        id: "aoxc-doctor",
+        group: "AOXC Diagnostics",
+        label: "Run AOXC Doctor",
+        description: "Run platform readiness and dependency diagnostics.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Aoxc,
+        args: &["doctor"],
+    },
+    CommandSpec {
+        id: "aoxc-version",
+        group: "AOXC Diagnostics",
+        label: "Check AOXC Version",
+        description: "Display AOXC version and build metadata.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Aoxc,
+        args: &["version"],
+    },
+    CommandSpec {
+        id: "aoxc-build-manifest",
+        group: "AOXC Diagnostics",
+        label: "Show Build Manifest",
+        description: "Print AOXC build manifest for release audit.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Aoxc,
+        args: &["build-manifest"],
+    },
+    CommandSpec {
+        id: "aoxc-policy",
+        group: "AOXC Diagnostics",
+        label: "Show Node Connection Policy",
+        description: "Display AOXC node connection policy.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Aoxc,
+        args: &["node-connection-policy"],
+    },
+    CommandSpec {
+        id: "make-build",
+        group: "Workspace Operations",
+        label: "Build Workspace",
+        description: "Build workspace binaries using canonical Make workflow.",
+        risk: RiskClass::Medium,
+        program: CommandProgram::Make,
+        args: &["build"],
+    },
+    CommandSpec {
+        id: "make-test",
+        group: "Workspace Operations",
+        label: "Run Workspace Tests",
+        description: "Execute workspace test suite through Make.",
+        risk: RiskClass::Medium,
+        program: CommandProgram::Make,
+        args: &["test"],
+    },
+    CommandSpec {
+        id: "make-check",
+        group: "Workspace Operations",
+        label: "Run Workspace Check",
+        description: "Run compile-time check against workspace targets.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Make,
+        args: &["check"],
+    },
+    CommandSpec {
+        id: "make-package-all-bin",
+        group: "Packaging",
+        label: "Package All Binaries",
+        description: "Package all release binaries to AOXC bin location.",
+        risk: RiskClass::High,
+        program: CommandProgram::Make,
+        args: &["package-all-bin"],
+    },
+    CommandSpec {
+        id: "mainnet-start",
+        group: "Mainnet Operations",
+        label: "Start Mainnet",
+        description: "Start mainnet daemon flow via canonical Make target.",
+        risk: RiskClass::High,
+        program: CommandProgram::Make,
+        args: &["net-mainnet-start"],
+    },
+    CommandSpec {
+        id: "mainnet-status",
+        group: "Mainnet Operations",
+        label: "Mainnet Status",
+        description: "Query current mainnet daemon status.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Make,
+        args: &["net-mainnet-status"],
+    },
+    CommandSpec {
+        id: "testnet-start",
+        group: "Testnet Operations",
+        label: "Start Testnet",
+        description: "Start testnet daemon flow via canonical Make target.",
+        risk: RiskClass::High,
+        program: CommandProgram::Make,
+        args: &["net-testnet-start"],
+    },
+    CommandSpec {
+        id: "testnet-status",
+        group: "Testnet Operations",
+        label: "Testnet Status",
+        description: "Query current testnet daemon status.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Make,
+        args: &["net-testnet-status"],
+    },
+];
+
+pub fn find(id: &str) -> Option<&'static CommandSpec> {
+    CATALOG.iter().find(|c| c.id == id)
+}
