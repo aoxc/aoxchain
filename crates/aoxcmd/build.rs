@@ -5,6 +5,7 @@
 use sha2::{Digest, Sha256};
 use std::{
     env, fs,
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
 
@@ -52,12 +53,41 @@ fn resolve_home() -> Result<PathBuf, String> {
 
 /// Computes the SHA-256 digest for the supplied file.
 fn sha256_file(path: &Path) -> Result<String, String> {
-    let bytes =
-        fs::read(path).map_err(|error| format!("Failed to read {}: {}", path.display(), error))?;
+    let bytes = fs::read(path).map_err(|error| {
+        format!("Failed to read {}: {}", path.display(), error)
+    })?;
 
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     Ok(hex::encode(hasher.finalize()))
+}
+
+/// Attempts to derive the build-time genesis fingerprint.
+///
+/// Behavior:
+/// - Returns `Ok(Some(digest))` when the genesis file is present and readable
+/// - Returns `Ok(None)` when the file is absent, which is treated as a normal
+///   non-fatal build condition
+/// - Returns `Err(...)` only when an unexpected runtime error occurs
+fn try_resolve_genesis_digest(path: &Path) -> Result<Option<String>, String> {
+    match fs::metadata(path) {
+        Ok(metadata) => {
+            if !metadata.is_file() {
+                return Err(format!(
+                    "Resolved genesis path is not a regular file: {}",
+                    path.display()
+                ));
+            }
+
+            sha256_file(path).map(Some)
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!(
+            "Failed to access {}: {}",
+            path.display(),
+            error
+        )),
+    }
 }
 
 fn main() {
@@ -79,11 +109,12 @@ fn main() {
 
     println!("cargo:rerun-if-changed={}", genesis_path.display());
 
-    let digest = match sha256_file(&genesis_path) {
-        Ok(digest) => digest,
+    let digest = match try_resolve_genesis_digest(&genesis_path) {
+        Ok(Some(digest)) => digest,
+        Ok(None) => String::from("unavailable"),
         Err(error) => {
             println!(
-                "cargo:warning=AOXC build genesis fingerprint unavailable: {}",
+                "cargo:warning=AOXC build genesis fingerprint resolution failed: {}",
                 error
             );
             String::from("unavailable")

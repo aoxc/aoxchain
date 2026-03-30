@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "certificate_kind": "aoxc-environment-certificate",
+  "environment": "devnet",
+  "identity": {
+    "chain_name": "AOXC KIVILCIM",
+    "network_class": "devnet",
+    "network_serial": "2626-003",
+    "chain_id": 2626020001,
+    "network_id": "aoxc-devnet-2626-003"
+  },
+  "certificate": {
+    "status": "active",
+    "issuer": "AOXC Release Authority",
+    "subject": "AOXC KIVILCIM Environment Bundle",
+    "certificate_serial": "AOXC-CERT-DEVNET-2626-003",
+    "issued_at": "REPLACE_WITH_UTC_TIMESTAMP",
+    "expires_at": "REPLACE_WITH_UTC_TIMESTAMP_OR_NULL",
+    "fingerprint_sha256": "REPLACE_WITH_REAL_CERTIFICATE_FINGERPRINT",
+    "signature_algorithm": "ed25519",
+    "signature": "REPLACE_WITH_REAL_SIGNATURE"
+  },
+  "bundle_binding": {
+    "manifest_file": "manifest.v1.json",
+    "genesis_file": "genesis.v1.json",
+    "genesis_hash_file": "genesis.v1.sha256",
+    "validators_file": "validators.json",
+    "bootnodes_file": "bootnodes.json",
+    "profile_file": "profile.toml",
+    "release_policy_file": "release-policy.toml"
+  },
+  "metadata": {
+    "description": "Canonical AOXC development environment certificate.",
+    "status": "active"
+  }
+}

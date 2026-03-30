@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "environment": "devnet",
+  "identity": {
+    "chain_name": "AOXC KIVILCIM",
+    "network_class": "devnet",
+    "network_serial": "2626-003",
+    "chain_id": 2626020001,
+    "network_id": "aoxc-devnet-2626-003"
+  },
+  "validators": [
+    {
+      "validator_id": "aoxc-val-devnet-001",
+      "display_name": "AOXC Devnet Validator 001",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aoxc_consensus_pk_devnet_001_pending_real_value",
+      "consensus_key_fingerprint": "aoxc_consensus_fp_devnet_001_pending_real_value",
+      "network_key_algorithm": "ed25519",
+      "network_public_key_encoding": "hex",
+      "network_public_key": "aoxc_network_pk_devnet_001_pending_real_value",
+      "network_key_fingerprint": "aoxc_network_fp_devnet_001_pending_real_value",
+      "weight": 1,
+      "status": "active"
+    }
+  ]
+}

@@ -211,7 +211,7 @@ endef
 	quality quality-quick quality-release ci \
 	db-init-sqlite db-status-sqlite db-event-sqlite db-release-sqlite db-history-sqlite \
 	version manifest policy \
-	env-print env-source-check env-install env-verify env-activate env-status env-fingerprint env-doctor env-reinstall env-clean env-reset env-show-active env-sync-default \
+	env-print env-refresh-genesis-sha256 env-refresh-all-genesis-sha256 env-source-check env-source-check-all env-install env-verify env-activate env-status env-fingerprint env-doctor env-doctor-all env-reinstall env-clean env-reset env-show-active env-sync-default \
 	env-install-mainnet env-install-testnet env-install-devnet env-install-localnet \
 	env-verify-mainnet env-verify-testnet env-verify-devnet env-verify-localnet \
 	env-activate-mainnet env-activate-testnet env-activate-devnet env-activate-localnet \
@@ -229,7 +229,6 @@ endef
 	ops-restart-mainnet ops-restart-testnet ops-restart-devnet ops-restart-dual \
 	ops-logs-mainnet ops-logs-testnet ops-logs-devnet ops-dashboard ops-flow-mainnet ops-flow-testnet ops-flow-devnet ops-autonomy-blueprint \
 	ui-mainnet ui-testnet ui-devnet alpha
-
 # --------------------------------------------------------------------
 # Help / diagnostics
 # --------------------------------------------------------------------
@@ -736,7 +735,7 @@ env-install: env-source-check bootstrap-env-paths
 	@cp "$(AOXC_ENV_SOURCE_DIR)/$(ENV_CERTIFICATE_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_CERTIFICATE_FILE)"
 	@cp "$(AOXC_ENV_SOURCE_DIR)/$(ENV_PROFILE_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_PROFILE_FILE)"
 	@cp "$(AOXC_ENV_SOURCE_DIR)/$(ENV_RELEASE_POLICY_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_RELEASE_POLICY_FILE)"
-	@cp "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_SHA256_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)"
+	@cd "$(call runtime_identity_dir)" && $(SHA256SUM) "$(ENV_RUNTIME_GENESIS_FILE)" > "$(ENV_RUNTIME_GENESIS_SHA256_FILE)"
 	@$(SHA256SUM) "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_FILE)" | awk '{print $$1}' > "$(call runtime_identity_dir)/$(ENV_RUNTIME_FINGERPRINT_FILE)"
 	@{ \
 		echo "env=$(AOXC_ENV)"; \
@@ -773,7 +772,6 @@ env-verify: env-source-check
 	$(call require_file,$(call runtime_identity_dir)/$(ENV_RUNTIME_FINGERPRINT_FILE))
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_MANIFEST_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_MANIFEST_FILE)" || { echo "Manifest mismatch between source and runtime"; exit 1; }
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_FILE)" || { echo "Genesis mismatch between source and runtime"; exit 1; }
-	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_GENESIS_SHA256_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_GENESIS_SHA256_FILE)" || { echo "Genesis checksum sidecar mismatch between source and runtime"; exit 1; }
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_VALIDATORS_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_VALIDATORS_FILE)" || { echo "Validators mismatch between source and runtime"; exit 1; }
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_BOOTNODES_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_BOOTNODES_FILE)" || { echo "Bootnodes mismatch between source and runtime"; exit 1; }
 	@cmp -s "$(AOXC_ENV_SOURCE_DIR)/$(ENV_CERTIFICATE_FILE)" "$(call runtime_identity_dir)/$(ENV_RUNTIME_CERTIFICATE_FILE)" || { echo "Certificate mismatch between source and runtime"; exit 1; }
