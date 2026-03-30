@@ -10,7 +10,7 @@ decisions:
 
 - One portable AOXC root per host
 - One canonical runtime surface per host
-- No environment fan-out in the script contract
+- No multi-script environment fan-out in the script contract
 - No `mainnet` / `testnet` / `devnet` orchestration in this layer
 - No SQLite-backed autonomy control surface
 - No Python-based operator-memory helpers
@@ -122,8 +122,12 @@ The canonical single-runtime layout is:
 The script layer expects canonical runtime source material to be maintained under:
 
 ```text
-configs/runtime/
+configs/environments/<network-kind>/
 ```
+
+`<network-kind>` is selected through `AOXC_NETWORK_KIND` (default: `mainnet`).
+This preserves one runtime lifecycle code path while allowing the genesis
+identity (`environment`) to declare `mainnet`, `testnet`, or `devnet`.
 
 Expected source artifacts include:
 
