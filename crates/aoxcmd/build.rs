@@ -5,8 +5,11 @@
 use sha2::{Digest, Sha256};
 use std::{
     env, fs,
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
+
+const UNAVAILABLE_DIGEST: &str = "unavailable";
 
 /// Resolves the effective AOXC data root for build-time metadata derivation.
 ///
@@ -60,6 +63,34 @@ fn sha256_file(path: &Path) -> Result<String, String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
+/// Attempts to derive the build-time genesis fingerprint.
+///
+/// Behavior:
+/// - Returns `Ok(Some(digest))` when the genesis file is present and readable
+/// - Returns `Ok(None)` when the file is absent, which is treated as a normal
+///   non-fatal build condition
+/// - Returns `Err(...)` only when an unexpected runtime error occurs
+fn try_resolve_genesis_digest(path: &Path) -> Result<Option<String>, String> {
+    match fs::metadata(path) {
+        Ok(metadata) => {
+            if !metadata.is_file() {
+                return Err(format!(
+                    "Resolved genesis path is not a regular file: {}",
+                    path.display()
+                ));
+            }
+
+            sha256_file(path).map(Some)
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!(
+            "Failed to access {}: {}",
+            path.display(),
+            error
+        )),
+    }
+}
+
 fn main() {
     println!("cargo:rerun-if-env-changed=AOXC_HOME");
     println!("cargo:rerun-if-env-changed=AOXC_DATA_ROOT");
@@ -72,21 +103,22 @@ fn main() {
                 "cargo:warning=AOXC build genesis path resolution failed: {}",
                 error
             );
-            println!("cargo:rustc-env=AOXC_BUILD_GENESIS_SHA256=unavailable");
+            println!("cargo:rustc-env=AOXC_BUILD_GENESIS_SHA256={}", UNAVAILABLE_DIGEST);
             return;
         }
     };
 
     println!("cargo:rerun-if-changed={}", genesis_path.display());
 
-    let digest = match sha256_file(&genesis_path) {
-        Ok(digest) => digest,
+    let digest = match try_resolve_genesis_digest(&genesis_path) {
+        Ok(Some(digest)) => digest,
+        Ok(None) => String::from(UNAVAILABLE_DIGEST),
         Err(error) => {
             println!(
-                "cargo:warning=AOXC build genesis fingerprint unavailable: {}",
+                "cargo:warning=AOXC build genesis fingerprint resolution failed: {}",
                 error
             );
-            String::from("unavailable")
+            String::from(UNAVAILABLE_DIGEST)
         }
     };
 

@@ -1,113 +1,64 @@
 #!/usr/bin/env bash
+# -----------------------------------------------------------------------------
 # AOXC MIT License
+#
 # Experimental software under active construction.
 # This file is part of the AOXC pre-release codebase.
-set -euo pipefail
-
-# Generate deterministic release artifact hash manifests and optional detached
-# signatures for operator / auditor verification.
+# -----------------------------------------------------------------------------
 #
-# Usage:
-#   ./scripts/release_artifact_certify.sh target/release/aoxc target/release/aoxckit
-#   AOXC_RELEASE_SIGNING_KEY_PEM=key.pem \
-#   AOXC_RELEASE_SIGNING_CERT_PEM=cert.pem \
-#   ./scripts/release_artifact_certify.sh target/release/aoxc
+# Purpose:
+#   Validate release artifact integrity against a provided SHA-256 sidecar.
+#
+# Operational Intent:
+#   - Fail closed on missing artifacts or checksum files
+#   - Perform deterministic integrity verification
+#   - Emit operator-readable certification status
+# -----------------------------------------------------------------------------
 
-if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <artifact> [<artifact> ...]" >&2
-  exit 2
-fi
+set -Eeuo pipefail
+IFS=$'\n\t'
 
-require_cmd() {
-  local cmd="$1"
-  if ! command -v "$cmd" >/dev/null 2>&1; then
-    echo "[error] missing required command: $cmd" >&2
-    exit 127
-  fi
+ARTIFACT_PATH="${1:-${ARTIFACT_PATH:-}}"
+CHECKSUM_PATH="${2:-${CHECKSUM_PATH:-}}"
+
+log_info() {
+  printf '[release-certify][info] %s\n' "$*"
 }
 
-require_cmd sha256sum
-require_cmd python3
-
-OUT_DIR="${AOXC_RELEASE_ARTIFACT_DIR:-./dist/release-artifacts}"
-MANIFEST_PATH="${OUT_DIR}/artifact-manifest.json"
-CHECKSUMS_PATH="${OUT_DIR}/SHA256SUMS"
-SIGNATURE_PATH="${OUT_DIR}/artifact-manifest.sig"
-CERT_COPY_PATH="${OUT_DIR}/artifact-signing-cert.pem"
-
-mkdir -p "${OUT_DIR}"
-: > "${CHECKSUMS_PATH}"
-
-artifacts_json="[]"
-
-for artifact in "$@"; do
-  if [[ ! -f "${artifact}" ]]; then
-    echo "[error] artifact does not exist: ${artifact}" >&2
-    exit 3
-  fi
-
-  digest="$(sha256sum "${artifact}" | awk '{print $1}')"
-  size="$(stat -c %s "${artifact}")"
-  filename="$(basename "${artifact}")"
-
-  printf '%s  %s\n' "${digest}" "${filename}" >> "${CHECKSUMS_PATH}"
-
-  artifacts_json="$(
-    python3 - <<'PY' "${artifacts_json}" "${artifact}" "${filename}" "${digest}" "${size}"
-import json
-import sys
-
-current = json.loads(sys.argv[1])
-current.append(
-    {
-        "path": sys.argv[2],
-        "file_name": sys.argv[3],
-        "sha256": sys.argv[4],
-        "size_bytes": int(sys.argv[5]),
-    }
-)
-print(json.dumps(current, separators=(",", ":")))
-PY
-  )"
-done
-
-python3 - <<'PY' "${artifacts_json}" "${MANIFEST_PATH}"
-import json
-import os
-import sys
-from datetime import datetime, timezone
-
-manifest = {
-    "schema_version": 1,
-    "generated_at": datetime.now(timezone.utc).isoformat(),
-    "artifacts": json.loads(sys.argv[1]),
+log_error() {
+  printf '[release-certify][error] %s\n' "$*" >&2
 }
-with open(sys.argv[2], "w", encoding="utf-8") as fh:
-    json.dump(manifest, fh, indent=2, sort_keys=True)
-    fh.write("\n")
-PY
 
-if [[ -n "${AOXC_RELEASE_SIGNING_KEY_PEM:-}" || -n "${AOXC_RELEASE_SIGNING_CERT_PEM:-}" ]]; then
-  require_cmd openssl
+die() {
+  local message="$1"
+  local exit_code="$2"
 
-  if [[ -z "${AOXC_RELEASE_SIGNING_KEY_PEM:-}" || -z "${AOXC_RELEASE_SIGNING_CERT_PEM:-}" ]]; then
-    echo "[error] both AOXC_RELEASE_SIGNING_KEY_PEM and AOXC_RELEASE_SIGNING_CERT_PEM are required for signing" >&2
-    exit 4
+  log_error "${message}"
+  exit "${exit_code}"
+}
+
+main() {
+  command -v sha256sum >/dev/null 2>&1 || die "Missing required command: sha256sum" 2
+  [[ -n "${ARTIFACT_PATH}" ]] || die "Artifact path must be provided as the first argument or ARTIFACT_PATH environment variable." 2
+  [[ -n "${CHECKSUM_PATH}" ]] || die "Checksum path must be provided as the second argument or CHECKSUM_PATH environment variable." 2
+  [[ -f "${ARTIFACT_PATH}" ]] || die "Artifact does not exist: ${ARTIFACT_PATH}" 2
+  [[ -f "${CHECKSUM_PATH}" ]] || die "Checksum file does not exist: ${CHECKSUM_PATH}" 2
+
+  local expected_checksum
+  local actual_checksum
+
+  expected_checksum="$(awk '{print $1}' "${CHECKSUM_PATH}")"
+  actual_checksum="$(sha256sum "${ARTIFACT_PATH}" | awk '{print $1}')"
+
+  [[ -n "${expected_checksum}" ]] || die "Checksum file is empty or malformed: ${CHECKSUM_PATH}" 2
+
+  if [[ "${expected_checksum}" != "${actual_checksum}" ]]; then
+    die "Artifact certification failed. Expected ${expected_checksum}, got ${actual_checksum}." 3
   fi
 
-  if [[ ! -f "${AOXC_RELEASE_SIGNING_KEY_PEM}" || ! -f "${AOXC_RELEASE_SIGNING_CERT_PEM}" ]]; then
-    echo "[error] signing key or certificate path does not exist" >&2
-    exit 5
-  fi
+  log_info "Artifact certification passed."
+  log_info "Artifact: ${ARTIFACT_PATH}"
+  log_info "SHA-256: ${actual_checksum}"
+}
 
-  openssl dgst -sha256 -sign "${AOXC_RELEASE_SIGNING_KEY_PEM}" \
-    -out "${SIGNATURE_PATH}" "${MANIFEST_PATH}"
-  cp "${AOXC_RELEASE_SIGNING_CERT_PEM}" "${CERT_COPY_PATH}"
-fi
-
-echo "[ok] wrote ${MANIFEST_PATH}"
-echo "[ok] wrote ${CHECKSUMS_PATH}"
-if [[ -f "${SIGNATURE_PATH}" ]]; then
-  echo "[ok] wrote ${SIGNATURE_PATH}"
-  echo "[ok] copied ${CERT_COPY_PATH}"
-fi
+main "$@"

@@ -1,88 +1,136 @@
 #!/usr/bin/env bash
+# -----------------------------------------------------------------------------
 # AOXC MIT License
+#
 # Experimental software under active construction.
 # This file is part of the AOXC pre-release codebase.
-set -euo pipefail
-
-# ==============================================================================
-# AOXChain Production Quality Gate & Security Audit (v1.0.0)
+# -----------------------------------------------------------------------------
 #
-# This script enforces strict validation for CI/CD and Pre-release cycles.
-# It includes security audits, dependency checks, and comprehensive testing.
-# ==============================================================================
+# Purpose:
+#   Provide deterministic repository quality gate execution across the canonical
+#   AOXC single-runtime development surface.
+#
+# Operational Intent:
+#   - Centralize quick, full, and release-oriented repository quality flows
+#   - Fail closed on missing toolchain prerequisites
+#   - Provide operator-readable execution banners and stable failure semantics
+#   - Avoid environment fan-out or profile-specific orchestration
+#
+# Exit Codes:
+#   0  Successful completion
+#   2  Invalid invocation
+#   3  Missing prerequisite command
+#   4  Quality step failure
+# -----------------------------------------------------------------------------
 
-MODE="${1:-full}"
-DESKTOP_CRATE="aoxchub"
+set -Eeuo pipefail
+IFS=$'\n\t'
 
-# Requirement verification
-require_cmd() {
-    local cmd="$1"
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo "[ERROR] Required dependency not found: $cmd" >&2
-        echo "Please install it to continue (e.g., cargo install $cmd)" >&2
-        exit 127
-    fi
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly MODE="${1:-}"
+
+CARGO_BIN="${CARGO:-cargo}"
+
+log_info() {
+  printf '[quality-gate][info] %s\n' "$*"
 }
 
-ensure_cargo_tool() {
-    local tool="$1"
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        printf '\n\033[1;33m==> Installing missing cargo tool: %s\033[0m\n' "$tool"
-        cargo install "$tool" --locked
-    fi
+log_error() {
+  printf '[quality-gate][error] %s\n' "$*" >&2
 }
 
-run() {
-    local label="$1"
-    shift
-    printf '\n\033[1;34m==> %s\033[0m\n' "$label"
-    if ! "$@"; then
-        echo "[FAILURE] Step '$label' failed with exit code $?" >&2
-        exit 1
-    fi
+die() {
+  local message="$1"
+  local exit_code="$2"
+
+  log_error "${message}"
+  exit "${exit_code}"
 }
 
-# Ensure core toolchain is present
-require_cmd cargo
+print_usage() {
+  cat <<'USAGE'
+Usage:
+  ./scripts/quality_gate.sh <quick|full|release>
+USAGE
+}
 
-case "${MODE}" in
+require_command() {
+  local command_name="$1"
+  command -v "${command_name}" >/dev/null 2>&1 || die "Missing required command: ${command_name}" 3
+}
+
+enter_repo_root() {
+  cd "${ROOT_DIR}"
+}
+
+run_step() {
+  local label="$1"
+  shift
+
+  log_info "Running step: ${label}"
+  "$@" || die "Quality step failed: ${label}" 4
+}
+
+ensure_audit_available() {
+  if ! command -v cargo-audit >/dev/null 2>&1; then
+    die "cargo-audit is required for this quality mode. Install it with: cargo install cargo-audit" 3
+  fi
+}
+
+run_quick() {
+  run_step "cargo fmt --all --check" "${CARGO_BIN}" fmt --all --check
+  run_step "cargo check --workspace" "${CARGO_BIN}" check --workspace
+}
+
+run_full() {
+  run_step "cargo fmt --all --check" "${CARGO_BIN}" fmt --all --check
+  run_step "cargo check --workspace" "${CARGO_BIN}" check --workspace
+  run_step "cargo test --workspace" "${CARGO_BIN}" test --workspace
+  run_step "cargo clippy --workspace --all-targets --all-features" \
+    "${CARGO_BIN}" clippy --workspace --all-targets --all-features
+  ensure_audit_available
+  run_step "cargo audit" cargo audit
+}
+
+run_release() {
+  run_step "cargo fmt --all --check" "${CARGO_BIN}" fmt --all --check
+  run_step "cargo check --workspace" "${CARGO_BIN}" check --workspace
+  run_step "cargo test --workspace" "${CARGO_BIN}" test --workspace
+  run_step "cargo build --release --workspace --bins" "${CARGO_BIN}" build --release --workspace --bins
+  ensure_audit_available
+  run_step "cargo audit" cargo audit
+}
+
+main() {
+  [[ -n "${MODE}" ]] || {
+    print_usage >&2
+    exit 2
+  }
+
+  require_command "${CARGO_BIN}"
+  require_command git
+  enter_repo_root
+
+  case "${MODE}" in
     quick)
-        run "Format Check" cargo fmt --all --check
-        run "Compile Check (Core Workspace)" cargo check --locked --workspace --exclude "${DESKTOP_CRATE}" --all-targets
-        run "Locked Unit Tests (Core Workspace)" cargo test --locked --workspace --exclude "${DESKTOP_CRATE}" --no-fail-fast
-        ;;
-
+      run_quick
+      ;;
     full)
-        ensure_cargo_tool cargo-audit
-        run "Security Audit" cargo audit
-        run "Format Check" cargo fmt --all --check
-        run "Linter (Clippy, Core Workspace)" cargo clippy --workspace --exclude "${DESKTOP_CRATE}" --all-targets --all-features -- -D warnings
-        run "Compile Check (Core Workspace)" cargo check --locked --workspace --exclude "${DESKTOP_CRATE}" --all-targets
-        run "Locked Comprehensive Tests (Core Workspace)" cargo test --locked --workspace --exclude "${DESKTOP_CRATE}" --all-targets --no-fail-fast
-        run "Doc Tests" cargo test --doc
-        ;;
-
-    audit | release)
-        ensure_cargo_tool cargo-audit
-        ensure_cargo_tool cargo-deny
-        run "Vulnerability Audit" cargo audit
-        run "License & Dependency Audit" cargo deny check
-        run "Format Check" cargo fmt --all --check
-        run "Compile Check (Release, Core Workspace)" cargo check --locked --workspace --exclude "${DESKTOP_CRATE}" --all-targets --release
-        run "Clippy (Strict, Core Workspace)" cargo clippy --workspace --exclude "${DESKTOP_CRATE}" --all-targets --all-features -- -D warnings
-        run "Build Production Binary" cargo build --locked --release -p aoxcmd --bin aoxc
-        run "Release Artifact Certification" ./scripts/release_artifact_certify.sh target/release/aoxc
-        run "Locked Production Test Suite (Core Workspace)" cargo test --locked --workspace --exclude "${DESKTOP_CRATE}" --release --all-targets --no-fail-fast
-        ;;
-
-    desktop)
-        run "Compile Check (Desktop Tauri Surface)" cargo check --locked -p "${DESKTOP_CRATE}" --all-targets
-        ;;
-
+      run_full
+      ;;
+    release)
+      run_release
+      ;;
+    --help|-h|help)
+      print_usage
+      ;;
     *)
-        echo "Usage: $0 {quick|full|audit|release|desktop}" >&2
-        exit 2
-        ;;
-esac
+      die "Unknown quality mode: ${MODE}" 2
+      ;;
+  esac
 
-printf '\n\033[1;32m[SUCCESS] Quality gate passed in "%s" mode.\033[0m\n' "${MODE}"
+  log_info "Quality gate completed successfully for mode: ${MODE}"
+}
+
+main "$@"

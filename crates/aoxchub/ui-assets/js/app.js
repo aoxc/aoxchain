@@ -60,6 +60,26 @@ function walletData() {
   return loadUiState().wallet || {};
 }
 
+function terminalFooter(message) {
+  const node = document.getElementById('terminal-footer-note');
+  if (node) node.textContent = message;
+}
+
+function appendTerminalOutput(line) {
+  const targets = [document.getElementById('terminal'), document.getElementById('terminal-output')];
+  targets.filter(Boolean).forEach((node) => {
+    node.textContent += `${line}\n`;
+    node.scrollTop = node.scrollHeight;
+  });
+}
+
+function clearTerminalOutput() {
+  const targets = [document.getElementById('terminal'), document.getElementById('terminal-output')];
+  targets.filter(Boolean).forEach((node) => {
+    node.textContent = '';
+  });
+}
+
 function renderHeader() {
   const wallet = walletData();
   const env = (state?.environment || 'mainnet').toUpperCase();
@@ -81,7 +101,47 @@ function renderHeader() {
     ? `${wallet.label ? `${wallet.label} • ` : ''}${wallet.address}`
     : 'No address found yet. Create a new one or import an existing public address.';
 
+  const terminalWallet = document.getElementById('terminal-wallet-status');
+  if (terminalWallet) {
+    terminalWallet.textContent = walletReady
+      ? `Wallet status: ready (${abbreviateAddress(wallet.address)})`
+      : 'Wallet status: not ready';
+  }
+
   document.getElementById('wallet-label').value = wallet.label || '';
+}
+
+function updateSelectionViews(command) {
+  selectedCommand = command;
+  document.getElementById('selected-label').textContent = command?.spec?.label || '';
+  document.getElementById('preview').textContent = command?.preview || '';
+  document.getElementById('execute').disabled = !command?.allowed;
+
+  const terminalLabel = document.getElementById('terminal-selected-label');
+  const terminalPreview = document.getElementById('terminal-preview');
+  const terminalRunSelected = document.getElementById('terminal-run-selected');
+  const terminalMeta = document.getElementById('terminal-selected-meta');
+  if (terminalLabel) terminalLabel.textContent = command?.spec?.label || '';
+  if (terminalPreview) terminalPreview.textContent = command?.preview || '';
+  if (terminalRunSelected) terminalRunSelected.disabled = !command?.allowed;
+  if (terminalMeta) {
+    terminalMeta.textContent = command
+      ? `${command.spec.group} • ${command.spec.risk} • ${command.policy_note}`
+      : 'No command selected.';
+  }
+}
+
+function renderCommandCards(listNode, className = 'card') {
+  if (!listNode) return;
+  listNode.innerHTML = '';
+  state.commands.forEach((c) => {
+    const card = document.createElement('button');
+    card.className = className;
+    card.disabled = !c.allowed;
+    card.innerHTML = `<strong>${c.spec.label}</strong><small>${c.spec.group} • ${c.spec.risk}</small><small>${c.spec.description}</small><small>${c.policy_note}</small>`;
+    card.onclick = () => updateSelectionViews(c);
+    listNode.appendChild(card);
+  });
 }
 
 function render() {
@@ -92,6 +152,8 @@ function render() {
   document.body.dataset.theme = state.environment;
   document.getElementById('env-banner').textContent = state.banner;
   document.getElementById('home-environment-banner').textContent = state.banner;
+  const terminalEnv = document.getElementById('terminal-env-banner');
+  if (terminalEnv) terminalEnv.textContent = state.banner;
   document.getElementById('env-mainnet').classList.toggle('active', isMainnet);
   document.getElementById('env-testnet').classList.toggle('active', !isMainnet);
   document.getElementById('header-env-message').textContent = isMainnet
@@ -118,25 +180,18 @@ function render() {
   });
 
   const selected = state.binaries.find((b) => b.id === state.selected_binary_id);
-  document.getElementById('binary-details').textContent = selected
-    ? JSON.stringify(selected, null, 2)
-    : 'No binary selected';
+  const selectedBinaryText = selected ? JSON.stringify(selected, null, 2) : 'No binary selected';
+  document.getElementById('binary-details').textContent = selectedBinaryText;
+  const terminalBinary = document.getElementById('terminal-binary-details');
+  if (terminalBinary) terminalBinary.textContent = selectedBinaryText;
 
-  const commands = document.getElementById('commands');
-  commands.innerHTML = '';
-  state.commands.forEach((c) => {
-    const card = document.createElement('button');
-    card.className = 'card';
-    card.disabled = !c.allowed;
-    card.innerHTML = `<strong>${c.spec.label}</strong><small>${c.spec.group} • ${c.spec.risk}</small><small>${c.spec.description}</small><small>${c.policy_note}</small>`;
-    card.onclick = () => {
-      selectedCommand = c;
-      document.getElementById('selected-label').textContent = c.spec.label;
-      document.getElementById('preview').textContent = c.preview;
-      document.getElementById('execute').disabled = !c.allowed;
-    };
-    commands.appendChild(card);
-  });
+  renderCommandCards(document.getElementById('commands'));
+  renderCommandCards(document.getElementById('terminal-commands'), 'card terminal-card');
+
+  if (selectedCommand) {
+    const refreshed = state.commands.find((c) => c.spec.id === selectedCommand.spec.id);
+    updateSelectionViews(refreshed || null);
+  }
 
   renderHeader();
 }
@@ -154,24 +209,64 @@ async function setEnvironment(environment) {
   await refresh();
 }
 
+async function waitForJob(jobId) {
+  while (true) {
+    const job = await j(`/api/jobs/${jobId}`);
+    if (job.finished_at) return job;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}
+
+async function executeCommand(command, options = {}) {
+  if (!command) return;
+  if (eventSource) eventSource.close();
+
+  const out = await j('/api/execute', {
+    method: 'POST',
+    body: JSON.stringify({ command_id: command.spec.id, confirm: true }),
+  });
+
+  if (options.clear) clearTerminalOutput();
+
+  eventSource = new EventSource(`/api/jobs/${out.job_id}/stream`);
+  eventSource.onmessage = (e) => {
+    appendTerminalOutput(e.data);
+  };
+
+  terminalFooter(`Running ${command.spec.label}...`);
+  const job = await waitForJob(out.job_id);
+  eventSource.close();
+  terminalFooter(`Finished ${command.spec.label} with exit code ${job.exit_code}.`);
+}
+
 async function executeSelected() {
   if (!selectedCommand) return;
   const ok = window.confirm(`Execute command?\n\n${selectedCommand.preview}`);
   if (!ok) return;
+  await executeCommand(selectedCommand, { clear: true });
+}
 
-  const out = await j('/api/execute', {
-    method: 'POST',
-    body: JSON.stringify({ command_id: selectedCommand.spec.id, confirm: true }),
-  });
+async function executeAutonomousRun() {
+  const allowed = state.commands.filter((c) => c.allowed);
+  if (!allowed.length) {
+    alert('No allowed command is available in the active environment.');
+    return;
+  }
 
-  if (eventSource) eventSource.close();
-  eventSource = new EventSource(`/api/jobs/${out.job_id}/stream`);
-  const terminal = document.getElementById('terminal');
-  terminal.textContent = '';
-  eventSource.onmessage = (e) => {
-    terminal.textContent += `${e.data}\n`;
-    terminal.scrollTop = terminal.scrollHeight;
-  };
+  const ok = window.confirm(
+    `Autonomous mode will execute ${allowed.length} allowed commands in sequence. Continue?`,
+  );
+  if (!ok) return;
+
+  clearTerminalOutput();
+  for (let i = 0; i < allowed.length; i += 1) {
+    const cmd = allowed[i];
+    updateSelectionViews(cmd);
+    appendTerminalOutput(`[autonomous ${i + 1}/${allowed.length}] ${cmd.spec.label}`);
+    // eslint-disable-next-line no-await-in-loop
+    await executeCommand(cmd, { clear: false });
+  }
+  terminalFooter(`Autonomous sequence completed (${allowed.length} commands).`);
 }
 
 function createWallet() {
@@ -249,12 +344,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   };
 
   document.getElementById('execute').onclick = executeSelected;
+  document.getElementById('terminal-run-selected').onclick = executeSelected;
+  document.getElementById('terminal-run-autonomous').onclick = executeAutonomousRun;
+  document.getElementById('terminal-clear').onclick = () => {
+    clearTerminalOutput();
+    terminalFooter('Terminal output cleared.');
+  };
 
   await refresh();
   await applyStoredEnvironmentPreference();
 
   const lastView = loadUiState().last_view;
-  if (lastView === 'wallet' || lastView === 'home') {
+  if (lastView === 'wallet' || lastView === 'home' || lastView === 'terminal') {
     setView(lastView);
   }
   renderHeader();

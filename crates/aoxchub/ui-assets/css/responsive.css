@@ -1,3 +1,14 @@
+
+@media (max-width: 1400px) {
+  .terminal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .terminal-screen {
+    max-height: 44vh;
+  }
+}
+
 @media (max-width: 1300px) {
   .topbar {
     grid-template-columns: 1fr;

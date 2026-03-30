@@ -25,7 +25,7 @@ Ayrıca `aoxcunity` için deterministik motor, replay güvenliği ve readiness s
 
 ## 4) Operasyon ve Öz-İyileştirme
 
-- `scripts/node_supervisor.sh`: yerel dağıtımlarda çökme sonrası otomatik yeniden başlatma.
+- `scripts/runtime_supervisor.sh`: yerel dağıtımlarda çökme sonrası otomatik yeniden başlatma.
 - Healthcheck + restart sayaçları ile “fail-fast + controlled-restart” politikası.
 - Planlı bakım pencerelerinde güvenli draining prosedürü.
 
