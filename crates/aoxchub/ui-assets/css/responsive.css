@@ -1,0 +1,35 @@
+@media (max-width: 1300px) {
+  .topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .header-stats {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+}
+
+@media (max-width: 1080px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar {
+    position: static;
+    min-height: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .app-shell,
+  .hero,
+  .panel,
+  .topbar,
+  .sidebar {
+    padding: var(--space-3);
+  }
+
+  .header-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .row > * {
+    width: 100%;
+  }
+}

@@ -1,0 +1,38 @@
+.hero,
+.panel {
+  padding: var(--space-6);
+}
+
+.hero {
+  background: var(--hero-bg);
+  position: relative;
+  overflow: clip;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: auto -40px -50px auto;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(112, 165, 255, 0.22), transparent 67%);
+  pointer-events: none;
+}
+
+.hero h3 {
+  margin-top: var(--space-3);
+  max-width: 44ch;
+}
+
+.hero-actions {
+  margin-top: var(--space-4);
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.hero-caption {
+  margin-top: var(--space-3);
+  max-width: 65ch;
+}

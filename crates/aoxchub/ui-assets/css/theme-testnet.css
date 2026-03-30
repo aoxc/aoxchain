@@ -1,0 +1,17 @@
+body[data-env='testnet'] {
+  --bg: #130d24;
+  --bg-elevated: #1a1331;
+  --surface-1: rgba(28, 21, 51, 0.8);
+  --surface-2: rgba(20, 15, 39, 0.95);
+  --surface-3: rgba(36, 30, 66, 0.9);
+  --line: rgba(167, 143, 236, 0.26);
+  --line-strong: rgba(185, 165, 255, 0.54);
+  --text: #f0ebff;
+  --muted: #beb4df;
+  --accent: #8e8dff;
+  --accent-2: #67e5ff;
+  --success: #5fd7c8;
+  --focus: rgba(154, 131, 255, 0.56);
+  --hero-bg: linear-gradient(145deg, rgba(105, 78, 190, 0.3), rgba(20, 14, 41, 0.9));
+  --banner-bg: linear-gradient(125deg, rgba(119, 89, 212, 0.35), rgba(18, 12, 37, 0.9));
+}

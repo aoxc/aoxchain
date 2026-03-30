@@ -6,9 +6,9 @@
   <title>AOXCHub Local Experience</title>
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
-<body data-env="mainnet">
+<body data-env="mainnet" data-theme="mainnet">
   <div class="app-shell">
-    <aside class="sidebar glass">
+    <aside class="sidebar surface-1">
       <div class="brand-block">
         <p class="eyebrow">AOXC Local Control Panel</p>
         <h1>AOXCHub</h1>
@@ -26,18 +26,28 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="badge">127.0.0.1 only</div>
+        <div class="badge badge-neutral">127.0.0.1 only</div>
         <p class="muted">AOXCHub remains local by default. Advanced technical controls are available in secondary panels.</p>
       </div>
     </aside>
 
     <div class="main-column">
-      <header class="topbar glass">
+      <header class="topbar surface-1">
         <div>
           <p class="eyebrow">Local Identity Bar</p>
           <h2>AOXC onboarding is wallet-first.</h2>
           <p class="muted">Create your address, confirm readiness, and continue with confidence.</p>
         </div>
+
+        <div class="env-switcher" role="group" aria-label="Environment selector">
+          <p class="eyebrow">Environment</p>
+          <div class="env-grid">
+            <button id="env-mainnet" class="env env-mainnet" type="button">Mainnet</button>
+            <button id="env-testnet" class="env env-testnet" type="button">Testnet</button>
+          </div>
+          <p id="header-env-message" class="muted env-message">Mainnet: production guardrails and certified binaries only.</p>
+        </div>
+
         <div class="header-stats">
           <div class="stat-pill">
             <span>Environment</span>
@@ -60,23 +70,24 @@
 
       <main class="content-stack">
         <section class="view active" data-view="home">
-          <section class="hero glass">
+          <section class="hero surface-1">
             <p class="eyebrow">Welcome to AOXCHub</p>
-            <h3>Your calm, local-first control experience for AOXChain.</h3>
+            <h3 id="hero-title">Your calm, local-first control experience for AOXChain.</h3>
             <p class="muted">AOXCHub helps everyday users and advanced operators run AOXC confidently from their own machine. The default experience stays simple and guided, while technical transparency remains available when you need it.</p>
             <div class="environment-banner" id="home-environment-banner">MAINNET • PRODUCTION CONTROL SURFACE</div>
+            <p id="hero-env-caption" class="hero-caption muted">Mainnet actions carry production risk. Review previews before execution.</p>
             <div class="hero-actions">
               <button class="cta" id="go-wallet-from-landing">Step 1: Create Your Address</button>
               <p class="muted">Address creation is the first onboarding milestone.</p>
             </div>
           </section>
 
-          <section class="panel glass">
+          <section class="panel surface-1">
             <h4>What is AOXC?</h4>
             <p class="muted">AOXC is the network client and command surface for identity, staking, NFT support, smart contract workflows, and node participation. AOXCHub gives it a polished local interface that keeps important actions understandable and transparent.</p>
           </section>
 
-          <section class="panel glass">
+          <section class="panel surface-1">
             <h4>Choose your node journey</h4>
             <p class="muted">Seven participation profiles are available as your needs evolve.</p>
             <div class="node-grid">
@@ -90,7 +101,7 @@
             </div>
           </section>
 
-          <section class="panel glass">
+          <section class="panel surface-1">
             <h4>AOXC capabilities</h4>
             <div class="capability-grid">
               <article class="capability"><h5>Wallet</h5><p>Create your local identity anchor and manage your AOXC presence.</p></article>
@@ -105,10 +116,10 @@
         </section>
 
         <section class="view" data-view="wallet">
-          <section class="panel glass wallet-hero">
+          <section class="panel surface-1 wallet-hero">
             <p class="eyebrow">Wallet onboarding</p>
             <h3>Your address is your AOXC identity anchor.</h3>
-            <p class="muted">You need an address before wallet actions, staking, NFT workflows, or node-linked operations can continue. This is the required first onboarding step.</p>
+            <p id="wallet-env-note" class="muted">Mainnet mode is active. Use a production-safe address and review every action carefully.</p>
 
             <div class="wallet-readiness" id="wallet-readiness">Wallet status: not ready</div>
 
@@ -131,14 +142,10 @@
             </div>
           </section>
 
-          <details class="panel glass">
+          <details class="panel surface-1">
             <summary>Technical transparency (advanced)</summary>
             <div class="inner-stack">
-              <h4>Environment selection</h4>
-              <div class="env-grid">
-                <button id="env-mainnet" class="env mainnet">MAINNET</button>
-                <button id="env-testnet" class="env testnet">TESTNET</button>
-              </div>
+              <h4>Environment status</h4>
               <div id="env-banner" class="banner">MAINNET • PRODUCTION CONTROL SURFACE</div>
 
               <h4>Binary source status</h4>

@@ -1,0 +1,17 @@
+body[data-env='mainnet'] {
+  --bg: #060b14;
+  --bg-elevated: #0b1422;
+  --surface-1: rgba(11, 20, 34, 0.8);
+  --surface-2: rgba(7, 14, 26, 0.95);
+  --surface-3: rgba(18, 29, 46, 0.9);
+  --line: rgba(135, 165, 205, 0.25);
+  --line-strong: rgba(150, 178, 216, 0.5);
+  --text: #e7eefc;
+  --muted: #9daec6;
+  --accent: #629eff;
+  --accent-2: #79c5ff;
+  --danger: #ff7679;
+  --focus: rgba(93, 146, 255, 0.5);
+  --hero-bg: linear-gradient(140deg, rgba(51, 78, 119, 0.35), rgba(8, 15, 27, 0.9));
+  --banner-bg: linear-gradient(125deg, rgba(66, 102, 153, 0.3), rgba(7, 13, 23, 0.9));
+}
