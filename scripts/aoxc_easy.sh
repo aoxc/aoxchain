@@ -32,17 +32,19 @@ AOXC Easy CLI (for everyone: beginner to advanced)
 Usage:
   ./scripts/aoxc_easy.sh help
   ./scripts/aoxc_easy.sh doctor
-  ./scripts/aoxc_easy.sh start <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh start [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh start-dual
-  ./scripts/aoxc_easy.sh once <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh once [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh once-dual
-  ./scripts/aoxc_easy.sh stop <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh stop [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh stop-dual
-  ./scripts/aoxc_easy.sh status <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh status [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh status-dual
-  ./scripts/aoxc_easy.sh restart <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh restart [mainnet|testnet|devnet]
   ./scripts/aoxc_easy.sh restart-dual
-  ./scripts/aoxc_easy.sh logs <mainnet|testnet|devnet>
+  ./scripts/aoxc_easy.sh logs [mainnet|testnet|devnet]
+  ./scripts/aoxc_easy.sh auto-start
+  ./scripts/aoxc_easy.sh auto-once
   ./scripts/aoxc_easy.sh menu
 EOF
 }
@@ -79,6 +81,19 @@ require_env() {
   esac
 }
 
+resolve_env_or_default() {
+  local candidate="${1:-${AOXC_ENV:-devnet}}"
+  case "${candidate}" in
+    mainnet|testnet|devnet)
+      printf "%s" "${candidate}"
+      ;;
+    *)
+      echo "[easy][warn] unknown AOXC_ENV=${candidate}; falling back to devnet"
+      printf "devnet"
+      ;;
+  esac
+}
+
 run_dual() {
   local cmd="${1:?missing-cmd}"
   "${SCRIPT_DIR}/network_stack.sh" "${cmd}"
@@ -95,7 +110,8 @@ case "${cmd}" in
     doctor
     ;;
   start|once|stop|status)
-    require_env "${env}"
+    env="$(resolve_env_or_default "${env}")"
+    echo "[easy] command=${cmd} env=${env}"
     "${DAEMON_SCRIPT}" "${cmd}" "${env}"
     ;;
   start-dual)
@@ -111,7 +127,8 @@ case "${cmd}" in
     run_dual status
     ;;
   restart)
-    require_env "${env}"
+    env="$(resolve_env_or_default "${env}")"
+    echo "[easy] command=restart env=${env}"
     "${DAEMON_SCRIPT}" stop "${env}" || true
     "${DAEMON_SCRIPT}" start "${env}"
     ;;
@@ -119,8 +136,19 @@ case "${cmd}" in
     run_dual restart
     ;;
   logs)
-    require_env "${env}"
+    env="$(resolve_env_or_default "${env}")"
+    echo "[easy] following runtime logs env=${env}"
     tail -n 120 -f "${AOXC_DATA_ROOT}/logs/network/${env}/runtime.log"
+    ;;
+  auto-start)
+    env="$(resolve_env_or_default "${AOXC_ENV:-}")"
+    echo "[easy] auto-start selected env=${env}"
+    "${DAEMON_SCRIPT}" start "${env}"
+    ;;
+  auto-once)
+    env="$(resolve_env_or_default "${AOXC_ENV:-}")"
+    echo "[easy] auto-once selected env=${env}"
+    "${DAEMON_SCRIPT}" once "${env}"
     ;;
   menu)
     cat <<'EOF'
