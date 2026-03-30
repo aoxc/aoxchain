@@ -565,3 +565,29 @@ alpha:
 	@printf "  make dev-bootstrap    - print suggested developer bootstrap flow\n"
 	@printf "  make real-chain-run   - run the local real-chain daemon loop\n"
 	@printf "  make real-chain-tail  - tail local runtime logs\n\n"
+
+# --------------------------------------------------------------------
+# AOXCHub environment-aligned entry points
+# --------------------------------------------------------------------
+AOXHUB_ROOT_CONFIG_MAINNET ?= configs/aoxhub/mainnet.toml
+AOXHUB_ROOT_CONFIG_TESTNET ?= configs/aoxhub/testnet.toml
+AOXHUB_HOME_MAINNET ?= $(AOXC_DATA_ROOT)/home/mainnet
+AOXHUB_HOME_TESTNET ?= $(AOXC_DATA_ROOT)/home/testnet
+
+.PHONY: hub-mainnet hub-testnet cli-mainnet-version cli-testnet-version
+
+hub-mainnet:
+	$(call print_banner,Launching AOXCHub in MAINNET default mode)
+	@AOXCHUB_DEFAULT_ENV=mainnet cargo run -p aoxchub
+
+hub-testnet:
+	$(call print_banner,Launching AOXCHub in TESTNET default mode)
+	@AOXCHUB_DEFAULT_ENV=testnet cargo run -p aoxchub
+
+cli-mainnet-version:
+	$(call print_banner,AOXC CLI version in MAINNET context)
+	@AOXC_ENV=mainnet AOXHUB_CONFIG=$(AOXHUB_ROOT_CONFIG_MAINNET) AOXC_HOME=$(AOXHUB_HOME_MAINNET) $(AOXC_BIN_PATH) version
+
+cli-testnet-version:
+	$(call print_banner,AOXC CLI version in TESTNET context)
+	@AOXC_ENV=testnet AOXHUB_CONFIG=$(AOXHUB_ROOT_CONFIG_TESTNET) AOXC_HOME=$(AOXHUB_HOME_TESTNET) $(AOXC_BIN_PATH) version

@@ -14,11 +14,12 @@ AOXCHub is a localhost-only operator control plane for AOXChain. It presents app
 - Local process runner with output limits and timeout controls.
 
 ## Usage
-1. Build and run: `cargo run -p aoxchub`.
+1. Build and run: `cargo run -p aoxchub` (or `make hub-mainnet` / `make hub-testnet`).
 2. Open `http://127.0.0.1:7070`.
-3. Select MAINNET or TESTNET.
-4. Select an approved AOXC binary source.
-5. Review preview text, confirm execution, and monitor terminal output.
+3. Select MAINNET or TESTNET from the visible selector.
+4. Confirm Root Environment Binding values (profile, config path, AOXC home, Make scope).
+5. Select an approved AOXC binary source.
+6. Review preview text, confirm execution, and monitor terminal output.
 
 ## Notes
 - The service binds to `127.0.0.1` by default and is not designed for remote exposure.
