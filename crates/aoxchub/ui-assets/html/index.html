@@ -21,7 +21,7 @@
         <button class="nav-item upcoming" disabled>Node <span>Upcoming</span></button>
         <button class="nav-item upcoming" disabled>Dashboard <span>Upcoming</span></button>
         <button class="nav-item upcoming" disabled>Actions <span>Upcoming</span></button>
-        <button class="nav-item upcoming" disabled>Terminal <span>Upcoming</span></button>
+        <button class="nav-item" data-view-target="terminal">Terminal</button>
         <button class="nav-item upcoming" disabled>Settings <span>Upcoming</span></button>
       </nav>
 
@@ -171,6 +171,58 @@
             </div>
           </details>
         </section>
+
+
+        <section class="view" data-view="terminal">
+          <section class="terminal-workspace surface-1">
+            <header class="terminal-header">
+              <div>
+                <p class="eyebrow">Full autonomous control</p>
+                <h3>AOXC Command Bridge</h3>
+                <p class="muted">Execute CLI operations from a cinematic, full-screen terminal workflow with controlled autonomy.</p>
+              </div>
+              <div class="terminal-header-actions">
+                <button id="terminal-run-selected" class="cta" disabled>Run selected command</button>
+                <button id="terminal-run-autonomous" type="button">Autonomous run (all allowed)</button>
+              </div>
+            </header>
+
+            <div class="terminal-grid">
+              <aside class="terminal-sidebar-left">
+                <h4>Environment</h4>
+                <div id="terminal-env-banner" class="banner">MAINNET • PRODUCTION CONTROL SURFACE</div>
+                <p class="muted" id="terminal-wallet-status">Wallet status: not ready</p>
+                <p class="muted" id="terminal-selected-meta">No command selected.</p>
+
+                <h4>Binary profile</h4>
+                <pre id="terminal-binary-details" class="preview"></pre>
+              </aside>
+
+              <section class="terminal-main">
+                <div class="terminal-main-head">
+                  <strong>Live terminal output</strong>
+                  <button id="terminal-clear" type="button">Clear</button>
+                </div>
+                <pre id="terminal-output" class="preview terminal terminal-screen"></pre>
+              </section>
+
+              <aside class="terminal-sidebar-right">
+                <h4>Command catalog</h4>
+                <p class="muted">Select a command to preview and execute.</p>
+                <div id="terminal-commands" class="cards terminal-command-list"></div>
+
+                <h4>Selected command preview</h4>
+                <div id="terminal-selected-label"></div>
+                <pre id="terminal-preview" class="preview"></pre>
+              </aside>
+            </div>
+
+            <footer class="terminal-footer">
+              <p id="terminal-footer-note" class="muted">Ready. Select a command to begin.</p>
+            </footer>
+          </section>
+        </section>
+
       </main>
     </div>
   </div>
