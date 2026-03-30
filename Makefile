@@ -247,6 +247,7 @@ endef
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
 	runtime-bundle-compat-check \
+	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
 	ui alpha
 
@@ -293,6 +294,9 @@ help:
 	@printf "  make runtime-doctor\n"
 	@printf "  make runtime-reinstall\n"
 	@printf "  make runtime-reset\n\n"
+	@printf "Full multi-node provision\n"
+	@printf "  make aoxc-full-4nodes\n"
+	@printf "  make aoxc-full-4nodes-docker\n\n"
 
 	@printf "Database and audit\n"
 	@printf "  make db-init\n"
@@ -780,6 +784,28 @@ runtime-show-active:
 	else \
 		echo "active profile marker is absent"; \
 	fi
+
+# --------------------------------------------------------------------
+# Full four-node provision surface
+# --------------------------------------------------------------------
+AOXC_FULL_ROOT ?= $(AOXC_ROOT)-full-4nodes
+AOXC_FULL_NETWORK_KIND ?= localnet
+AOXC_FULL_ROUNDS ?= 3
+
+aoxc-full-4nodes:
+	$(call print_banner,Provisioning full AOXC four-node layout)
+	@AOXC_FULL_ROOT="$(AOXC_FULL_ROOT)" \
+	AOXC_FULL_NETWORK_KIND="$(AOXC_FULL_NETWORK_KIND)" \
+	AOXC_FULL_ROUNDS="$(AOXC_FULL_ROUNDS)" \
+	./scripts/aoxc_full_4nodes.sh --force
+
+aoxc-full-4nodes-docker:
+	$(call print_banner,Provisioning full AOXC four-node layout with Docker assets)
+	@AOXC_FULL_ROOT="$(AOXC_FULL_ROOT)" \
+	AOXC_FULL_NETWORK_KIND="$(AOXC_FULL_NETWORK_KIND)" \
+	AOXC_FULL_ROUNDS="$(AOXC_FULL_ROUNDS)" \
+	AOXC_FULL_WITH_DOCKER_ASSETS=1 \
+	./scripts/aoxc_full_4nodes.sh --force --with-docker-assets
 
 # --------------------------------------------------------------------
 # Operations
