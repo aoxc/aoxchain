@@ -8,7 +8,7 @@ use crate::{
     node::state::NodeState,
     storage::RuntimeStateStore,
 };
-use redb::{Database, ReadableDatabase, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use std::path::{Path, PathBuf};
 
 const RUNTIME_STATE_TABLE: TableDefinition<&str, &str> = TableDefinition::new("runtime_state");
