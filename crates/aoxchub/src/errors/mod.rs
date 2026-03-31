@@ -8,4 +8,6 @@ pub enum HubError {
     UnknownCommand(String),
     #[error("security policy violation: {0}")]
     Security(String),
+    #[error("capacity limit reached: {0}")]
+    Capacity(String),
 }
