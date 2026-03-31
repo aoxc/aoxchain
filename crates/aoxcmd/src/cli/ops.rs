@@ -2408,7 +2408,10 @@ mod tests {
         assert!(!readiness.blockers.is_empty());
         assert!(!readiness.remediation_plan.is_empty());
         assert!(
-            readiness.remediation_plan.iter().any(|step| step.contains("100%")),
+            readiness
+                .remediation_plan
+                .iter()
+                .any(|step| step.contains("100%")),
             "remediation plan should still include a path to full readiness"
         );
         assert_eq!(readiness.track_progress.len(), 2);
