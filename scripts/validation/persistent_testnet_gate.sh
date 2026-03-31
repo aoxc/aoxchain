@@ -35,8 +35,11 @@ make -C "${REPO_ROOT}" --no-print-directory runtime-source-check AOXC_NETWORK_KI
 echo "[testnet-gate] validating testnet metadata identity alignment"
 python3 - "${TESTNET_ROOT}" <<'PY'
 import json
+import hashlib
 import pathlib
+import re
 import sys
+from datetime import datetime
 
 root = pathlib.Path(sys.argv[1])
 manifest = json.loads((root / "manifest.v1.json").read_text(encoding="utf-8"))
