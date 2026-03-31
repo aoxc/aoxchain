@@ -784,6 +784,10 @@ runtime-doctor:
 	$(call print_banner,Running end-to-end runtime diagnostics)
 	@$(MAKE) --no-print-directory runtime-print
 	@$(MAKE) --no-print-directory runtime-source-check
+	@if [ ! -f "$(AOXC_RUNTIME_IDENTITY_DIR)/$(RUNTIME_MANIFEST_FILE)" ]; then \
+		echo "Runtime bundle is not materialized; running runtime-install."; \
+		$(MAKE) --no-print-directory runtime-install; \
+	fi
 	@if [ -d "$(AOXC_RUNTIME_IDENTITY_DIR)" ]; then \
 		$(MAKE) --no-print-directory runtime-verify; \
 	else \
