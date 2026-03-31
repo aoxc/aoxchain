@@ -13,7 +13,8 @@
 # Operational Model:
 #   - Resolve the AOXC binary from approved local locations
 #   - Materialize one runtime root and one log root
-#   - Support `start`, `once`, `status`, `stop`, and `tail`
+#   - Support `start`, `once`, `status`, `stop`, `restart`, `tail`,
+#     and `install-service`
 #   - Persist PID-based lifecycle state for managed background execution
 #   - Emit deterministic status and health receipts
 #   - Fail closed on invalid prerequisites or runtime drift
@@ -27,6 +28,7 @@
 #   7  Bootstrap failure
 #   8  Managed daemon start failure
 #   9  Managed daemon stop failure
+#   10 Service installation failure
 # -----------------------------------------------------------------------------
 
 set -Eeuo pipefail
@@ -77,7 +79,11 @@ die() {
 print_usage() {
   cat <<'USAGE'
 Usage:
-  ./scripts/runtime_daemon.sh <start|once|status|stop|tail>
+  ./scripts/runtime_daemon.sh <start|once|status|stop|restart|tail|install-service>
+
+Environment:
+  AOXC_SYSTEMD_SCOPE=user|system (default: user)
+  AOXC_SYSTEMD_SERVICE_NAME=<service-name> (default: aoxc-runtime)
 USAGE
 }
 
@@ -351,6 +357,74 @@ tail_logs() {
   exec tail -n 100 -f "${RUNTIME_LOG}"
 }
 
+install_service() {
+  local scope="${AOXC_SYSTEMD_SCOPE:-user}"
+  local service_name="${AOXC_SYSTEMD_SERVICE_NAME:-aoxc-runtime}"
+  local runtime_script="${SCRIPT_DIR}/runtime_daemon.sh"
+  local unit_dir=''
+  local service_file=''
+
+  [[ "${service_name}" =~ ^[A-Za-z0-9._-]+$ ]] || die "Invalid AOXC_SYSTEMD_SERVICE_NAME: '${service_name}'." 10
+  [[ -x "${runtime_script}" ]] || chmod +x "${runtime_script}" || die "Unable to mark runtime script executable: ${runtime_script}" 10
+
+  case "${scope}" in
+    user)
+      unit_dir="${HOME}/.config/systemd/user"
+      require_command systemctl
+      ;;
+    system)
+      unit_dir="/etc/systemd/system"
+      require_command systemctl
+      if [[ "${EUID}" -ne 0 ]]; then
+        die "System scope requires root privileges (AOXC_SYSTEMD_SCOPE=system)." 10
+      fi
+      ;;
+    *)
+      die "Invalid AOXC_SYSTEMD_SCOPE: '${scope}'. Use 'user' or 'system'." 10
+      ;;
+  esac
+
+  ensure_directory "${unit_dir}"
+  service_file="${unit_dir}/${service_name}.service"
+
+  cat > "${service_file}" <<SERVICE
+[Unit]
+Description=AOXC Persistent Runtime Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=${ROOT_DIR}
+Environment=AOXC_ROOT=${AOXC_ROOT}
+Environment=AOXC_RUNTIME_ROOT=${AOXC_RUNTIME_ROOT}
+Environment=AOXC_LOG_DIR=${AOXC_LOG_DIR}
+Environment=AOXC_NETWORK_KIND=${AOXC_NETWORK_KIND}
+Environment=AOXC_RUNTIME_SOURCE_ROOT=${AOXC_RUNTIME_SOURCE_ROOT}
+ExecStart=${runtime_script} start
+ExecStop=${runtime_script} stop
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
+SERVICE
+
+  if [[ "${scope}" == "user" ]]; then
+    systemctl --user daemon-reload || die "systemctl --user daemon-reload failed." 10
+    systemctl --user enable "${service_name}.service" || die "Unable to enable user service '${service_name}'." 10
+    log_info "Service installed: ${service_file}"
+    log_info "Start with: systemctl --user start ${service_name}.service"
+    log_info "Enable linger for reboot persistence: loginctl enable-linger ${USER}"
+  else
+    systemctl daemon-reload || die "systemctl daemon-reload failed." 10
+    systemctl enable "${service_name}.service" || die "Unable to enable system service '${service_name}'." 10
+    log_info "Service installed: ${service_file}"
+    log_info "Start with: systemctl start ${service_name}.service"
+  fi
+}
+
 main() {
   local bin_path=''
 
@@ -368,15 +442,17 @@ main() {
 
   initialize_runtime_paths
 
-  if ! bin_path="$(resolve_bin_path)"; then
-    die "AOXC binary not found. Run: make package-bin" 4
-  fi
-
   case "${COMMAND}" in
     start)
+      if ! bin_path="$(resolve_bin_path)"; then
+        die "AOXC binary not found. Run: make package-bin" 4
+      fi
       start_daemon "${bin_path}"
       ;;
     once)
+      if ! bin_path="$(resolve_bin_path)"; then
+        die "AOXC binary not found. Run: make package-bin" 4
+      fi
       bootstrap_runtime "${bin_path}"
       run_once "${bin_path}"
       write_health_receipt
@@ -387,8 +463,18 @@ main() {
     stop)
       stop_daemon
       ;;
+    restart)
+      if ! bin_path="$(resolve_bin_path)"; then
+        die "AOXC binary not found. Run: make package-bin" 4
+      fi
+      stop_daemon
+      start_daemon "${bin_path}"
+      ;;
     tail)
       tail_logs
+      ;;
+    install-service)
+      install_service
       ;;
     --help|-h|help)
       print_usage
