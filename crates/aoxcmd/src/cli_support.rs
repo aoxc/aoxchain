@@ -74,6 +74,20 @@ Deterministic bootstrap, audit-oriented UX, hardened local flows
 
 USAGE
   aoxc <command> [flags]
+  aoxc <group> <subcommand> [flags]
+
+GUIDED GROUPS
+  chain init|create|start|status|doctor|demo
+  genesis init|add-validator|add-account|build|verify|inspect|fingerprint
+  validator create|inspect|status|rotate-key
+  wallet create|balance
+  account fund
+  node init|start|status|doctor
+  network create|start|status|verify|doctor
+  tx transfer|stake delegate|stake undelegate
+  stake delegate|undelegate|validators|rewards
+  doctor [node|network|runtime]
+  audit [chain|genesis|validator-set]
 
 DESCRIBE
   version

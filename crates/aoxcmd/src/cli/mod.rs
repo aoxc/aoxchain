@@ -5,7 +5,7 @@
 use crate::{
     cli_support::{arg_value, detect_language, localized_unknown_command, print_usage},
     data_home::ScopedHomeOverride,
-    error::AppError,
+    error::{AppError, ErrorCode},
 };
 
 pub(crate) mod audit;
@@ -46,6 +46,17 @@ pub fn run_cli() -> Result<(), AppError> {
     }
 
     match args[1].as_str() {
+        "chain" => route_chain_group(&args[2..]),
+        "genesis" => route_genesis_group(&args[2..]),
+        "validator" => route_validator_group(&args[2..]),
+        "wallet" => route_wallet_group(&args[2..]),
+        "account" => route_account_group(&args[2..]),
+        "node" => route_node_group(&args[2..]),
+        "network" => route_network_group(&args[2..]),
+        "tx" => route_tx_group(&args[2..]),
+        "stake" => route_stake_group(&args[2..]),
+        "doctor" => route_doctor_group(&args[2..]),
+        "audit" => route_audit_group(&args[2..]),
         "version" | "--version" | "-V" => describe::cmd_version(),
         "help" | "--help" | "-h" => {
             print_usage(lang);
@@ -111,12 +122,208 @@ pub fn run_cli() -> Result<(), AppError> {
     }
 }
 
+fn route_chain_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("chain", "missing subcommand");
+    };
+
+    match subcommand.as_str() {
+        "init" => bootstrap::cmd_config_init(tail),
+        "create" => bootstrap::cmd_production_bootstrap(tail),
+        "start" => ops::cmd_node_run(tail),
+        "status" => ops::cmd_runtime_status(tail),
+        "doctor" => audit::cmd_diagnostics_doctor(tail),
+        "demo" => ops::cmd_real_network(tail),
+        _ => invalid_group_usage("chain", "unsupported subcommand"),
+    }
+}
+
+fn route_genesis_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("genesis", "missing subcommand");
+    };
+
+    match subcommand.as_str() {
+        "init" => bootstrap::cmd_genesis_init(tail),
+        "add-validator" => bootstrap::cmd_genesis_add_validator(tail),
+        "add-account" => bootstrap::cmd_genesis_add_account(tail),
+        "build" | "verify" => bootstrap::cmd_genesis_validate(tail),
+        "inspect" => bootstrap::cmd_genesis_inspect(tail),
+        "fingerprint" => bootstrap::cmd_genesis_hash(tail),
+        _ => invalid_group_usage("genesis", "unsupported subcommand"),
+    }
+}
+
+fn route_validator_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("validator", "missing subcommand");
+    };
+
+    match subcommand.as_str() {
+        "create" => bootstrap::cmd_key_bootstrap(tail),
+        "inspect" | "status" => bootstrap::cmd_keys_inspect(tail),
+        "rotate-key" => bootstrap::cmd_key_bootstrap(tail),
+        _ => invalid_group_usage("validator", "unsupported subcommand"),
+    }
+}
+
+fn route_wallet_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("wallet", "missing subcommand");
+    };
+
+    match subcommand.as_str() {
+        "create" => bootstrap::cmd_address_create(tail),
+        "balance" => ops::cmd_economy_status(tail),
+        _ => invalid_group_usage("wallet", "unsupported subcommand"),
+    }
+}
+
+fn route_account_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("account", "missing subcommand");
+    };
+
+    match subcommand.as_str() {
+        "fund" => {
+            let mapped = remap_flags(
+                tail,
+                &[
+                    ("--to", "--to"),
+                    ("--amount", "--amount"),
+                    ("--from", "--from"),
+                ],
+            );
+            ops::cmd_treasury_transfer(&mapped)
+        }
+        _ => invalid_group_usage("account", "unsupported subcommand"),
+    }
+}
+
+fn route_node_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("node", "missing subcommand");
+    };
+
+    match subcommand.as_str() {
+        "init" => ops::cmd_node_bootstrap(tail),
+        "start" => ops::cmd_node_run(tail),
+        "status" => ops::cmd_node_health(tail),
+        "doctor" => audit::cmd_diagnostics_doctor(tail),
+        _ => invalid_group_usage("node", "unsupported subcommand"),
+    }
+}
+
+fn route_network_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("network", "missing subcommand");
+    };
+
+    match subcommand.as_str() {
+        "create" => bootstrap::cmd_dual_profile_bootstrap(tail),
+        "start" => ops::cmd_real_network(tail),
+        "status" | "verify" => ops::cmd_network_smoke(tail),
+        "doctor" => audit::cmd_diagnostics_doctor(tail),
+        _ => invalid_group_usage("network", "unsupported subcommand"),
+    }
+}
+
+fn route_tx_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("tx", "missing subcommand");
+    };
+
+    match subcommand.as_str() {
+        "transfer" => {
+            let mapped = remap_flags(tail, &[("--to", "--to"), ("--amount", "--amount")]);
+            ops::cmd_treasury_transfer(&mapped)
+        }
+        "stake" => route_stake_group(tail),
+        _ => invalid_group_usage("tx", "unsupported subcommand"),
+    }
+}
+
+fn route_stake_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("stake", "missing subcommand");
+    };
+
+    match subcommand.as_str() {
+        "delegate" => {
+            let mapped = remap_flags(tail, &[("--to", "--validator"), ("--amount", "--amount")]);
+            ops::cmd_stake_delegate(&mapped)
+        }
+        "undelegate" => {
+            let mapped = remap_flags(tail, &[("--to", "--validator"), ("--amount", "--amount")]);
+            ops::cmd_stake_undelegate(&mapped)
+        }
+        "rewards" | "validators" => ops::cmd_economy_status(tail),
+        _ => invalid_group_usage("stake", "unsupported subcommand"),
+    }
+}
+
+fn route_doctor_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() {
+        return audit::cmd_diagnostics_doctor(args);
+    }
+
+    match args[0].as_str() {
+        "network" | "node" | "runtime" => audit::cmd_diagnostics_doctor(&args[1..]),
+        _ => invalid_group_usage("doctor", "unsupported subcommand"),
+    }
+}
+
+fn route_audit_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return audit::cmd_production_audit(args);
+    };
+
+    match subcommand.as_str() {
+        "chain" | "genesis" | "validator-set" => audit::cmd_production_audit(tail),
+        _ => invalid_group_usage("audit", "unsupported subcommand"),
+    }
+}
+
+fn remap_flags(args: &[String], mappings: &[(&str, &str)]) -> Vec<String> {
+    args.iter()
+        .map(|arg| {
+            mappings
+                .iter()
+                .find_map(|(from, to)| (*from == arg).then(|| (*to).to_string()))
+                .unwrap_or_else(|| arg.clone())
+        })
+        .collect()
+}
+
+fn invalid_group_usage(group: &str, detail: &str) -> Result<(), AppError> {
+    Err(AppError::new(
+        ErrorCode::UsageInvalidArguments,
+        format!("Invalid {group} command: {detail}"),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::run_cli;
+    use super::{remap_flags, run_cli};
 
     #[test]
     fn cli_module_is_linkable() {
         let _ = run_cli as fn() -> Result<(), crate::error::AppError>;
+    }
+
+    #[test]
+    fn remap_flags_rewrites_expected_aliases() {
+        let input = vec![
+            "--from".to_string(),
+            "alice".to_string(),
+            "--to".to_string(),
+            "validator-01".to_string(),
+            "--amount".to_string(),
+            "100".to_string(),
+        ];
+
+        let output = remap_flags(&input, &[("--to", "--validator")]);
+        assert_eq!(output[2], "--validator");
+        assert_eq!(output[3], "validator-01");
     }
 }
