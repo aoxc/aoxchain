@@ -102,6 +102,7 @@ async fn asset(Path(path): Path<String>) -> Response {
         "badges.css" => Some(embed::BADGES_CSS),
         "forms.css" => Some(embed::FORMS_CSS),
         "panels.css" => Some(embed::PANELS_CSS),
+        "dashboard.css" => Some(embed::DASHBOARD_CSS),
         "terminal.css" => Some(embed::TERMINAL_CSS),
         "responsive.css" => Some(embed::RESPONSIVE_CSS),
         _ => None,

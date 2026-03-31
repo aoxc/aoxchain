@@ -81,6 +81,36 @@ pub struct EnvironmentBinding {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct InstalledVersions {
+    pub aoxc: String,
+    pub aoxchub: String,
+    pub runtime: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DashboardSnapshot {
+    pub chain_name: String,
+    pub network_kind: String,
+    pub network_id: String,
+    pub current_height: u64,
+    pub finalized_height: u64,
+    pub current_round: u64,
+    pub validator_count: u32,
+    pub observer_count: u32,
+    pub connected_peers: u32,
+    pub local_node_status: String,
+    pub rpc_status: String,
+    pub p2p_status: String,
+    pub genesis_fingerprint: String,
+    pub health_status: String,
+    pub installed_versions: InstalledVersions,
+    pub last_events: Vec<String>,
+    pub last_txs: Vec<String>,
+    pub last_warnings: Vec<String>,
+    pub quick_actions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct HubStateView {
     pub environment: Environment,
     pub banner: &'static str,
@@ -88,4 +118,5 @@ pub struct HubStateView {
     pub selected_binary_id: Option<String>,
     pub binaries: Vec<BinaryCandidate>,
     pub commands: Vec<CommandView>,
+    pub dashboard: DashboardSnapshot,
 }

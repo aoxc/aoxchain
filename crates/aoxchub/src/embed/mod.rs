@@ -18,5 +18,6 @@ pub static BUTTONS_CSS: &str = include_str!("../../ui-assets/css/buttons.css");
 pub static BADGES_CSS: &str = include_str!("../../ui-assets/css/badges.css");
 pub static FORMS_CSS: &str = include_str!("../../ui-assets/css/forms.css");
 pub static PANELS_CSS: &str = include_str!("../../ui-assets/css/panels.css");
+pub static DASHBOARD_CSS: &str = include_str!("../../ui-assets/css/dashboard.css");
 pub static TERMINAL_CSS: &str = include_str!("../../ui-assets/css/terminal.css");
 pub static RESPONSIVE_CSS: &str = include_str!("../../ui-assets/css/responsive.css");
