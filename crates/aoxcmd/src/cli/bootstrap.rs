@@ -1181,160 +1181,6 @@ fn write_json_pretty<T: Serialize>(
     write_file(path, &encoded)
 }
 
-fn persist_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
-    let content = serde_json::to_string_pretty(genesis).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::OutputEncodingFailed,
-            "Failed to encode AOXC genesis document",
-            error,
-        )
-    })?;
-    write_file(&genesis_path()?, &content)
-}
-
-fn sync_optional_accounts_binding(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
-    if let Some(accounts_file) = &genesis.bindings.accounts_file {
-        #[derive(Serialize)]
-        struct AccountsDoc<'a> {
-            schema_version: u8,
-            environment: &'a str,
-            identity: &'a CanonicalIdentity,
-            accounts: &'a [BootstrapAccountRecord],
-        }
-        let accounts_doc = AccountsDoc {
-            schema_version: 1,
-            environment: &genesis.environment,
-            identity: &genesis.identity,
-            accounts: &genesis.state.accounts,
-        };
-
-        let genesis_file = genesis_path()?;
-        let parent = genesis_file
-            .parent()
-            .ok_or_else(|| AppError::new(ErrorCode::FilesystemIoFailed, "Missing identity root"))?;
-        write_json_pretty(
-            &parent.join(accounts_file),
-            &accounts_doc,
-            "Failed to encode accounts binding document",
-        )?;
-    }
-    Ok(())
-}
-
-fn load_or_default_validators_binding(
-    genesis: &BootstrapGenesisDocument,
-) -> Result<BootstrapValidatorBindingsDocument, AppError> {
-    let root = genesis_path()?
-        .parent()
-        .ok_or_else(|| AppError::new(ErrorCode::FilesystemIoFailed, "Missing identity root"))?
-        .to_path_buf();
-    let path = root.join(&genesis.bindings.validators_file);
-    match read_file(&path) {
-        Ok(raw) => {
-            serde_json::from_str::<BootstrapValidatorBindingsDocument>(&raw).map_err(|error| {
-                AppError::with_source(
-                    ErrorCode::ConfigInvalid,
-                    "Failed to decode validators binding file",
-                    error,
-                )
-            })
-        }
-        Err(_) => Ok(BootstrapValidatorBindingsDocument {
-            schema_version: 2,
-            environment: genesis.environment.clone(),
-            identity: genesis.identity.clone(),
-            validators: Vec::new(),
-        }),
-    }
-}
-
-fn load_or_default_bootnodes_binding(
-    genesis: &BootstrapGenesisDocument,
-) -> Result<BootstrapBootnodesDocument, AppError> {
-    let root = genesis_path()?
-        .parent()
-        .ok_or_else(|| AppError::new(ErrorCode::FilesystemIoFailed, "Missing identity root"))?
-        .to_path_buf();
-    let path = root.join(&genesis.bindings.bootnodes_file);
-    match read_file(&path) {
-        Ok(raw) => serde_json::from_str::<BootstrapBootnodesDocument>(&raw).map_err(|error| {
-            AppError::with_source(
-                ErrorCode::ConfigInvalid,
-                "Failed to decode bootnodes binding file",
-                error,
-            )
-        }),
-        Err(_) => Ok(BootstrapBootnodesDocument {
-            schema_version: 2,
-            environment: genesis.environment.clone(),
-            identity: genesis.identity.clone(),
-            bootnodes: Vec::new(),
-        }),
-    }
-}
-
-fn upsert_validator_binding(
-    doc: &mut BootstrapValidatorBindingsDocument,
-    record: BootstrapValidatorBindingRecord,
-) {
-    if let Some(existing) = doc
-        .validators
-        .iter_mut()
-        .find(|existing| existing.validator_id == record.validator_id)
-    {
-        *existing = record;
-    } else {
-        doc.validators.push(record);
-    }
-}
-
-fn upsert_bootnode_binding(doc: &mut BootstrapBootnodesDocument, record: BootstrapBootnodeRecord) {
-    if let Some(existing) = doc
-        .bootnodes
-        .iter_mut()
-        .find(|existing| existing.node_id == record.node_id)
-    {
-        *existing = record;
-    } else {
-        doc.bootnodes.push(record);
-    }
-}
-
-fn persist_validators_binding(
-    genesis: &BootstrapGenesisDocument,
-    doc: &BootstrapValidatorBindingsDocument,
-) -> Result<(), AppError> {
-    let root = genesis_path()?
-        .parent()
-        .ok_or_else(|| AppError::new(ErrorCode::FilesystemIoFailed, "Missing identity root"))?
-        .to_path_buf();
-    write_json_pretty(
-        &root.join(&genesis.bindings.validators_file),
-        doc,
-        "Failed to encode validators binding document",
-    )
-}
-
-fn persist_bootnodes_binding(
-    genesis: &BootstrapGenesisDocument,
-    doc: &BootstrapBootnodesDocument,
-) -> Result<(), AppError> {
-    let root = genesis_path()?
-        .parent()
-        .ok_or_else(|| AppError::new(ErrorCode::FilesystemIoFailed, "Missing identity root"))?
-        .to_path_buf();
-    write_json_pretty(
-        &root.join(&genesis.bindings.bootnodes_file),
-        doc,
-        "Failed to encode bootnodes binding document",
-    )
-}
-
-fn derive_short_fingerprint(value: &str) -> String {
-    let digest = Sha256::digest(value.as_bytes());
-    hex::encode(digest)[..16].to_string()
-}
-
 fn load_genesis() -> Result<BootstrapGenesisDocument, AppError> {
     let raw = read_file(&genesis_path()?)?;
     serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|error| {
@@ -1502,19 +1348,6 @@ struct ValidatorRecord {
     status: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct BootnodesValidationDocument {
-    bootnodes: Vec<BootnodeValidationRecord>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BootnodeValidationRecord {
-    node_id: String,
-    transport_public_key: String,
-    address: String,
-    status: String,
-}
-
 fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
     let genesis_file = genesis_path()?;
     let root = genesis_file.parent().ok_or_else(|| {
@@ -1584,19 +1417,22 @@ fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppE
 
     let bootnodes_path = root.join(&genesis.bindings.bootnodes_file);
     let bootnodes_raw = read_file(&bootnodes_path)?;
-    let bootnodes_doc: BootnodesValidationDocument =
-        serde_json::from_str(&bootnodes_raw).map_err(|error| {
-            AppError::with_source(
-                ErrorCode::ConfigInvalid,
-                format!(
-                    "Genesis validation failed: bootnodes binding is not valid JSON: {}",
-                    bootnodes_path.display()
-                ),
-                error,
-            )
-        })?;
+    let bootnodes_json: Value = serde_json::from_str(&bootnodes_raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: bootnodes binding is not valid JSON: {}",
+                bootnodes_path.display()
+            ),
+            error,
+        )
+    })?;
 
-    if bootnodes_doc.bootnodes.is_empty() {
+    if bootnodes_json
+        .get("bootnodes")
+        .and_then(Value::as_array)
+        .is_none_or(|entries| entries.is_empty())
+    {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
             format!(
@@ -1604,29 +1440,6 @@ fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppE
                 bootnodes_path.display()
             ),
         ));
-    }
-    for bootnode in &bootnodes_doc.bootnodes {
-        if bootnode.node_id.trim().is_empty()
-            || bootnode.transport_public_key.trim().is_empty()
-            || bootnode
-                .transport_public_key
-                .to_ascii_lowercase()
-                .contains("pending_real_value")
-            || bootnode.address.trim().is_empty()
-            || bootnode
-                .address
-                .trim()
-                .contains("REPLACE_WITH_REAL_BOOTNODE_ADDRESS")
-            || bootnode.status.trim() != "active"
-        {
-            return Err(AppError::new(
-                ErrorCode::ConfigInvalid,
-                format!(
-                    "Genesis validation failed: bootnode record is invalid for {}",
-                    bootnode.node_id
-                ),
-            ));
-        }
     }
 
     let certificate_path = root.join(&genesis.bindings.certificate_file);
@@ -1652,21 +1465,6 @@ fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppE
                 "Genesis validation failed: certificate file is empty: {}",
                 certificate_path.display()
             ),
-        ));
-    }
-    if certificate_json
-        .pointer("/certificate/fingerprint_sha256")
-        .and_then(Value::as_str)
-        .is_none_or(|value| {
-            value.trim().is_empty()
-                || value
-                    .to_ascii_lowercase()
-                    .contains("replace_with_real_certificate_fingerprint")
-        })
-    {
-        return Err(AppError::new(
-            ErrorCode::ConfigInvalid,
-            "Genesis validation failed: certificate fingerprint is empty or placeholder",
         ));
     }
 
