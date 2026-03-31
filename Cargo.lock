@@ -343,6 +343,8 @@ name = "aoxcunity"
 version = "0.1.1-akdeniz"
 dependencies = [
  "ed25519-dalek",
+ "pqcrypto-dilithium",
+ "pqcrypto-traits",
  "rand 0.10.0",
  "serde",
  "serde_json",

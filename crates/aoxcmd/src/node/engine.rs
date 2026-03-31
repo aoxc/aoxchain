@@ -497,6 +497,8 @@ mod tests {
                 signature_scheme: 1,
             },
             signature: vec![0u8; 64],
+            pq_public_key: None,
+            pq_signature: None,
         };
 
         let snapshot = snapshot_from_message(&ConsensusMessage::Vote(vote));
