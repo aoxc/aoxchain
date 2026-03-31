@@ -314,6 +314,7 @@ mod tests {
         storage::RuntimeStateStore,
         test_support::{AoxcHomeGuard, TestHome, aoxc_home_test_lock},
     };
+    use redb::ReadableDatabase;
 
     fn with_test_home<T>(label: &str, test: impl FnOnce(&TestHome) -> T) -> T {
         let _lock = aoxc_home_test_lock();

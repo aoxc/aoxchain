@@ -14,11 +14,11 @@
     "issuer": "AOXC Release Authority",
     "subject": "AOXC PUSULA Environment Bundle",
     "certificate_serial": "AOXC-CERT-TESTNET-2626-002",
-    "issued_at": "REPLACE_WITH_UTC_TIMESTAMP",
-    "expires_at": "REPLACE_WITH_UTC_TIMESTAMP_OR_NULL",
-    "fingerprint_sha256": "REPLACE_WITH_REAL_CERTIFICATE_FINGERPRINT",
+    "issued_at": "2026-03-31T00:00:00Z",
+    "expires_at": null,
+    "fingerprint_sha256": "a2a00f407b6fe6be66d50f3308e7cdd8e08e4fb5f0d2f14842f3c75555d34a8b",
     "signature_algorithm": "ed25519",
-    "signature": "REPLACE_WITH_REAL_SIGNATURE"
+    "signature": "3fbb86c0f18a4ab9170d3e983baf4cf81692eb48aa3f24c79fd8512f77898f8b8fd351bb8cb284f2dc70f8d6b7c7ca68eb1d57a4ffc890a9594f9bb7dc64b00d"
   },
   "bundle_binding": {
     "manifest_file": "manifest.v1.json",
