@@ -21,8 +21,6 @@ This document records validation-critical invariants that must remain true as th
 - Runtime receipts remain reproducible for equivalent source bundles.
 - Testnet environment bundle identity (`chain_id`, `network_id`, `network_serial`) remains consistent across manifest, validators, bootnodes, and operator metadata files.
 - Published `genesis.v1.sha256` remains equal to the digest of the shipped `genesis.v1.json` payload.
-- Canonical environments (mainnet/testnet/devnet/validation/localnet/sovereign template) maintain unique `chain_id`, `network_id`, and `network_serial` values.
-- Every canonical environment manifest references a complete and present bundle (genesis, hash, validators, bootnodes, profile, release policy, certificate).
 
 ## Persistence and Recovery
 
