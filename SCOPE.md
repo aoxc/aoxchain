@@ -1,32 +1,55 @@
 # AOXChain Scope Statement
 
-## In scope
+## Purpose
 
-- Deterministic L1 engineering, including consensus, execution, networking, and state primitives.
-- Operator tooling and automation required to run, validate, and audit environments.
-- Environment profiles and deterministic fixtures used for reproducible deployment/testing.
-- Release-evidence and production-closure artifacts that substantiate operational readiness claims.
-- Documentation required for engineering governance, security coordination, and institutional audits.
+This statement defines the intended engineering, operational, and documentation scope of the AOXChain repository. Its purpose is to establish clear boundary conditions for development, review, audit preparation, and release-readiness claims.
 
-## Out of scope
+## In Scope
 
-- Any guarantee of production fitness, legal compliance, or financial suitability.
-- Custodial services, regulated financial workflows, or contractual SLA commitments.
-- Backward compatibility guarantees across all experimental interfaces while development is active.
+The following areas are within the active scope of this repository:
 
-## Sensitive change classes
+- deterministic Layer 1 engineering, including consensus, execution, networking, and state-transition primitives;
+- operator tooling, automation, and control workflows required to run, validate, inspect, and audit environments;
+- environment profiles, deterministic fixtures, and reproducible test or deployment inputs used to support controlled validation;
+- release evidence, readiness artifacts, and production-closure materials used to substantiate operational readiness claims;
+- repository documentation required for engineering governance, security coordination, validation traceability, and institutional review;
+- trusted interface surfaces, configuration boundaries, and execution assumptions directly maintained within the AOXChain workspace.
 
-The following changes require heightened review and explicit documentation updates:
-- Consensus safety/finality behavior.
-- Deterministic state transition or execution semantics.
-- Key lifecycle or signer trust boundaries.
-- Persisted data formats and migration logic.
-- Public RPC/API contract changes.
+## Out of Scope
 
-## Compatibility policy
+The following matters are expressly outside the guaranteed scope of this repository:
 
-Compatibility is managed by release-line governance and evidence-based readiness checks. Breaking changes are permitted when justified by safety or determinism objectives, but must be explicitly declared in release documentation.
+- any representation, warranty, or guarantee of production fitness, uninterrupted operation, merchantability, or fitness for a particular purpose;
+- legal, regulatory, tax, accounting, or jurisdiction-specific compliance assurances;
+- financial suitability, investment outcomes, custody guarantees, or protection from loss;
+- custodial services, regulated financial operations, or contractual service-level obligations unless separately and explicitly established outside this repository;
+- unconditional backward compatibility across experimental, provisional, or actively evolving interfaces during active development.
 
-## License and liability context
+## Sensitive Change Classes
 
-AOXChain is provided under MIT. Materials are provided "as is" without warranty; maintainers and contributors do not assume liability for operational, financial, or legal outcomes.
+The following change classes require heightened review, explicit rationale, and corresponding documentation updates:
+
+- consensus safety, liveness, quorum, finality, or fork-choice behavior;
+- deterministic execution, state-transition logic, or reproducibility semantics;
+- key lifecycle management, signer workflows, authorization rules, or trust boundaries;
+- persisted data formats, serialization rules, database assumptions, or migration logic;
+- public RPC, CLI, API, or integration contract changes;
+- release controls, validation workflows, or evidence-generation mechanisms that affect auditability or operational assurance.
+
+For these change classes, implementation review alone is insufficient. The change record must also reflect the intended behavioral impact, validation strategy, and any compatibility consequences.
+
+## Compatibility Policy
+
+Compatibility is governed at the release-line level through explicit engineering review and evidence-based readiness controls. Breaking changes are permitted where justified by safety, determinism, maintainability, or architectural integrity objectives, but such changes must be explicitly declared in release documentation and supported by appropriate migration or operator guidance where applicable.
+
+No implicit compatibility promise should be inferred for experimental interfaces, internal-only modules, or development-stage control surfaces unless such compatibility is expressly documented.
+
+## Governance and Evidence Expectations
+
+Scope claims, readiness claims, and operational assertions must be supported by reviewable evidence. Documentation should remain aligned with actual repository behavior, control flows, and release practices.
+
+Claims that cannot be substantiated by retained evidence, reproducible procedures, or current repository state should be treated as non-authoritative.
+
+## License and Liability Context
+
+AOXChain is provided under the MIT License. All repository materials are provided on an **"as is"** basis, without warranties, guarantees, or liability assumptions by maintainers or contributors, except where such limitations are prohibited by applicable law.
