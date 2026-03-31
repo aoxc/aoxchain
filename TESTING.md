@@ -23,6 +23,7 @@ Unless a stricter control is explicitly required by change scope, the following 
 - `make test`
 - `make quality`
 - `make testnet-gate` (required when changes affect `configs/environments/testnet` or testnet operator flow)
+- `make testnet-readiness-gate` (single-command gate for PR-ready testnet validation)
 
 A change must not be considered validation-complete if any mandatory baseline command fails, is skipped without justification, or produces results inconsistent with the declared change scope.
 
@@ -98,6 +99,7 @@ Any validation exception must be explicitly documented, risk-accepted by the app
 A branch should be treated as **testnet-ready** only when all of the following conditions are simultaneously true:
 
 - `make testnet-gate` passes without warnings or skipped checks;
+- `make testnet-readiness-gate` passes and records no skipped sub-check;
 - `cargo test -p tests` passes, including testnet external readiness suites;
 - required testnet bundle files under `configs/environments/testnet` remain identity-consistent and hash-consistent;
 - release-policy and profile controls continue to enforce fail-closed behavior for manifest/genesis/identity checks.
@@ -108,4 +110,3 @@ Recommended operator declaration format for release notes or PRs:
 
 - `Status: TESTNET_READY` only after all gate commands pass;
 - otherwise `Status: NOT_READY` with explicit failing gate and remediation owner.
-
