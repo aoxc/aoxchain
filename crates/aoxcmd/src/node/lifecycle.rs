@@ -27,11 +27,15 @@ pub fn state_path() -> Result<PathBuf, AppError> {
 ///
 /// Fallback policy:
 /// - The redb store remains the authoritative runtime source of truth.
-/// - Legacy JSON migration is attempted only when the canonical redb state
-///   cannot be loaded and a valid legacy JSON payload is available.
+/// - If the canonical redb file does not yet exist, a first-run bootstrap state
+///   is created, persisted, and returned.
+/// - If canonical redb loading fails while the canonical store already exists,
+///   a one-time legacy JSON migration is attempted.
 /// - Migrated state is validated and re-persisted into redb before it is returned.
 ///
 /// Security rationale:
+/// - Bootstrap is allowed only when canonical storage is physically absent.
+/// - Existing-but-invalid canonical state must never be silently overwritten.
 /// - Migration must not mask semantically invalid payloads.
 /// - Returned state must always satisfy `NodeState::validate()`.
 pub fn load_state() -> Result<NodeState, AppError> {
@@ -40,7 +44,7 @@ pub fn load_state() -> Result<NodeState, AppError> {
             validate_state(&state)?;
             Ok(state)
         }
-        Err(primary_error) => try_load_legacy_state(primary_error),
+        Err(primary_error) => recover_state(primary_error),
     }
 }
 
@@ -96,6 +100,35 @@ fn validate_state(state: &NodeState) -> Result<(), AppError> {
     state
         .validate()
         .map_err(|error| AppError::new(ErrorCode::NodeStateInvalid, error))
+}
+
+/// Recovers runtime state after canonical redb loading failed.
+///
+/// Recovery order:
+/// - If the canonical redb file is absent from disk, first-run bootstrap is allowed.
+/// - Otherwise a one-time legacy JSON migration is attempted.
+/// - If migration is unavailable, the original canonical node error is returned unchanged.
+///
+/// Security rationale:
+/// - Canonical node failures must remain observable when recovery is not possible.
+/// - Bootstrap must never replace an already-existing canonical store.
+fn recover_state(primary_error: AppError) -> Result<NodeState, AppError> {
+    if should_bootstrap_from_filesystem()? {
+        return bootstrap_state();
+    }
+
+    try_load_legacy_state(primary_error)
+}
+
+/// Returns whether the canonical runtime redb store is physically absent.
+///
+/// Decision rule:
+/// - Bootstrap is permitted only when the canonical redb file does not exist.
+/// - Filesystem resolution failures must surface explicitly and must not be
+///   reinterpreted as bootstrap-eligible conditions.
+fn should_bootstrap_from_filesystem() -> Result<bool, AppError> {
+    let path = state_path()?;
+    Ok(!path.exists())
 }
 
 /// Attempts a one-time legacy JSON runtime-state migration.
@@ -219,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    fn load_state_rejects_invalid_semantic_payload() {
+    fn persist_state_rejects_invalid_semantic_payload() {
         with_test_home("lifecycle-invalid-state", |_home| {
             let mut state = NodeState::bootstrap();
             state.produced_blocks = 5;
