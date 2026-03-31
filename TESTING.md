@@ -38,6 +38,52 @@ In addition to the baseline controls, the following change classes require targe
 
 For the above categories, general test execution alone is insufficient. The author must provide targeted regression coverage demonstrating that the modified behavior is both intentional and controlled.
 
+## External Ingress Adversarial Validation
+
+Changes that affect externally sourced transactions, peer admission, session establishment, or protocol-envelope verification must include adversarial regression coverage in `tests/src/external_surface_fuzz.rs`.
+
+The external ingress suite is expected to include:
+
+- deterministic randomized corpus checks for malformed transaction payloads and identity/signature fields;
+- protocol-envelope tamper checks for chain identity, protocol serial, hash integrity, framing version, and validity-window violations;
+- peer/session abuse-path checks covering duplicate admission, unknown-session use, banned-peer behavior, and malformed certificate windows.
+
+Recommended execution command:
+
+- `cargo test -p tests external_surface_fuzz -- --nocapture`
+
+A change that modifies ingress validation logic without corresponding adversarial coverage updates must be treated as validation-incomplete.
+
+## Testnet Readiness Validation
+
+A change that claims testnet deployment readiness must provide explicit regression evidence from `tests/src/testnet_readiness_external.rs`.
+
+The testnet-readiness suite must validate, at minimum:
+
+- cross-file identity consistency (`manifest`, `validators`, `bootnodes`, and `network metadata`);
+- validator and bootnode minimum topology assumptions for public testnet operation;
+- genesis payload hash integrity against the published `genesis.v1.sha256` file;
+- release-policy and profile gates that enforce manifest/genesis checks and forbid unsigned release promotion.
+
+Recommended execution command:
+
+- `cargo test -p tests testnet_readiness_external -- --nocapture`
+
+## Multi-Environment Release Matrix Validation
+
+Before mainnet/testnet promotion, multi-environment bundle controls must be validated with `tests/src/environment_readiness_matrix.rs`.
+
+The matrix suite must verify:
+
+- canonical environment manifests keep unique `chain_id`, `network_id`, and `network_serial` values;
+- each environment manifest references a complete bundle (genesis, hash, validators, bootnodes, profile, release policy, certificate);
+- every canonical environment bundle has a valid `genesis.v1.sha256` digest for its `genesis.v1.json`;
+- registry and binary-compatibility policy files preserve strict duplicate/override rejection and runtime mismatch enforcement guards.
+
+Recommended execution command:
+
+- `cargo test -p tests environment_readiness_matrix -- --nocapture`
+
 ## Measurable Validation Artifacts
 
 The following repository-governed artifacts are mandatory for visibility and auditability:
