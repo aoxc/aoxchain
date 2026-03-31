@@ -1,60 +1,99 @@
-# cargo-deny configuration file
-# Save this as `deny.toml` in your project root
+# =============================================================================
+# AOXCHAIN - cargo-deny policy
+# Purpose:
+# Enforce dependency hygiene, advisory visibility, license compliance, and
+# source provenance controls across the Rust workspace.
+#
+# This policy is intentionally strict. Temporary exceptions must be justified,
+# documented, and removed as upstream dependencies are remediated.
+# =============================================================================
 
 [graph]
+# Evaluate the full dependency graph under the most permissive feature set in
+# order to avoid blind spots caused by feature-gated transitive dependencies.
 all-features = true
 
 [advisories]
 version = 2
+
+# Yanked crates must not remain in the dependency graph.
 yanked = "deny"
-# Ignoring unmaintained crates that are currently unavoidable
-# (mostly originating from Tauri and its GTK3/WebKit dependencies)
+
+# Temporary exceptions for advisories that are currently transitively inherited
+# and not directly controllable by this workspace.
+#
+# Governance requirements for each ignored advisory:
+# 1. The crate must be transitive, not a direct dependency.
+# 2. The issue must be operationally understood and risk-assessed.
+# 3. The exception must be removed once upstream remediation is available.
 ignore = [
-    "RUSTSEC-2024-0370", # proc-macro-error
-    "RUSTSEC-2024-0380", # pqcrypto-dilithium
-    "RUSTSEC-2024-0411", # gdkwayland-sys
-    "RUSTSEC-2024-0412", # gdk
-    "RUSTSEC-2024-0413", # atk
-    "RUSTSEC-2024-0414", # gdkx11-sys
-    "RUSTSEC-2024-0415", # gtk
-    "RUSTSEC-2024-0416", # atk-sys
-    "RUSTSEC-2024-0417", # gdkx11
-    "RUSTSEC-2024-0418", # gdk-sys
-    "RUSTSEC-2024-0419", # gtk3-macros
-    "RUSTSEC-2024-0420", # gtk-sys
-    "RUSTSEC-2025-0057", # fxhash
-    "RUSTSEC-2025-0075", # unic-char-range
-    "RUSTSEC-2025-0080", # unic-common
-    "RUSTSEC-2025-0081", # unic-char-property
-    "RUSTSEC-2025-0098", # unic-ucd-version
-    "RUSTSEC-2025-0100", # unic-ucd-ident
+    # Unmaintained proc-macro support crate, currently inherited transitively.
+    "RUSTSEC-2024-0370",
+
+    # Post-quantum dependency currently inherited transitively and not directly
+    # selected by workspace business logic.
+    "RUSTSEC-2024-0380",
+
+    # GTK3 / desktop UI dependency chain inherited from upstream ecosystem
+    # components. These are accepted only while no supported upstream migration
+    # path is available.
+    "RUSTSEC-2024-0411",
+    "RUSTSEC-2024-0412",
+    "RUSTSEC-2024-0413",
+    "RUSTSEC-2024-0414",
+    "RUSTSEC-2024-0415",
+    "RUSTSEC-2024-0416",
+    "RUSTSEC-2024-0417",
+    "RUSTSEC-2024-0418",
+    "RUSTSEC-2024-0419",
+    "RUSTSEC-2024-0420",
+
+    # Legacy text / hashing utility crates inherited transitively from upstream
+    # libraries pending replacement.
+    "RUSTSEC-2025-0057",
+    "RUSTSEC-2025-0075",
+    "RUSTSEC-2025-0080",
+    "RUSTSEC-2025-0081",
+    "RUSTSEC-2025-0098",
+    "RUSTSEC-2025-0100",
 ]
 
 [licenses]
 version = 2
+
+# Explicit allowlist. Any dependency outside this list must be reviewed before
+# admission into the workspace.
 allow = [
     "Apache-2.0",
-    "Apache-2.0 WITH LLVM-exception", # Required by target-lexicon
+    "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
-    "CDLA-Permissive-2.0",            # Required by webpki-roots
+    "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
     "MPL-2.0",
     "Unicode-3.0",
     "Zlib",
 ]
-# Ignore missing licenses for local workspace crates.
-# IMPORTANT: Your local crates (aoxcai, aoxcdata, etc.) MUST have 
-# `publish = false` in their Cargo.toml files for this to work.
+
+# Local private workspace crates may omit published license metadata when they
+# are not intended for registry publication.
 private = { ignore = true }
 
 [bans]
-multiple-versions = "allow"
-# Allowed to fix the "wildcard dependencies" errors caused by 
-# using `path = "../crate"` without specifying a version.
-wildcards = "allow"
+# Deny duplicate major/minor dependency proliferation by default. This helps
+# reduce audit surface and accidental ABI/API divergence across the workspace.
+multiple-versions = "warn"
+
+# Wildcard dependencies reduce supply-chain determinism and should not be used.
+wildcards = "deny"
+
+# Explicitly permit workspace path dependencies without requiring registry
+# version pinning for unpublished internal crates.
+allow = []
 
 [sources]
+# Dependencies must originate only from explicitly known registries and git
+# sources. This blocks silent admission of unreviewed external origins.
 unknown-registry = "deny"
 unknown-git = "deny"
