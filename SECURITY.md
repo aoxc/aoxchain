@@ -10,7 +10,7 @@ Suspected vulnerabilities must not be disclosed through public issue trackers, p
 
 All security findings must be reported privately to:
 
-**security@aoxchain.io**
+**admin@aoxcore.com**
 
 ## Required Report Contents
 
