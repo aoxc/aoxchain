@@ -111,9 +111,11 @@ impl Runner {
                 Err(err) => {
                     let mut map = jobs.lock().await;
                     if let Some(rec) = map.get_mut(&task_job_id) {
-                        rec.status
-                            .output
-                            .push_str(&format!("Failed to launch process: {err}\n"));
+                        append_output(
+                            &mut rec.status.output,
+                            &format!("Failed to launch process: {err}\n"),
+                            output_limit,
+                        );
                         rec.status.finished_at = Some(Utc::now());
                         rec.status.exit_code = Some(-1);
                     }
@@ -154,9 +156,11 @@ impl Runner {
                         let _ = txc.send(format!("[stderr] {line}"));
                         let mut guard = jobs_c.lock().await;
                         if let Some(rec) = guard.get_mut(&id) {
-                            rec.status.output.push_str("[stderr] ");
-                            rec.status.output.push_str(&line);
-                            rec.status.output.push('\n');
+                            let _ = append_output(
+                                &mut rec.status.output,
+                                &format!("[stderr] {line}\n"),
+                                output_limit,
+                            );
                         }
                     }
                 });
@@ -185,6 +189,7 @@ impl Runner {
                     now.elapsed().as_millis()
                 ));
             }
+            prune_jobs_with_limit(&mut guard, max_job_records);
             let _ = tx.send(String::from("[process finished]"));
         });
 
@@ -222,6 +227,32 @@ impl Runner {
             } else {
                 break;
             }
+        }
+    }
+}
+
+fn prune_jobs_with_limit(jobs: &mut HashMap<String, JobRecord>, max_job_records: usize) {
+    while jobs.len() > max_job_records {
+        let candidate = jobs
+            .iter()
+            .filter_map(|(id, record)| {
+                record
+                    .status
+                    .finished_at
+                    .map(|finished_at| (id.clone(), finished_at))
+            })
+            .min_by_key(|(_, finished_at)| *finished_at)
+            .map(|(id, _)| id)
+            .or_else(|| {
+                jobs.iter()
+                    .min_by_key(|(_, record)| record.status.started_at)
+                    .map(|(id, _)| id.clone())
+            });
+
+        if let Some(job_id) = candidate {
+            jobs.remove(&job_id);
+        } else {
+            break;
         }
     }
 }
