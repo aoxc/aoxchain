@@ -259,6 +259,8 @@ endef
 	runtime-bundle-compat-check \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
+	demo localnet devnet testnet reset doctor audit-chain logs down restart \
+	network-create network-start network-stop network-status genesis-build chain-status \
 	chain-help chain-init chain-add-account chain-add-validator chain-start-persistent \
 	ui alpha
 
@@ -285,6 +287,15 @@ help:
 	@printf "  make clippy\n"
 	@printf "  make audit\n"
 	@printf "  make quality\n\n"
+
+	@printf "Quick operator workflows\n"
+	@printf "  make demo\n"
+	@printf "  make localnet\n"
+	@printf "  make devnet\n"
+	@printf "  make testnet\n"
+	@printf "  make doctor\n"
+	@printf "  make audit-chain\n"
+	@printf "  make reset\n\n"
 
 	@printf "Packaging\n"
 	@printf "  make package-bin\n"
@@ -910,6 +921,83 @@ chain-add-validator: package-bin bootstrap-paths
 chain-start-persistent: chain-init
 	$(call print_banner,Starting persistent AOXC runtime)
 	@$(MAKE) --no-print-directory ops-start
+
+# --------------------------------------------------------------------
+# High-level operator shortcuts
+# --------------------------------------------------------------------
+demo:
+	$(call print_banner,Running AOXC demo flow)
+	@./scripts/chain_demo.sh
+
+localnet:
+	$(call print_banner,Preparing localnet operator flow)
+	@$(MAKE) --no-print-directory network-create AOXC_BOOTSTRAP_PROFILE=localnet
+	@$(MAKE) --no-print-directory network-start
+	@$(MAKE) --no-print-directory network-status
+
+devnet:
+	$(call print_banner,Preparing devnet operator flow)
+	@$(MAKE) --no-print-directory network-create AOXC_BOOTSTRAP_PROFILE=devnet
+	@$(MAKE) --no-print-directory network-start
+	@$(MAKE) --no-print-directory network-status
+
+testnet:
+	$(call print_banner,Preparing testnet operator flow)
+	@$(MAKE) --no-print-directory network-create AOXC_BOOTSTRAP_PROFILE=testnet
+	@$(MAKE) --no-print-directory network-start
+	@$(MAKE) --no-print-directory doctor
+	@$(MAKE) --no-print-directory audit-chain
+
+reset:
+	$(call print_banner,Resetting AOXC operator runtime)
+	@$(MAKE) --no-print-directory runtime-reset
+
+doctor:
+	$(call print_banner,Running AOXC doctor surface)
+	@$(MAKE) --no-print-directory ops-doctor
+
+audit-chain:
+	$(call print_banner,Running AOXC chain audit checks)
+	@$(MAKE) --no-print-directory runtime-doctor
+	@$(MAKE) --no-print-directory db-health
+
+logs:
+	$(call print_banner,Streaming AOXC logs)
+	@$(MAKE) --no-print-directory ops-logs
+
+down:
+	$(call print_banner,Stopping AOXC runtime)
+	@$(MAKE) --no-print-directory ops-stop
+
+restart:
+	$(call print_banner,Restarting AOXC runtime)
+	@$(MAKE) --no-print-directory ops-restart
+
+network-create:
+	$(call print_banner,Creating AOXC network materials)
+	@./scripts/chain_create.sh
+
+network-start:
+	$(call print_banner,Starting AOXC network)
+	@./scripts/network_start.sh
+
+network-stop:
+	$(call print_banner,Stopping AOXC network)
+	@./scripts/network_stop.sh
+
+network-status:
+	$(call print_banner,Reporting AOXC network status)
+	@$(MAKE) --no-print-directory ops-status
+	@$(MAKE) --no-print-directory chain-status
+
+genesis-build:
+	$(call print_banner,Validating AOXC genesis artifacts)
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" genesis-validate
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" genesis-hash
+
+chain-status:
+	$(call print_banner,Reporting AOXC chain status)
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" runtime-status
 
 # --------------------------------------------------------------------
 # UI surfaces
