@@ -401,6 +401,16 @@ mod tests {
     }
 
     #[test]
+    fn ensure_task_supported_rejects_unsupported_task() {
+        let mut manifest = base_manifest();
+        manifest.spec.compatibility.supported_tasks = vec![AiTask::PeerScreening];
+
+        let err = ensure_task_supported(&manifest, AiTask::ValidatorAdmission, AiMode::Enforced)
+            .expect_err("unsupported task must fail");
+        assert!(matches!(err, AiError::ManifestValidation(message) if message.contains("task")));
+    }
+
+    #[test]
     fn truncate_signals_keeps_highest_weight_entries() {
         let mut manifest = base_manifest();
         manifest.spec.input.max_signal_count = 2;
@@ -414,6 +424,50 @@ mod tests {
         assert_eq!(signals.len(), 2);
         assert_eq!(signals[0].name, "b");
         assert_eq!(signals[1].name, "c");
+    }
+
+    #[test]
+    fn truncate_signals_preserves_order_for_equal_weights() {
+        let mut manifest = base_manifest();
+        manifest.spec.input.max_signal_count = 2;
+        let mut signals = vec![
+            InferenceSignal::new("first", "v", 1_000, "test"),
+            InferenceSignal::new("second", "v", 1_000, "test"),
+            InferenceSignal::new("third", "v", 900, "test"),
+        ];
+
+        truncate_signals(&manifest, &mut signals);
+        assert_eq!(signals.len(), 2);
+        assert_eq!(signals[0].name, "first");
+        assert_eq!(signals[1].name, "second");
+    }
+
+    #[test]
+    fn truncate_signals_with_zero_limit_drops_all_signals() {
+        let mut manifest = base_manifest();
+        manifest.spec.input.max_signal_count = 0;
+        let mut signals = vec![
+            InferenceSignal::new("a", "v", 100, "test"),
+            InferenceSignal::new("b", "v", 200, "test"),
+        ];
+
+        truncate_signals(&manifest, &mut signals);
+        assert!(signals.is_empty());
+    }
+
+    #[test]
+    fn truncate_signals_does_not_truncate_when_under_limit() {
+        let mut manifest = base_manifest();
+        manifest.spec.input.max_signal_count = 5;
+        let mut signals = vec![
+            InferenceSignal::new("a", "v", 100, "test"),
+            InferenceSignal::new("b", "v", 200, "test"),
+        ];
+
+        truncate_signals(&manifest, &mut signals);
+        assert_eq!(signals.len(), 2);
+        assert_eq!(signals[0].name, "b");
+        assert_eq!(signals[1].name, "a");
     }
 
     #[test]
@@ -432,6 +486,45 @@ mod tests {
     }
 
     #[test]
+    fn deterministic_findings_cover_all_target_patterns_and_no_match_case() {
+        let revoked = deterministic_findings(&[InferenceSignal::new(
+            "identity",
+            "revoked_credential",
+            100,
+            "test",
+        )]);
+        assert_eq!(revoked.len(), 1);
+        assert_eq!(revoked[0].code, "revoked_identity");
+
+        let invalid_quorum = deterministic_findings(&[InferenceSignal::new(
+            "quorum",
+            "invalid_quorum_signature",
+            100,
+            "test",
+        )]);
+        assert_eq!(invalid_quorum.len(), 1);
+        assert_eq!(invalid_quorum[0].code, "invalid_quorum_proof");
+
+        let timeout =
+            deterministic_findings(&[InferenceSignal::new("runtime", "timeout", 100, "test")]);
+        assert_eq!(timeout.len(), 1);
+        assert_eq!(timeout[0].code, "runtime_anomaly");
+
+        let anomaly = deterministic_findings(&[InferenceSignal::new(
+            "runtime",
+            "anomaly_detected",
+            100,
+            "test",
+        )]);
+        assert_eq!(anomaly.len(), 1);
+        assert_eq!(anomaly[0].code, "runtime_anomaly");
+
+        let no_match =
+            deterministic_findings(&[InferenceSignal::new("health", "healthy", 100, "test")]);
+        assert!(no_match.is_empty());
+    }
+
+    #[test]
     fn build_narrative_respects_manifest_toggle() {
         let mut manifest = base_manifest();
         manifest.spec.input.include_narrative = false;
@@ -445,6 +538,39 @@ mod tests {
             &[],
         );
         assert!(narrative.is_none());
+    }
+
+    #[test]
+    fn build_narrative_contains_expected_content_when_enabled() {
+        let manifest = base_manifest();
+        let signals = vec![InferenceSignal::new(
+            "identity",
+            "revoked_identity",
+            6_000,
+            "test",
+        )];
+        let findings = vec![InferenceFinding::new(
+            "revoked_identity",
+            "detected revoked identity",
+            FindingSeverity::Critical,
+        )];
+
+        let narrative = build_narrative(
+            &manifest,
+            AiTask::ValidatorAdmission,
+            AiMode::Enforced,
+            "validator",
+            "validator-narrative",
+            &signals,
+            &findings,
+        )
+        .expect("narrative must be generated");
+
+        assert!(narrative.contains("Task: ValidatorAdmission"));
+        assert!(narrative.contains("Mode: Enforced"));
+        assert!(narrative.contains("SubjectId: validator-narrative"));
+        assert!(narrative.contains("identity=revoked_identity (weight_bps=6000)"));
+        assert!(narrative.contains("revoked_identity [Critical]"));
     }
 
     #[test]
