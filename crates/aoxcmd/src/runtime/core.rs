@@ -88,8 +88,7 @@ mod tests {
                 runtime_context().expect("runtime context should resolve without persisted config");
 
             assert_eq!(
-                context.settings.profile,
-                "validation",
+                context.settings.profile, "validation",
                 "missing configuration must fall back to the deterministic validation profile"
             );
             assert_eq!(
@@ -114,8 +113,7 @@ mod tests {
                 runtime_context().expect("runtime context should load persisted settings");
 
             assert_eq!(
-                context.settings.profile,
-                "mainnet",
+                context.settings.profile, "mainnet",
                 "persisted configuration must take precedence over in-memory defaults"
             );
             assert_eq!(
@@ -128,8 +126,7 @@ mod tests {
                 "persisted structured logging preference must be preserved"
             );
             assert_eq!(
-                context.settings.network.bind_host,
-                "0.0.0.0",
+                context.settings.network.bind_host, "0.0.0.0",
                 "persisted network settings must be surfaced unchanged"
             );
         });
@@ -151,18 +148,15 @@ mod tests {
                 "bootstrap node state must be marked as initialized"
             );
             assert_eq!(
-                node_state.current_height,
-                0,
+                node_state.current_height, 0,
                 "bootstrap node state must start at canonical height zero"
             );
             assert_eq!(
-                node_state.produced_blocks,
-                0,
+                node_state.produced_blocks, 0,
                 "bootstrap node state must start with zero produced blocks"
             );
             assert_eq!(
-                node_state.consensus.last_message_kind,
-                "bootstrap",
+                node_state.consensus.last_message_kind, "bootstrap",
                 "bootstrap node state must expose the canonical bootstrap consensus marker"
             );
         });
@@ -188,28 +182,23 @@ mod tests {
                 .expect("persisted runtime state must be attached to the context");
 
             assert_eq!(
-                loaded.current_height,
-                17,
+                loaded.current_height, 17,
                 "runtime context must expose the canonical persisted node height"
             );
             assert_eq!(
-                loaded.produced_blocks,
-                17,
+                loaded.produced_blocks, 17,
                 "runtime context must expose the canonical persisted produced block count"
             );
             assert_eq!(
-                loaded.last_tx,
-                "runtime-context-smoke",
+                loaded.last_tx, "runtime-context-smoke",
                 "runtime context must expose the canonical persisted last transaction marker"
             );
             assert_eq!(
-                loaded.consensus.last_round,
-                17,
+                loaded.consensus.last_round, 17,
                 "runtime context must expose the canonical persisted consensus round"
             );
             assert_eq!(
-                loaded.consensus.last_message_kind,
-                "commit",
+                loaded.consensus.last_message_kind, "commit",
                 "runtime context must expose the canonical persisted consensus message kind"
             );
         });
@@ -223,12 +212,11 @@ mod tests {
             settings.logging.json = true;
             persist(&settings).expect("settings fixture should persist");
 
-            let context =
-                runtime_context().expect("runtime context should resolve with mixed persisted state");
+            let context = runtime_context()
+                .expect("runtime context should resolve with mixed persisted state");
 
             assert_eq!(
-                context.settings.profile,
-                "testnet",
+                context.settings.profile, "testnet",
                 "settings resolution must still honor persisted configuration"
             );
 
