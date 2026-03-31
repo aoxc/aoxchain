@@ -256,7 +256,7 @@ endef
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
-	runtime-bundle-compat-check \
+	runtime-bundle-compat-check docker-check production-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
 	demo localnet devnet testnet testnet-gate reset doctor audit-chain logs down restart \
@@ -288,6 +288,7 @@ help:
 	@printf "  make clippy\n"
 	@printf "  make audit\n"
 	@printf "  make quality\n\n"
+	@printf "  make production-full\n\n"
 
 	@printf "Quick operator workflows\n"
 	@printf "  make demo\n"
@@ -688,6 +689,19 @@ runtime-bundle-compat-check:
 	$(call print_banner,Validating full environment bundle compatibility)
 	@python3 scripts/validate_environment_bundle.py
 
+docker-check:
+	$(call print_banner,Validating Docker runtime prerequisites)
+	$(call require_command,docker)
+	@docker info >/dev/null 2>&1 || { echo "Docker daemon is not reachable. Start Docker and retry."; exit 1; }
+	@if docker compose version >/dev/null 2>&1; then \
+		echo "Docker Compose v2 is available."; \
+	elif command -v docker-compose >/dev/null 2>&1; then \
+		echo "docker-compose is available."; \
+	else \
+		echo "Missing Docker Compose support (docker compose / docker-compose)."; \
+		exit 1; \
+	fi
+
 runtime-install: runtime-source-check bootstrap-paths
 	$(call print_banner,Installing canonical runtime bundle into AOXC runtime root)
 	@$(CP) "$(AOXC_RUNTIME_SOURCE_ROOT)/$(SRC_MANIFEST_FILE)" "$(AOXC_RUNTIME_IDENTITY_DIR)/$(RUNTIME_MANIFEST_FILE)"
@@ -845,6 +859,17 @@ aoxc-full-4nodes-docker:
 	AOXC_FULL_ROUNDS="$(AOXC_FULL_ROUNDS)" \
 	AOXC_FULL_WITH_DOCKER_ASSETS=1 \
 	./scripts/aoxc_full_4nodes.sh --force --with-docker-assets
+
+production-full:
+	$(call print_banner,Executing production-grade validation flow (runtime + release + docker layout))
+	@$(MAKE) --no-print-directory runtime-source-check
+	@$(MAKE) --no-print-directory runtime-bundle-compat-check
+	@$(MAKE) --no-print-directory runtime-activate
+	@$(MAKE) --no-print-directory quality-release
+	@$(MAKE) --no-print-directory docker-check
+	@$(MAKE) --no-print-directory aoxc-full-4nodes-docker
+	@$(MAKE) --no-print-directory db-health
+	@echo "Production-grade validation flow completed."
 
 # --------------------------------------------------------------------
 # Operations
