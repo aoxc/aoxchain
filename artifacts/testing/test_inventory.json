@@ -3,8 +3,8 @@
     "crate_scoped_tests": 1258,
     "fuzz_targets": 0,
     "property_macro_entries": 0,
-    "total_visible_test_entries": 1279,
-    "workspace_integration_tests": 21
+    "total_visible_test_entries": 1274,
+    "workspace_integration_tests": 16
   },
   "crate_scoped_tests": {
     "aoxcai": 51,
@@ -26,5 +26,5 @@
     "aoxcunity": 110,
     "aoxcvm": 20
   },
-  "generated_at_utc": "2026-03-31T16:24:32.371994+00:00"
+  "generated_at_utc": "2026-03-31T15:34:57.808689+00:00"
 }

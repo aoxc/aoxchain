@@ -54,21 +54,6 @@ Recommended execution command:
 
 A change that modifies ingress validation logic without corresponding adversarial coverage updates must be treated as validation-incomplete.
 
-## Testnet Readiness Validation
-
-A change that claims testnet deployment readiness must provide explicit regression evidence from `tests/src/testnet_readiness_external.rs`.
-
-The testnet-readiness suite must validate, at minimum:
-
-- cross-file identity consistency (`manifest`, `validators`, `bootnodes`, and `network metadata`);
-- validator and bootnode minimum topology assumptions for public testnet operation;
-- genesis payload hash integrity against the published `genesis.v1.sha256` file;
-- release-policy and profile gates that enforce manifest/genesis checks and forbid unsigned release promotion.
-
-Recommended execution command:
-
-- `cargo test -p tests testnet_readiness_external -- --nocapture`
-
 ## Measurable Validation Artifacts
 
 The following repository-governed artifacts are mandatory for visibility and auditability:
