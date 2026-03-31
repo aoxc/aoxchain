@@ -323,11 +323,21 @@ mod tests {
         let backend = HeuristicBackendRuntime::new();
 
         let trusted = request_with(
-            vec![InferenceSignal::new("status", "revoked_identity", 1_499, "unit_test")],
+            vec![InferenceSignal::new(
+                "status",
+                "revoked_identity",
+                1_499,
+                "unit_test",
+            )],
             vec![],
         );
         let review = request_with(
-            vec![InferenceSignal::new("status", "revoked_identity", 1_500, "unit_test")],
+            vec![InferenceSignal::new(
+                "status",
+                "revoked_identity",
+                1_500,
+                "unit_test",
+            )],
             vec![],
         );
         let suspicious = request_with(
