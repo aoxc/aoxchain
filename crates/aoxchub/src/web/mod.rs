@@ -1,7 +1,6 @@
 use crate::{embed, environments::Environment, security, services::HubService};
 use axum::{
-    BoxError, Json, Router,
-    error_handling::HandleErrorLayer,
+    Json, Router,
     extract::DefaultBodyLimit,
     extract::{Path, State},
     http::StatusCode,
@@ -38,8 +37,6 @@ struct CustomBinaryRequest {
 
 pub async fn serve(service: HubService) -> Result<(), std::io::Error> {
     let max_request_bytes = env_or_default("AOXCHUB_MAX_REQUEST_BYTES", 64 * 1024);
-    let max_inflight_requests = env_or_default("AOXCHUB_MAX_INFLIGHT_REQUESTS", 64);
-    let request_timeout_secs = env_or_default("AOXCHUB_REQUEST_TIMEOUT_SECS", 30) as u64;
     let app = Router::new()
         .route("/", get(index))
         .route("/assets/{*path}", get(asset))
@@ -50,12 +47,6 @@ pub async fn serve(service: HubService) -> Result<(), std::io::Error> {
         .route("/api/execute", post(execute))
         .route("/api/jobs/{id}", get(job))
         .route("/api/jobs/{id}/stream", get(stream))
-        .layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(handle_service_error))
-                .layer(TimeoutLayer::new(Duration::from_secs(request_timeout_secs)))
-                .layer(ConcurrencyLimitLayer::new(max_inflight_requests)),
-        )
         .layer(DefaultBodyLimit::max(max_request_bytes))
         .layer(middleware::from_fn(security::localhost_only))
         .with_state(service);
@@ -203,17 +194,4 @@ fn env_or_default(name: &str, default: usize) -> usize {
         .and_then(|v| v.parse::<usize>().ok())
         .filter(|v| *v > 0)
         .unwrap_or(default)
-}
-
-async fn handle_service_error(error: BoxError) -> (StatusCode, String) {
-    if error.is::<tower::timeout::error::Elapsed>() {
-        return (
-            StatusCode::REQUEST_TIMEOUT,
-            String::from("request timeout exceeded"),
-        );
-    }
-    (
-        StatusCode::SERVICE_UNAVAILABLE,
-        String::from("service is at capacity"),
-    )
 }

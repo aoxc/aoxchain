@@ -1,9 +1,0 @@
-{
-  "status": "baseline",
-  "alerts_required": [
-    "validator stalled",
-    "peer count below quorum",
-    "rpc readiness score degraded",
-    "snapshot recovery failed"
-  ]
-}

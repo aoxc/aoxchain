@@ -34,8 +34,5 @@ AOXCHub runner behavior can be tuned without code changes through environment va
 - `AOXCHUB_MAX_JOB_RECORDS` (default: `512`): in-memory job record retention ceiling.
 - `AOXCHUB_COMMAND_TIMEOUT_SECS` (default: `300`): hard timeout for an individual command execution.
 - `AOXCHUB_MAX_OUTPUT_BYTES` (default: `524288`): aggregate captured stdout/stderr bytes retained per job.
-- `AOXCHUB_MAX_REQUEST_BYTES` (default: `65536`): per-request body size ceiling enforced by the web layer.
-- `AOXCHUB_MAX_INFLIGHT_REQUESTS` (default: `64`): maximum simultaneous HTTP requests accepted by AOXCHub.
-- `AOXCHUB_REQUEST_TIMEOUT_SECS` (default: `30`): hard timeout for each HTTP request before timeout response.
 
 These controls are designed to enforce deterministic backpressure and bounded memory growth under elevated operator load.
