@@ -14,7 +14,7 @@
 #   - Resolve the AOXC binary from approved local locations
 #   - Materialize one runtime root and one log root
 #   - Support `start`, `once`, `status`, `stop`, `restart`, `tail`,
-#     `run-foreground`, and `install-service`
+#     and `install-service`
 #   - Persist PID-based lifecycle state for managed background execution
 #   - Emit deterministic status and health receipts
 #   - Fail closed on invalid prerequisites or runtime drift
@@ -80,7 +80,7 @@ die() {
 print_usage() {
   cat <<'USAGE'
 Usage:
-  ./scripts/runtime_daemon.sh <start|once|status|stop|restart|tail|run-foreground|install-service>
+  ./scripts/runtime_daemon.sh <start|once|status|stop|restart|tail|install-service>
 
 Environment:
   AOXC_SYSTEMD_SCOPE=user|system (default: user)
@@ -471,8 +471,8 @@ Environment=AOXC_RUNTIME_ROOT=${AOXC_RUNTIME_ROOT}
 Environment=AOXC_LOG_DIR=${AOXC_LOG_DIR}
 Environment=AOXC_NETWORK_KIND=${AOXC_NETWORK_KIND}
 Environment=AOXC_RUNTIME_SOURCE_ROOT=${AOXC_RUNTIME_SOURCE_ROOT}
+ExecStart=${runtime_script} start
 ExecStop=${runtime_script} stop
-ExecStart=${runtime_script} run-foreground
 Restart=always
 RestartSec=5
 TimeoutStopSec=30
@@ -545,12 +545,6 @@ main() {
       ;;
     install-service)
       install_service
-      ;;
-    run-foreground)
-      if ! bin_path="$(resolve_bin_path)"; then
-        die "AOXC binary not found. Run: make package-bin" 4
-      fi
-      run_foreground "${bin_path}"
       ;;
     --help|-h|help)
       print_usage
