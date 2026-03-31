@@ -237,15 +237,15 @@ mod tests {
     }
 
     #[test]
-    fn refresh_runtime_metrics_fails_when_node_state_is_missing() {
+    fn refresh_runtime_metrics_reports_ledger_error_when_node_state_bootstraps() {
         with_test_home("refresh-runtime-metrics-missing-node", |_home| {
             let error = refresh_runtime_metrics()
                 .expect_err("missing canonical node state must fail telemetry refresh");
 
             assert_eq!(
                 error.code(),
-                "AOXC-NOD-001",
-                "missing canonical node state must surface the node-layer failure code unchanged"
+                "AOXC-LED-001",
+                "when node state is absent, refresh bootstraps runtime state and must surface the unchanged ledger-layer failure code"
             );
         });
     }
