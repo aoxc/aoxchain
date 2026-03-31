@@ -49,8 +49,8 @@ pub use seal::AuthenticatedQuorumCertificate;
 pub use seal::{BlockSeal, QuorumCertificate};
 pub use state::ConsensusState;
 pub use store::{
-    ConsensusEvidence, ConsensusJournal, FinalityStore, KernelSnapshot, PersistedConsensusEvent,
-    RecoveryState, SnapshotStore, recover_state,
+    ConsensusEvidence, ConsensusJournal, FileConsensusStore, FinalityStore, KernelSnapshot,
+    PersistedConsensusEvent, RecoveryState, SnapshotStore, hash_consensus_event, recover_state,
 };
 pub use validator::{SlashFault, Validator, ValidatorId, ValidatorLifecycle, ValidatorRole};
 pub use version::{

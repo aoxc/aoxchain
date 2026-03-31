@@ -17,7 +17,10 @@ use crate::safety::{
 };
 use crate::seal::AuthenticatedQuorumCertificate;
 use crate::state::ConsensusState;
-use crate::store::ConsensusEvidence;
+use crate::store::{
+    ConsensusEvidence, ConsensusJournal, EvidenceStore, FinalityStore, KernelSnapshot,
+    PersistedConsensusEvent, RecoveryState, SnapshotStore, hash_consensus_event,
+};
 use crate::validator::{SlashFault, ValidatorId};
 use crate::vote::{VerifiedAuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind};
 
@@ -270,6 +273,84 @@ impl ConsensusEngine {
                 self.apply_recover_persisted_event(event_hash)
             }
         }
+    }
+
+    pub fn apply_event_with_persistence<J, S, E, F>(
+        &mut self,
+        event: ConsensusEvent,
+        sequence: u64,
+        journal: &mut J,
+        snapshots: &mut S,
+        evidence: &mut E,
+        finality: &mut F,
+    ) -> Result<TransitionResult, String>
+    where
+        J: ConsensusJournal,
+        S: SnapshotStore,
+        E: EvidenceStore,
+        F: FinalityStore,
+    {
+        let event_hash = hash_consensus_event(&event)?;
+        journal.append(PersistedConsensusEvent {
+            sequence,
+            event_hash,
+            event: event.clone(),
+        })?;
+
+        let evidence_start = self.evidence_buffer.len();
+        let result = self.apply_event(event);
+
+        for item in self.evidence_buffer.iter().skip(evidence_start) {
+            evidence.append_evidence(item.clone())?;
+        }
+
+        for cert in &result.emitted_certificates {
+            if let KernelCertificate::Constitutional(seal) = cert {
+                finality.store_finalized_seal(seal.clone())?;
+            }
+        }
+
+        snapshots.store_snapshot(KernelSnapshot {
+            snapshot_height: self.current_height,
+            snapshot_round: self.state.round.round,
+            lock_state: self.lock_state.clone(),
+            finalized_seal: finality.load_finalized_seal()?,
+        })?;
+
+        Ok(result)
+    }
+
+    pub fn recover_from_state(&mut self, recovery: &RecoveryState) -> Result<(), String> {
+        if let Some(snapshot) = &recovery.snapshot {
+            self.current_height = self.current_height.max(snapshot.snapshot_height);
+            self.state.round.advance_to(snapshot.snapshot_round);
+            self.lock_state = snapshot.lock_state.clone();
+        }
+
+        self.evidence_buffer.extend(recovery.evidence.clone());
+
+        let mut journal = recovery.journal.clone();
+        journal.sort_by_key(|entry| entry.sequence);
+        for entry in journal {
+            let expected_hash = hash_consensus_event(&entry.event)?;
+            if expected_hash != entry.event_hash {
+                return Err("persisted event hash mismatch".to_string());
+            }
+
+            let marker = self.apply_event(ConsensusEvent::RecoverPersistedEvent {
+                event_hash: entry.event_hash,
+            });
+            if marker.rejected_reason.is_some() {
+                return Err("recovery marker rejected".to_string());
+            }
+
+            let result = self.apply_event(entry.event);
+            if result.rejected_reason.is_some() {
+                return Err("persisted event replay rejected".to_string());
+            }
+        }
+
+        Ok(())
     }
 
     fn apply_admit_block(&mut self, block: Block) -> TransitionResult {
