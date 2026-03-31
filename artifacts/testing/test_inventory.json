@@ -1,0 +1,30 @@
+{
+  "counts": {
+    "crate_scoped_tests": 1247,
+    "fuzz_targets": 0,
+    "property_macro_entries": 0,
+    "total_visible_test_entries": 1271,
+    "workspace_integration_tests": 24
+  },
+  "crate_scoped_tests": {
+    "aoxcai": 51,
+    "aoxcdata": 20,
+    "aoxcenergy": 12,
+    "aoxcexec": 12,
+    "aoxchal": 19,
+    "aoxchub": 15,
+    "aoxckit": 123,
+    "aoxclibs": 27,
+    "aoxcmd": 271,
+    "aoxcmob": 11,
+    "aoxcnet": 41,
+    "aoxconfig": 10,
+    "aoxcontract": 21,
+    "aoxcore": 441,
+    "aoxcrpc": 34,
+    "aoxcsdk": 9,
+    "aoxcunity": 110,
+    "aoxcvm": 20
+  },
+  "generated_at_utc": "2026-03-31T06:18:49.193417+00:00"
+}

@@ -9,3 +9,6 @@ mod unity_consensus_integration;
 
 #[cfg(test)]
 mod production_readiness;
+
+#[cfg(test)]
+mod full_chain_regression_matrix;

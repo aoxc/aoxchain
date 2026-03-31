@@ -1,0 +1,39 @@
+# Critical Invariants
+
+This document records validation-critical invariants that must remain true as the codebase evolves.
+
+## Consensus and Finality
+
+- Quorum threshold calculations remain deterministic and monotonic for a fixed validator set.
+- Finalized branches reject stale or conflicting votes.
+- Validator set transitions cannot silently lower safety thresholds.
+
+## Deterministic Execution and State
+
+- Identical transaction inputs and ordering produce identical post-state outputs.
+- Signature-agnostic intent hashing remains stable across signature rotation.
+- Failed execution paths do not leak partial state mutations.
+
+## Genesis and Runtime Material Integrity
+
+- Canonical genesis and runtime material produce stable fingerprints from identical inputs.
+- Runtime install/verify/activate flows fail closed when required artifacts are missing or malformed.
+- Runtime receipts remain reproducible for equivalent source bundles.
+
+## Persistence and Recovery
+
+- Persistence serialization/deserialization round-trips preserve domain meaning.
+- Schema migrations preserve backward compatibility guarantees declared by policy.
+- Corruption and truncation paths fail closed with actionable diagnostics.
+
+## API and Operator Surfaces
+
+- CLI stderr/error contracts remain deterministic and sanitized.
+- Public API contract changes are versioned and regression-tested.
+- Unauthorized, malformed, and oversized inputs are rejected without unsafe side effects.
+
+## Key and Trust Boundaries
+
+- Signature verification rejects invalid or replayed signed objects.
+- Key derivation and role/path semantics remain canonical.
+- Certificate and identity validation must fail closed on malformed structures.

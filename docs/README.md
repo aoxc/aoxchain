@@ -7,6 +7,7 @@ This directory contains the mdBook source and supporting documentation for insti
 - `book.toml`: mdBook configuration.
 - `src/`: chapters included in the published documentation.
 - `AOXCHUB_FULL_SPEC.md`: full AOXCHub product specification (modules, flows, security constraints).
+- `testing/`: measurable test inventory, coverage policy, and critical invariant map for audit-ready validation.
 
 ## Usage
 
