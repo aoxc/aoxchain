@@ -2,11 +2,18 @@ name: CI
 
 on:
   pull_request:
+    branches:
+      - main
+      - master
+      - work
+      - develop
   push:
     branches:
       - main
       - master
       - work
+      - develop
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,46 +22,98 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: 10
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+  RUST_BACKTRACE: 1
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   quick-gate:
     name: Quick quality gate (core workspace)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+
+      - name: Verify quick gate script
+        run: |
+          set -euo pipefail
+          test -f ./scripts/quality_gate.sh
+          chmod +x ./scripts/quality_gate.sh
+
       - name: Run quick quality gate
         run: |
-          chmod +x ./scripts/quality_gate.sh
+          set -euo pipefail
           ./scripts/quality_gate.sh quick
 
   full-gate:
     name: Full quality gate (core workspace)
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
-    needs: quick-gate
+    needs:
+      - quick-gate
     timeout-minutes: 90
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+
+      - name: Verify full gate script
+        run: |
+          set -euo pipefail
+          test -f ./scripts/quality_gate.sh
+          chmod +x ./scripts/quality_gate.sh
+
       - name: Run full quality gate
         run: |
-          chmod +x ./scripts/quality_gate.sh
+          set -euo pipefail
           ./scripts/quality_gate.sh full
 
   desktop-gate:
     name: Desktop Tauri gate
     runs-on: ubuntu-latest
-    needs: quick-gate
+    needs:
+      - quick-gate
     timeout-minutes: 45
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+
       - name: Install Linux desktop build dependencies
         run: |
+          set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y \
             libglib2.0-dev \
@@ -63,25 +122,72 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             pkg-config
+
+      - name: Verify desktop gate script
+        run: |
+          set -euo pipefail
+          test -f ./scripts/quality_gate.sh
+          chmod +x ./scripts/quality_gate.sh
+
       - name: Run desktop gate
         run: |
-          chmod +x ./scripts/quality_gate.sh
+          set -euo pipefail
           ./scripts/quality_gate.sh desktop
 
   readiness-report:
     name: Readiness report
     runs-on: ubuntu-latest
-    needs: quick-gate
+    if: github.event_name == 'push'
+    needs:
+      - quick-gate
     timeout-minutes: 45
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Verify release and readiness surfaces
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+
+      - name: Verify readiness scripts
         run: |
+          set -euo pipefail
+          test -f ./scripts/release/generate_release_evidence.sh
+          test -f ./scripts/validation/network_production_closure.sh
+          test -f ./scripts/validation/run_readiness_gate.sh
           chmod +x ./scripts/release/generate_release_evidence.sh
           chmod +x ./scripts/validation/network_production_closure.sh
           chmod +x ./scripts/validation/run_readiness_gate.sh
+
+      - name: Generate release evidence
+        run: |
+          set -euo pipefail
           ./scripts/release/generate_release_evidence.sh
+
+      - name: Run production closure validation
+        run: |
+          set -euo pipefail
           ./scripts/validation/network_production_closure.sh --scenario soak
+
+      - name: Run readiness gate
+        run: |
+          set -euo pipefail
           ./scripts/validation/run_readiness_gate.sh
+
+      - name: Upload readiness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: readiness-report
+          path: |
+            release/
+            reports/
+            artifacts/
+            evidence/
+          if-no-files-found: ignore
+          retention-days: 14
