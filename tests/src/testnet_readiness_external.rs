@@ -193,7 +193,6 @@ fn testnet_genesis_hash_and_policy_flags_match_release_gates() {
     );
 }
 
-
 #[test]
 fn testnet_public_endpoints_and_topology_remain_transport_hardened() {
     let metadata = read_json(&format!("{TESTNET_DIR}/network-metadata.json"));
