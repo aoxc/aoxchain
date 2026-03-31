@@ -1,4 +1,0 @@
-{
-  "status": "missing-generator",
-  "requirement": "Set AOXC_PROVENANCE_CMD to emit a provenance attestation before release approval"
-}
