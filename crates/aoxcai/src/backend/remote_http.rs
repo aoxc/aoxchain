@@ -200,11 +200,13 @@ fn validate_endpoint_policy(manifest: &ModelManifest, endpoint: &Url) -> Result<
 }
 
 fn is_private_network_host(host: &str) -> bool {
-    if host.eq_ignore_ascii_case("localhost") {
+    let normalized_host = host.trim_matches(['[', ']']);
+
+    if normalized_host.eq_ignore_ascii_case("localhost") {
         return true;
     }
 
-    if let Ok(ip) = host.parse::<IpAddr>() {
+    if let Ok(ip) = normalized_host.parse::<IpAddr>() {
         return match ip {
             IpAddr::V4(v4) => v4.is_private() || v4.is_loopback() || v4.is_link_local(),
             IpAddr::V6(v6) => {
@@ -275,6 +277,31 @@ mod tests {
         match err {
             AiError::ManifestValidation(message) => assert!(message.contains("private network")),
             other => panic!("unexpected error: {other}"),
+        }
+    }
+
+    #[test]
+    fn new_rejects_localhost_when_private_networks_are_disallowed() {
+        let manifest = remote_http_manifest("https://localhost:8443/infer");
+        let err = RemoteHttpBackendRuntime::new(&manifest).expect_err("localhost must be blocked");
+        assert!(
+            matches!(err, AiError::ManifestValidation(message) if message.contains("private network"))
+        );
+    }
+
+    #[test]
+    fn new_rejects_ipv6_private_and_loopback_hosts_when_disallowed() {
+        for endpoint in [
+            "https://[::1]:8443/infer",
+            "https://[fd00::1234]:8443/infer",
+        ] {
+            let manifest = remote_http_manifest(endpoint);
+            let err = RemoteHttpBackendRuntime::new(&manifest)
+                .expect_err("ipv6 loopback/private hosts must be blocked");
+            assert!(
+                matches!(err, AiError::ManifestValidation(ref message) if message.contains("private network")),
+                "unexpected error for endpoint {endpoint}: {err:?}"
+            );
         }
     }
 
