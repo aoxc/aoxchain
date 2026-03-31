@@ -1,6 +1,7 @@
 use crate::domain::{CommandProgram, CommandSpec, RiskClass};
 
 pub const CATALOG: &[CommandSpec] = &[
+    // Diagnostics
     CommandSpec {
         id: "aoxc-doctor",
         group: "AOXC Diagnostics",
@@ -37,6 +38,146 @@ pub const CATALOG: &[CommandSpec] = &[
         program: CommandProgram::Aoxc,
         args: &["node-connection-policy"],
     },
+    // Chain and genesis flows
+    CommandSpec {
+        id: "aoxc-chain-create",
+        group: "Chain and Genesis",
+        label: "Create Chain",
+        description: "Run guided chain creation from canonical AOXC entrypoint.",
+        risk: RiskClass::Medium,
+        program: CommandProgram::Aoxc,
+        args: &["chain", "create"],
+    },
+    CommandSpec {
+        id: "aoxc-chain-demo",
+        group: "Chain and Genesis",
+        label: "Create Demo Chain",
+        description: "Provision demo chain workflow through AOXC.",
+        risk: RiskClass::Medium,
+        program: CommandProgram::Aoxc,
+        args: &["chain", "demo"],
+    },
+    CommandSpec {
+        id: "aoxc-genesis-verify",
+        group: "Chain and Genesis",
+        label: "Verify Genesis",
+        description: "Run deterministic genesis verification.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Aoxc,
+        args: &["genesis", "verify"],
+    },
+    CommandSpec {
+        id: "aoxc-genesis-sign",
+        group: "Chain and Genesis",
+        label: "Sign Genesis",
+        description: "Sign genesis artifact with configured operator key.",
+        risk: RiskClass::High,
+        program: CommandProgram::Aoxc,
+        args: &["genesis", "sign"],
+    },
+    // Node and network
+    CommandSpec {
+        id: "aoxc-node-status",
+        group: "Node Operations",
+        label: "Node Status",
+        description: "Inspect local node status and sync progress.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Aoxc,
+        args: &["node", "status"],
+    },
+    CommandSpec {
+        id: "aoxc-node-start",
+        group: "Node Operations",
+        label: "Start Node",
+        description: "Start local AOXC node process.",
+        risk: RiskClass::High,
+        program: CommandProgram::Aoxc,
+        args: &["node", "start"],
+    },
+    CommandSpec {
+        id: "aoxc-node-stop",
+        group: "Node Operations",
+        label: "Stop Node",
+        description: "Stop local AOXC node process.",
+        risk: RiskClass::High,
+        program: CommandProgram::Aoxc,
+        args: &["node", "stop"],
+    },
+    CommandSpec {
+        id: "aoxc-network-status",
+        group: "Network Operations",
+        label: "Network Status",
+        description: "Inspect network quorum and finality signals.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Aoxc,
+        args: &["network", "status"],
+    },
+    CommandSpec {
+        id: "aoxc-network-verify",
+        group: "Network Operations",
+        label: "Network Verify",
+        description: "Run network health and topology verification.",
+        risk: RiskClass::Medium,
+        program: CommandProgram::Aoxc,
+        args: &["network", "verify"],
+    },
+    // Wallet, tx, staking
+    CommandSpec {
+        id: "aoxc-wallet-balance",
+        group: "Wallet and Transactions",
+        label: "Wallet Balance",
+        description: "Show wallet balances for the active environment.",
+        risk: RiskClass::Low,
+        program: CommandProgram::Aoxc,
+        args: &["wallet", "balance"],
+    },
+    CommandSpec {
+        id: "aoxc-wallet-create",
+        group: "Wallet and Transactions",
+        label: "Create Wallet",
+        description: "Create wallet and deterministic address material.",
+        risk: RiskClass::Medium,
+        program: CommandProgram::Aoxc,
+        args: &["wallet", "create"],
+    },
+    CommandSpec {
+        id: "aoxc-tx-transfer",
+        group: "Wallet and Transactions",
+        label: "Transfer",
+        description: "Submit value transfer transaction.",
+        risk: RiskClass::High,
+        program: CommandProgram::Aoxc,
+        args: &["tx", "transfer"],
+    },
+    CommandSpec {
+        id: "aoxc-stake-delegate",
+        group: "Wallet and Transactions",
+        label: "Delegate Stake",
+        description: "Submit stake delegation transaction.",
+        risk: RiskClass::High,
+        program: CommandProgram::Aoxc,
+        args: &["stake", "delegate"],
+    },
+    // Runtime and audit
+    CommandSpec {
+        id: "aoxc-runtime-verify",
+        group: "Runtime and Audit",
+        label: "Verify Runtime",
+        description: "Verify runtime bundle and activation markers.",
+        risk: RiskClass::Medium,
+        program: CommandProgram::Aoxc,
+        args: &["runtime", "verify"],
+    },
+    CommandSpec {
+        id: "aoxc-audit-export",
+        group: "Runtime and Audit",
+        label: "Export Audit Bundle",
+        description: "Export runtime and operator evidence package.",
+        risk: RiskClass::Medium,
+        program: CommandProgram::Aoxc,
+        args: &["audit", "export"],
+    },
+    // Make-driven workspace operations
     CommandSpec {
         id: "make-build",
         group: "Workspace Operations",
@@ -109,6 +250,7 @@ pub const CATALOG: &[CommandSpec] = &[
         program: CommandProgram::Make,
         args: &["db-status-sqlite"],
     },
+    // Environment scoped operations
     CommandSpec {
         id: "mainnet-start",
         group: "Mainnet Operations",
@@ -145,6 +287,7 @@ pub const CATALOG: &[CommandSpec] = &[
         program: CommandProgram::Make,
         args: &["net-testnet-status"],
     },
+    // UI targets
     CommandSpec {
         id: "ui-mainnet",
         group: "Control Surface",

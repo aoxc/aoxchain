@@ -40,11 +40,7 @@ impl HubService {
             .map(|spec| {
                 let preview = self.command_preview(environment, spec.program.clone(), spec.args);
                 let allowed = self.is_command_allowed(environment, spec.id);
-                let policy_note = if allowed {
-                    String::from("Allowed by active environment policy")
-                } else {
-                    String::from("Blocked by active environment policy")
-                };
+                let policy_note = policy_note(environment, spec.id, spec.risk.clone(), allowed);
                 CommandView {
                     spec: spec.clone(),
                     preview,
@@ -109,12 +105,24 @@ impl HubService {
     }
 
     pub fn is_command_allowed(&self, env: Environment, command_id: &str) -> bool {
+        let Some(spec) = commands::find(command_id) else {
+            return false;
+        };
+
         if env == Environment::Mainnet && command_id == "testnet-start" {
             return false;
         }
         if env == Environment::Testnet && command_id == "mainnet-start" {
             return false;
         }
+
+        if env == Environment::Mainnet
+            && matches!(spec.risk, crate::domain::RiskClass::High)
+            && !matches!(command_id, "mainnet-start" | "aoxc-node-start" | "aoxc-node-stop")
+        {
+            return false;
+        }
+
         true
     }
 
@@ -207,6 +215,24 @@ fn environment_bindings(env: Environment) -> Vec<(String, String)> {
             String::from(env.root_config_path()),
         ),
     ]
+}
+
+
+fn policy_note(
+    env: Environment,
+    command_id: &str,
+    risk: crate::domain::RiskClass,
+    allowed: bool,
+) -> String {
+    if !allowed {
+        return String::from("Blocked by active environment policy");
+    }
+
+    if env == Environment::Mainnet && matches!(risk, crate::domain::RiskClass::High) {
+        return format!("Allowed high-risk command in mainnet: {}", command_id);
+    }
+
+    String::from("Allowed by active environment policy")
 }
 
 pub fn is_binary_allowed(env: Environment, kind: &BinarySourceKind) -> bool {
