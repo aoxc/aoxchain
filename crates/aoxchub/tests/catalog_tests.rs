@@ -8,7 +8,6 @@ fn catalog_includes_release_matrix_and_sqlite_memory_actions() {
     assert!(aoxchub::commands::find("ui-testnet").is_some());
 }
 
-
 #[test]
 fn catalog_includes_core_operator_surface_commands() {
     assert!(aoxchub::commands::find("aoxc-chain-create").is_some());

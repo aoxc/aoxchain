@@ -119,7 +119,10 @@ impl HubService {
 
         if env == Environment::Mainnet
             && matches!(spec.risk, crate::domain::RiskClass::High)
-            && !matches!(command_id, "mainnet-start" | "aoxc-node-start" | "aoxc-node-stop")
+            && !matches!(
+                command_id,
+                "mainnet-start" | "aoxc-node-start" | "aoxc-node-stop"
+            )
         {
             return false;
         }
@@ -216,67 +219,6 @@ fn environment_bindings(env: Environment) -> Vec<(String, String)> {
             String::from(env.root_config_path()),
         ),
     ]
-}
-
-
-
-fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSnapshot {
-    let (chain_name, network_id, validators, observers, peers, round) = match env {
-        Environment::Mainnet => ("AOXChain Mainnet", "aox-mainnet-1", 21, 5, 34, 7_884_102_u64),
-        Environment::Testnet => ("AOXChain Testnet", "aox-testnet-2", 7, 3, 12, 1_442_920_u64),
-    };
-
-    let selected_version = bins
-        .iter()
-        .find(|b| matches!(b.kind, BinarySourceKind::InstalledRelease | BinarySourceKind::VersionedBundle))
-        .and_then(|b| b.version.clone())
-        .unwrap_or_else(|| String::from("unknown"));
-
-    let current_height = round * 3;
-    let finalized_height = current_height.saturating_sub(2);
-
-    DashboardSnapshot {
-        chain_name: String::from(chain_name),
-        network_kind: String::from(env.slug()),
-        network_id: String::from(network_id),
-        current_height,
-        finalized_height,
-        current_round: round,
-        validator_count: validators,
-        observer_count: observers,
-        connected_peers: peers,
-        local_node_status: String::from("running"),
-        rpc_status: String::from("healthy"),
-        p2p_status: String::from("healthy"),
-        genesis_fingerprint: format!("{}-fp-{}", env.slug(), finalized_height),
-        health_status: String::from("healthy"),
-        installed_versions: InstalledVersions {
-            aoxc: selected_version,
-            aoxchub: String::from(env!("CARGO_PKG_VERSION")),
-            runtime: String::from("runtime-v1"),
-        },
-        last_events: vec![
-            String::from("Network health check passed"),
-            String::from("Validator quorum active"),
-            String::from("Runtime verification receipt updated"),
-        ],
-        last_txs: vec![
-            String::from("tx#84a3 finalized"),
-            String::from("tx#84a4 finalized"),
-            String::from("tx#84a5 pending finality"),
-        ],
-        last_warnings: vec![
-            String::from("No critical warnings"),
-            String::from("Peer churn within threshold"),
-            String::from("Finality lag: nominal"),
-        ],
-        quick_actions: vec![
-            String::from("Run AOXC Doctor"),
-            String::from("Verify Genesis"),
-            String::from("Check Network Status"),
-            String::from("Export Audit Bundle"),
-        ],
-    }
 }
 
 fn policy_note(
