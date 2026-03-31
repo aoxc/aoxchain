@@ -9,8 +9,8 @@ use aoxcnet::{
 };
 use aoxcore::native_token::{NativeTokenError, NativeTokenLedger, NativeTokenNetwork};
 use aoxcunity::{
-    BlockBody, ConsensusMessage, LaneCommitment, LaneCommitmentSection, LaneType, Proposer,
-    QuorumThreshold, ConsensusState, Validator, ValidatorRole, ValidatorRotation, Vote, VoteKind,
+    BlockBody, ConsensusMessage, ConsensusState, LaneCommitment, LaneCommitmentSection, LaneType,
+    Proposer, QuorumThreshold, Validator, ValidatorRole, ValidatorRotation, Vote, VoteKind,
 };
 use ed25519_dalek::SigningKey;
 
