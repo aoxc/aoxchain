@@ -15,7 +15,7 @@
       "transport_key_algorithm": "ed25519",
       "transport_public_key_encoding": "hex",
       "transport_public_key": "9f95be11d0f7db2a2a0f9d57c6b876fb4f6e7d8e324af99dc8df84b8f123fd0a",
-      "transport_key_fingerprint": "cd185f76403f3ae80d90c2c3c83ff5dc266bd80a76c7691eab90abfc410a7211",
+      "transport_key_fingerprint": "f0045dfd551ac13a93f4f7f92ad740d5126ccb6a02ce0dd61331d6579592d26d",
       "address": "/dns4/seed1.testnet.aoxchain.io/tcp/26656",
       "transport": "tcp",
       "status": "active"
@@ -26,7 +26,7 @@
       "transport_key_algorithm": "ed25519",
       "transport_public_key_encoding": "hex",
       "transport_public_key": "4ca5c0f7e054e9f0fb71fda6911df17d1c41669dc52f9f61e6da304f6a079b5c",
-      "transport_key_fingerprint": "64dab2f7ae15116f5688643b697df40fa1886dcd5a06095e54820a7bba76c003",
+      "transport_key_fingerprint": "46f2d6ed156cc02fcb86bc3588bdbed6a22ebda2a45f20aa6cb0128df95a7493",
       "address": "/dns4/rpc1.testnet.aoxchain.io/tcp/26656",
       "transport": "tcp",
       "status": "active"
