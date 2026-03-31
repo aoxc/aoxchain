@@ -7,10 +7,12 @@ use aoxcnet::{
     gossip::peer::{NodeCertificate, Peer, PeerRole},
     p2p::P2PNetwork,
 };
+use aoxcore::native_token::{NativeTokenError, NativeTokenLedger, NativeTokenNetwork};
 use aoxcunity::{
-    BlockBody, ConsensusMessage, LaneCommitment, LaneCommitmentSection, LaneType, Proposer,
-    QuorumThreshold,
+    BlockBody, ConsensusMessage, ConsensusState, LaneCommitment, LaneCommitmentSection, LaneType,
+    Proposer, QuorumThreshold, Validator, ValidatorRole, ValidatorRotation, Vote, VoteKind,
 };
+use ed25519_dalek::SigningKey;
 
 #[test]
 fn quorum_threshold_rejects_invalid_ratios() {
@@ -101,6 +103,131 @@ fn network_session_broadcast_produces_monotonic_nonce() {
 
     assert_eq!(envelope_a.session_id, envelope_b.session_id);
     assert!(envelope_b.nonce > envelope_a.nonce);
+}
+
+#[test]
+fn finalization_uses_stake_weight_not_validator_headcount() {
+    let validators = [
+        ([11u8; 32], 80u64),
+        ([12u8; 32], 10u64),
+        ([13u8; 32], 10u64),
+    ]
+    .into_iter()
+    .map(|(secret, power)| {
+        let signer = SigningKey::from_bytes(&secret);
+        Validator::new(
+            signer.verifying_key().to_bytes(),
+            power,
+            ValidatorRole::Validator,
+        )
+    })
+    .collect::<Vec<_>>();
+
+    let low_power_a = validators[1].id;
+    let low_power_b = validators[2].id;
+    let high_power = validators[0].id;
+
+    let rotation = ValidatorRotation::new(validators).expect("validator rotation should build");
+    let mut consensus = ConsensusState::new(rotation, QuorumThreshold::two_thirds());
+
+    let genesis = sample_block(1);
+    consensus
+        .admit_block(genesis.clone())
+        .expect("genesis should be accepted");
+
+    let candidate = Proposer::new(2626, high_power)
+        .propose(
+            genesis.hash,
+            2,
+            0,
+            2,
+            1_800_000_002,
+            BlockBody {
+                sections: vec![aoxcunity::BlockSection::LaneCommitment(
+                    LaneCommitmentSection {
+                        lanes: vec![LaneCommitment {
+                            lane_id: 2,
+                            lane_type: LaneType::Native,
+                            tx_count: 1,
+                            input_root: [2u8; 32],
+                            output_root: [3u8; 32],
+                            receipt_root: [4u8; 32],
+                            state_commitment: [5u8; 32],
+                            proof_commitment: [6u8; 32],
+                        }],
+                    },
+                )],
+            },
+        )
+        .expect("candidate block should build");
+    consensus
+        .admit_block(candidate.clone())
+        .expect("candidate block should be accepted");
+
+    for voter in [low_power_a, low_power_b] {
+        consensus
+            .add_vote(Vote {
+                voter,
+                block_hash: candidate.hash,
+                height: candidate.header.height,
+                round: candidate.header.round,
+                kind: VoteKind::Commit,
+            })
+            .expect("low-power vote should be accepted");
+    }
+
+    assert_eq!(
+        consensus.finalizable_round(candidate.hash),
+        None,
+        "two out of three validators are insufficient when stake weight is below threshold"
+    );
+
+    consensus
+        .add_vote(Vote {
+            voter: high_power,
+            block_hash: candidate.hash,
+            height: candidate.header.height,
+            round: candidate.header.round,
+            kind: VoteKind::Commit,
+        })
+        .expect("high-power vote should be accepted");
+
+    assert_eq!(
+        consensus.finalizable_round(candidate.hash),
+        Some(candidate.header.round),
+        "adding sufficient stake weight should make the round finalizable"
+    );
+}
+
+#[test]
+fn native_token_quantum_transfer_rejects_replay_and_nonce_regression() {
+    let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Testnet)
+        .expect("testnet native token ledger should initialize");
+
+    let treasury = [0xAA; 32];
+    let operator = [0xBB; 32];
+
+    ledger
+        .mint(treasury, 1_000)
+        .expect("treasury mint should succeed");
+
+    ledger
+        .transfer_quantum(treasury, operator, 250, 1, b"proof-001")
+        .expect("first quantum transfer should succeed");
+
+    let replay_error = ledger
+        .transfer_quantum(treasury, operator, 250, 1, b"proof-001")
+        .expect_err("identical quantum transfer should be rejected as replay");
+    assert_eq!(replay_error, NativeTokenError::ReplayDetected);
+
+    let nonce_regression = ledger
+        .transfer_quantum(treasury, operator, 100, 0, b"proof-002")
+        .expect_err("lower nonce than latest accepted value must be rejected");
+    assert_eq!(nonce_regression, NativeTokenError::NonceRegression);
+
+    assert_eq!(ledger.balance_of(&treasury), 750);
+    assert_eq!(ledger.balance_of(&operator), 250);
+    assert_eq!(ledger.latest_nonce_of(&treasury), Some(1));
 }
 
 fn sample_block(seed: u8) -> aoxcunity::Block {
