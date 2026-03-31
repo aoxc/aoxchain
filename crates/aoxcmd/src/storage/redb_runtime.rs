@@ -8,11 +8,45 @@ use crate::{
     node::state::NodeState,
     storage::RuntimeStateStore,
 };
-use redb::{Database, ReadableDatabase, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use std::path::{Path, PathBuf};
 
 const RUNTIME_STATE_TABLE: TableDefinition<&str, &str> = TableDefinition::new("runtime_state");
 const NODE_STATE_KEY: &str = "node_state";
+
+/// Ensures the canonical runtime-state table exists in the provided database.
+///
+/// Initialization contract:
+/// - The canonical `runtime_state` table must exist before any read-path
+///   attempts to open it from a read transaction.
+/// - This operation is idempotent and safe to call on every startup.
+pub fn ensure_runtime_state_table(db: &Database) -> Result<(), AppError> {
+    let write_txn = db.begin_write().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to begin runtime redb write transaction for table initialization",
+            error,
+        )
+    })?;
+
+    {
+        write_txn.open_table(RUNTIME_STATE_TABLE).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                "Failed to create or open runtime redb table",
+                error,
+            )
+        })?;
+    }
+
+    write_txn.commit().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to commit runtime redb table initialization transaction",
+            error,
+        )
+    })
+}
 
 /// Returns the canonical AOXC redb runtime-state path.
 ///
@@ -74,7 +108,88 @@ impl RedbRuntimeStateStore {
     pub fn open_default() -> Result<Self, AppError> {
         let path = runtime_state_redb_path()?;
         let db = open_or_create_db(&path)?;
+        ensure_runtime_state_table(&db)?;
         Ok(Self { db })
+    }
+
+    /// Initializes runtime state with a canonical bootstrap payload when absent.
+    ///
+    /// Initialization policy:
+    /// - Missing `node_state` is initialized with `NodeState::bootstrap()`.
+    /// - Existing `node_state` is preserved without overwrite.
+    /// - The operation is idempotent and safe across repeated startups.
+    ///
+    /// Returns:
+    /// - `Ok(true)` when bootstrap state was written.
+    /// - `Ok(false)` when state already existed.
+    pub fn initialize_if_absent(&self) -> Result<bool, AppError> {
+        let write_txn = self.db.begin_write().map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                "Failed to begin runtime redb write transaction for state initialization",
+                error,
+            )
+        })?;
+
+        let initialized = {
+            let mut table = write_txn.open_table(RUNTIME_STATE_TABLE).map_err(|error| {
+                AppError::with_source(
+                    ErrorCode::FilesystemIoFailed,
+                    "Failed to open runtime redb table for state initialization",
+                    error,
+                )
+            })?;
+
+            let state_exists = table
+                .get(NODE_STATE_KEY)
+                .map_err(|error| {
+                    AppError::with_source(
+                        ErrorCode::FilesystemIoFailed,
+                        "Failed to inspect runtime node state during initialization",
+                        error,
+                    )
+                })?
+                .is_some();
+
+            if state_exists {
+                false
+            } else {
+                let state = NodeState::bootstrap();
+                state
+                    .validate()
+                    .map_err(|error| AppError::new(ErrorCode::NodeStateInvalid, error))?;
+
+                let payload = serde_json::to_string_pretty(&state).map_err(|error| {
+                    AppError::with_source(
+                        ErrorCode::OutputEncodingFailed,
+                        "Failed to encode bootstrap node state for redb initialization",
+                        error,
+                    )
+                })?;
+
+                table
+                    .insert(NODE_STATE_KEY, payload.as_str())
+                    .map_err(|error| {
+                        AppError::with_source(
+                            ErrorCode::FilesystemIoFailed,
+                            "Failed to write bootstrap node state during redb initialization",
+                            error,
+                        )
+                    })?;
+
+                true
+            }
+        };
+
+        write_txn.commit().map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                "Failed to commit runtime redb state initialization transaction",
+                error,
+            )
+        })?;
+
+        Ok(initialized)
     }
 }
 
@@ -192,7 +307,7 @@ impl RuntimeStateStore for RedbRuntimeStateStore {
 
 #[cfg(test)]
 mod tests {
-    use super::{RedbRuntimeStateStore, runtime_state_redb_path};
+    use super::{RUNTIME_STATE_TABLE, RedbRuntimeStateStore, runtime_state_redb_path};
     use crate::{
         error::ErrorCode,
         node::state::NodeState,
@@ -274,6 +389,99 @@ mod tests {
                 .load_state()
                 .expect_err("missing node_state record must fail");
 
+            assert_eq!(error.code(), ErrorCode::NodeStateInvalid.as_str());
+        });
+    }
+
+    #[test]
+    fn open_default_ensures_runtime_state_table_exists() {
+        with_test_home("runtime-redb-ensure-table", |_home| {
+            let store =
+                RedbRuntimeStateStore::open_default().expect("runtime redb store should open");
+
+            let read_txn = store
+                .db
+                .begin_read()
+                .expect("read transaction should open after default initialization");
+
+            read_txn
+                .open_table(RUNTIME_STATE_TABLE)
+                .expect("runtime_state table should exist after open_default");
+        });
+    }
+
+    #[test]
+    fn initialize_if_absent_bootstraps_once_and_preserves_state() {
+        with_test_home("runtime-redb-idempotent-init", |_home| {
+            let store =
+                RedbRuntimeStateStore::open_default().expect("runtime redb store should open");
+
+            let first = store
+                .initialize_if_absent()
+                .expect("first initialization should succeed");
+            assert!(first, "first initialization must bootstrap node_state");
+
+            let mut state = store
+                .load_state()
+                .expect("bootstrapped state should be loadable");
+            state.current_height = 11;
+            state.produced_blocks = 11;
+            state.last_tx = "init-idempotent-smoke".to_string();
+            state.consensus.last_round = 11;
+            state.consensus.last_message_kind = "block_proposal".to_string();
+            store
+                .persist_state(&state)
+                .expect("state mutation should persist");
+
+            let second = store
+                .initialize_if_absent()
+                .expect("second initialization should remain idempotent");
+            assert!(!second, "existing node_state must not be overwritten");
+
+            let reloaded = store
+                .load_state()
+                .expect("persisted state should remain after idempotent init");
+            assert_eq!(reloaded.current_height, 11);
+            assert_eq!(reloaded.produced_blocks, 11);
+            assert_eq!(reloaded.last_tx, "init-idempotent-smoke");
+            assert_eq!(reloaded.consensus.last_round, 11);
+            assert_eq!(reloaded.consensus.last_message_kind, "block_proposal");
+        });
+    }
+
+    #[test]
+    fn load_state_rejects_corrupt_record_without_overwrite() {
+        with_test_home("runtime-redb-corrupt-record", |_home| {
+            let store =
+                RedbRuntimeStateStore::open_default().expect("runtime redb store should open");
+
+            let write_txn = store
+                .db
+                .begin_write()
+                .expect("write transaction should open");
+            {
+                let mut table = write_txn
+                    .open_table(RUNTIME_STATE_TABLE)
+                    .expect("runtime_state table should open");
+                table
+                    .insert("node_state", "{not-valid-json")
+                    .expect("corrupt payload fixture should persist");
+            }
+            write_txn
+                .commit()
+                .expect("corrupt payload fixture commit should succeed");
+
+            let initialized = store
+                .initialize_if_absent()
+                .expect("initialization should detect existing record");
+            assert!(
+                !initialized,
+                "existing corrupt payload must not be silently overwritten"
+            );
+
+            let error = store
+                .load_state()
+                .expect_err("corrupt payload must be rejected on load");
             assert_eq!(error.code(), ErrorCode::NodeStateInvalid.as_str());
         });
     }

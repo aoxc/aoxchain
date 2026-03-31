@@ -231,4 +231,19 @@ mod tests {
             assert_eq!(error.code(), ErrorCode::NodeStateInvalid.as_str());
         });
     }
+
+    #[test]
+    fn load_state_bootstraps_on_first_run_when_store_is_empty() {
+        with_test_home("lifecycle-first-run-bootstrap", |_home| {
+            let loaded = load_state().expect("first-run load should bootstrap state");
+
+            assert!(loaded.initialized);
+            assert_eq!(loaded.current_height, 0);
+            assert_eq!(loaded.produced_blocks, 0);
+            assert_eq!(loaded.consensus.last_message_kind, "bootstrap");
+
+            let reloaded = load_state().expect("restarted load should return persisted state");
+            assert_eq!(reloaded, loaded);
+        });
+    }
 }
