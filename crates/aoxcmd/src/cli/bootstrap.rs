@@ -31,6 +31,7 @@ use crate::{
     node::lifecycle::bootstrap_state,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -39,6 +40,8 @@ use std::{
     process,
     time::{SystemTime, UNIX_EPOCH},
 };
+
+const DEFAULT_VALIDATOR_GENESIS_BALANCE: &str = "50000000";
 
 /// Canonical AOXC environment identity description used by bootstrap flows.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -127,6 +130,75 @@ struct BootstrapMetadata {
     status: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct BootstrapValidatorBindingsDocument {
+    schema_version: u8,
+    environment: String,
+    identity: CanonicalIdentity,
+    validators: Vec<BootstrapValidatorBindingRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct BootstrapValidatorBindingRecord {
+    validator_id: String,
+    display_name: String,
+    role: String,
+    consensus_key_algorithm: String,
+    consensus_public_key_encoding: String,
+    consensus_public_key: String,
+    consensus_key_fingerprint: String,
+    network_key_algorithm: String,
+    network_public_key_encoding: String,
+    network_public_key: String,
+    network_key_fingerprint: String,
+    weight: u64,
+    status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct BootstrapBootnodesDocument {
+    schema_version: u8,
+    environment: String,
+    identity: CanonicalIdentity,
+    bootnodes: Vec<BootstrapBootnodeRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct BootstrapBootnodeRecord {
+    node_id: String,
+    display_name: String,
+    transport_key_algorithm: String,
+    transport_public_key_encoding: String,
+    transport_public_key: String,
+    transport_key_fingerprint: String,
+    address: String,
+    transport: String,
+    status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct BootstrapCertificateDocument {
+    schema_version: u8,
+    certificate_kind: String,
+    environment: String,
+    identity: CanonicalIdentity,
+    certificate: BootstrapCertificateBody,
+    metadata: BootstrapMetadata,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct BootstrapCertificateBody {
+    status: String,
+    issuer: String,
+    subject: String,
+    certificate_serial: String,
+    issued_at: String,
+    expires_at: Option<String>,
+    fingerprint_sha256: String,
+    signature_algorithm: String,
+    signature: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct ProfileBootstrapSummary {
     profile: String,
@@ -147,6 +219,16 @@ struct DualProfileBootstrapResult {
     output_dir: String,
     profiles: Vec<ProfileBootstrapSummary>,
     launch_hint: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AddressCreateOutput {
+    profile: String,
+    validator_name: String,
+    validator_account_id: String,
+    bundle_fingerprint: String,
+    consensus_public_key: String,
+    transport_public_key: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -381,13 +463,61 @@ pub fn cmd_keys_verify(args: &[String]) -> Result<(), AppError> {
     )
 }
 
+pub fn cmd_address_create(args: &[String]) -> Result<(), AppError> {
+    let profile_input = arg_value(args, "--profile").unwrap_or_else(|| "validation".to_string());
+    let profile = EnvironmentProfile::parse(&profile_input)?;
+    let name = parse_required_or_default_text_arg(args, "--name", "validator-01")?;
+    let password = parse_required_text_arg(args, "--password", false, "address create")?;
+
+    let material = bootstrap_operator_key(&name, profile.as_str(), &password)?;
+    let summary = material.summary()?;
+    let validator_account_id = format!(
+        "AOXC_VALIDATOR_{}",
+        summary
+            .bundle_fingerprint
+            .chars()
+            .take(16)
+            .collect::<String>()
+    );
+
+    emit_serialized(
+        &AddressCreateOutput {
+            profile: summary.profile,
+            validator_name: name,
+            validator_account_id,
+            bundle_fingerprint: summary.bundle_fingerprint,
+            consensus_public_key: summary.consensus_public_key,
+            transport_public_key: summary.transport_public_key,
+        },
+        output_format(args),
+    )
+}
+
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
     let profile_input = arg_value(args, "--profile")
         .or_else(|| load().ok().map(|settings| settings.profile))
         .unwrap_or_else(|| "validation".to_string());
 
     let profile = EnvironmentProfile::parse(&profile_input)?;
-    let genesis = profile.genesis_document();
+    let settings = load()
+        .ok()
+        .filter(|settings| settings.profile == profile.as_str())
+        .unwrap_or(build_profile_settings(
+            resolve_home()?.display().to_string(),
+            profile,
+            None,
+        )?);
+
+    let operator = inspect_operator_key().map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Genesis init requires operator key material. Run `aoxc key-bootstrap --profile <profile> --password <value>` first.",
+        )
+    })?;
+
+    let mut genesis = profile.genesis_document();
+    upsert_validator_account(&mut genesis, &operator, DEFAULT_VALIDATOR_GENESIS_BALANCE)?;
+    materialize_binding_documents(&genesis, &operator, &settings)?;
 
     let content = serde_json::to_string_pretty(&genesis).map_err(|error| {
         AppError::with_source(
@@ -401,9 +531,180 @@ pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&genesis, output_format(args))
 }
 
+pub fn cmd_genesis_add_account(args: &[String]) -> Result<(), AppError> {
+    let account_id = parse_required_text_arg(args, "--account-id", false, "genesis add account")?;
+    let balance = parse_required_text_arg(args, "--balance", false, "genesis add account")?;
+    let role = parse_required_or_default_text_arg(args, "--role", "user")?;
+
+    if !is_decimal_string(&balance) {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Genesis account balance must be a decimal string",
+        ));
+    }
+
+    let mut genesis = load_genesis()?;
+    if let Some(existing) = genesis
+        .state
+        .accounts
+        .iter_mut()
+        .find(|entry| entry.account_id == account_id)
+    {
+        existing.balance = balance.clone();
+        existing.role = role.clone();
+    } else {
+        genesis.state.accounts.push(BootstrapAccountRecord {
+            account_id: account_id.clone(),
+            balance: balance.clone(),
+            role: role.clone(),
+        });
+    }
+
+    persist_genesis(&genesis)?;
+    sync_optional_accounts_binding(&genesis)?;
+
+    let mut details = BTreeMap::new();
+    details.insert("account_id".to_string(), account_id);
+    details.insert("balance".to_string(), balance);
+    details.insert("role".to_string(), role);
+    details.insert(
+        "accounts_total".to_string(),
+        genesis.state.accounts.len().to_string(),
+    );
+
+    emit_serialized(
+        &text_envelope("genesis-add-account", "ok", details),
+        output_format(args),
+    )
+}
+
+pub fn cmd_genesis_add_validator(args: &[String]) -> Result<(), AppError> {
+    let validator_id =
+        parse_required_text_arg(args, "--validator-id", false, "genesis add validator")?;
+    let consensus_public_key = parse_required_text_arg(
+        args,
+        "--consensus-public-key",
+        false,
+        "genesis add validator",
+    )?;
+    let network_public_key =
+        parse_required_text_arg(args, "--network-public-key", false, "genesis add validator")?;
+    let balance =
+        parse_required_or_default_text_arg(args, "--balance", DEFAULT_VALIDATOR_GENESIS_BALANCE)?;
+    let display_name = parse_required_or_default_text_arg(args, "--display-name", &validator_id)?;
+    let consensus_fingerprint = parse_required_or_default_text_arg(
+        args,
+        "--consensus-fingerprint",
+        &derive_short_fingerprint(&consensus_public_key),
+    )?;
+    let network_fingerprint = parse_required_or_default_text_arg(
+        args,
+        "--network-fingerprint",
+        &derive_short_fingerprint(&network_public_key),
+    )?;
+
+    if !is_decimal_string(&balance) {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Validator balance must be a decimal string",
+        ));
+    }
+
+    let mut genesis = load_genesis()?;
+    let settings = load()
+        .ok()
+        .filter(|settings| settings.profile == genesis.environment)
+        .unwrap_or(build_profile_settings(
+            resolve_home()?.display().to_string(),
+            EnvironmentProfile::parse(&genesis.environment)?,
+            None,
+        )?);
+    let bootnode_address = parse_required_or_default_text_arg(
+        args,
+        "--bootnode-address",
+        &format!(
+            "{}:{}",
+            settings.network.bind_host, settings.network.p2p_port
+        ),
+    )?;
+
+    let validator_account_id = format!(
+        "AOXC_VALIDATOR_{}",
+        derive_short_fingerprint(&validator_id).to_ascii_uppercase()
+    );
+    if let Some(existing) = genesis
+        .state
+        .accounts
+        .iter_mut()
+        .find(|entry| entry.account_id == validator_account_id)
+    {
+        existing.balance = balance.clone();
+        existing.role = "validator".to_string();
+    } else {
+        genesis.state.accounts.push(BootstrapAccountRecord {
+            account_id: validator_account_id.clone(),
+            balance: balance.clone(),
+            role: "validator".to_string(),
+        });
+    }
+
+    persist_genesis(&genesis)?;
+    sync_optional_accounts_binding(&genesis)?;
+
+    let mut validators_doc = load_or_default_validators_binding(&genesis)?;
+    upsert_validator_binding(
+        &mut validators_doc,
+        BootstrapValidatorBindingRecord {
+            validator_id: validator_id.clone(),
+            display_name,
+            role: "validator".to_string(),
+            consensus_key_algorithm: "ed25519".to_string(),
+            consensus_public_key_encoding: "hex".to_string(),
+            consensus_public_key: consensus_public_key.clone(),
+            consensus_key_fingerprint: consensus_fingerprint,
+            network_key_algorithm: "ed25519".to_string(),
+            network_public_key_encoding: "hex".to_string(),
+            network_public_key: network_public_key.clone(),
+            network_key_fingerprint: network_fingerprint,
+            weight: 1,
+            status: "active".to_string(),
+        },
+    );
+    persist_validators_binding(&genesis, &validators_doc)?;
+
+    let mut bootnodes_doc = load_or_default_bootnodes_binding(&genesis)?;
+    upsert_bootnode_binding(
+        &mut bootnodes_doc,
+        BootstrapBootnodeRecord {
+            node_id: format!("bootnode-{validator_id}"),
+            display_name: format!("{validator_id} bootnode"),
+            transport_key_algorithm: "ed25519".to_string(),
+            transport_public_key_encoding: "hex".to_string(),
+            transport_public_key: network_public_key,
+            transport_key_fingerprint: derive_short_fingerprint(&validator_id),
+            address: bootnode_address.clone(),
+            transport: "tcp".to_string(),
+            status: "active".to_string(),
+        },
+    );
+    persist_bootnodes_binding(&genesis, &bootnodes_doc)?;
+
+    let mut details = BTreeMap::new();
+    details.insert("validator_id".to_string(), validator_id);
+    details.insert("validator_account_id".to_string(), validator_account_id);
+    details.insert("validator_balance".to_string(), balance);
+    details.insert("bootnode_address".to_string(), bootnode_address);
+
+    emit_serialized(
+        &text_envelope("genesis-add-validator", "ok", details),
+        output_format(args),
+    )
+}
+
 pub fn cmd_genesis_validate(args: &[String]) -> Result<(), AppError> {
     let genesis = load_genesis()?;
     validate_genesis(&genesis)?;
+    validate_binding_files(&genesis)?;
 
     let mut details = BTreeMap::new();
     details.insert(
@@ -527,7 +828,16 @@ pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
         .map_err(|error| AppError::new(ErrorCode::ConfigInvalid, error))?;
     persist(&settings)?;
 
-    let genesis = profile.genesis_document();
+    let mut genesis = profile.genesis_document();
+    let _material = bootstrap_operator_key(&name, profile.as_str(), &password)?;
+    let operator_summary = inspect_operator_key()?;
+    upsert_validator_account(
+        &mut genesis,
+        &operator_summary,
+        DEFAULT_VALIDATOR_GENESIS_BALANCE,
+    )?;
+    materialize_binding_documents(&genesis, &operator_summary, &settings)?;
+
     let genesis_json = serde_json::to_string_pretty(&genesis).map_err(|error| {
         AppError::with_source(
             ErrorCode::OutputEncodingFailed,
@@ -537,7 +847,6 @@ pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
     })?;
     write_file(&genesis_path()?, &genesis_json)?;
 
-    let _material = bootstrap_operator_key(&name, profile.as_str(), &password)?;
     let operator_fp = operator_fingerprint()?;
     let consensus_pk = consensus_public_key_hex()?;
     let node_state = bootstrap_state()?;
@@ -609,7 +918,16 @@ fn bootstrap_profile_directory(
     let settings = build_profile_settings(home_dir.display().to_string(), profile, None)?;
     persist(&settings)?;
 
-    let genesis = profile.genesis_document();
+    let mut genesis = profile.genesis_document();
+    let material = bootstrap_operator_key(operator_name, profile.as_str(), password)?;
+    let operator_summary = inspect_operator_key()?;
+    upsert_validator_account(
+        &mut genesis,
+        &operator_summary,
+        DEFAULT_VALIDATOR_GENESIS_BALANCE,
+    )?;
+    materialize_binding_documents(&genesis, &operator_summary, &settings)?;
+
     let genesis_json = serde_json::to_string_pretty(&genesis).map_err(|error| {
         AppError::with_source(
             ErrorCode::OutputEncodingFailed,
@@ -619,7 +937,6 @@ fn bootstrap_profile_directory(
     })?;
     write_file(&genesis_path()?, &genesis_json)?;
 
-    let material = bootstrap_operator_key(operator_name, profile.as_str(), password)?;
     let operator_fp = operator_fingerprint()?;
     let consensus_pk = consensus_public_key_hex()?;
     let node_state = bootstrap_state()?;
@@ -666,6 +983,356 @@ fn build_profile_settings(
         .map_err(|error| AppError::new(ErrorCode::ConfigInvalid, error))?;
 
     Ok(settings)
+}
+
+fn upsert_validator_account(
+    genesis: &mut BootstrapGenesisDocument,
+    operator: &crate::keys::material::KeyMaterialSummary,
+    balance: &str,
+) -> Result<(), AppError> {
+    if !is_non_zero_decimal_string(balance) {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Validator genesis balance must be a non-zero decimal string",
+        ));
+    }
+
+    let account_id = format!(
+        "AOXC_VALIDATOR_{}",
+        operator
+            .bundle_fingerprint
+            .chars()
+            .take(16)
+            .collect::<String>()
+    );
+
+    if let Some(existing) = genesis
+        .state
+        .accounts
+        .iter_mut()
+        .find(|record| record.account_id == account_id)
+    {
+        existing.role = "validator".to_string();
+        existing.balance = balance.to_string();
+    } else {
+        genesis.state.accounts.push(BootstrapAccountRecord {
+            account_id,
+            balance: balance.to_string(),
+            role: "validator".to_string(),
+        });
+    }
+
+    Ok(())
+}
+
+fn materialize_binding_documents(
+    genesis: &BootstrapGenesisDocument,
+    operator: &crate::keys::material::KeyMaterialSummary,
+    settings: &Settings,
+) -> Result<(), AppError> {
+    let identity_dir = genesis_path()?
+        .parent()
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::FilesystemIoFailed,
+                "Failed to resolve identity directory for genesis bindings",
+            )
+        })?
+        .to_path_buf();
+
+    let short_fp = operator
+        .bundle_fingerprint
+        .chars()
+        .take(12)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let validator_id = format!("aoxc-val-{}-{short_fp}", genesis.environment);
+    let bootnode_id = format!("aoxc-boot-{}-{short_fp}", genesis.environment);
+    let display_name = format!(
+        "AOXC {} validator {}",
+        genesis.environment.to_ascii_uppercase(),
+        &short_fp
+    );
+
+    let validators_doc = BootstrapValidatorBindingsDocument {
+        schema_version: 2,
+        environment: genesis.environment.clone(),
+        identity: genesis.identity.clone(),
+        validators: vec![BootstrapValidatorBindingRecord {
+            validator_id: validator_id.clone(),
+            display_name: display_name.clone(),
+            role: "validator".to_string(),
+            consensus_key_algorithm: "ed25519".to_string(),
+            consensus_public_key_encoding: "hex".to_string(),
+            consensus_public_key: operator.consensus_public_key.clone(),
+            consensus_key_fingerprint: operator.consensus_key_fingerprint.clone(),
+            network_key_algorithm: "ed25519".to_string(),
+            network_public_key_encoding: "hex".to_string(),
+            network_public_key: operator.transport_public_key.clone(),
+            network_key_fingerprint: operator.transport_key_fingerprint.clone(),
+            weight: 1,
+            status: "active".to_string(),
+        }],
+    };
+    write_json_pretty(
+        &identity_dir.join(&genesis.bindings.validators_file),
+        &validators_doc,
+        "Failed to encode validators binding document",
+    )?;
+
+    let bootnodes_doc = BootstrapBootnodesDocument {
+        schema_version: 2,
+        environment: genesis.environment.clone(),
+        identity: genesis.identity.clone(),
+        bootnodes: vec![BootstrapBootnodeRecord {
+            node_id: bootnode_id,
+            display_name: format!("AOXC {} bootnode {}", genesis.environment, short_fp),
+            transport_key_algorithm: "ed25519".to_string(),
+            transport_public_key_encoding: "hex".to_string(),
+            transport_public_key: operator.transport_public_key.clone(),
+            transport_key_fingerprint: operator.transport_key_fingerprint.clone(),
+            address: format!(
+                "{}:{}",
+                settings.network.bind_host, settings.network.p2p_port
+            ),
+            transport: "tcp".to_string(),
+            status: "active".to_string(),
+        }],
+    };
+    write_json_pretty(
+        &identity_dir.join(&genesis.bindings.bootnodes_file),
+        &bootnodes_doc,
+        "Failed to encode bootnodes binding document",
+    )?;
+
+    let issued_at = chrono::Utc::now().to_rfc3339();
+    let fingerprint_seed = format!(
+        "{}:{}:{}:{}",
+        genesis.identity.network_id, validator_id, operator.bundle_fingerprint, issued_at
+    );
+    let cert_fingerprint = hex::encode(Sha256::digest(fingerprint_seed.as_bytes()));
+    let certificate_doc = BootstrapCertificateDocument {
+        schema_version: 1,
+        certificate_kind: "aoxc-environment-certificate".to_string(),
+        environment: genesis.environment.clone(),
+        identity: genesis.identity.clone(),
+        certificate: BootstrapCertificateBody {
+            status: "active".to_string(),
+            issuer: "AOXC Bootstrap Authority".to_string(),
+            subject: format!("{} Environment Bundle", genesis.identity.chain_name),
+            certificate_serial: format!(
+                "AOXC-CERT-{}-{}",
+                genesis.environment.to_ascii_uppercase(),
+                genesis.identity.network_serial
+            ),
+            issued_at,
+            expires_at: None,
+            fingerprint_sha256: cert_fingerprint,
+            signature_algorithm: "ed25519".to_string(),
+            signature: operator.consensus_key_fingerprint.clone(),
+        },
+        metadata: BootstrapMetadata {
+            description: format!(
+                "Generated AOXC bootstrap certificate for {}",
+                genesis.environment
+            ),
+            status: "active".to_string(),
+        },
+    };
+    write_json_pretty(
+        &identity_dir.join(&genesis.bindings.certificate_file),
+        &certificate_doc,
+        "Failed to encode certificate binding document",
+    )?;
+
+    if let Some(accounts_file) = &genesis.bindings.accounts_file {
+        #[derive(Serialize)]
+        struct AccountsDoc<'a> {
+            schema_version: u8,
+            environment: &'a str,
+            identity: &'a CanonicalIdentity,
+            accounts: &'a [BootstrapAccountRecord],
+        }
+
+        let accounts_doc = AccountsDoc {
+            schema_version: 1,
+            environment: &genesis.environment,
+            identity: &genesis.identity,
+            accounts: &genesis.state.accounts,
+        };
+
+        write_json_pretty(
+            &identity_dir.join(accounts_file),
+            &accounts_doc,
+            "Failed to encode accounts binding document",
+        )?;
+    }
+
+    Ok(())
+}
+
+fn write_json_pretty<T: Serialize>(
+    path: &Path,
+    payload: &T,
+    context: &str,
+) -> Result<(), AppError> {
+    let encoded = serde_json::to_string_pretty(payload)
+        .map_err(|error| AppError::with_source(ErrorCode::OutputEncodingFailed, context, error))?;
+    write_file(path, &encoded)
+}
+
+fn persist_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+    let content = serde_json::to_string_pretty(genesis).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode AOXC genesis document",
+            error,
+        )
+    })?;
+    write_file(&genesis_path()?, &content)
+}
+
+fn sync_optional_accounts_binding(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+    if let Some(accounts_file) = &genesis.bindings.accounts_file {
+        #[derive(Serialize)]
+        struct AccountsDoc<'a> {
+            schema_version: u8,
+            environment: &'a str,
+            identity: &'a CanonicalIdentity,
+            accounts: &'a [BootstrapAccountRecord],
+        }
+        let accounts_doc = AccountsDoc {
+            schema_version: 1,
+            environment: &genesis.environment,
+            identity: &genesis.identity,
+            accounts: &genesis.state.accounts,
+        };
+
+        let genesis_file = genesis_path()?;
+        let parent = genesis_file
+            .parent()
+            .ok_or_else(|| AppError::new(ErrorCode::FilesystemIoFailed, "Missing identity root"))?;
+        write_json_pretty(
+            &parent.join(accounts_file),
+            &accounts_doc,
+            "Failed to encode accounts binding document",
+        )?;
+    }
+    Ok(())
+}
+
+fn load_or_default_validators_binding(
+    genesis: &BootstrapGenesisDocument,
+) -> Result<BootstrapValidatorBindingsDocument, AppError> {
+    let root = genesis_path()?
+        .parent()
+        .ok_or_else(|| AppError::new(ErrorCode::FilesystemIoFailed, "Missing identity root"))?
+        .to_path_buf();
+    let path = root.join(&genesis.bindings.validators_file);
+    match read_file(&path) {
+        Ok(raw) => {
+            serde_json::from_str::<BootstrapValidatorBindingsDocument>(&raw).map_err(|error| {
+                AppError::with_source(
+                    ErrorCode::ConfigInvalid,
+                    "Failed to decode validators binding file",
+                    error,
+                )
+            })
+        }
+        Err(_) => Ok(BootstrapValidatorBindingsDocument {
+            schema_version: 2,
+            environment: genesis.environment.clone(),
+            identity: genesis.identity.clone(),
+            validators: Vec::new(),
+        }),
+    }
+}
+
+fn load_or_default_bootnodes_binding(
+    genesis: &BootstrapGenesisDocument,
+) -> Result<BootstrapBootnodesDocument, AppError> {
+    let root = genesis_path()?
+        .parent()
+        .ok_or_else(|| AppError::new(ErrorCode::FilesystemIoFailed, "Missing identity root"))?
+        .to_path_buf();
+    let path = root.join(&genesis.bindings.bootnodes_file);
+    match read_file(&path) {
+        Ok(raw) => serde_json::from_str::<BootstrapBootnodesDocument>(&raw).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::ConfigInvalid,
+                "Failed to decode bootnodes binding file",
+                error,
+            )
+        }),
+        Err(_) => Ok(BootstrapBootnodesDocument {
+            schema_version: 2,
+            environment: genesis.environment.clone(),
+            identity: genesis.identity.clone(),
+            bootnodes: Vec::new(),
+        }),
+    }
+}
+
+fn upsert_validator_binding(
+    doc: &mut BootstrapValidatorBindingsDocument,
+    record: BootstrapValidatorBindingRecord,
+) {
+    if let Some(existing) = doc
+        .validators
+        .iter_mut()
+        .find(|existing| existing.validator_id == record.validator_id)
+    {
+        *existing = record;
+    } else {
+        doc.validators.push(record);
+    }
+}
+
+fn upsert_bootnode_binding(doc: &mut BootstrapBootnodesDocument, record: BootstrapBootnodeRecord) {
+    if let Some(existing) = doc
+        .bootnodes
+        .iter_mut()
+        .find(|existing| existing.node_id == record.node_id)
+    {
+        *existing = record;
+    } else {
+        doc.bootnodes.push(record);
+    }
+}
+
+fn persist_validators_binding(
+    genesis: &BootstrapGenesisDocument,
+    doc: &BootstrapValidatorBindingsDocument,
+) -> Result<(), AppError> {
+    let root = genesis_path()?
+        .parent()
+        .ok_or_else(|| AppError::new(ErrorCode::FilesystemIoFailed, "Missing identity root"))?
+        .to_path_buf();
+    write_json_pretty(
+        &root.join(&genesis.bindings.validators_file),
+        doc,
+        "Failed to encode validators binding document",
+    )
+}
+
+fn persist_bootnodes_binding(
+    genesis: &BootstrapGenesisDocument,
+    doc: &BootstrapBootnodesDocument,
+) -> Result<(), AppError> {
+    let root = genesis_path()?
+        .parent()
+        .ok_or_else(|| AppError::new(ErrorCode::FilesystemIoFailed, "Missing identity root"))?
+        .to_path_buf();
+    write_json_pretty(
+        &root.join(&genesis.bindings.bootnodes_file),
+        doc,
+        "Failed to encode bootnodes binding document",
+    )
+}
+
+fn derive_short_fingerprint(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    hex::encode(digest)[..16].to_string()
 }
 
 fn load_genesis() -> Result<BootstrapGenesisDocument, AppError> {
@@ -818,6 +1485,218 @@ fn validate_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> 
             ErrorCode::ConfigInvalid,
             "Genesis validation failed: deterministic serialization must be required",
         ));
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct ValidatorSetDocument {
+    validators: Vec<ValidatorRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ValidatorRecord {
+    validator_id: String,
+    consensus_public_key: String,
+    status: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BootnodesValidationDocument {
+    bootnodes: Vec<BootnodeValidationRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BootnodeValidationRecord {
+    node_id: String,
+    transport_public_key: String,
+    address: String,
+    status: String,
+}
+
+fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+    let genesis_file = genesis_path()?;
+    let root = genesis_file.parent().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::FilesystemIoFailed,
+            "Genesis validation failed: identity directory is not accessible",
+        )
+    })?;
+
+    let validators_path = root.join(&genesis.bindings.validators_file);
+    let validators_raw = read_file(&validators_path)?;
+    let validators_doc: ValidatorSetDocument =
+        serde_json::from_str(&validators_raw).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validators binding is not valid JSON: {}",
+                    validators_path.display()
+                ),
+                error,
+            )
+        })?;
+
+    if validators_doc.validators.is_empty() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: validators file must contain at least one validator: {}",
+                validators_path.display()
+            ),
+        ));
+    }
+
+    for validator in &validators_doc.validators {
+        if validator.validator_id.trim().is_empty() {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                "Genesis validation failed: validator_id must not be empty",
+            ));
+        }
+
+        if validator.consensus_public_key.trim().is_empty()
+            || validator
+                .consensus_public_key
+                .to_ascii_lowercase()
+                .contains("pending_real_value")
+        {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator consensus key is empty or placeholder for {}",
+                    validator.validator_id
+                ),
+            ));
+        }
+
+        if validator.status.trim() != "active" {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator {} is not active",
+                    validator.validator_id
+                ),
+            ));
+        }
+    }
+
+    let bootnodes_path = root.join(&genesis.bindings.bootnodes_file);
+    let bootnodes_raw = read_file(&bootnodes_path)?;
+    let bootnodes_doc: BootnodesValidationDocument =
+        serde_json::from_str(&bootnodes_raw).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: bootnodes binding is not valid JSON: {}",
+                    bootnodes_path.display()
+                ),
+                error,
+            )
+        })?;
+
+    if bootnodes_doc.bootnodes.is_empty() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: bootnodes file must contain at least one bootnode: {}",
+                bootnodes_path.display()
+            ),
+        ));
+    }
+    for bootnode in &bootnodes_doc.bootnodes {
+        if bootnode.node_id.trim().is_empty()
+            || bootnode.transport_public_key.trim().is_empty()
+            || bootnode
+                .transport_public_key
+                .to_ascii_lowercase()
+                .contains("pending_real_value")
+            || bootnode.address.trim().is_empty()
+            || bootnode
+                .address
+                .trim()
+                .contains("REPLACE_WITH_REAL_BOOTNODE_ADDRESS")
+            || bootnode.status.trim() != "active"
+        {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: bootnode record is invalid for {}",
+                    bootnode.node_id
+                ),
+            ));
+        }
+    }
+
+    let certificate_path = root.join(&genesis.bindings.certificate_file);
+    let certificate_raw = read_file(&certificate_path)?;
+    let certificate_json: Value = serde_json::from_str(&certificate_raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: certificate binding is not valid JSON: {}",
+                certificate_path.display()
+            ),
+            error,
+        )
+    })?;
+
+    if certificate_json
+        .as_object()
+        .is_none_or(|object| object.is_empty())
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: certificate file is empty: {}",
+                certificate_path.display()
+            ),
+        ));
+    }
+    if certificate_json
+        .pointer("/certificate/fingerprint_sha256")
+        .and_then(Value::as_str)
+        .is_none_or(|value| {
+            value.trim().is_empty()
+                || value
+                    .to_ascii_lowercase()
+                    .contains("replace_with_real_certificate_fingerprint")
+        })
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: certificate fingerprint is empty or placeholder",
+        ));
+    }
+
+    if let Some(accounts_file) = &genesis.bindings.accounts_file {
+        let accounts_path = root.join(accounts_file);
+        let accounts_raw = read_file(&accounts_path)?;
+        let accounts_json: Value = serde_json::from_str(&accounts_raw).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: accounts binding is not valid JSON: {}",
+                    accounts_path.display()
+                ),
+                error,
+            )
+        })?;
+
+        if accounts_json
+            .get("accounts")
+            .and_then(Value::as_array)
+            .is_none_or(|entries| entries.is_empty())
+        {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: accounts file must contain at least one account: {}",
+                    accounts_path.display()
+                ),
+            ));
+        }
     }
 
     Ok(())
