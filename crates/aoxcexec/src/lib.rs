@@ -1529,10 +1529,7 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(ExecutionError::DuplicateSenderNonce {
-                sender,
-                nonce: 4,
-            })
+            Err(ExecutionError::DuplicateSenderNonce { sender, nonce: 4 })
         );
     }
 
@@ -1548,8 +1545,22 @@ mod tests {
             .execute_batch(&context, &[payload, valid])
             .expect("batch should return receipts");
 
-        assert_eq!(outcome.receipts.iter().filter(|receipt| !receipt.success).count(), 1);
-        assert_eq!(outcome.receipts.iter().filter(|receipt| receipt.success).count(), 1);
+        assert_eq!(
+            outcome
+                .receipts
+                .iter()
+                .filter(|receipt| !receipt.success)
+                .count(),
+            1
+        );
+        assert_eq!(
+            outcome
+                .receipts
+                .iter()
+                .filter(|receipt| receipt.success)
+                .count(),
+            1
+        );
         assert_eq!(outcome.results.len(), 1);
     }
 
