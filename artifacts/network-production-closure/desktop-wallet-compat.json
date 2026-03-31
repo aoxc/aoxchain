@@ -1,9 +1,0 @@
-{
-  "status": "validated",
-  "surfaces": ["desktop-wallet", "aoxhub", "mainnet", "testnet"],
-  "requirements": [
-    "shared chain routing and chain-id mapping verified",
-    "wallet session and signing flows remain hub-compatible",
-    "rollback path documented for desktop release promotion"
-  ]
-}
