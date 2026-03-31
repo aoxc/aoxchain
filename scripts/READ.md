@@ -97,6 +97,21 @@ Release artifact certification helper.
 This script validates and certifies release artifacts according to the
 repository’s release assurance expectations.
 
+### Operator orchestration wrappers
+The following scripts provide high-level workflow wrappers and intentionally
+defer critical validation logic to `aoxc` and `make` surfaces:
+
+- `scripts/chain_demo.sh`
+- `scripts/chain_create.sh`
+- `scripts/network_start.sh`
+- `scripts/network_stop.sh`
+- `scripts/validator_bootstrap.sh`
+- `scripts/wallet_seed.sh`
+- `scripts/preflight_check.sh`
+- `scripts/finality_smoke.sh`
+- `scripts/transfer_smoke.sh`
+- `scripts/runtime_recover.sh`
+
 ---
 
 ## Canonical Runtime Model

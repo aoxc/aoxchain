@@ -50,6 +50,15 @@ make ops-start
 make ops-status
 ```
 
+### Guided chain workflows
+```bash
+make demo
+make localnet
+make devnet
+make testnet
+make doctor
+```
+
 ## 3) How the Make system is organized
 
 The root `Makefile` is a single-runtime operator surface. It intentionally avoids environment fan-out and exposes auditable targets for:
@@ -63,6 +72,7 @@ Key target groups:
 - **Engineering quality:** `build`, `test`, `check`, `fmt`, `clippy`, `quality`, `ci`.
 - **Runtime management:** `runtime-install`, `runtime-verify`, `runtime-activate`, `runtime-status`, `runtime-doctor`, `runtime-reset`.
 - **Operations:** `ops-prepare`, `ops-start`, `ops-stop`, `ops-restart`, `ops-logs`, `ops-flow`.
+- **Guided workflows:** `demo`, `localnet`, `devnet`, `testnet`, `doctor`, `audit-chain`.
 - **Release/evidence:** `package-*`, `publish-release`, `audit`, `db-*`.
 
 ## 4) Identity and key management baseline
@@ -107,6 +117,9 @@ mdBook entry points:
 - `docs/src/README.md`
 - `docs/src/SYSTEM_STATUS.md`
 - `docs/src/AI_TRAINING_AND_AUDIT_GUIDE.md`
+
+Operator surface roadmap:
+- `docs/OPERATOR_SURFACE.md`
 
 ## 7) License and liability context
 
