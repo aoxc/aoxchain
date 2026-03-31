@@ -43,6 +43,7 @@ struct RunnerSettings {
 impl Runner {
     pub fn new() -> Self {
         let settings = RunnerSettings::default();
+
         Self {
             jobs: Arc::new(Mutex::new(HashMap::new())),
             execution_slots: Arc::new(Semaphore::new(settings.max_concurrent_jobs)),
@@ -115,6 +116,7 @@ impl Runner {
                 Ok(child) => child,
                 Err(err) => {
                     let mut map = jobs.lock().await;
+
                     if let Some(rec) = map.get_mut(&task_job_id) {
                         let _ = append_output(
                             &mut rec.status.output,
@@ -124,6 +126,7 @@ impl Runner {
                         rec.status.finished_at = Some(Utc::now());
                         rec.status.exit_code = Some(-1);
                     }
+
                     let _ = tx.send(format!("Failed to launch process: {err}"));
                     return;
                 }
@@ -147,6 +150,7 @@ impl Runner {
                                 &format!("{line}\n"),
                                 output_limit,
                             );
+
                             if should_stop {
                                 break;
                             }
@@ -176,6 +180,7 @@ impl Runner {
                                 &format!("{formatted}\n"),
                                 output_limit,
                             );
+
                             if should_stop {
                                 break;
                             }
@@ -193,10 +198,12 @@ impl Runner {
                 status = child.wait() => status.ok().and_then(|s| s.code()),
                 _ = &mut timeout => {
                     let _ = child.kill().await;
+
                     let mut guard = jobs.lock().await;
                     if let Some(rec) = guard.get_mut(&task_job_id) {
                         rec.status.timed_out = true;
                     }
+
                     Some(124)
                 }
             };
@@ -295,8 +302,10 @@ fn append_output(buffer: &mut String, chunk: &str, max_output_bytes: usize) -> b
     }
 
     const TRUNCATION_MARKER: &str = "\n[output truncated]\n";
+
     if buffer.len() < max_output_bytes {
         let marker_remaining = max_output_bytes.saturating_sub(buffer.len());
+
         if TRUNCATION_MARKER.len() <= marker_remaining {
             buffer.push_str(TRUNCATION_MARKER);
         } else if marker_remaining > 0 {
@@ -308,6 +317,7 @@ fn append_output(buffer: &mut String, chunk: &str, max_output_bytes: usize) -> b
                     break;
                 }
             }
+
             if marker_safe_cut > 0 {
                 buffer.push_str(&TRUNCATION_MARKER[..marker_safe_cut]);
             }
@@ -416,6 +426,7 @@ mod tests {
 
         for n in 0..4 {
             let job_id = format!("job-{n}");
+
             let _ = runner
                 .launch(
                     job_id,
