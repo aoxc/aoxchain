@@ -1,6 +1,7 @@
 use crate::{embed, environments::Environment, security, services::HubService};
 use axum::{
     Json, Router,
+    extract::DefaultBodyLimit,
     extract::{Path, State},
     http::StatusCode,
     middleware,
@@ -34,6 +35,7 @@ struct CustomBinaryRequest {
 }
 
 pub async fn serve(service: HubService) -> Result<(), std::io::Error> {
+    let max_request_bytes = env_or_default("AOXCHUB_MAX_REQUEST_BYTES", 64 * 1024);
     let app = Router::new()
         .route("/", get(index))
         .route("/assets/{*path}", get(asset))
@@ -44,6 +46,7 @@ pub async fn serve(service: HubService) -> Result<(), std::io::Error> {
         .route("/api/execute", post(execute))
         .route("/api/jobs/{id}", get(job))
         .route("/api/jobs/{id}/stream", get(stream))
+        .layer(DefaultBodyLimit::max(max_request_bytes))
         .layer(middleware::from_fn(security::localhost_only))
         .with_state(service);
 
@@ -182,4 +185,12 @@ async fn stream(
 
 fn to_http(err: crate::errors::HubError) -> (StatusCode, String) {
     (StatusCode::BAD_REQUEST, err.to_string())
+}
+
+fn env_or_default(name: &str, default: usize) -> usize {
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(default)
 }
