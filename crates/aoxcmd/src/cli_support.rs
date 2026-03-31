@@ -91,7 +91,10 @@ BOOTSTRAP
   keys-inspect
   keys-show-fingerprint
   keys-verify [--password <value>]
+  address-create --name <validator> --profile <validation|testnet|mainnet|devnet|localnet> --password <value>
   genesis-init
+  genesis-add-account --account-id <id> --balance <amount> [--role <treasury|validator|system|user>]
+  genesis-add-validator --validator-id <id> --consensus-public-key <hex> --network-public-key <hex> [--consensus-fingerprint <hex>] [--network-fingerprint <hex>] [--bootnode-address <host:port>] [--balance <amount>] [--display-name <label>]
   genesis-validate
   genesis-inspect
   genesis-hash

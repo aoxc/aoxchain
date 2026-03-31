@@ -109,6 +109,16 @@ endif
 # Runtime policy
 # --------------------------------------------------------------------
 AOXC_DB_BACKEND ?= redb
+AOXC_BOOTSTRAP_PROFILE ?= validation
+AOXC_VALIDATOR_NAME ?= validator-01
+AOXC_VALIDATOR_PASSWORD ?= ChangeMe#2026
+AOXC_VALIDATOR_ID ?= aoxc-val-custom-001
+AOXC_CONSENSUS_PUBLIC_KEY ?= replace_with_consensus_public_key_hex
+AOXC_NETWORK_PUBLIC_KEY ?= replace_with_network_public_key_hex
+AOXC_VALIDATOR_BALANCE ?= 50000000
+AOXC_NEW_ACCOUNT_ID ?= AOXC_USER_0001
+AOXC_NEW_ACCOUNT_BALANCE ?= 1000000
+AOXC_NEW_ACCOUNT_ROLE ?= user
 
 # --------------------------------------------------------------------
 # Executable suffix
@@ -249,6 +259,7 @@ endef
 	runtime-bundle-compat-check \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
+	chain-help chain-init chain-add-account chain-add-validator chain-start-persistent \
 	ui alpha
 
 # --------------------------------------------------------------------
@@ -317,6 +328,13 @@ help:
 	@printf "  make ops-restart\n"
 	@printf "  make ops-logs\n"
 	@printf "  make ops-flow\n\n"
+
+	@printf "Persistent chain bootstrap\n"
+	@printf "  make chain-help\n"
+	@printf "  make chain-init AOXC_BOOTSTRAP_PROFILE=validation AOXC_VALIDATOR_NAME=validator-01 AOXC_VALIDATOR_PASSWORD='StrongPass#2026'\n"
+	@printf "  make chain-add-account AOXC_NEW_ACCOUNT_ID=AOXC_USER_0001 AOXC_NEW_ACCOUNT_BALANCE=1000000 AOXC_NEW_ACCOUNT_ROLE=user\n"
+	@printf "  make chain-add-validator AOXC_VALIDATOR_ID=aoxc-val-custom-001 AOXC_CONSENSUS_PUBLIC_KEY=<hex> AOXC_NETWORK_PUBLIC_KEY=<hex> AOXC_VALIDATOR_BALANCE=50000000\n"
+	@printf "  make chain-start-persistent\n\n"
 
 paths:
 	@printf "AOXC_PLATFORM=%s\n" "$(AOXC_PLATFORM)"
@@ -863,6 +881,35 @@ ops-flow:
 	@$(MAKE) --no-print-directory db-event ACTION=flow STATUS=started DETAIL=ops-flow
 	@$(MAKE) --no-print-directory ops-start
 	@$(MAKE) --no-print-directory db-event ACTION=flow STATUS=completed DETAIL=ops-flow
+
+chain-help:
+	$(call print_banner,AOXC persistent chain bootstrap targets)
+	@printf "make chain-init AOXC_BOOTSTRAP_PROFILE=<validation|testnet|mainnet|devnet|localnet> AOXC_VALIDATOR_NAME=<name> AOXC_VALIDATOR_PASSWORD=<password>\n"
+	@printf "make chain-add-account AOXC_NEW_ACCOUNT_ID=<id> AOXC_NEW_ACCOUNT_BALANCE=<amount> AOXC_NEW_ACCOUNT_ROLE=<role>\n"
+	@printf "make chain-add-validator AOXC_VALIDATOR_ID=<id> AOXC_CONSENSUS_PUBLIC_KEY=<hex> AOXC_NETWORK_PUBLIC_KEY=<hex> AOXC_VALIDATOR_BALANCE=<amount>\n"
+	@printf "make chain-start-persistent\n"
+
+chain-init: package-bin bootstrap-paths
+	$(call print_banner,Initializing persistent AOXC chain state)
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" config-init --profile "$(AOXC_BOOTSTRAP_PROFILE)" --json-logs
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" address-create --name "$(AOXC_VALIDATOR_NAME)" --profile "$(AOXC_BOOTSTRAP_PROFILE)" --password "$(AOXC_VALIDATOR_PASSWORD)"
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" genesis-init --profile "$(AOXC_BOOTSTRAP_PROFILE)"
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" genesis-validate
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" node-bootstrap
+
+chain-add-account: package-bin bootstrap-paths
+	$(call print_banner,Adding account to persistent genesis)
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" genesis-add-account --account-id "$(AOXC_NEW_ACCOUNT_ID)" --balance "$(AOXC_NEW_ACCOUNT_BALANCE)" --role "$(AOXC_NEW_ACCOUNT_ROLE)"
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" genesis-validate
+
+chain-add-validator: package-bin bootstrap-paths
+	$(call print_banner,Adding validator to persistent genesis)
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" genesis-add-validator --validator-id "$(AOXC_VALIDATOR_ID)" --consensus-public-key "$(AOXC_CONSENSUS_PUBLIC_KEY)" --network-public-key "$(AOXC_NETWORK_PUBLIC_KEY)" --balance "$(AOXC_VALIDATOR_BALANCE)"
+	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" genesis-validate
+
+chain-start-persistent: chain-init
+	$(call print_banner,Starting persistent AOXC runtime)
+	@$(MAKE) --no-print-directory ops-start
 
 # --------------------------------------------------------------------
 # UI surfaces
