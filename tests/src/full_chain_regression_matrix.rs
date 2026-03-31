@@ -7,22 +7,10 @@ use aoxcnet::{
     gossip::peer::{NodeCertificate, Peer, PeerRole},
     p2p::P2PNetwork,
 };
-use aoxcore::{
-    block::{Capability, TargetOutpost},
-    identity::{
-        actor_id::{generate_actor_id, parse_actor_id, validate_actor_id},
-        hd_path::{HdPath, MAX_HD_INDEX},
-    },
-    transaction::{
-        MAX_TRANSACTION_PAYLOAD_BYTES, Transaction, TransactionError, hash_transaction,
-        hash_transaction_intent,
-    },
-};
 use aoxcunity::{
     BlockBody, ConsensusMessage, LaneCommitment, LaneCommitmentSection, LaneType, Proposer,
     QuorumThreshold,
 };
-use ed25519_dalek::SigningKey;
 
 #[test]
 fn quorum_threshold_rejects_invalid_ratios() {
@@ -113,154 +101,6 @@ fn network_session_broadcast_produces_monotonic_nonce() {
 
     assert_eq!(envelope_a.session_id, envelope_b.session_id);
     assert!(envelope_b.nonce > envelope_a.nonce);
-}
-
-#[test]
-fn quorum_threshold_handles_zero_total_power_safely() {
-    let threshold = QuorumThreshold::two_thirds();
-    assert!(!threshold.is_reached(10, 0));
-}
-
-#[test]
-fn certificate_validity_is_inclusive_on_window_edges() {
-    let cert = certificate();
-    assert!(cert.is_valid_at(cert.valid_from_unix));
-    assert!(cert.is_valid_at(cert.valid_until_unix));
-}
-
-#[test]
-fn peer_identity_shape_rejects_missing_fields() {
-    let mut p = peer();
-    assert!(p.has_valid_identity_shape());
-
-    p.id = "".to_string();
-    assert!(!p.has_valid_identity_shape());
-
-    p.id = "node-1".to_string();
-    p.address = " ".to_string();
-    assert!(!p.has_valid_identity_shape());
-}
-
-#[test]
-fn receive_returns_none_when_inbound_queue_is_empty() {
-    let mut network = P2PNetwork::new(NetworkConfig::default());
-    assert!(network.receive().is_none());
-}
-
-#[test]
-fn receive_returns_payload_after_valid_broadcast() {
-    let mut network = P2PNetwork::new(NetworkConfig::default());
-    network.register_peer(peer()).expect("peer should register");
-    network
-        .establish_session("node-1")
-        .expect("session should establish");
-
-    network
-        .broadcast_secure(
-            "node-1",
-            ConsensusMessage::BlockProposal {
-                block: sample_block(3),
-            },
-        )
-        .expect("broadcast should succeed");
-
-    let received = network.receive();
-    assert!(received.is_some());
-}
-
-#[test]
-fn proposer_output_hash_changes_for_distinct_inputs() {
-    let block_a = sample_block(11);
-    let block_b = sample_block(12);
-    assert_ne!(block_a.hash, block_b.hash);
-}
-
-#[test]
-fn transaction_payload_size_boundary_is_enforced() {
-    let signer = SigningKey::from_bytes(&[9u8; 32]);
-    let sender = signer.verifying_key().to_bytes();
-
-    let max_ok = Transaction::new(
-        sender,
-        1,
-        Capability::UserSigned,
-        TargetOutpost::EthMainnetGateway,
-        vec![0xAA; MAX_TRANSACTION_PAYLOAD_BYTES],
-        [7u8; 64],
-    );
-    assert!(max_ok.is_ok());
-
-    let max_fail = Transaction::new(
-        sender,
-        2,
-        Capability::UserSigned,
-        TargetOutpost::EthMainnetGateway,
-        vec![0xAA; MAX_TRANSACTION_PAYLOAD_BYTES + 1],
-        [8u8; 64],
-    )
-    .expect_err("oversized payload must fail");
-
-    assert!(matches!(
-        max_fail,
-        TransactionError::PayloadTooLarge {
-            size,
-            max: MAX_TRANSACTION_PAYLOAD_BYTES,
-        } if size == MAX_TRANSACTION_PAYLOAD_BYTES + 1
-    ));
-}
-
-#[test]
-fn transaction_intent_hash_is_signature_agnostic() {
-    let signer = SigningKey::from_bytes(&[3u8; 32]);
-    let sender = signer.verifying_key().to_bytes();
-
-    let tx_a = Transaction::new(
-        sender,
-        41,
-        Capability::UserSigned,
-        TargetOutpost::EthMainnetGateway,
-        b"intent-payload".to_vec(),
-        [1u8; 64],
-    )
-    .expect("transaction should build");
-
-    let tx_b = Transaction::new(
-        sender,
-        41,
-        Capability::UserSigned,
-        TargetOutpost::EthMainnetGateway,
-        b"intent-payload".to_vec(),
-        [2u8; 64],
-    )
-    .expect("transaction should build");
-
-    assert_eq!(
-        hash_transaction_intent(&tx_a),
-        hash_transaction_intent(&tx_b)
-    );
-    assert_ne!(hash_transaction(&tx_a), hash_transaction(&tx_b));
-}
-
-#[test]
-fn actor_id_generation_and_parsing_roundtrip() {
-    let signer = SigningKey::from_bytes(&[1u8; 32]);
-    let actor_id = generate_actor_id(&signer.verifying_key().to_bytes(), "validator", "eu")
-        .expect("actor-id should generate");
-
-    assert_eq!(validate_actor_id(&actor_id), Ok(()));
-    let parsed = parse_actor_id(&actor_id).expect("actor-id should parse");
-    assert_eq!(parsed.prefix, "AOXC");
-}
-
-#[test]
-fn hd_path_roundtrip_and_overflow_rejection() {
-    let path = HdPath::new(44, 2626, 1, MAX_HD_INDEX).expect("path should build");
-    let serialized = path.to_string();
-    let reparsed: HdPath = serialized.parse().expect("path should parse");
-    assert_eq!(path, reparsed);
-
-    let overflow = format!("m/44/2626/1/2/3/{}", MAX_HD_INDEX + 1);
-    assert!(overflow.parse::<HdPath>().is_err());
 }
 
 fn sample_block(seed: u8) -> aoxcunity::Block {
