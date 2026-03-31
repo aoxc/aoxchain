@@ -31,6 +31,7 @@ use crate::{
     node::lifecycle::bootstrap_state,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -404,6 +405,7 @@ pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_genesis_validate(args: &[String]) -> Result<(), AppError> {
     let genesis = load_genesis()?;
     validate_genesis(&genesis)?;
+    validate_binding_files(&genesis)?;
 
     let mut details = BTreeMap::new();
     details.insert(
@@ -818,6 +820,170 @@ fn validate_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> 
             ErrorCode::ConfigInvalid,
             "Genesis validation failed: deterministic serialization must be required",
         ));
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct ValidatorSetDocument {
+    validators: Vec<ValidatorRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ValidatorRecord {
+    validator_id: String,
+    consensus_public_key: String,
+    status: String,
+}
+
+fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+    let genesis_file = genesis_path()?;
+    let root = genesis_file.parent().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::FilesystemIoFailed,
+            "Genesis validation failed: identity directory is not accessible",
+        )
+    })?;
+
+    let validators_path = root.join(&genesis.bindings.validators_file);
+    let validators_raw = read_file(&validators_path)?;
+    let validators_doc: ValidatorSetDocument =
+        serde_json::from_str(&validators_raw).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validators binding is not valid JSON: {}",
+                    validators_path.display()
+                ),
+                error,
+            )
+        })?;
+
+    if validators_doc.validators.is_empty() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: validators file must contain at least one validator: {}",
+                validators_path.display()
+            ),
+        ));
+    }
+
+    for validator in &validators_doc.validators {
+        if validator.validator_id.trim().is_empty() {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                "Genesis validation failed: validator_id must not be empty",
+            ));
+        }
+
+        if validator.consensus_public_key.trim().is_empty()
+            || validator
+                .consensus_public_key
+                .to_ascii_lowercase()
+                .contains("pending_real_value")
+        {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator consensus key is empty or placeholder for {}",
+                    validator.validator_id
+                ),
+            ));
+        }
+
+        if validator.status.trim() != "active" {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator {} is not active",
+                    validator.validator_id
+                ),
+            ));
+        }
+    }
+
+    let bootnodes_path = root.join(&genesis.bindings.bootnodes_file);
+    let bootnodes_raw = read_file(&bootnodes_path)?;
+    let bootnodes_json: Value = serde_json::from_str(&bootnodes_raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: bootnodes binding is not valid JSON: {}",
+                bootnodes_path.display()
+            ),
+            error,
+        )
+    })?;
+
+    if bootnodes_json
+        .get("bootnodes")
+        .and_then(Value::as_array)
+        .is_none_or(|entries| entries.is_empty())
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: bootnodes file must contain at least one bootnode: {}",
+                bootnodes_path.display()
+            ),
+        ));
+    }
+
+    let certificate_path = root.join(&genesis.bindings.certificate_file);
+    let certificate_raw = read_file(&certificate_path)?;
+    let certificate_json: Value = serde_json::from_str(&certificate_raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: certificate binding is not valid JSON: {}",
+                certificate_path.display()
+            ),
+            error,
+        )
+    })?;
+
+    if certificate_json
+        .as_object()
+        .is_none_or(|object| object.is_empty())
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: certificate file is empty: {}",
+                certificate_path.display()
+            ),
+        ));
+    }
+
+    if let Some(accounts_file) = &genesis.bindings.accounts_file {
+        let accounts_path = root.join(accounts_file);
+        let accounts_raw = read_file(&accounts_path)?;
+        let accounts_json: Value = serde_json::from_str(&accounts_raw).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: accounts binding is not valid JSON: {}",
+                    accounts_path.display()
+                ),
+                error,
+            )
+        })?;
+
+        if accounts_json
+            .get("accounts")
+            .and_then(Value::as_array)
+            .is_none_or(|entries| entries.is_empty())
+        {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: accounts file must contain at least one account: {}",
+                    accounts_path.display()
+                ),
+            ));
+        }
     }
 
     Ok(())
