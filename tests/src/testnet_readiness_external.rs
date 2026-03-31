@@ -193,6 +193,93 @@ fn testnet_genesis_hash_and_policy_flags_match_release_gates() {
     );
 }
 
+
+#[test]
+fn testnet_public_endpoints_and_topology_remain_transport_hardened() {
+    let metadata = read_json(&format!("{TESTNET_DIR}/network-metadata.json"));
+
+    let rpc = metadata
+        .get("rpc")
+        .and_then(Value::as_object)
+        .expect("rpc object must exist");
+    let primary = rpc
+        .get("primary")
+        .and_then(Value::as_str)
+        .expect("primary rpc must exist");
+    let secondary = rpc
+        .get("secondary")
+        .and_then(Value::as_str)
+        .expect("secondary rpc must exist");
+    let ws = rpc
+        .get("ws")
+        .and_then(Value::as_str)
+        .expect("websocket rpc must exist");
+
+    assert!(
+        primary.starts_with("https://") && secondary.starts_with("https://"),
+        "public RPC endpoints must use HTTPS"
+    );
+    assert!(
+        ws.starts_with("wss://"),
+        "public websocket endpoint must use secure WSS"
+    );
+
+    let public_endpoints = metadata
+        .get("public_endpoints")
+        .and_then(Value::as_object)
+        .expect("public_endpoints object must exist");
+
+    for key in ["faucet", "explorer", "status"] {
+        let endpoint = public_endpoints
+            .get(key)
+            .and_then(Value::as_str)
+            .expect("public endpoint must exist");
+        assert!(
+            endpoint.starts_with("https://"),
+            "{key} endpoint must use HTTPS"
+        );
+    }
+
+    let topology = metadata
+        .get("topology")
+        .and_then(Value::as_array)
+        .expect("topology must exist");
+    assert!(
+        topology.len() >= 3,
+        "testnet topology must include at least three declared nodes"
+    );
+
+    let mut rpc_public_nodes = 0usize;
+    for entry in topology {
+        let roles = entry
+            .get("roles")
+            .and_then(Value::as_array)
+            .expect("roles list must exist");
+        let has_rpc_role = roles
+            .iter()
+            .filter_map(Value::as_str)
+            .any(|role| role == "rpc");
+        let rpc_public = entry
+            .get("rpc_public")
+            .and_then(Value::as_bool)
+            .expect("rpc_public flag must exist");
+
+        if rpc_public {
+            rpc_public_nodes += 1;
+        }
+
+        assert_eq!(
+            has_rpc_role, rpc_public,
+            "rpc_public should match explicit rpc role assignment"
+        );
+    }
+
+    assert!(
+        rpc_public_nodes >= 1,
+        "at least one rpc node must be marked public"
+    );
+}
+
 fn read_json(path: &str) -> Value {
     let raw = fs::read_to_string(path).expect("json file should read");
     serde_json::from_str(&raw).expect("json should parse")
