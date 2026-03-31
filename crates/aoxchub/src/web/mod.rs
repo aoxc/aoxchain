@@ -1,18 +1,17 @@
 use crate::{embed, environments::Environment, security, services::HubService};
 use axum::{
-    Json, Router,
     extract::DefaultBodyLimit,
     extract::{Path, State},
     http::StatusCode,
     middleware,
-    response::{Html, IntoResponse, Sse},
+    response::{Html, IntoResponse, Response, Sse},
     routing::{get, post},
+    Json, Router,
 };
 use serde::Deserialize;
 use serde_json::json;
 use std::{convert::Infallible, net::SocketAddr, time::Duration};
 use tokio::net::TcpListener;
-use tower::{ServiceBuilder, limit::ConcurrencyLimitLayer, timeout::TimeoutLayer};
 
 #[derive(Deserialize)]
 struct EnvRequest {
@@ -35,8 +34,15 @@ struct CustomBinaryRequest {
     path: String,
 }
 
+/// Starts the local AOXCHub HTTP server.
+///
+/// Security and operational rationale:
+/// - The listener is intentionally bound to localhost to minimize exposure.
+/// - Request bodies are capped to maintain deterministic memory usage.
+/// - A localhost-only middleware provides an explicit access control boundary.
 pub async fn serve(service: HubService) -> Result<(), std::io::Error> {
     let max_request_bytes = env_or_default("AOXCHUB_MAX_REQUEST_BYTES", 64 * 1024);
+
     let app = Router::new()
         .route("/", get(index))
         .route("/assets/{*path}", get(asset))
@@ -54,19 +60,28 @@ pub async fn serve(service: HubService) -> Result<(), std::io::Error> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 7070));
     let listener = TcpListener::bind(addr).await?;
     println!("AOXCHub listening on http://127.0.0.1:7070");
+
     axum::serve(listener, app).await
 }
 
+/// Serves the embedded HTML application shell.
 async fn index() -> Html<&'static str> {
     Html(embed::INDEX_HTML)
 }
-async fn asset(Path(path): Path<String>) -> impl IntoResponse {
+
+/// Serves embedded static assets with explicit and deterministic path mapping.
+///
+/// Implementation note:
+/// - The function returns `Response` directly so that all control-flow branches
+///   resolve to the same concrete type, avoiding handler type mismatches.
+async fn asset(Path(path): Path<String>) -> Response {
     if path == "app.js" {
         return (
             StatusCode::OK,
             [("content-type", "application/javascript; charset=utf-8")],
             embed::APP_JS,
-        );
+        )
+            .into_response();
     }
 
     let css = match path.as_str() {
@@ -97,43 +112,53 @@ async fn asset(Path(path): Path<String>) -> impl IntoResponse {
             StatusCode::OK,
             [("content-type", "text/css; charset=utf-8")],
             content,
-        ),
+        )
+            .into_response(),
         None => (
             StatusCode::NOT_FOUND,
             [("content-type", "text/plain; charset=utf-8")],
             "asset not found",
-        ),
+        )
+            .into_response(),
     }
 }
 
+/// Returns the current hub state snapshot.
 async fn state(State(service): State<HubService>) -> Json<crate::domain::HubStateView> {
     Json(service.state().await)
 }
 
+/// Updates the active environment selection.
+///
+/// The current service contract is side-effect oriented and returns unit,
+/// therefore the handler emits a simple acknowledgment payload on success.
 async fn set_environment(
     State(service): State<HubService>,
     Json(req): Json<EnvRequest>,
 ) -> Json<serde_json::Value> {
     service.set_environment(req.environment).await;
-    Json(json!({"ok": true}))
+    Json(json!({ "ok": true }))
 }
 
+/// Selects a registered binary by identifier.
 async fn select_binary(
     State(service): State<HubService>,
     Json(req): Json<BinarySelectRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     service.set_binary(req.binary_id).await.map_err(to_http)?;
-    Ok(Json(json!({"ok": true})))
+    Ok(Json(json!({ "ok": true })))
 }
 
+/// Registers a custom binary path after service-level validation.
 async fn add_custom_binary(
     State(service): State<HubService>,
     Json(req): Json<CustomBinaryRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     service.add_custom_binary(req.path).await.map_err(to_http)?;
-    Ok(Json(json!({"ok": true})))
+    Ok(Json(json!({ "ok": true })))
 }
 
+/// Launches an execution request after explicit confirmation.
 async fn execute(
     State(service): State<HubService>,
     Json(req): Json<ExecuteRequest>,
@@ -144,10 +169,15 @@ async fn execute(
             String::from("explicit confirmation is required"),
         ));
     }
-    let id = service.execute(req.command_id).await.map_err(to_http)?;
-    Ok(Json(json!({"ok": true, "job_id": id})))
+
+    let job_id = service.execute(req.command_id).await.map_err(to_http)?;
+    Ok(Json(json!({
+        "ok": true,
+        "job_id": job_id
+    })))
 }
 
+/// Returns the current status of a tracked job.
 async fn job(
     Path(id): Path<String>,
     State(service): State<HubService>,
@@ -160,6 +190,7 @@ async fn job(
         .ok_or(StatusCode::NOT_FOUND)
 }
 
+/// Streams live job output over Server-Sent Events.
 async fn stream(
     Path(id): Path<String>,
     State(service): State<HubService>,
@@ -172,26 +203,33 @@ async fn stream(
         .subscribe(&id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
+
     let stream = async_stream::stream! {
         loop {
             match rx.recv().await {
-                Ok(line) => yield Ok(axum::response::sse::Event::default().data(line)),
+                Ok(line) => {
+                    yield Ok(axum::response::sse::Event::default().data(line));
+                }
                 Err(_) => break,
             }
+
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     };
+
     Ok(Sse::new(stream))
 }
 
+/// Maps domain errors into a stable HTTP error contract.
 fn to_http(err: crate::errors::HubError) -> (StatusCode, String) {
     (StatusCode::BAD_REQUEST, err.to_string())
 }
 
+/// Reads a positive integer environment variable and falls back to the provided default.
 fn env_or_default(name: &str, default: usize) -> usize {
     std::env::var(name)
         .ok()
-        .and_then(|v| v.parse::<usize>().ok())
-        .filter(|v| *v > 0)
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
         .unwrap_or(default)
 }
