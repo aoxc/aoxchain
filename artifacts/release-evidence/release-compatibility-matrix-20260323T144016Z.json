@@ -1,0 +1,82 @@
+{
+  "binary_version": "0.1.1-akdeniz",
+  "release_name": "AOXC Mainnet-Candidate Operator Plane",
+  "protocol": {
+    "core_line": "AOXC-CORE-V1",
+    "kernel_line": "AOXC-COVENANT-KERNEL-V1-draft",
+    "block_format": "AOXC-BLOCK-FMT-V1-draft",
+    "vote_format": "AOXC-VOTE-FMT-V1-draft",
+    "certificate_format": "AOXC-CERT-FMT-V1-draft",
+    "enforcement": [
+      {
+        "surface": "block-header.version",
+        "expected_version": "1",
+        "behavior_on_mismatch": "reject block construction or verification"
+      },
+      {
+        "surface": "p2p-envelope.protocol_version",
+        "expected_version": "1",
+        "behavior_on_mismatch": "drop frame before gossip admission"
+      },
+      {
+        "surface": "vote/certificate format line",
+        "expected_version": "AOXC-VOTE-FMT-V1-draft / AOXC-CERT-FMT-V1-draft",
+        "behavior_on_mismatch": "treat quorum material as incompatible and non-canonical"
+      }
+    ]
+  },
+  "policy": {
+    "backward_compatibility": "patch releases within the same protocol line must preserve on-disk state and operator CLI automation contracts",
+    "rollback_window": "same release line only; protocol-line downgrades require explicit snapshot restore",
+    "migration_guarantee": "state migrations must be deterministic, evidence-backed, and coupled with snapshot recovery rehearsal",
+    "supported_upgrade_paths": [
+      {
+        "from": "0.1.1-akdeniz",
+        "to": "0.1.1-akdeniz+patch",
+        "status": "supported",
+        "guarantee": "no protocol line change; rolling restart permitted"
+      },
+      {
+        "from": "AOXC-CORE-V1 / AOXC-COVENANT-KERNEL-V1-draft",
+        "to": "same protocol line",
+        "status": "supported",
+        "guarantee": "wire and block formats must remain canonical-identical"
+      },
+      {
+        "from": "protocol line N",
+        "to": "protocol line N+1",
+        "status": "gated",
+        "guarantee": "requires explicit migration plan, compatibility evidence, and rollback snapshot"
+      }
+    ]
+  },
+  "network_validation": [
+    {
+      "name": "multi-host validation",
+      "status": "scripted",
+      "evidence_hint": "scripts/validation/multi_host_validation.sh"
+    },
+    {
+      "name": "fault injection and partition",
+      "status": "scripted",
+      "evidence_hint": "scripts/validation/network_production_closure.sh --scenario partition|delay|drop|restart"
+    },
+    {
+      "name": "state sync and snapshot recovery",
+      "status": "scripted",
+      "evidence_hint": "scripts/validation/network_production_closure.sh --scenario recovery"
+    },
+    {
+      "name": "soak and telemetry evidence",
+      "status": "scripted",
+      "evidence_hint": "scripts/validation/network_production_closure.sh --scenario soak"
+    }
+  ],
+  "release_trust_chain": {
+    "reproducible_build": "required via scripts/release/generate_release_evidence.sh",
+    "artifact_signature": "required via AOXC_SIGNING_CMD or pre-signed artifact injection",
+    "provenance_attestation": "required via AOXC_PROVENANCE_CMD or generated placeholder failure",
+    "release_evidence_gate": "release bundle is incomplete until checksums, signatures, provenance, and compatibility reports are present",
+    "compatibility_matrix": "published by `aoxc compat-matrix --format json` and bundled into release evidence"
+  }
+}

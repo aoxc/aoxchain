@@ -1,0 +1,32 @@
+{
+  "schema_version": "aoxc-toolchain-manifest/v1",
+  "release_id": "20260323T144016Z",
+  "rust": {
+    "channel": "stable",
+    "toolchain_source": "rust-toolchain.toml or CI-pinned stable toolchain",
+    "required_components": [
+      "rustfmt",
+      "clippy"
+    ]
+  },
+  "cargo": {
+    "lockfile_required": true,
+    "resolver": "workspace-defined"
+  },
+  "build_environment": {
+    "target_os": "linux",
+    "target_arch": "x86_64",
+    "determinism_policy": "Release evidence must be generated from a lockfile-backed reproducible workspace state."
+  },
+  "evidence_requirements": {
+    "checksum": true,
+    "signature": true,
+    "provenance": true,
+    "sbom": true,
+    "compatibility_matrix": true
+  },
+  "notes": [
+    "This manifest is intended to document the expected build and release surface.",
+    "Concrete compiler and environment fingerprints should be injected automatically by the release evidence generation pipeline."
+  ]
+}

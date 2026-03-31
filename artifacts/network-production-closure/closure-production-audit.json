@@ -1,0 +1,52 @@
+{
+  "generated_at": "2026-03-23T14:40:19.153948530+00:00",
+  "home_dir": "/root/.aoxc-data",
+  "checks": [
+    {
+      "name": "config-valid",
+      "passed": true,
+      "detail": "Operator configuration passed validation"
+    },
+    {
+      "name": "key-material",
+      "passed": true,
+      "detail": "Operator key material is available and structurally valid"
+    },
+    {
+      "name": "genesis-present",
+      "passed": false,
+      "detail": "Genesis path checked at /root/.aoxc-data/identity/genesis.json"
+    },
+    {
+      "name": "node-state",
+      "passed": false,
+      "detail": "Node runtime state is present and parseable"
+    },
+    {
+      "name": "ledger-present",
+      "passed": false,
+      "detail": "Ledger path checked at /root/.aoxc-data/ledger/ledger.json"
+    },
+    {
+      "name": "official-peer-policy",
+      "passed": true,
+      "detail": "Official peer enforcement is enabled"
+    }
+  ],
+  "verdict": "fail",
+  "ai_assist": {
+    "available": true,
+    "summary": "Native diagnostics verdict is 'fail'. 3 failed checks were summarized for operator review. AI output remains advisory.",
+    "remediation_plan": [
+      "genesis-present",
+      "node-state",
+      "ledger-present"
+    ],
+    "disposition": "allowed",
+    "invocation_id": "operator-diagnostics:local-heuristic",
+    "policy_id": "aoxcai-kernel-default",
+    "capability": "diagnosticsassist",
+    "zone": "operator",
+    "action_class": "advisory"
+  }
+}

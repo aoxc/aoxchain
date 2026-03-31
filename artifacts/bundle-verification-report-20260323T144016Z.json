@@ -1,0 +1,68 @@
+{
+  "schema_version": "aoxc-verification-report/v1",
+  "release_id": "20260323T144016Z",
+  "bundle_profile": "advanced-production-readiness",
+  "overall_status": "provisional",
+  "summary": {
+    "complete_for_release_approval": false,
+    "blocking_findings_count": 2,
+    "warnings_count": 2
+  },
+  "checks": [
+    {
+      "name": "checksum evidence present",
+      "status": "pass",
+      "artifact": "artifacts/release-evidence/aoxc-20260323T144016Z.sha256"
+    },
+    {
+      "name": "signature evidence present",
+      "status": "fail",
+      "artifact": "artifacts/release-evidence/aoxc-20260323T144016Z.sig.status",
+      "details": "Signature status indicates MISSING_SIGNATURE."
+    },
+    {
+      "name": "provenance attestation present",
+      "status": "fail",
+      "artifact": "artifacts/release-evidence/provenance-20260323T144016Z.json",
+      "details": "Provenance artifact reports missing-generator and therefore does not satisfy release approval requirements."
+    },
+    {
+      "name": "sbom present",
+      "status": "pass",
+      "artifact": "artifacts/release-evidence/sbom-20260323T144016Z.json"
+    },
+    {
+      "name": "mainnet compatibility declared",
+      "status": "pass",
+      "artifact": "artifacts/release-evidence/compat-matrix-20260323T144016Z.json"
+    },
+    {
+      "name": "testnet compatibility declared",
+      "status": "pass",
+      "artifact": "artifacts/release-evidence/compat-matrix-20260323T144016Z.json"
+    },
+    {
+      "name": "devnet compatibility declared",
+      "status": "pass",
+      "artifact": "artifacts/release-evidence/compat-matrix-20260323T144016Z.json"
+    },
+    {
+      "name": "desktop wallet compatibility declared",
+      "status": "pass",
+      "artifact": "artifacts/network-production-closure/desktop-wallet-compat.json"
+    },
+    {
+      "name": "production closure evidence present",
+      "status": "pass",
+      "artifact_set": "artifacts/network-production-closure"
+    }
+  ],
+  "warnings": [
+    "Build manifest contains placeholder fields such as unknown profile or unavailable genesis hash.",
+    "SBOM metadata indicates bootstrap-fixture generation and should be upgraded to a full production-grade inventory."
+  ],
+  "blocking_findings": [
+    "Release approval must not proceed without a verifiable provenance attestation.",
+    "Release approval must not proceed without valid signature evidence."
+  ]
+}

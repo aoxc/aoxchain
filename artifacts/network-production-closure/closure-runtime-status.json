@@ -1,0 +1,43 @@
+{
+  "context": {
+    "settings": {
+      "home_dir": "/root/.aoxc-data",
+      "profile": "validator",
+      "logging": {
+        "level": "info",
+        "json": false
+      },
+      "network": {
+        "bind_host": "127.0.0.1",
+        "p2p_port": 39001,
+        "rpc_port": 2626,
+        "enforce_official_peers": true
+      },
+      "telemetry": {
+        "enable_metrics": true,
+        "prometheus_port": 9100
+      },
+      "policy": {
+        "require_key_material": true,
+        "require_genesis": true,
+        "allow_remote_peers": false
+      }
+    },
+    "node_state": null
+  },
+  "handles": {
+    "node": "local-node-handle",
+    "telemetry": "local-telemetry-handle",
+    "ledger": "local-ledger-handle"
+  },
+  "unity": {
+    "consensus_mode": "deterministic-local",
+    "quorum_profile": "single-operator-bootstrap"
+  },
+  "ai": {
+    "context_role": "operator-assist",
+    "anomaly_score": 0.0,
+    "recommendation": "No anomaly detected in the current local workflow surface",
+    "ai_optional": true
+  }
+}
