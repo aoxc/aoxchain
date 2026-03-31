@@ -103,6 +103,8 @@ mod tests {
                 signature_scheme: 1,
             },
             signature: vec![5u8; 64],
+            pq_public_key: None,
+            pq_signature: None,
         };
 
         let a = ConsensusMessage::Vote(authenticated.clone()).canonical_bytes();

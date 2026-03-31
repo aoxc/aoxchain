@@ -648,6 +648,8 @@ mod tests {
                 signature_scheme: 1,
             },
             signature: vec![4u8; 64],
+            pq_public_key: None,
+            pq_signature: None,
         })
     }
 

@@ -148,6 +148,8 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
                         vote: vote.clone(),
                         context: auth_context,
                         signature: Vec::new(),
+                        pq_public_key: None,
+                        pq_signature: None,
                     }
                     .signing_bytes(),
                 )
@@ -157,6 +159,8 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
                 vote,
                 context: auth_context,
                 signature,
+                pq_public_key: None,
+                pq_signature: None,
             };
 
             let verified = authenticated_vote

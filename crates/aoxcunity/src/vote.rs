@@ -3,6 +3,8 @@
 // This file is part of the AOXC pre-release codebase.
 
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use pqcrypto_dilithium::dilithium3::{PublicKey as DilithiumPublicKey, SignedMessage, open};
+use pqcrypto_traits::sign::{PublicKey as _, SignedMessage as _};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -63,6 +65,10 @@ pub struct AuthenticatedVote {
     pub vote: Vote,
     pub context: VoteAuthenticationContext,
     pub signature: Vec<u8>,
+    #[serde(default)]
+    pub pq_public_key: Option<Vec<u8>>,
+    #[serde(default)]
+    pub pq_signature: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,6 +98,12 @@ pub enum VoteAuthenticationError {
 
     #[error("vote signature is invalid")]
     InvalidSignature,
+
+    #[error("vote requires an explicit post-quantum public key")]
+    MissingPostQuantumPublicKey,
+
+    #[error("vote requires an explicit post-quantum signature")]
+    MissingPostQuantumSignature,
 }
 
 impl Vote {
@@ -150,20 +162,61 @@ impl AuthenticatedVote {
             return Err(VoteAuthenticationError::PostQuantumPolicyRequired);
         }
 
-        if self.context.signature_scheme == SIGNATURE_SCHEME_DILITHIUM3 {
-            return Err(VoteAuthenticationError::UnsupportedVerifierForSignatureScheme);
+        let signing_bytes = self.signing_bytes();
+        match self.context.signature_scheme {
+            SIGNATURE_SCHEME_ED25519 => self.verify_ed25519_only(&signing_bytes)?,
+            SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 => {
+                self.verify_ed25519_only(&signing_bytes)?;
+                self.verify_dilithium_only(&signing_bytes)?;
+            }
+            SIGNATURE_SCHEME_DILITHIUM3 => self.verify_dilithium_only(&signing_bytes)?,
+            _ => return Err(VoteAuthenticationError::UnsupportedVerifierForSignatureScheme),
         }
 
-        let key = VerifyingKey::from_bytes(&self.vote.voter)
-            .map_err(|_| VoteAuthenticationError::MalformedPublicKey)?;
-        let signature = Signature::from_slice(&self.signature)
-            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
-        key.verify(&self.signing_bytes(), &signature)
-            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
         Ok(VerifiedAuthenticatedVote {
             vote: self.vote.clone(),
             context: self.context,
         })
+    }
+
+    fn verify_ed25519_only(&self, signing_bytes: &[u8]) -> Result<(), VoteAuthenticationError> {
+        let key = VerifyingKey::from_bytes(&self.vote.voter)
+            .map_err(|_| VoteAuthenticationError::MalformedPublicKey)?;
+        let signature = Signature::from_slice(&self.signature)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
+        key.verify(signing_bytes, &signature)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)
+    }
+
+    fn verify_dilithium_only(&self, signing_bytes: &[u8]) -> Result<(), VoteAuthenticationError> {
+        let public_key_bytes = self
+            .pq_public_key
+            .as_deref()
+            .ok_or(VoteAuthenticationError::MissingPostQuantumPublicKey)?;
+        let public_key = DilithiumPublicKey::from_bytes(public_key_bytes)
+            .map_err(|_| VoteAuthenticationError::MalformedPublicKey)?;
+
+        let signature_bytes = self
+            .pq_signature
+            .as_deref()
+            .or_else(|| {
+                if self.context.signature_scheme == SIGNATURE_SCHEME_DILITHIUM3 {
+                    Some(self.signature.as_slice())
+                } else {
+                    None
+                }
+            })
+            .ok_or(VoteAuthenticationError::MissingPostQuantumSignature)?;
+
+        let signed_message = SignedMessage::from_bytes(signature_bytes)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
+        let opened = open(&signed_message, &public_key)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
+        if opened.as_slice() != signing_bytes {
+            return Err(VoteAuthenticationError::InvalidSignature);
+        }
+
+        Ok(())
     }
 }
 
@@ -208,10 +261,13 @@ impl VerifiedVote {
 mod tests {
     use crate::block::PQ_MANDATORY_START_EPOCH;
     use ed25519_dalek::{Signer, SigningKey};
+    use pqcrypto_dilithium::dilithium3::{keypair as dilithium_keypair, sign as dilithium_sign};
+    use pqcrypto_traits::sign::{PublicKey as _, SignedMessage as _};
 
     use super::{
-        AuthenticatedVote, SIGNATURE_SCHEME_ED25519, SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
-        SignedVote, Vote, VoteAuthenticationContext, VoteAuthenticationError, VoteKind,
+        AuthenticatedVote, SIGNATURE_SCHEME_DILITHIUM3, SIGNATURE_SCHEME_ED25519,
+        SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3, SignedVote, Vote, VoteAuthenticationContext,
+        VoteAuthenticationError, VoteKind,
     };
 
     fn make_vote(block_hash: [u8; 32], round: u64, kind: VoteKind) -> Vote {
@@ -310,6 +366,8 @@ mod tests {
             vote,
             context,
             signature: Vec::new(),
+            pq_public_key: None,
+            pq_signature: None,
         };
         authenticated.signature = signing_key
             .sign(&authenticated.signing_bytes())
@@ -345,6 +403,8 @@ mod tests {
                 signature_scheme: 999,
             },
             signature: Vec::new(),
+            pq_public_key: None,
+            pq_signature: None,
         };
         authenticated.signature = signing_key
             .sign(&authenticated.signing_bytes())
@@ -377,6 +437,8 @@ mod tests {
                 signature_scheme: SIGNATURE_SCHEME_ED25519,
             },
             signature: Vec::new(),
+            pq_public_key: None,
+            pq_signature: None,
         };
         authenticated.signature = signing_key
             .sign(&authenticated.signing_bytes())
@@ -391,6 +453,40 @@ mod tests {
 
     #[test]
     fn authenticated_vote_accepts_hybrid_scheme_after_cutover_epoch() {
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let (pq_public_key, pq_secret_key) = dilithium_keypair();
+        let vote = Vote {
+            voter: signing_key.verifying_key().to_bytes(),
+            block_hash: [1u8; 32],
+            height: 9,
+            round: 2,
+            kind: VoteKind::Commit,
+        };
+        let mut authenticated = AuthenticatedVote {
+            vote,
+            context: VoteAuthenticationContext {
+                network_id: 2626,
+                epoch: PQ_MANDATORY_START_EPOCH,
+                validator_set_root: [5u8; 32],
+                pq_attestation_root: [11u8; 32],
+                signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
+            },
+            signature: Vec::new(),
+            pq_public_key: Some(pq_public_key.as_bytes().to_vec()),
+            pq_signature: None,
+        };
+        let pq_signature = dilithium_sign(&authenticated.signing_bytes(), &pq_secret_key);
+        authenticated.pq_signature = Some(pq_signature.as_bytes().to_vec());
+        authenticated.signature = signing_key
+            .sign(&authenticated.signing_bytes())
+            .to_bytes()
+            .to_vec();
+
+        assert!(authenticated.verify().is_ok());
+    }
+
+    #[test]
+    fn authenticated_vote_rejects_hybrid_without_pq_signature() {
         let signing_key = SigningKey::from_bytes(&[7u8; 32]);
         let vote = Vote {
             voter: signing_key.verifying_key().to_bytes(),
@@ -409,11 +505,46 @@ mod tests {
                 signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
             },
             signature: Vec::new(),
+            pq_public_key: None,
+            pq_signature: None,
         };
         authenticated.signature = signing_key
             .sign(&authenticated.signing_bytes())
             .to_bytes()
             .to_vec();
+
+        assert_eq!(
+            authenticated.verify(),
+            Err(VoteAuthenticationError::MissingPostQuantumPublicKey)
+        );
+    }
+
+    #[test]
+    fn authenticated_vote_accepts_dilithium_only_scheme() {
+        let (pq_public_key, pq_secret_key) = dilithium_keypair();
+        let vote = Vote {
+            voter: [7u8; 32],
+            block_hash: [1u8; 32],
+            height: 9,
+            round: 2,
+            kind: VoteKind::Commit,
+        };
+        let mut authenticated = AuthenticatedVote {
+            vote,
+            context: VoteAuthenticationContext {
+                network_id: 2626,
+                epoch: PQ_MANDATORY_START_EPOCH,
+                validator_set_root: [5u8; 32],
+                pq_attestation_root: [11u8; 32],
+                signature_scheme: SIGNATURE_SCHEME_DILITHIUM3,
+            },
+            signature: Vec::new(),
+            pq_public_key: Some(pq_public_key.as_bytes().to_vec()),
+            pq_signature: None,
+        };
+
+        let pq_signature = dilithium_sign(&authenticated.signing_bytes(), &pq_secret_key);
+        authenticated.signature = pq_signature.as_bytes().to_vec();
 
         assert!(authenticated.verify().is_ok());
     }
