@@ -2427,7 +2427,12 @@ mod tests {
             "remediation plan should still include a path to full readiness"
         );
         assert_eq!(readiness.track_progress.len(), 2);
-        assert!(readiness.track_progress.iter().all(|track| track.ratio <= 100));
+        assert!(
+            readiness
+                .track_progress
+                .iter()
+                .all(|track| track.ratio <= 100)
+        );
         assert!(
             readiness
                 .track_progress
