@@ -1,3 +1,2 @@
 #[test]
-fn runner_limits_tests() {
-}
+fn runner_limits_tests() {}
