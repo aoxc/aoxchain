@@ -40,6 +40,7 @@ readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly DEFAULT_NETWORK_TIMEOUT_MS=3000
 readonly DEFAULT_DAEMON_SLEEP_SECS=2
 readonly DEFAULT_STOP_WAIT_SECS=10
+readonly DEFAULT_DAEMON_FAILURE_BACKOFF_SECS=3
 
 readonly COMMAND="${1:-}"
 
@@ -107,6 +108,13 @@ validate_non_negative_integer() {
   local name="$2"
 
   [[ "${value}" =~ ^[0-9]+$ ]] || die "Invalid value for ${name}: '${value}'. A non-negative integer is required." 6
+}
+
+validate_positive_integer() {
+  local value="$1"
+  local name="$2"
+
+  [[ "${value}" =~ ^[1-9][0-9]*$ ]] || die "Invalid value for ${name}: '${value}'. A positive integer is required." 6
 }
 
 resolve_bin_path() {
@@ -264,15 +272,36 @@ start_daemon() {
 
   (
     export AOXC_HOME="${AOXC_RUNTIME_ROOT}"
+    local backoff_secs="${DAEMON_FAILURE_BACKOFF_SECS:-$DEFAULT_DAEMON_FAILURE_BACKOFF_SECS}"
+    local sleep_secs="${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
+    local timeout_ms="${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}"
+    local tx_suffix=''
+    local produce_rc=0
+    local smoke_rc=0
+
+    validate_non_negative_integer "${backoff_secs}" "DAEMON_FAILURE_BACKOFF_SECS"
 
     while true; do
-      "${bin_path}" produce-once --tx "AOXC_RUNTIME_DAEMON_$(date +%s)" >> "${RUNTIME_LOG}" 2>&1
+      tx_suffix="$(date +%s)"
+
+      set +e
+      "${bin_path}" produce-once --tx "AOXC_RUNTIME_DAEMON_${tx_suffix}" >> "${RUNTIME_LOG}" 2>&1
+      produce_rc=$?
       "${bin_path}" network-smoke \
-        --timeout-ms "${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}" \
+        --timeout-ms "${timeout_ms}" \
         --bind-host 127.0.0.1 \
         --port 0 \
         --payload "HEALTH_RUNTIME" >> "${RUNTIME_LOG}" 2>&1
-      sleep "${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
+      smoke_rc=$?
+      set -e
+
+      if (( produce_rc != 0 || smoke_rc != 0 )); then
+        printf '[runtime-daemon][warn] cycle failed (produce-once=%s network-smoke=%s). Retrying in %ss.\n' "${produce_rc}" "${smoke_rc}" "${backoff_secs}" >> "${RUNTIME_LOG}"
+        sleep "${backoff_secs}"
+        continue
+      fi
+
+      sleep "${sleep_secs}"
     done
   ) &
 
@@ -287,6 +316,47 @@ start_daemon() {
   write_status_receipt "running" "${daemon_pid}"
   write_health_receipt
   log_info "Started runtime with PID ${daemon_pid}. Log: ${RUNTIME_LOG}"
+}
+
+run_foreground() {
+  local bin_path="$1"
+  local backoff_secs="${DAEMON_FAILURE_BACKOFF_SECS:-$DEFAULT_DAEMON_FAILURE_BACKOFF_SECS}"
+  local sleep_secs="${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
+  local timeout_ms="${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}"
+  local tx_suffix=''
+  local produce_rc=0
+  local smoke_rc=0
+
+  validate_non_negative_integer "${backoff_secs}" "DAEMON_FAILURE_BACKOFF_SECS"
+  validate_non_negative_integer "${sleep_secs}" "DAEMON_SLEEP_SECS"
+  validate_positive_integer "${timeout_ms}" "NETWORK_TIMEOUT_MS"
+
+  bootstrap_runtime "${bin_path}"
+  export AOXC_HOME="${AOXC_RUNTIME_ROOT}"
+
+  log_info "Running foreground runtime loop for persistent service mode."
+  while true; do
+    tx_suffix="$(date +%s)"
+
+    set +e
+    "${bin_path}" produce-once --tx "AOXC_RUNTIME_FOREGROUND_${tx_suffix}" >> "${RUNTIME_LOG}" 2>&1
+    produce_rc=$?
+    "${bin_path}" network-smoke \
+      --timeout-ms "${timeout_ms}" \
+      --bind-host 127.0.0.1 \
+      --port 0 \
+      --payload "HEALTH_RUNTIME" >> "${RUNTIME_LOG}" 2>&1
+    smoke_rc=$?
+    set -e
+
+    if (( produce_rc != 0 || smoke_rc != 0 )); then
+      log_warn "Foreground cycle failed (produce-once=${produce_rc}, network-smoke=${smoke_rc}); retrying in ${backoff_secs}s."
+      sleep "${backoff_secs}"
+      continue
+    fi
+
+    sleep "${sleep_secs}"
+  done
 }
 
 status_daemon() {
@@ -432,7 +502,7 @@ main() {
   require_command awk
   require_command tail
 
-  validate_non_negative_integer "${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}" "NETWORK_TIMEOUT_MS"
+  validate_positive_integer "${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}" "NETWORK_TIMEOUT_MS"
   validate_non_negative_integer "${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}" "DAEMON_SLEEP_SECS"
 
   [[ -n "${COMMAND}" ]] || {
