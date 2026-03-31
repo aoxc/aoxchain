@@ -287,7 +287,16 @@ pub fn is_binary_allowed(env: Environment, kind: &BinarySourceKind) -> bool {
 fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSnapshot {
     let installed_versions = installed_versions_snapshot(bins);
 
-    let (chain_name, network_kind, network_id, local_node_status, rpc_status, p2p_status) =
+    let (
+        chain_name,
+        network_kind,
+        network_id,
+        local_node_status,
+        rpc_status,
+        p2p_status,
+        validator_count,
+        observer_count,
+    ) =
         match env {
             Environment::Mainnet => (
                 String::from("AOXC Mainnet"),
@@ -296,6 +305,8 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
                 String::from("idle"),
                 String::from("not_connected"),
                 String::from("not_connected"),
+                21,
+                3,
             ),
             Environment::Testnet => (
                 String::from("AOXC Testnet"),
@@ -304,6 +315,8 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
                 String::from("idle"),
                 String::from("not_connected"),
                 String::from("not_connected"),
+                3,
+                1,
             ),
         };
 
@@ -356,11 +369,13 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
     let quick_actions = match env {
         Environment::Mainnet => vec![
             String::from("mainnet-start"),
+            String::from("mainnet-status"),
             String::from("aoxc-node-start"),
             String::from("aoxc-node-stop"),
         ],
         Environment::Testnet => vec![
             String::from("testnet-start"),
+            String::from("testnet-status"),
             String::from("aoxc-node-start"),
             String::from("aoxc-node-stop"),
         ],
@@ -373,8 +388,8 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
         current_height: 0,
         finalized_height: 0,
         current_round: 0,
-        validator_count: 0,
-        observer_count: 0,
+        validator_count,
+        observer_count,
         connected_peers: 0,
         local_node_status,
         rpc_status,
