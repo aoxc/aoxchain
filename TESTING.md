@@ -38,6 +38,22 @@ In addition to the baseline controls, the following change classes require targe
 
 For the above categories, general test execution alone is insufficient. The author must provide targeted regression coverage demonstrating that the modified behavior is both intentional and controlled.
 
+## External Ingress Adversarial Validation
+
+Changes that affect externally sourced transactions, peer admission, session establishment, or protocol-envelope verification must include adversarial regression coverage in `tests/src/external_surface_fuzz.rs`.
+
+The external ingress suite is expected to include:
+
+- deterministic randomized corpus checks for malformed transaction payloads and identity/signature fields;
+- protocol-envelope tamper checks for chain identity, protocol serial, hash integrity, framing version, and validity-window violations;
+- peer/session abuse-path checks covering duplicate admission, unknown-session use, banned-peer behavior, and malformed certificate windows.
+
+Recommended execution command:
+
+- `cargo test -p tests external_surface_fuzz -- --nocapture`
+
+A change that modifies ingress validation logic without corresponding adversarial coverage updates must be treated as validation-incomplete.
+
 ## Measurable Validation Artifacts
 
 The following repository-governed artifacts are mandatory for visibility and auditability:
