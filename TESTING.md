@@ -22,6 +22,7 @@ Unless a stricter control is explicitly required by change scope, the following 
 - `cargo fmt --all --check`
 - `make test`
 - `make quality`
+- `make testnet-gate` (required when changes affect `configs/environments/testnet` or testnet operator flow)
 
 A change must not be considered validation-complete if any mandatory baseline command fails, is skipped without justification, or produces results inconsistent with the declared change scope.
 
