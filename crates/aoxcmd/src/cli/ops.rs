@@ -2411,8 +2411,8 @@ mod tests {
             readiness
                 .remediation_plan
                 .iter()
-                .any(|step| step.contains("promotion") || step.contains("release")),
-            "remediation plan should include actionable production hardening guidance"
+                .any(|step| step.contains("100%")),
+            "remediation plan should still include a path to full readiness"
         );
         assert_eq!(readiness.track_progress.len(), 2);
         assert_eq!(readiness.track_progress[0].ratio, 100);

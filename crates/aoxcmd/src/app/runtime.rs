@@ -82,10 +82,10 @@ fn derive_runtime_metrics_snapshot(
 mod tests {
     use super::{derive_runtime_metrics_snapshot, refresh_runtime_metrics};
     use crate::{
-        economy::ledger::{persist, LedgerState},
+        economy::ledger::{LedgerState, persist},
         node::{lifecycle::persist_state, state::NodeState},
-        telemetry::prometheus::{metrics_path, MetricsSnapshot},
-        test_support::{aoxc_home_test_lock, AoxcHomeGuard, TestHome},
+        telemetry::prometheus::{MetricsSnapshot, metrics_path},
+        test_support::{AoxcHomeGuard, TestHome, aoxc_home_test_lock},
     };
 
     fn with_test_home<T>(label: &str, test: impl FnOnce(&TestHome) -> T) -> T {
@@ -218,8 +218,8 @@ mod tests {
             let path = metrics_path().expect("metrics path should resolve");
             let raw = std::fs::read_to_string(&path)
                 .expect("updated metrics snapshot should be readable");
-            let snapshot: MetricsSnapshot = serde_json::from_str(&raw)
-                .expect("updated metrics snapshot should decode");
+            let snapshot: MetricsSnapshot =
+                serde_json::from_str(&raw).expect("updated metrics snapshot should decode");
 
             assert_eq!(
                 snapshot.node_height, 88,
