@@ -1317,7 +1317,10 @@ fn load_or_default_bootnodes_binding(
     serde_json::from_str::<BootstrapBootnodesDocument>(&raw).map_err(|error| {
         AppError::with_source(
             ErrorCode::ConfigInvalid,
-            format!("Failed to decode bootnodes binding document: {}", path.display()),
+            format!(
+                "Failed to decode bootnodes binding document: {}",
+                path.display()
+            ),
             error,
         )
     })
