@@ -8,7 +8,7 @@ use crate::{
     node::state::NodeState,
     storage::RuntimeStateStore,
 };
-use redb::{Database, ReadableDatabase, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use std::path::{Path, PathBuf};
 
 const RUNTIME_STATE_TABLE: TableDefinition<&str, &str> = TableDefinition::new("runtime_state");
@@ -140,15 +140,18 @@ impl RedbRuntimeStateStore {
                 )
             })?;
 
-            let existing = table.get(NODE_STATE_KEY).map_err(|error| {
-                AppError::with_source(
-                    ErrorCode::FilesystemIoFailed,
-                    "Failed to inspect runtime node state during initialization",
-                    error,
-                )
-            })?;
+            let state_exists = table
+                .get(NODE_STATE_KEY)
+                .map_err(|error| {
+                    AppError::with_source(
+                        ErrorCode::FilesystemIoFailed,
+                        "Failed to inspect runtime node state during initialization",
+                        error,
+                    )
+                })?
+                .is_some();
 
-            if existing.is_some() {
+            if state_exists {
                 false
             } else {
                 let state = NodeState::bootstrap();
