@@ -37,6 +37,21 @@ In addition to the baseline controls, the following change classes require targe
 
 For the above categories, general test execution alone is insufficient. The author must provide targeted regression coverage demonstrating that the modified behavior is both intentional and controlled.
 
+## Measurable Validation Artifacts
+
+The following repository-governed artifacts are mandatory for visibility and auditability:
+
+- `docs/testing/TEST_MATRIX.md`: workspace test inventory snapshot generated from source markers;
+- `docs/testing/COVERAGE_STATUS.md`: coverage policy and release-gate expectations;
+- `docs/testing/CRITICAL_INVARIANTS.md`: protocol and operational invariants requiring regression evidence;
+- `artifacts/testing/test_inventory.json`: machine-readable test inventory output.
+
+Inventory artifacts are refreshed with:
+
+- `make test-inventory`
+
+When a change alters validation surfaces, the corresponding artifact set must be updated in the same change.
+
 ## Evidence and Traceability Requirements
 
 Validation results must be traceable to the exact change under review. At minimum, validation evidence should be linked to:

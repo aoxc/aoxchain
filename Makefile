@@ -252,7 +252,7 @@ endef
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
 	release-binary-list install-bin package-desktop \
-	test test-lib test-workspace check fmt clippy audit quality quality-quick quality-release ci \
+	test test-lib test-workspace test-inventory check fmt clippy audit quality quality-quick quality-release ci \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
@@ -284,6 +284,7 @@ help:
 	@printf "  make fmt\n"
 	@printf "  make check\n"
 	@printf "  make test\n"
+	@printf "  make test-inventory\n"
 	@printf "  make clippy\n"
 	@printf "  make audit\n"
 	@printf "  make quality\n\n"
@@ -532,6 +533,10 @@ test-lib:
 	$(CARGO) test --workspace --lib
 
 test-workspace: test
+
+test-inventory:
+	$(call print_banner,Generating test inventory artifacts)
+	python3 scripts/testing/generate_test_inventory.py
 
 check:
 	$(call print_banner,Checking workspace)
