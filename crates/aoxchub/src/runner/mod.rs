@@ -241,6 +241,32 @@ impl Runner {
     }
 }
 
+fn prune_jobs_with_limit(jobs: &mut HashMap<String, JobRecord>, max_job_records: usize) {
+    while jobs.len() > max_job_records {
+        let candidate = jobs
+            .iter()
+            .filter_map(|(id, record)| {
+                record
+                    .status
+                    .finished_at
+                    .map(|finished_at| (id.clone(), finished_at))
+            })
+            .min_by_key(|(_, finished_at)| *finished_at)
+            .map(|(id, _)| id)
+            .or_else(|| {
+                jobs.iter()
+                    .min_by_key(|(_, record)| record.status.started_at)
+                    .map(|(id, _)| id.clone())
+            });
+
+        if let Some(job_id) = candidate {
+            jobs.remove(&job_id);
+        } else {
+            break;
+        }
+    }
+}
+
 impl Default for Runner {
     fn default() -> Self {
         Self::new()
