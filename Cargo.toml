@@ -20,7 +20,7 @@ members = [
     "crates/aoxcunity",
     "crates/aoxcvm",
     "crates/aoxchub",
-    "tests", "crates/aoxchub",
+    "tests",
 ]
 
 [workspace.package]
@@ -30,28 +30,36 @@ authors = ["aoxchain@gmail.com"]
 license = "MIT"
 
 [workspace.dependencies]
+# Core serialization and async runtime
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.50.0", features = ["full"] }
+async-trait = "0.1.89"
+
+# Error handling and observability
 thiserror = "2.0.18"
 tracing = "0.1.44"
-candle-core = "0.9.2"
-async-trait = "0.1.89"
-sha2 = "0.11.0"
-
-blake3 = "1.8.3"
-sha3 = "0.10.8"
-rand = "0.10"
-aes-gcm = "0.10.3"
-argon2 = "0.5.3"
-base64 = "0.22.1"
-ed25519-dalek = "2.2.0"
 chrono = { version = "0.4.44", features = ["serde"] }
+
+# AI / compute
+candle-core = "0.9.2"
+
+# Hashing and encoding
+sha2 = "0.11.0"
+sha3 = "0.10.8"
+blake3 = "1.8.3"
+base64 = "0.22.1"
 hex = "0.4.3"
 
+# Cryptography
+aes-gcm = "0.10.3"
+argon2 = "0.5.3"
+ed25519-dalek = "2.2.0"
 pqcrypto-dilithium = "0.5"
 pqcrypto-traits = "0.3.5"
 
+# Utilities
+rand = "0.10"
 
 [workspace.metadata.ci]
 required_checks = [
@@ -67,9 +75,7 @@ aoxcore = "Increase property-based test coverage for identity and genesis models
 aoxckit = "Add golden tests for key rotation and revocation workflows."
 aoxcdata = "Preserve deterministic storage/integrity coverage when changing persistence code."
 
-
 [profile.release]
 panic = "abort"
 lto = true
 codegen-units = 1
-
