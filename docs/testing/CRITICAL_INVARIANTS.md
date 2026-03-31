@@ -19,6 +19,8 @@ This document records validation-critical invariants that must remain true as th
 - Canonical genesis and runtime material produce stable fingerprints from identical inputs.
 - Runtime install/verify/activate flows fail closed when required artifacts are missing or malformed.
 - Runtime receipts remain reproducible for equivalent source bundles.
+- Testnet environment bundle identity (`chain_id`, `network_id`, `network_serial`) remains consistent across manifest, validators, bootnodes, and operator metadata files.
+- Published `genesis.v1.sha256` remains equal to the digest of the shipped `genesis.v1.json` payload.
 
 ## Persistence and Recovery
 
@@ -31,6 +33,9 @@ This document records validation-critical invariants that must remain true as th
 - CLI stderr/error contracts remain deterministic and sanitized.
 - Public API contract changes are versioned and regression-tested.
 - Unauthorized, malformed, and oversized inputs are rejected without unsafe side effects.
+- Transaction ingress continues to fail closed for empty payloads, oversized payloads, malformed sender keys, and structurally invalid signatures.
+- Protocol-envelope verification rejects framing corruption, chain/protocol identity mismatches, and payload/frame hash tampering.
+- Peer/session ingress denies duplicate peer admission, unknown-session broadcast attempts, and banned-peer traffic.
 
 ## Key and Trust Boundaries
 
