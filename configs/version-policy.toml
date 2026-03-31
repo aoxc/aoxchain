@@ -1,0 +1,13 @@
+# AOXC repository-level version governance contract.
+# This file is consumed by tests to ensure release metadata remains synchronized.
+
+[workspace]
+current = "0.1.1-akdeniz"
+strategy = "global-workspace-version-with-component-schema-tracks"
+release_channel = "controlled"
+
+[tracks]
+protocol_schema = 1
+manifest_schema = 1
+certificate_schema = 1
+native_token_policy_schema = 1
