@@ -74,7 +74,9 @@ fn open_or_create_runtime_db(path: &Path) -> Result<Database, AppError> {
 /// - The authoritative runtime persistence logic remains isolated in
 ///   `storage::redb_runtime`.
 pub fn load_node_state() -> Result<NodeState, AppError> {
-    RedbRuntimeStateStore::open_default()?.load_state()
+    let store = RedbRuntimeStateStore::open_default()?;
+    let _ = store.initialize_if_absent()?;
+    store.load_state()
 }
 
 /// Persists canonical node state through the dedicated runtime redb store.
