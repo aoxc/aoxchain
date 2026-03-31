@@ -199,7 +199,7 @@ impl AuthenticatedVote {
         let signature_bytes = self
             .pq_signature
             .as_deref()
-            .or_else(|| {
+            .or({
                 if self.context.signature_scheme == SIGNATURE_SCHEME_DILITHIUM3 {
                     Some(self.signature.as_slice())
                 } else {
