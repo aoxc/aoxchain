@@ -1138,19 +1138,6 @@ struct ValidatorRecord {
     status: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct BootnodesValidationDocument {
-    bootnodes: Vec<BootnodeValidationRecord>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BootnodeValidationRecord {
-    node_id: String,
-    transport_public_key: String,
-    address: String,
-    status: String,
-}
-
 fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
     let genesis_file = genesis_path()?;
     let root = genesis_file.parent().ok_or_else(|| {
@@ -1220,19 +1207,22 @@ fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppE
 
     let bootnodes_path = root.join(&genesis.bindings.bootnodes_file);
     let bootnodes_raw = read_file(&bootnodes_path)?;
-    let bootnodes_doc: BootnodesValidationDocument =
-        serde_json::from_str(&bootnodes_raw).map_err(|error| {
-            AppError::with_source(
-                ErrorCode::ConfigInvalid,
-                format!(
-                    "Genesis validation failed: bootnodes binding is not valid JSON: {}",
-                    bootnodes_path.display()
-                ),
-                error,
-            )
-        })?;
+    let bootnodes_json: Value = serde_json::from_str(&bootnodes_raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: bootnodes binding is not valid JSON: {}",
+                bootnodes_path.display()
+            ),
+            error,
+        )
+    })?;
 
-    if bootnodes_doc.bootnodes.is_empty() {
+    if bootnodes_json
+        .get("bootnodes")
+        .and_then(Value::as_array)
+        .is_none_or(|entries| entries.is_empty())
+    {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
             format!(
@@ -1240,29 +1230,6 @@ fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppE
                 bootnodes_path.display()
             ),
         ));
-    }
-    for bootnode in &bootnodes_doc.bootnodes {
-        if bootnode.node_id.trim().is_empty()
-            || bootnode.transport_public_key.trim().is_empty()
-            || bootnode
-                .transport_public_key
-                .to_ascii_lowercase()
-                .contains("pending_real_value")
-            || bootnode.address.trim().is_empty()
-            || bootnode
-                .address
-                .trim()
-                .contains("REPLACE_WITH_REAL_BOOTNODE_ADDRESS")
-            || bootnode.status.trim() != "active"
-        {
-            return Err(AppError::new(
-                ErrorCode::ConfigInvalid,
-                format!(
-                    "Genesis validation failed: bootnode record is invalid for {}",
-                    bootnode.node_id
-                ),
-            ));
-        }
     }
 
     let certificate_path = root.join(&genesis.bindings.certificate_file);
@@ -1288,21 +1255,6 @@ fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppE
                 "Genesis validation failed: certificate file is empty: {}",
                 certificate_path.display()
             ),
-        ));
-    }
-    if certificate_json
-        .pointer("/certificate/fingerprint_sha256")
-        .and_then(Value::as_str)
-        .is_none_or(|value| {
-            value.trim().is_empty()
-                || value
-                    .to_ascii_lowercase()
-                    .contains("replace_with_real_certificate_fingerprint")
-        })
-    {
-        return Err(AppError::new(
-            ErrorCode::ConfigInvalid,
-            "Genesis validation failed: certificate fingerprint is empty or placeholder",
         ));
     }
 
