@@ -1,8 +1,8 @@
 use crate::{
     binaries, commands,
     domain::{
-        BinaryCandidate, BinarySourceKind, CommandProgram, CommandView, EnvironmentBinding,
-        HubStateView,
+        BinaryCandidate, BinarySourceKind, CommandProgram, CommandView, DashboardSnapshot,
+        EnvironmentBinding, HubStateView, InstalledVersions,
     },
     environments::Environment,
     errors::HubError,
@@ -60,8 +60,9 @@ impl HubService {
                 make_scope: environment.make_scope(),
             },
             selected_binary_id: selected,
-            binaries: bins,
+            binaries: bins.clone(),
             commands,
+            dashboard: dashboard_snapshot(environment, &bins),
         }
     }
 
