@@ -1,3 +1,2 @@
 #[test]
-fn preview_tests() {
-}
+fn preview_tests() {}

@@ -1,3 +1,2 @@
 #[test]
-fn localhost_tests() {
-}
+fn localhost_tests() {}
