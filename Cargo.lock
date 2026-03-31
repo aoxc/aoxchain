@@ -154,6 +154,7 @@ name = "aoxcexec"
 version = "0.1.1-akdeniz"
 dependencies = [
  "blake3",
+ "ed25519-dalek",
  "hex",
  "serde",
  "serde_json",
