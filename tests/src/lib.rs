@@ -12,3 +12,6 @@ mod production_readiness;
 
 #[cfg(test)]
 mod full_chain_regression_matrix;
+
+#[cfg(test)]
+mod external_surface_fuzz;
