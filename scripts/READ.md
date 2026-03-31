@@ -85,6 +85,16 @@ This validator checks mainnet/testnet/devnet bundles for:
 - `genesis.v1.sha256` correctness
 - AOXHub profile alignment with canonical bundle roots
 
+### `scripts/validation/persistent_testnet_gate.sh`
+Persistent testnet readiness gate used by `make testnet-gate` and the `make testnet` workflow.
+
+This gate validates:
+
+- presence of the full testnet identity/configuration artifact set,
+- cross-environment bundle consistency checks,
+- testnet runtime-source integrity through the Make runtime surface,
+- `network-metadata.json` identity alignment with `manifest.v1.json`.
+
 ### `scripts/release/generate_release_evidence.sh`
 Release evidence generation workflow.
 
