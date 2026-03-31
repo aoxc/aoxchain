@@ -17,7 +17,7 @@ const DEFAULT_LAST_TX: &str = "none";
 /// - Keep the runtime state self-validating so persistence and load paths can
 ///   enforce semantic integrity at the boundary.
 /// - Separate operator key snapshot state from consensus snapshot state.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodeState {
     pub initialized: bool,
     pub running: bool,
@@ -38,7 +38,7 @@ pub struct NodeState {
 /// - All fields default to empty strings so legacy state payloads remain
 ///   deserializable even if key metadata did not exist at the time they were
 ///   written.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct KeyMaterialSnapshot {
     pub bundle_fingerprint: String,
     pub operational_state: String,
@@ -51,7 +51,7 @@ pub struct KeyMaterialSnapshot {
 /// Compatibility policy:
 /// - Defaults preserve deterministic bootstrap semantics for legacy payloads
 ///   that omitted consensus detail fields.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ConsensusSnapshot {
     pub network_id: u32,
     pub last_parent_hash_hex: String,
