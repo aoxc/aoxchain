@@ -259,7 +259,7 @@ endef
 	runtime-bundle-compat-check \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
-	demo localnet devnet testnet reset doctor audit-chain logs down restart \
+	demo localnet devnet testnet testnet-gate reset doctor audit-chain logs down restart \
 	network-create network-start network-stop network-status genesis-build chain-status \
 	chain-help chain-init chain-add-account chain-add-validator chain-start-persistent \
 	ui alpha
@@ -294,6 +294,7 @@ help:
 	@printf "  make localnet\n"
 	@printf "  make devnet\n"
 	@printf "  make testnet\n"
+	@printf "  make testnet-gate\n"
 	@printf "  make doctor\n"
 	@printf "  make audit-chain\n"
 	@printf "  make reset\n\n"
@@ -948,10 +949,15 @@ devnet:
 
 testnet:
 	$(call print_banner,Preparing testnet operator flow)
+	@$(MAKE) --no-print-directory testnet-gate
 	@$(MAKE) --no-print-directory network-create AOXC_BOOTSTRAP_PROFILE=testnet
 	@$(MAKE) --no-print-directory network-start
 	@$(MAKE) --no-print-directory doctor
 	@$(MAKE) --no-print-directory audit-chain
+
+testnet-gate:
+	$(call print_banner,Running persistent testnet readiness gate)
+	@./scripts/validation/persistent_testnet_gate.sh
 
 reset:
 	$(call print_banner,Resetting AOXC operator runtime)
