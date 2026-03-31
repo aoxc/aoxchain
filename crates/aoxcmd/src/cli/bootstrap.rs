@@ -1192,6 +1192,157 @@ fn load_genesis() -> Result<BootstrapGenesisDocument, AppError> {
     })
 }
 
+fn persist_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+    write_json_pretty(
+        &genesis_path()?,
+        genesis,
+        "Failed to encode AOXC genesis document",
+    )
+}
+
+fn identity_dir_from_genesis(genesis: &BootstrapGenesisDocument) -> Result<PathBuf, AppError> {
+    let path = genesis_path()?;
+    let root = path.parent().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to resolve identity directory for genesis bindings",
+        )
+    })?;
+
+    if genesis.bindings.validators_file.trim().is_empty()
+        || genesis.bindings.bootnodes_file.trim().is_empty()
+        || genesis.bindings.certificate_file.trim().is_empty()
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis binding file references must not be empty",
+        ));
+    }
+
+    Ok(root.to_path_buf())
+}
+
+fn sync_optional_accounts_binding(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+    let Some(accounts_file) = genesis.bindings.accounts_file.as_deref() else {
+        return Ok(());
+    };
+
+    #[derive(Serialize)]
+    struct AccountsDoc<'a> {
+        schema_version: u8,
+        environment: &'a str,
+        identity: &'a CanonicalIdentity,
+        accounts: &'a [BootstrapAccountRecord],
+    }
+
+    let doc = AccountsDoc {
+        schema_version: 1,
+        environment: &genesis.environment,
+        identity: &genesis.identity,
+        accounts: &genesis.state.accounts,
+    };
+
+    let path = identity_dir_from_genesis(genesis)?.join(accounts_file);
+    write_json_pretty(&path, &doc, "Failed to encode accounts binding document")
+}
+
+fn derive_short_fingerprint(value: &str) -> String {
+    let digest = Sha256::digest(value.trim().as_bytes());
+    hex::encode(digest)[..16].to_string()
+}
+
+fn load_or_default_validators_binding(
+    genesis: &BootstrapGenesisDocument,
+) -> Result<BootstrapValidatorBindingsDocument, AppError> {
+    let path = identity_dir_from_genesis(genesis)?.join(&genesis.bindings.validators_file);
+    if !path.exists() {
+        return Ok(BootstrapValidatorBindingsDocument {
+            schema_version: 2,
+            environment: genesis.environment.clone(),
+            identity: genesis.identity.clone(),
+            validators: Vec::new(),
+        });
+    }
+
+    let raw = read_file(&path)?;
+    serde_json::from_str::<BootstrapValidatorBindingsDocument>(&raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Failed to decode validators binding document: {}",
+                path.display()
+            ),
+            error,
+        )
+    })
+}
+
+fn upsert_validator_binding(
+    doc: &mut BootstrapValidatorBindingsDocument,
+    record: BootstrapValidatorBindingRecord,
+) {
+    if let Some(existing) = doc
+        .validators
+        .iter_mut()
+        .find(|existing| existing.validator_id == record.validator_id)
+    {
+        *existing = record;
+    } else {
+        doc.validators.push(record);
+    }
+}
+
+fn persist_validators_binding(
+    genesis: &BootstrapGenesisDocument,
+    doc: &BootstrapValidatorBindingsDocument,
+) -> Result<(), AppError> {
+    let path = identity_dir_from_genesis(genesis)?.join(&genesis.bindings.validators_file);
+    write_json_pretty(&path, doc, "Failed to encode validators binding document")
+}
+
+fn load_or_default_bootnodes_binding(
+    genesis: &BootstrapGenesisDocument,
+) -> Result<BootstrapBootnodesDocument, AppError> {
+    let path = identity_dir_from_genesis(genesis)?.join(&genesis.bindings.bootnodes_file);
+    if !path.exists() {
+        return Ok(BootstrapBootnodesDocument {
+            schema_version: 2,
+            environment: genesis.environment.clone(),
+            identity: genesis.identity.clone(),
+            bootnodes: Vec::new(),
+        });
+    }
+
+    let raw = read_file(&path)?;
+    serde_json::from_str::<BootstrapBootnodesDocument>(&raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!("Failed to decode bootnodes binding document: {}", path.display()),
+            error,
+        )
+    })
+}
+
+fn upsert_bootnode_binding(doc: &mut BootstrapBootnodesDocument, record: BootstrapBootnodeRecord) {
+    if let Some(existing) = doc
+        .bootnodes
+        .iter_mut()
+        .find(|existing| existing.node_id == record.node_id)
+    {
+        *existing = record;
+    } else {
+        doc.bootnodes.push(record);
+    }
+}
+
+fn persist_bootnodes_binding(
+    genesis: &BootstrapGenesisDocument,
+    doc: &BootstrapBootnodesDocument,
+) -> Result<(), AppError> {
+    let path = identity_dir_from_genesis(genesis)?.join(&genesis.bindings.bootnodes_file);
+    write_json_pretty(&path, doc, "Failed to encode bootnodes binding document")
+}
+
 fn validate_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
     if genesis.schema_version != 1 {
         return Err(AppError::new(
