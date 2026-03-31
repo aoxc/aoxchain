@@ -13,7 +13,8 @@
 # Operational Model:
 #   - Resolve the AOXC binary from approved local locations
 #   - Materialize one runtime root and one log root
-#   - Support `start`, `once`, `status`, `stop`, and `tail`
+#   - Support `start`, `once`, `status`, `stop`, `restart`, `tail`,
+#     `run-foreground`, and `install-service`
 #   - Persist PID-based lifecycle state for managed background execution
 #   - Emit deterministic status and health receipts
 #   - Fail closed on invalid prerequisites or runtime drift
@@ -27,6 +28,7 @@
 #   7  Bootstrap failure
 #   8  Managed daemon start failure
 #   9  Managed daemon stop failure
+#   10 Service installation failure
 # -----------------------------------------------------------------------------
 
 set -Eeuo pipefail
@@ -38,6 +40,7 @@ readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly DEFAULT_NETWORK_TIMEOUT_MS=3000
 readonly DEFAULT_DAEMON_SLEEP_SECS=2
 readonly DEFAULT_STOP_WAIT_SECS=10
+readonly DEFAULT_DAEMON_FAILURE_BACKOFF_SECS=3
 
 readonly COMMAND="${1:-}"
 
@@ -77,7 +80,11 @@ die() {
 print_usage() {
   cat <<'USAGE'
 Usage:
-  ./scripts/runtime_daemon.sh <start|once|status|stop|tail>
+  ./scripts/runtime_daemon.sh <start|once|status|stop|restart|tail|run-foreground|install-service>
+
+Environment:
+  AOXC_SYSTEMD_SCOPE=user|system (default: user)
+  AOXC_SYSTEMD_SERVICE_NAME=<service-name> (default: aoxc-runtime)
 USAGE
 }
 
@@ -101,6 +108,13 @@ validate_non_negative_integer() {
   local name="$2"
 
   [[ "${value}" =~ ^[0-9]+$ ]] || die "Invalid value for ${name}: '${value}'. A non-negative integer is required." 6
+}
+
+validate_positive_integer() {
+  local value="$1"
+  local name="$2"
+
+  [[ "${value}" =~ ^[1-9][0-9]*$ ]] || die "Invalid value for ${name}: '${value}'. A positive integer is required." 6
 }
 
 resolve_bin_path() {
@@ -258,15 +272,36 @@ start_daemon() {
 
   (
     export AOXC_HOME="${AOXC_RUNTIME_ROOT}"
+    local backoff_secs="${DAEMON_FAILURE_BACKOFF_SECS:-$DEFAULT_DAEMON_FAILURE_BACKOFF_SECS}"
+    local sleep_secs="${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
+    local timeout_ms="${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}"
+    local tx_suffix=''
+    local produce_rc=0
+    local smoke_rc=0
+
+    validate_non_negative_integer "${backoff_secs}" "DAEMON_FAILURE_BACKOFF_SECS"
 
     while true; do
-      "${bin_path}" produce-once --tx "AOXC_RUNTIME_DAEMON_$(date +%s)" >> "${RUNTIME_LOG}" 2>&1
+      tx_suffix="$(date +%s)"
+
+      set +e
+      "${bin_path}" produce-once --tx "AOXC_RUNTIME_DAEMON_${tx_suffix}" >> "${RUNTIME_LOG}" 2>&1
+      produce_rc=$?
       "${bin_path}" network-smoke \
-        --timeout-ms "${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}" \
+        --timeout-ms "${timeout_ms}" \
         --bind-host 127.0.0.1 \
         --port 0 \
         --payload "HEALTH_RUNTIME" >> "${RUNTIME_LOG}" 2>&1
-      sleep "${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
+      smoke_rc=$?
+      set -e
+
+      if (( produce_rc != 0 || smoke_rc != 0 )); then
+        printf '[runtime-daemon][warn] cycle failed (produce-once=%s network-smoke=%s). Retrying in %ss.\n' "${produce_rc}" "${smoke_rc}" "${backoff_secs}" >> "${RUNTIME_LOG}"
+        sleep "${backoff_secs}"
+        continue
+      fi
+
+      sleep "${sleep_secs}"
     done
   ) &
 
@@ -281,6 +316,47 @@ start_daemon() {
   write_status_receipt "running" "${daemon_pid}"
   write_health_receipt
   log_info "Started runtime with PID ${daemon_pid}. Log: ${RUNTIME_LOG}"
+}
+
+run_foreground() {
+  local bin_path="$1"
+  local backoff_secs="${DAEMON_FAILURE_BACKOFF_SECS:-$DEFAULT_DAEMON_FAILURE_BACKOFF_SECS}"
+  local sleep_secs="${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
+  local timeout_ms="${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}"
+  local tx_suffix=''
+  local produce_rc=0
+  local smoke_rc=0
+
+  validate_non_negative_integer "${backoff_secs}" "DAEMON_FAILURE_BACKOFF_SECS"
+  validate_non_negative_integer "${sleep_secs}" "DAEMON_SLEEP_SECS"
+  validate_positive_integer "${timeout_ms}" "NETWORK_TIMEOUT_MS"
+
+  bootstrap_runtime "${bin_path}"
+  export AOXC_HOME="${AOXC_RUNTIME_ROOT}"
+
+  log_info "Running foreground runtime loop for persistent service mode."
+  while true; do
+    tx_suffix="$(date +%s)"
+
+    set +e
+    "${bin_path}" produce-once --tx "AOXC_RUNTIME_FOREGROUND_${tx_suffix}" >> "${RUNTIME_LOG}" 2>&1
+    produce_rc=$?
+    "${bin_path}" network-smoke \
+      --timeout-ms "${timeout_ms}" \
+      --bind-host 127.0.0.1 \
+      --port 0 \
+      --payload "HEALTH_RUNTIME" >> "${RUNTIME_LOG}" 2>&1
+    smoke_rc=$?
+    set -e
+
+    if (( produce_rc != 0 || smoke_rc != 0 )); then
+      log_warn "Foreground cycle failed (produce-once=${produce_rc}, network-smoke=${smoke_rc}); retrying in ${backoff_secs}s."
+      sleep "${backoff_secs}"
+      continue
+    fi
+
+    sleep "${sleep_secs}"
+  done
 }
 
 status_daemon() {
@@ -351,6 +427,74 @@ tail_logs() {
   exec tail -n 100 -f "${RUNTIME_LOG}"
 }
 
+install_service() {
+  local scope="${AOXC_SYSTEMD_SCOPE:-user}"
+  local service_name="${AOXC_SYSTEMD_SERVICE_NAME:-aoxc-runtime}"
+  local runtime_script="${SCRIPT_DIR}/runtime_daemon.sh"
+  local unit_dir=''
+  local service_file=''
+
+  [[ "${service_name}" =~ ^[A-Za-z0-9._-]+$ ]] || die "Invalid AOXC_SYSTEMD_SERVICE_NAME: '${service_name}'." 10
+  [[ -x "${runtime_script}" ]] || chmod +x "${runtime_script}" || die "Unable to mark runtime script executable: ${runtime_script}" 10
+
+  case "${scope}" in
+    user)
+      unit_dir="${HOME}/.config/systemd/user"
+      require_command systemctl
+      ;;
+    system)
+      unit_dir="/etc/systemd/system"
+      require_command systemctl
+      if [[ "${EUID}" -ne 0 ]]; then
+        die "System scope requires root privileges (AOXC_SYSTEMD_SCOPE=system)." 10
+      fi
+      ;;
+    *)
+      die "Invalid AOXC_SYSTEMD_SCOPE: '${scope}'. Use 'user' or 'system'." 10
+      ;;
+  esac
+
+  ensure_directory "${unit_dir}"
+  service_file="${unit_dir}/${service_name}.service"
+
+  cat > "${service_file}" <<SERVICE
+[Unit]
+Description=AOXC Persistent Runtime Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=${ROOT_DIR}
+Environment=AOXC_ROOT=${AOXC_ROOT}
+Environment=AOXC_RUNTIME_ROOT=${AOXC_RUNTIME_ROOT}
+Environment=AOXC_LOG_DIR=${AOXC_LOG_DIR}
+Environment=AOXC_NETWORK_KIND=${AOXC_NETWORK_KIND}
+Environment=AOXC_RUNTIME_SOURCE_ROOT=${AOXC_RUNTIME_SOURCE_ROOT}
+ExecStop=${runtime_script} stop
+ExecStart=${runtime_script} run-foreground
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
+SERVICE
+
+  if [[ "${scope}" == "user" ]]; then
+    systemctl --user daemon-reload || die "systemctl --user daemon-reload failed." 10
+    systemctl --user enable "${service_name}.service" || die "Unable to enable user service '${service_name}'." 10
+    log_info "Service installed: ${service_file}"
+    log_info "Start with: systemctl --user start ${service_name}.service"
+    log_info "Enable linger for reboot persistence: loginctl enable-linger ${USER}"
+  else
+    systemctl daemon-reload || die "systemctl daemon-reload failed." 10
+    systemctl enable "${service_name}.service" || die "Unable to enable system service '${service_name}'." 10
+    log_info "Service installed: ${service_file}"
+    log_info "Start with: systemctl start ${service_name}.service"
+  fi
+}
+
 main() {
   local bin_path=''
 
@@ -358,7 +502,7 @@ main() {
   require_command awk
   require_command tail
 
-  validate_non_negative_integer "${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}" "NETWORK_TIMEOUT_MS"
+  validate_positive_integer "${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}" "NETWORK_TIMEOUT_MS"
   validate_non_negative_integer "${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}" "DAEMON_SLEEP_SECS"
 
   [[ -n "${COMMAND}" ]] || {
@@ -368,15 +512,17 @@ main() {
 
   initialize_runtime_paths
 
-  if ! bin_path="$(resolve_bin_path)"; then
-    die "AOXC binary not found. Run: make package-bin" 4
-  fi
-
   case "${COMMAND}" in
     start)
+      if ! bin_path="$(resolve_bin_path)"; then
+        die "AOXC binary not found. Run: make package-bin" 4
+      fi
       start_daemon "${bin_path}"
       ;;
     once)
+      if ! bin_path="$(resolve_bin_path)"; then
+        die "AOXC binary not found. Run: make package-bin" 4
+      fi
       bootstrap_runtime "${bin_path}"
       run_once "${bin_path}"
       write_health_receipt
@@ -387,8 +533,24 @@ main() {
     stop)
       stop_daemon
       ;;
+    restart)
+      if ! bin_path="$(resolve_bin_path)"; then
+        die "AOXC binary not found. Run: make package-bin" 4
+      fi
+      stop_daemon
+      start_daemon "${bin_path}"
+      ;;
     tail)
       tail_logs
+      ;;
+    install-service)
+      install_service
+      ;;
+    run-foreground)
+      if ! bin_path="$(resolve_bin_path)"; then
+        die "AOXC binary not found. Run: make package-bin" 4
+      fi
+      run_foreground "${bin_path}"
       ;;
     --help|-h|help)
       print_usage

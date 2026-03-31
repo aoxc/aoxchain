@@ -31,10 +31,43 @@ Supported flows:
 - `once`
 - `status`
 - `stop`
+- `restart`
 - `tail`
+- `run-foreground`
+- `install-service`
 
 This script is the authoritative operational lifecycle surface for bootstrap,
 managed execution, PID tracking, runtime logging, and basic smoke execution.
+It can also install a persistent systemd service unit for automatic restart and
+boot-time startup.
+
+### Persistent service operation
+
+To run AOXC as a persistent service (auto-restart enabled):
+
+```bash
+./scripts/runtime_daemon.sh install-service
+systemctl --user start aoxc-runtime.service
+```
+
+Foreground mode can also be run directly (without systemd) for container or
+supervisor-based deployments:
+
+```bash
+./scripts/runtime_daemon.sh run-foreground
+```
+
+For reboot persistence in user scope, enable linger once:
+
+```bash
+loginctl enable-linger "$USER"
+```
+
+Optional environment variables:
+
+- `AOXC_SYSTEMD_SCOPE=user|system` (default: `user`)
+- `AOXC_SYSTEMD_SERVICE_NAME=<service-name>` (default: `aoxc-runtime`)
+- `DAEMON_FAILURE_BACKOFF_SECS=<seconds>` (default: `3`)
 
 ### `scripts/run_runtime.sh`
 Thin smoke-flow entrypoint.
