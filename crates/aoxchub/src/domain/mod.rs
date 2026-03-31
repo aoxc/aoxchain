@@ -80,7 +80,6 @@ pub struct EnvironmentBinding {
     pub make_scope: &'static str,
 }
 
-
 #[derive(Clone, Debug, Serialize)]
 pub struct InstalledVersions {
     pub aoxc: String,
