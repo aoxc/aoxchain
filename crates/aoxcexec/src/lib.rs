@@ -3,6 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 use blake3::Hasher;
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
@@ -378,7 +379,7 @@ pub struct ExecutionContext {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuthScheme {
-    MockBlake3,
+    Ed25519,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -405,7 +406,7 @@ pub struct ExecutionPayload {
     pub access_scope: Vec<String>,
     pub replay_domain: String,
     pub auth_scheme: AuthScheme,
-    pub signature: [u8; 32],
+    pub signature: Vec<u8>,
     pub data: Vec<u8>,
 }
 
@@ -414,8 +415,10 @@ impl ExecutionPayload {
         hash_payload_core(self)
     }
 
-    pub fn with_mock_signature(mut self) -> Result<Self, ExecutionError> {
-        self.signature = self.signing_digest()?;
+    pub fn sign_with_ed25519(mut self, signing_key: &SigningKey) -> Result<Self, ExecutionError> {
+        self.sender = signing_key.verifying_key().to_bytes();
+        let digest = self.signing_digest()?;
+        self.signature = signing_key.sign(&digest).to_vec();
         Ok(self)
     }
 
@@ -1241,10 +1244,22 @@ fn validate_transaction_auth(
             expiration_timestamp: payload.expiration_timestamp,
         });
     }
-    let expected_signature =
-        hash_payload_core(payload).map_err(|_| ReceiptFailure::InvalidSignature)?;
-    if payload.signature != expected_signature {
-        return Err(ReceiptFailure::InvalidSignature);
+    match payload.auth_scheme {
+        AuthScheme::Ed25519 => {
+            let verifying_key = VerifyingKey::from_bytes(&payload.sender)
+                .map_err(|_| ReceiptFailure::InvalidSignature)?;
+            let digest =
+                hash_payload_core(payload).map_err(|_| ReceiptFailure::InvalidSignature)?;
+            let signature_bytes: [u8; 64] = payload
+                .signature
+                .as_slice()
+                .try_into()
+                .map_err(|_| ReceiptFailure::InvalidSignature)?;
+            let signature = Signature::from_bytes(&signature_bytes);
+            verifying_key
+                .verify(&digest, &signature)
+                .map_err(|_| ReceiptFailure::InvalidSignature)?;
+        }
     }
     Ok(())
 }
@@ -1412,6 +1427,7 @@ pub type PlaceholderOrchestrator = DeterministicOrchestrator;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ed25519_dalek::{Signer, SigningKey};
 
     fn sample_context() -> ExecutionContext {
         ExecutionContext {
@@ -1427,20 +1443,25 @@ mod tests {
         }
     }
 
+    fn signing_key_from_seed(seed: u8) -> SigningKey {
+        SigningKey::from_bytes(&[seed; 32])
+    }
+
     fn sample_payload(
         tx_hash: [u8; 32],
-        sender: [u8; 32],
+        signer_seed: u8,
         nonce: u64,
         lane_id: &str,
         gas_limit: Gas,
         size: usize,
     ) -> ExecutionPayload {
+        let signing_key = signing_key_from_seed(signer_seed);
         ExecutionPayload {
             version: 1,
             chain_id: 42,
             tx_hash,
             lane_id: lane_id.to_string(),
-            sender,
+            sender: signing_key.verifying_key().to_bytes(),
             nonce,
             gas_limit,
             max_fee: gas_limit,
@@ -1449,11 +1470,11 @@ mod tests {
             payload_type: PayloadType::Call,
             access_scope: vec![lane_id.to_string()],
             replay_domain: "aoxc-mainnet".to_string(),
-            auth_scheme: AuthScheme::MockBlake3,
-            signature: [0u8; 32],
+            auth_scheme: AuthScheme::Ed25519,
+            signature: vec![0u8; 64],
             data: vec![7u8; size],
         }
-        .with_mock_signature()
+        .sign_with_ed25519(&signing_key)
         .expect("signature generation should succeed")
     }
 
@@ -1462,8 +1483,8 @@ mod tests {
         let orchestrator = DeterministicOrchestrator::default();
         let context = sample_context();
         let payloads = vec![
-            sample_payload([1; 32], [11; 32], 0, "native", 50_000, 32),
-            sample_payload([2; 32], [22; 32], 0, "evm", 75_000, 64),
+            sample_payload([1; 32], 11, 0, "native", 50_000, 32),
+            sample_payload([2; 32], 22, 0, "evm", 75_000, 64),
         ];
 
         let outcome = orchestrator
@@ -1485,8 +1506,8 @@ mod tests {
         let orchestrator = DeterministicOrchestrator::default();
         let context = sample_context();
         let payloads = vec![
-            sample_payload([9; 32], [1; 32], 0, "native", 50_000, 12),
-            sample_payload([9; 32], [2; 32], 0, "evm", 60_000, 16),
+            sample_payload([9; 32], 1, 0, "native", 50_000, 12),
+            sample_payload([9; 32], 2, 0, "evm", 60_000, 16),
         ];
 
         let result = orchestrator.execute_batch(&context, &payloads);
@@ -1498,19 +1519,17 @@ mod tests {
     fn duplicate_sender_nonce_rejects_before_execution() {
         let orchestrator = DeterministicOrchestrator::default();
         let context = sample_context();
+        let sender = signing_key_from_seed(7).verifying_key().to_bytes();
         let payloads = vec![
-            sample_payload([1; 32], [7; 32], 4, "native", 50_000, 12),
-            sample_payload([2; 32], [7; 32], 4, "evm", 60_000, 16),
+            sample_payload([1; 32], 7, 4, "native", 50_000, 12),
+            sample_payload([2; 32], 7, 4, "evm", 60_000, 16),
         ];
 
         let result = orchestrator.execute_batch(&context, &payloads);
 
         assert_eq!(
             result,
-            Err(ExecutionError::DuplicateSenderNonce {
-                sender: [7; 32],
-                nonce: 4,
-            })
+            Err(ExecutionError::DuplicateSenderNonce { sender, nonce: 4 })
         );
     }
 
@@ -1518,16 +1537,30 @@ mod tests {
     fn invalid_signature_returns_failed_receipt_without_state_mutation() {
         let orchestrator = DeterministicOrchestrator::default();
         let context = sample_context();
-        let mut payload = sample_payload([3; 32], [9; 32], 0, "native", 50_000, 12);
-        payload.signature = [99u8; 32];
-        let valid = sample_payload([4; 32], [10; 32], 0, "native", 50_000, 12);
+        let mut payload = sample_payload([3; 32], 9, 0, "native", 50_000, 12);
+        payload.signature = vec![99u8; 64];
+        let valid = sample_payload([4; 32], 10, 0, "native", 50_000, 12);
 
         let outcome = orchestrator
             .execute_batch(&context, &[payload, valid])
             .expect("batch should return receipts");
 
-        assert!(!outcome.receipts[0].success);
-        assert!(outcome.receipts[1].success);
+        assert_eq!(
+            outcome
+                .receipts
+                .iter()
+                .filter(|receipt| !receipt.success)
+                .count(),
+            1
+        );
+        assert_eq!(
+            outcome
+                .receipts
+                .iter()
+                .filter(|receipt| receipt.success)
+                .count(),
+            1
+        );
         assert_eq!(outcome.results.len(), 1);
     }
 
@@ -1536,8 +1569,8 @@ mod tests {
         let orchestrator = DeterministicOrchestrator::default();
         let context = sample_context();
         let payloads = vec![
-            sample_payload([1; 32], [8; 32], 0, "native", 50_000, 12),
-            sample_payload([2; 32], [8; 32], 2, "native", 50_000, 12),
+            sample_payload([1; 32], 8, 0, "native", 50_000, 12),
+            sample_payload([2; 32], 8, 2, "native", 50_000, 12),
         ];
 
         let outcome = orchestrator
@@ -1565,7 +1598,7 @@ mod tests {
 
         let result = orchestrator.execute_batch(
             &sample_context(),
-            &[sample_payload([1; 32], [1; 32], 0, "native", 50_000, 8)],
+            &[sample_payload([1; 32], 1, 0, "native", 50_000, 8)],
         );
 
         assert!(matches!(
@@ -1576,9 +1609,26 @@ mod tests {
 
     #[test]
     fn serialization_freeze_for_payload_v1_is_stable() {
-        let payload = sample_payload([1; 32], [2; 32], 3, "wasm", 90_000, 4);
+        let payload = sample_payload([1; 32], 2, 3, "wasm", 90_000, 4);
         let encoded = serde_json::to_string(&payload).expect("serialization should succeed");
-        let expected = r#"{"version":1,"chain_id":42,"tx_hash":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"lane_id":"wasm","sender":[2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2],"nonce":3,"gas_limit":90000,"max_fee":90000,"max_priority_fee":9000,"expiration_timestamp":1735689900,"payload_type":"Call","access_scope":["wasm"],"replay_domain":"aoxc-mainnet","auth_scheme":"MockBlake3","signature":[193,13,89,183,6,112,76,169,214,16,109,241,230,96,153,120,56,68,240,95,46,23,223,24,42,205,160,172,67,253,25,57],"data":[7,7,7,7]}"#;
+        let digest = payload.signing_digest().expect("payload digest");
+        let signing_key = signing_key_from_seed(2);
+        let expected_signature = signing_key.sign(&digest).to_bytes();
+        let sender_json = signing_key
+            .verifying_key()
+            .to_bytes()
+            .iter()
+            .map(u8::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        let signature_json = expected_signature
+            .iter()
+            .map(u8::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        let expected = format!(
+            "{{\"version\":1,\"chain_id\":42,\"tx_hash\":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],\"lane_id\":\"wasm\",\"sender\":[{sender_json}],\"nonce\":3,\"gas_limit\":90000,\"max_fee\":90000,\"max_priority_fee\":9000,\"expiration_timestamp\":1735689900,\"payload_type\":\"Call\",\"access_scope\":[\"wasm\"],\"replay_domain\":\"aoxc-mainnet\",\"auth_scheme\":\"Ed25519\",\"signature\":[{signature_json}],\"data\":[7,7,7,7]}}",
+        );
         assert_eq!(encoded, expected);
     }
 
@@ -1588,8 +1638,8 @@ mod tests {
         let context = sample_context();
         for payload_size in [1usize, 2, 7, 16, 31, 63] {
             let payloads = vec![
-                sample_payload([1; 32], [3; 32], 0, "native", 60_000, payload_size),
-                sample_payload([2; 32], [4; 32], 0, "evm", 80_000, payload_size),
+                sample_payload([1; 32], 3, 0, "native", 60_000, payload_size),
+                sample_payload([2; 32], 4, 0, "evm", 80_000, payload_size),
             ];
 
             let left = orchestrator
@@ -1611,8 +1661,8 @@ mod tests {
         let orchestrator = DeterministicOrchestrator::default();
         let context = sample_context();
         for size in [1usize, 4, 8, 16, 31] {
-            let mut invalid = sample_payload([7; 32], [8; 32], 0, "native", 50_000, size);
-            invalid.signature = [0u8; 32];
+            let mut invalid = sample_payload([7; 32], 8, 0, "native", 50_000, size);
+            invalid.signature = vec![0u8; 64];
             let outcome = orchestrator
                 .execute_batch(&context, &[invalid])
                 .expect("outcome");
@@ -1631,7 +1681,7 @@ mod tests {
         let mut context = sample_context();
         context.max_receipt_size = 0;
         let orchestrator = DeterministicOrchestrator::default();
-        let payloads = vec![sample_payload([1; 32], [2; 32], 0, "native", 50_000, 4)];
+        let payloads = vec![sample_payload([1; 32], 2, 0, "native", 50_000, 4)];
         let err = orchestrator
             .execute_batch(&context, &payloads)
             .expect_err("context must be rejected");
@@ -1645,10 +1695,11 @@ mod tests {
     fn invalid_scope_item_is_rejected() {
         let orchestrator = DeterministicOrchestrator::default();
         let context = sample_context();
-        let mut payload = sample_payload([5; 32], [6; 32], 0, "native", 50_000, 8);
+        let mut payload = sample_payload([5; 32], 6, 0, "native", 50_000, 8);
         payload.access_scope = vec!["native".to_string(), "native".to_string()];
+        let signing_key = signing_key_from_seed(6);
         payload = payload
-            .with_mock_signature()
+            .sign_with_ed25519(&signing_key)
             .expect("signature generation should succeed");
 
         let outcome = orchestrator
@@ -1689,7 +1740,7 @@ mod tests {
             InMemoryStateStore::default(),
         );
         let context = sample_context();
-        let payload = sample_payload([1; 32], [1; 32], 0, "native", 50_000, 8);
+        let payload = sample_payload([1; 32], 1, 0, "native", 50_000, 8);
 
         let err = orchestrator
             .execute_batch(&context, &[payload])
