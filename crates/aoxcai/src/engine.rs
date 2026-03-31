@@ -285,9 +285,11 @@ mod tests {
     use crate::{
         ModelRegistry,
         model::{InferenceContext, InferenceSignal, OutputLabel},
-        test_support::base_manifest,
+        test_support::{base_manifest, remote_http_manifest},
         traits::{ContextProvider, DecisionPolicy, SignalProvider},
     };
+    use httpmock::prelude::*;
+    use serde_json::json;
 
     struct StaticContextProvider;
 
@@ -353,6 +355,25 @@ mod tests {
                 confidence_bps: output.confidence_bps,
                 rationale: format!("passthrough findings={}", findings.len()),
             })
+        }
+    }
+
+    struct FailingPolicy;
+
+    #[async_trait::async_trait]
+    impl DecisionPolicy for FailingPolicy {
+        fn name(&self) -> &'static str {
+            "failing-policy"
+        }
+
+        async fn decide(
+            &self,
+            _manifest: &ModelManifest,
+            _request: &InferenceRequest,
+            _output: &crate::model::ModelOutput,
+            _findings: &[InferenceFinding],
+        ) -> Result<Assessment, AiError> {
+            Err(AiError::PolicyFailure("policy execution failed".to_owned()))
         }
     }
 
@@ -501,6 +522,257 @@ mod tests {
         assert_eq!(report.request.signals[1].name, "runtime");
         assert_eq!(report.request.findings.len(), 2);
         assert_eq!(report.assessment.action, DecisionAction::Deny);
+    }
+
+    #[tokio::test]
+    async fn evaluate_returns_backend_error_when_fallback_disabled() {
+        let mut manifest = remote_http_manifest("http://127.0.0.1:9/infer");
+        manifest.spec.security.allow_private_networks = true;
+        manifest.spec.security.allowed_endpoints = vec!["http://127.0.0.1:9".to_owned()];
+        manifest.spec.fallback.enabled = false;
+
+        let engine = AiEngine::new(
+            registry_with(manifest),
+            Box::new(StaticContextProvider),
+            vec![],
+            Box::new(PassthroughPolicy),
+        );
+
+        let err = engine
+            .evaluate(
+                AiTask::ValidatorAdmission,
+                AiMode::Enforced,
+                "validator-fallback-off",
+            )
+            .await
+            .expect_err("backend error must be returned directly");
+
+        assert!(matches!(err, AiError::BackendUnreachable(_)));
+    }
+
+    #[tokio::test]
+    async fn evaluate_applies_fallback_mapping_for_schema_errors() {
+        let server = MockServer::start();
+        let mock = server.mock(|when, then| {
+            when.method(POST).path("/infer");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body("{not-json");
+        });
+
+        let mut manifest = remote_http_manifest(format!("{}/infer", server.base_url()));
+        manifest.spec.security.allow_private_networks = true;
+        manifest.spec.security.allowed_endpoints = vec![server.base_url()];
+        manifest.spec.fallback.enabled = true;
+        manifest.spec.fallback.action_on_schema_error = BackendFailureAction::Deny;
+
+        let engine = AiEngine::new(
+            registry_with(manifest),
+            Box::new(StaticContextProvider),
+            vec![],
+            Box::new(PassthroughPolicy),
+        );
+
+        let report = engine
+            .evaluate(
+                AiTask::ValidatorAdmission,
+                AiMode::Enforced,
+                "validator-schema-fallback",
+            )
+            .await
+            .expect("fallback must convert schema error into report");
+        mock.assert();
+
+        assert_eq!(report.model_output.backend, "fallback");
+        assert_eq!(report.assessment.action, DecisionAction::Deny);
+    }
+
+    #[tokio::test]
+    async fn evaluate_applies_fallback_mapping_for_unreachable_backend_errors() {
+        let mut manifest = remote_http_manifest("http://127.0.0.1:9/infer");
+        manifest.spec.security.allow_private_networks = true;
+        manifest.spec.security.allowed_endpoints = vec!["http://127.0.0.1:9".to_owned()];
+        manifest.spec.fallback.enabled = true;
+        manifest.spec.fallback.action_on_unreachable_backend = BackendFailureAction::Allow;
+
+        let engine = AiEngine::new(
+            registry_with(manifest),
+            Box::new(StaticContextProvider),
+            vec![],
+            Box::new(PassthroughPolicy),
+        );
+
+        let report = engine
+            .evaluate(
+                AiTask::ValidatorAdmission,
+                AiMode::Enforced,
+                "validator-unreachable-fallback",
+            )
+            .await
+            .expect("fallback must convert unreachable error into report");
+
+        assert_eq!(report.model_output.backend, "fallback");
+        assert_eq!(report.assessment.action, DecisionAction::Allow);
+    }
+
+    #[tokio::test]
+    async fn evaluate_applies_fallback_mapping_for_generic_backend_failures() {
+        let server = MockServer::start();
+        let mock = server.mock(|when, then| {
+            when.method(POST).path("/infer");
+            then.status(500).body("error");
+        });
+
+        let mut manifest = remote_http_manifest(format!("{}/infer", server.base_url()));
+        manifest.spec.security.allow_private_networks = true;
+        manifest.spec.security.allowed_endpoints = vec![server.base_url()];
+        manifest.spec.fallback.enabled = true;
+        manifest.spec.fallback.action_on_backend_error = BackendFailureAction::Deny;
+
+        let engine = AiEngine::new(
+            registry_with(manifest),
+            Box::new(StaticContextProvider),
+            vec![],
+            Box::new(PassthroughPolicy),
+        );
+
+        let report = engine
+            .evaluate(
+                AiTask::ValidatorAdmission,
+                AiMode::Enforced,
+                "validator-generic-fallback",
+            )
+            .await
+            .expect("fallback must convert generic backend error into report");
+        mock.assert();
+
+        assert_eq!(report.model_output.backend, "fallback");
+        assert_eq!(report.assessment.action, DecisionAction::Deny);
+    }
+
+    #[tokio::test]
+    async fn evaluate_propagates_policy_decision_failures() {
+        let engine = AiEngine::new(
+            registry_with(base_manifest()),
+            Box::new(StaticContextProvider),
+            vec![],
+            Box::new(FailingPolicy),
+        );
+
+        let err = engine
+            .evaluate(
+                AiTask::ValidatorAdmission,
+                AiMode::Enforced,
+                "validator-policy-fail",
+            )
+            .await
+            .expect_err("policy failure must propagate");
+
+        assert_eq!(
+            err,
+            AiError::PolicyFailure("policy execution failed".to_owned())
+        );
+    }
+
+    #[tokio::test]
+    async fn evaluate_merges_multiple_signal_providers_deterministically() {
+        let mut manifest = base_manifest();
+        manifest.spec.input.max_signal_count = 3;
+        let engine = AiEngine::new(
+            registry_with(manifest),
+            Box::new(StaticContextProvider),
+            vec![
+                Box::new(StaticSignalProvider {
+                    signals: vec![
+                        InferenceSignal::new("a", "value-a", 300, "provider-a"),
+                        InferenceSignal::new("c", "value-c", 800, "provider-a"),
+                    ],
+                }),
+                Box::new(StaticSignalProvider {
+                    signals: vec![
+                        InferenceSignal::new("b", "value-b", 1200, "provider-b"),
+                        InferenceSignal::new("d", "value-d", 100, "provider-b"),
+                    ],
+                }),
+            ],
+            Box::new(PassthroughPolicy),
+        );
+
+        let report = engine
+            .evaluate(
+                AiTask::ValidatorAdmission,
+                AiMode::Enforced,
+                "validator-signal-merge",
+            )
+            .await
+            .expect("evaluation must succeed");
+
+        let names = report
+            .request
+            .signals
+            .iter()
+            .map(|signal| signal.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["b", "c", "a"]);
+    }
+
+    #[tokio::test]
+    async fn evaluate_preserves_decision_report_metadata_and_integrity() {
+        let server = MockServer::start();
+        let response_body = json!({
+            "backend": "remote_http",
+            "model_id": "validator-risk-v1",
+            "label": "review",
+            "risk_bps": 3333,
+            "confidence_bps": 7777,
+            "rationale": "metadata integrity probe",
+            "recommended_action": "review",
+            "attributes": {"trace_id": "trace-integrity"}
+        });
+        let mock = server.mock(|when, then| {
+            when.method(POST).path("/infer");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body_obj(&response_body);
+        });
+
+        let mut manifest = remote_http_manifest(format!("{}/infer", server.base_url()));
+        manifest.metadata.id = "manifest-integrity-id".to_owned();
+        manifest.spec.security.allow_private_networks = true;
+        manifest.spec.security.allowed_endpoints = vec![server.base_url()];
+        let expected_backend_type = format!("{:?}", manifest.spec.backend.r#type);
+
+        let engine = AiEngine::new(
+            registry_with(manifest),
+            Box::new(StaticContextProvider),
+            vec![Box::new(StaticSignalProvider {
+                signals: vec![InferenceSignal::new(
+                    "identity",
+                    "revoked_identity",
+                    9_500,
+                    "provider-integrity",
+                )],
+            })],
+            Box::new(PassthroughPolicy),
+        );
+
+        let report = engine
+            .evaluate(
+                AiTask::ValidatorAdmission,
+                AiMode::Enforced,
+                "validator-integrity",
+            )
+            .await
+            .expect("evaluation must succeed");
+        mock.assert();
+
+        assert_eq!(report.manifest_id, "manifest-integrity-id");
+        assert_eq!(report.backend_type, expected_backend_type);
+        assert_eq!(report.request.context.subject_id, "validator-integrity");
+        assert_eq!(report.request.task, AiTask::ValidatorAdmission);
+        assert_eq!(report.model_output.backend, "remote_http");
+        assert_eq!(report.model_output.risk_bps, 3333);
+        assert_eq!(report.model_output.confidence_bps, 7777);
     }
 
     #[test]
