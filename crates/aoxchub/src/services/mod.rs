@@ -296,29 +296,28 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
         p2p_status,
         validator_count,
         observer_count,
-    ) =
-        match env {
-            Environment::Mainnet => (
-                String::from("AOXC Mainnet"),
-                String::from("mainnet"),
-                String::from("aoxc-mainnet"),
-                String::from("idle"),
-                String::from("not_connected"),
-                String::from("not_connected"),
-                21,
-                3,
-            ),
-            Environment::Testnet => (
-                String::from("AOXC Testnet"),
-                String::from("testnet"),
-                String::from("aoxc-testnet"),
-                String::from("idle"),
-                String::from("not_connected"),
-                String::from("not_connected"),
-                3,
-                1,
-            ),
-        };
+    ) = match env {
+        Environment::Mainnet => (
+            String::from("AOXC Mainnet"),
+            String::from("mainnet"),
+            String::from("aoxc-mainnet"),
+            String::from("idle"),
+            String::from("not_connected"),
+            String::from("not_connected"),
+            21,
+            3,
+        ),
+        Environment::Testnet => (
+            String::from("AOXC Testnet"),
+            String::from("testnet"),
+            String::from("aoxc-testnet"),
+            String::from("idle"),
+            String::from("not_connected"),
+            String::from("not_connected"),
+            3,
+            1,
+        ),
+    };
 
     let binary_count = bins.len();
     let allowed_binary_count = bins
