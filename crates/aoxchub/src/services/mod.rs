@@ -118,7 +118,10 @@ impl HubService {
 
         if env == Environment::Mainnet
             && matches!(spec.risk, crate::domain::RiskClass::High)
-            && !matches!(command_id, "mainnet-start" | "aoxc-node-start" | "aoxc-node-stop")
+            && !matches!(
+                command_id,
+                "mainnet-start" | "aoxc-node-start" | "aoxc-node-stop"
+            )
         {
             return false;
         }
@@ -216,7 +219,6 @@ fn environment_bindings(env: Environment) -> Vec<(String, String)> {
         ),
     ]
 }
-
 
 fn policy_note(
     env: Environment,
