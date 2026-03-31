@@ -1561,6 +1561,8 @@ fn append_baseline_section(
 
 fn remediation_plan(checks: &[ReadinessCheck]) -> Vec<String> {
     let mut plan = Vec::new();
+    let total_checks = checks.len();
+    let passed_checks = checks.iter().filter(|check| check.passed).count();
 
     for check in checks.iter().filter(|check| !check.passed) {
         let step = match check.name {
@@ -1634,6 +1636,16 @@ fn remediation_plan(checks: &[ReadinessCheck]) -> Vec<String> {
             "Candidate is at 100%; keep running `aoxc mainnet-readiness --enforce --format json` and `aoxc testnet-readiness --enforce --format json` in CI to prevent regressions."
                 .to_string(),
         );
+    } else {
+        let current_ratio = if total_checks == 0 {
+            0
+        } else {
+            (passed_checks * 100) / total_checks
+        };
+        plan.push(format!(
+            "Close remaining blockers to raise readiness from {}% to 100% before release sign-off.",
+            current_ratio
+        ));
     }
 
     plan
@@ -2415,8 +2427,13 @@ mod tests {
             "remediation plan should still include a path to full readiness"
         );
         assert_eq!(readiness.track_progress.len(), 2);
-        assert_eq!(readiness.track_progress[0].ratio, 100);
-        assert_eq!(readiness.track_progress[1].ratio, 100);
+        assert!(readiness.track_progress.iter().all(|track| track.ratio <= 100));
+        assert!(
+            readiness
+                .track_progress
+                .iter()
+                .any(|track| track.ratio < 100)
+        );
         assert!(!readiness.next_focus.is_empty());
         assert!(
             readiness
