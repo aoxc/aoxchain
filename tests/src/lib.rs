@@ -14,10 +14,9 @@ mod production_readiness;
 mod full_chain_regression_matrix;
 
 #[cfg(test)]
-mod external_surface_fuzz;
-#[cfg(test)]
 mod environment_readiness_matrix;
+#[cfg(test)]
+mod external_surface_fuzz;
 
 #[cfg(test)]
 mod testnet_readiness_external;
-
