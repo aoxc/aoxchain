@@ -2,11 +2,17 @@ name: Security Audit
 
 on:
   pull_request:
+    branches:
+      - main
+      - master
+      - work
+      - develop
   push:
     branches:
       - main
       - master
       - work
+      - develop
   workflow_dispatch:
   schedule:
     - cron: '0 3 * * 1'
@@ -18,20 +24,66 @@ concurrency:
   group: security-audit-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: 10
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+  RUST_BACKTRACE: 1
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   cargo-audit:
-    name: cargo-audit
+    name: Cargo security audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        run: |
+          set -euo pipefail
+          cargo install cargo-audit --locked
+
       - name: Install cargo-deny
-        run: cargo install cargo-deny --locked
+        run: |
+          set -euo pipefail
+          cargo install cargo-deny --locked
+
+      - name: Verify deny configuration
+        run: |
+          set -euo pipefail
+          test -f ./deny.toml
+
       - name: Run cargo-audit
-        run: cargo audit
+        run: |
+          set -euo pipefail
+          cargo audit
+
       - name: Run cargo-deny
-        run: cargo deny check
+        run: |
+          set -euo pipefail
+          cargo deny check
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-logs
+          path: |
+            deny.toml
+            Cargo.lock
+          if-no-files-found: ignore
+          retention-days: 14
