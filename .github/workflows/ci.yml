@@ -33,6 +33,58 @@ defaults:
     shell: bash
 
 jobs:
+  testnet-readiness:
+    name: Testnet readiness gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+
+      - name: Verify testnet readiness script
+        run: |
+          set -euo pipefail
+          test -f ./scripts/validation/testnet_readiness_gate.sh
+          chmod +x ./scripts/validation/testnet_readiness_gate.sh
+          test -f ./scripts/validation/persistent_testnet_gate.sh
+          chmod +x ./scripts/validation/persistent_testnet_gate.sh
+
+      - name: Run testnet readiness gate
+        run: |
+          set -euo pipefail
+          make --no-print-directory testnet-readiness-gate
+
+      - name: Install cargo-llvm-cov
+        run: |
+          set -euo pipefail
+          cargo install cargo-llvm-cov --locked
+
+      - name: Generate coverage artifact (aoxcai)
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/coverage
+          cargo llvm-cov -p aoxcai --all-features --lcov --output-path artifacts/coverage/aoxcai.lcov --summary-only
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aoxcai-coverage
+          path: artifacts/coverage/
+          if-no-files-found: ignore
+          retention-days: 14
+
   quick-gate:
     name: Quick quality gate (core workspace)
     runs-on: ubuntu-latest
@@ -139,7 +191,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     needs:
-      - quick-gate
+      - testnet-readiness
     timeout-minutes: 45
 
     steps:
@@ -158,26 +210,19 @@ jobs:
         run: |
           set -euo pipefail
           test -f ./scripts/release/generate_release_evidence.sh
-          test -f ./scripts/validation/network_production_closure.sh
-          test -f ./scripts/validation/run_readiness_gate.sh
+          test -f ./scripts/validation/persistent_testnet_gate.sh
           chmod +x ./scripts/release/generate_release_evidence.sh
-          chmod +x ./scripts/validation/network_production_closure.sh
-          chmod +x ./scripts/validation/run_readiness_gate.sh
+          chmod +x ./scripts/validation/persistent_testnet_gate.sh
 
       - name: Generate release evidence
         run: |
           set -euo pipefail
           ./scripts/release/generate_release_evidence.sh
 
-      - name: Run production closure validation
-        run: |
-          set -euo pipefail
-          ./scripts/validation/network_production_closure.sh --scenario soak
-
       - name: Run readiness gate
         run: |
           set -euo pipefail
-          ./scripts/validation/run_readiness_gate.sh
+          make --no-print-directory testnet-readiness-gate
 
       - name: Upload readiness artifacts
         if: always()
