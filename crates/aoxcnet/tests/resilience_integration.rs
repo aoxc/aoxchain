@@ -70,6 +70,8 @@ fn make_vote(height: u64) -> ConsensusMessage {
         },
         context: make_vote_authentication_context(),
         signature: TEST_SIGNATURE.to_vec(),
+        pq_public_key: None,
+        pq_signature: None,
     })
 }
 
