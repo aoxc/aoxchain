@@ -8,7 +8,7 @@ use crate::{
     model::{FindingSeverity, InferenceRequest, ModelOutput, OutputLabel},
     traits::InferenceBackend,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Built-in deterministic fallback backend.
 ///
@@ -29,6 +29,40 @@ impl Default for HeuristicBackendRuntime {
     }
 }
 
+fn normalize_keywords(keywords: &[String]) -> Vec<String> {
+    let mut deduplicated = BTreeSet::new();
+    for keyword in keywords {
+        let trimmed = keyword.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        deduplicated.insert(trimmed.to_ascii_lowercase());
+    }
+
+    deduplicated.into_iter().collect()
+}
+
+fn score_signal(signal_value: &str, signal_weight_bps: u16, normalized_keywords: &[String]) -> u16 {
+    let lowered_value = signal_value.to_ascii_lowercase();
+    if normalized_keywords
+        .iter()
+        .any(|keyword| lowered_value.contains(keyword))
+    {
+        signal_weight_bps.min(2_500)
+    } else {
+        0
+    }
+}
+
+fn score_finding(severity: FindingSeverity) -> u16 {
+    match severity {
+        FindingSeverity::Critical => 4_000,
+        FindingSeverity::High => 2_500,
+        FindingSeverity::Warning => 1_000,
+        FindingSeverity::Info => 250,
+    }
+}
+
 #[async_trait::async_trait]
 impl InferenceBackend for HeuristicBackendRuntime {
     fn name(&self) -> &'static str {
@@ -45,29 +79,20 @@ impl InferenceBackend for HeuristicBackendRuntime {
                 "heuristic backend requires spec.backend.heuristic".to_owned(),
             )
         })?;
+        let normalized_keywords = normalize_keywords(&heuristic.anomaly_keywords);
 
         let mut risk_bps: u16 = 0;
 
         for signal in &request.signals {
-            let signal_value = signal.value.to_ascii_lowercase();
-            let matched = heuristic
-                .anomaly_keywords
-                .iter()
-                .any(|keyword| signal_value.contains(&keyword.to_ascii_lowercase()));
-
-            if matched {
-                risk_bps = risk_bps.saturating_add(signal.weight_bps.min(2_500));
-            }
+            risk_bps = risk_bps.saturating_add(score_signal(
+                &signal.value,
+                signal.weight_bps,
+                &normalized_keywords,
+            ));
         }
 
         for finding in &request.findings {
-            let increment = match finding.severity {
-                FindingSeverity::Critical => 4_000,
-                FindingSeverity::High => 2_500,
-                FindingSeverity::Warning => 1_000,
-                FindingSeverity::Info => 250,
-            };
-            risk_bps = risk_bps.saturating_add(increment);
+            risk_bps = risk_bps.saturating_add(score_finding(finding.severity));
         }
 
         let risk_bps = risk_bps.min(10_000);
@@ -232,5 +257,126 @@ mod tests {
 
         assert_eq!(output.risk_bps, 5_000);
         assert_eq!(output.label, OutputLabel::Suspicious);
+    }
+
+    #[tokio::test]
+    async fn infer_ignores_blank_keywords_and_matches_case_insensitive() {
+        let mut manifest = heuristic_manifest();
+        manifest
+            .spec
+            .backend
+            .heuristic
+            .as_mut()
+            .expect("heuristic backend must exist")
+            .anomaly_keywords = vec!["".to_owned(), "  ".to_owned(), "ReVoKeD".to_owned()];
+
+        let backend = HeuristicBackendRuntime::new();
+        let request = request_with(
+            vec![InferenceSignal::new(
+                "status",
+                "revoked_identity",
+                2_000,
+                "unit_test",
+            )],
+            vec![],
+        );
+
+        let output = backend
+            .infer(&manifest, &request)
+            .await
+            .expect("heuristic inference must succeed");
+
+        assert_eq!(output.risk_bps, 2_000);
+        assert_eq!(output.label, OutputLabel::Review);
+    }
+
+    #[test]
+    fn normalize_keywords_deduplicates_and_sorts() {
+        let normalized = normalize_keywords(&[
+            " Revoked ".to_owned(),
+            String::new(),
+            "revoked".to_owned(),
+            "ANOMALY".to_owned(),
+        ]);
+
+        assert_eq!(normalized, vec!["anomaly".to_owned(), "revoked".to_owned()]);
+    }
+
+    #[test]
+    fn score_signal_caps_weight_per_signal() {
+        let keywords = vec!["revoked".to_owned()];
+        let score = score_signal("revoked_identity", 9_999, &keywords);
+        assert_eq!(score, 2_500);
+    }
+
+    #[test]
+    fn score_finding_uses_expected_weights() {
+        assert_eq!(score_finding(FindingSeverity::Critical), 4_000);
+        assert_eq!(score_finding(FindingSeverity::High), 2_500);
+        assert_eq!(score_finding(FindingSeverity::Warning), 1_000);
+        assert_eq!(score_finding(FindingSeverity::Info), 250);
+    }
+
+    #[tokio::test]
+    async fn infer_label_thresholds_are_stable() {
+        let manifest = heuristic_manifest();
+        let backend = HeuristicBackendRuntime::new();
+
+        let trusted = request_with(
+            vec![InferenceSignal::new("status", "revoked_identity", 1_499, "unit_test")],
+            vec![],
+        );
+        let review = request_with(
+            vec![InferenceSignal::new("status", "revoked_identity", 1_500, "unit_test")],
+            vec![],
+        );
+        let suspicious = request_with(
+            vec![
+                InferenceSignal::new("status", "revoked_identity", 2_500, "unit_test"),
+                InferenceSignal::new("runtime", "runtime_anomaly", 1_000, "unit_test"),
+            ],
+            vec![],
+        );
+        let malicious = request_with(
+            vec![
+                InferenceSignal::new("status", "revoked_identity", 2_500, "unit_test"),
+                InferenceSignal::new("status", "revoked_identity", 2_500, "unit_test"),
+                InferenceSignal::new("status", "revoked_identity", 2_000, "unit_test"),
+            ],
+            vec![],
+        );
+
+        assert_eq!(
+            backend
+                .infer(&manifest, &trusted)
+                .await
+                .expect("heuristic inference must succeed")
+                .label,
+            OutputLabel::Trusted
+        );
+        assert_eq!(
+            backend
+                .infer(&manifest, &review)
+                .await
+                .expect("heuristic inference must succeed")
+                .label,
+            OutputLabel::Review
+        );
+        assert_eq!(
+            backend
+                .infer(&manifest, &suspicious)
+                .await
+                .expect("heuristic inference must succeed")
+                .label,
+            OutputLabel::Suspicious
+        );
+        assert_eq!(
+            backend
+                .infer(&manifest, &malicious)
+                .await
+                .expect("heuristic inference must succeed")
+                .label,
+            OutputLabel::Malicious
+        );
     }
 }
