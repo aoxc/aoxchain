@@ -25,3 +25,14 @@ AOXCHub is a localhost-only operator control plane for AOXChain. It presents app
 - The service binds to `127.0.0.1` by default and is not designed for remote exposure.
 - AOXCHub is orchestration and observability only; AOXC remains the canonical operational binary.
 - Repository policy and license obligations remain governed by the AOXChain MIT license context.
+
+## Capacity Controls
+AOXCHub runner behavior can be tuned without code changes through environment variables:
+
+- `AOXCHUB_MAX_CONCURRENT_JOBS` (default: `8`): maximum concurrently executing jobs.
+- `AOXCHUB_ACQUIRE_TIMEOUT_MS` (default: `250`): maximum queue wait time for an execution slot.
+- `AOXCHUB_MAX_JOB_RECORDS` (default: `512`): in-memory job record retention ceiling.
+- `AOXCHUB_COMMAND_TIMEOUT_SECS` (default: `300`): hard timeout for an individual command execution.
+- `AOXCHUB_MAX_OUTPUT_BYTES` (default: `524288`): aggregate captured stdout/stderr bytes retained per job.
+
+These controls are designed to enforce deterministic backpressure and bounded memory growth under elevated operator load.
