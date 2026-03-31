@@ -91,3 +91,21 @@ Reviewers are expected to evaluate both:
 ## Exception Handling
 
 Any validation exception must be explicitly documented, risk-accepted by the appropriate reviewer or maintainer, and tracked for remediation where applicable. Silent omission of required validation steps is not permitted.
+
+
+## Testnet Go/No-Go Decision Criteria
+
+A branch should be treated as **testnet-ready** only when all of the following conditions are simultaneously true:
+
+- `make testnet-gate` passes without warnings or skipped checks;
+- `cargo test -p tests` passes, including testnet external readiness suites;
+- required testnet bundle files under `configs/environments/testnet` remain identity-consistent and hash-consistent;
+- release-policy and profile controls continue to enforce fail-closed behavior for manifest/genesis/identity checks.
+
+If any one of these controls fails, readiness status is **not ready** and deployment should be blocked until remediation is merged and revalidated.
+
+Recommended operator declaration format for release notes or PRs:
+
+- `Status: TESTNET_READY` only after all gate commands pass;
+- otherwise `Status: NOT_READY` with explicit failing gate and remediation owner.
+
