@@ -1,3 +1,2 @@
 #[test]
-fn route_tests() {
-}
+fn route_tests() {}

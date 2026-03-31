@@ -1,3 +1,2 @@
 #[test]
-fn asset_embed_tests() {
-}
+fn asset_embed_tests() {}
