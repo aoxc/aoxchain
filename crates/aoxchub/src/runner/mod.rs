@@ -10,7 +10,7 @@ use std::{
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
-    sync::{broadcast, Mutex, Semaphore},
+    sync::{Mutex, Semaphore, broadcast},
     time::sleep,
 };
 
@@ -215,7 +215,10 @@ impl Runner {
 
                 let _ = append_output(
                     &mut record.status.output,
-                    &format!("\n[metrics] wall_time_ms={}\n", wall_clock.elapsed().as_millis()),
+                    &format!(
+                        "\n[metrics] wall_time_ms={}\n",
+                        wall_clock.elapsed().as_millis()
+                    ),
                     output_limit,
                 );
             }

@@ -1,12 +1,12 @@
 use crate::{embed, environments::Environment, security, services::HubService};
 use axum::{
+    Json, Router,
     extract::DefaultBodyLimit,
     extract::{Path, State},
     http::StatusCode,
     middleware,
     response::{Html, IntoResponse, Response, Sse},
     routing::{get, post},
-    Json, Router,
 };
 use serde::Deserialize;
 use serde_json::json;
