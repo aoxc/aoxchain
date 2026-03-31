@@ -1,3 +1,2 @@
 #[test]
-fn execute_tests() {
-}
+fn execute_tests() {}
