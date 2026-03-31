@@ -80,6 +80,54 @@ function clearTerminalOutput() {
   });
 }
 
+
+function listToHtml(list) {
+  return (list || []).map((item) => `<li>${item}</li>`).join('');
+}
+
+function renderDashboard() {
+  const dashboard = state?.dashboard;
+  if (!dashboard) return;
+
+  const metrics = [
+    ['Chain', dashboard.chain_name],
+    ['Network', `${dashboard.network_kind} (${dashboard.network_id})`],
+    ['Height', `${dashboard.current_height}`],
+    ['Finalized', `${dashboard.finalized_height}`],
+    ['Round', `${dashboard.current_round}`],
+    ['Validators', `${dashboard.validator_count}`],
+    ['Observers', `${dashboard.observer_count}`],
+    ['Peers', `${dashboard.connected_peers}`],
+    ['Node', dashboard.local_node_status],
+    ['RPC', dashboard.rpc_status],
+    ['P2P', dashboard.p2p_status],
+    ['Health', dashboard.health_status],
+    ['Genesis FP', dashboard.genesis_fingerprint],
+  ];
+
+  const metricsNode = document.getElementById('dashboard-metrics');
+  metricsNode.innerHTML = metrics
+    .map(([k, v]) => `<article class="dashboard-metric"><span>${k}</span><strong>${v}</strong></article>`)
+    .join('');
+
+  const versions = dashboard.installed_versions || {};
+  const versionsNode = document.getElementById('dashboard-versions');
+  versionsNode.innerHTML = [
+    ['aoxc', versions.aoxc || 'unknown'],
+    ['aoxchub', versions.aoxchub || 'unknown'],
+    ['runtime', versions.runtime || 'unknown'],
+  ]
+    .map(([k, v]) => `<article class="dashboard-metric"><span>${k}</span><strong>${v}</strong></article>`)
+    .join('');
+
+  document.getElementById('dashboard-events').innerHTML = listToHtml(dashboard.last_events);
+  document.getElementById('dashboard-txs').innerHTML = listToHtml(dashboard.last_txs);
+  document.getElementById('dashboard-warnings').innerHTML = listToHtml(dashboard.last_warnings);
+  document.getElementById('dashboard-actions').innerHTML = (dashboard.quick_actions || [])
+    .map((action) => `<span class="dashboard-chip">${action}</span>`)
+    .join('');
+}
+
 function renderHeader() {
   const wallet = walletData();
   const env = (state?.environment || 'mainnet').toUpperCase();
@@ -194,6 +242,7 @@ function render() {
   }
 
   renderHeader();
+  renderDashboard();
 }
 
 async function refresh() {
@@ -285,6 +334,7 @@ function createWallet() {
     source: 'generated_local',
   });
   renderHeader();
+  renderDashboard();
 }
 
 function importWallet(event) {
@@ -305,6 +355,7 @@ function importWallet(event) {
   });
   document.getElementById('wallet-address-input').value = '';
   renderHeader();
+  renderDashboard();
 }
 
 async function applyStoredEnvironmentPreference() {
@@ -355,8 +406,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   await applyStoredEnvironmentPreference();
 
   const lastView = loadUiState().last_view;
-  if (lastView === 'wallet' || lastView === 'home' || lastView === 'terminal') {
+  if (lastView === 'wallet' || lastView === 'home' || lastView === 'dashboard' || lastView === 'terminal') {
     setView(lastView);
   }
   renderHeader();
+  renderDashboard();
 });

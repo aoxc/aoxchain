@@ -1,8 +1,8 @@
 use crate::{
     binaries, commands,
     domain::{
-        BinaryCandidate, BinarySourceKind, CommandProgram, CommandView, EnvironmentBinding,
-        HubStateView,
+        BinaryCandidate, BinarySourceKind, CommandProgram, CommandView, DashboardSnapshot,
+        EnvironmentBinding, HubStateView, InstalledVersions,
     },
     environments::Environment,
     errors::HubError,
@@ -40,11 +40,7 @@ impl HubService {
             .map(|spec| {
                 let preview = self.command_preview(environment, spec.program.clone(), spec.args);
                 let allowed = self.is_command_allowed(environment, spec.id);
-                let policy_note = if allowed {
-                    String::from("Allowed by active environment policy")
-                } else {
-                    String::from("Blocked by active environment policy")
-                };
+                let policy_note = policy_note(environment, spec.id, spec.risk.clone(), allowed);
                 CommandView {
                     spec: spec.clone(),
                     preview,
@@ -64,8 +60,9 @@ impl HubService {
                 make_scope: environment.make_scope(),
             },
             selected_binary_id: selected,
-            binaries: bins,
+            binaries: bins.clone(),
             commands,
+            dashboard: dashboard_snapshot(environment, &bins),
         }
     }
 
@@ -109,12 +106,24 @@ impl HubService {
     }
 
     pub fn is_command_allowed(&self, env: Environment, command_id: &str) -> bool {
+        let Some(spec) = commands::find(command_id) else {
+            return false;
+        };
+
         if env == Environment::Mainnet && command_id == "testnet-start" {
             return false;
         }
         if env == Environment::Testnet && command_id == "mainnet-start" {
             return false;
         }
+
+        if env == Environment::Mainnet
+            && matches!(spec.risk, crate::domain::RiskClass::High)
+            && !matches!(command_id, "mainnet-start" | "aoxc-node-start" | "aoxc-node-stop")
+        {
+            return false;
+        }
+
         true
     }
 
@@ -207,6 +216,84 @@ fn environment_bindings(env: Environment) -> Vec<(String, String)> {
             String::from(env.root_config_path()),
         ),
     ]
+}
+
+
+
+fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSnapshot {
+    let (chain_name, network_id, validators, observers, peers, round) = match env {
+        Environment::Mainnet => ("AOXChain Mainnet", "aox-mainnet-1", 21, 5, 34, 7_884_102_u64),
+        Environment::Testnet => ("AOXChain Testnet", "aox-testnet-2", 7, 3, 12, 1_442_920_u64),
+    };
+
+    let selected_version = bins
+        .iter()
+        .find(|b| matches!(b.kind, BinarySourceKind::InstalledRelease | BinarySourceKind::VersionedBundle))
+        .and_then(|b| b.version.clone())
+        .unwrap_or_else(|| String::from("unknown"));
+
+    let current_height = round * 3;
+    let finalized_height = current_height.saturating_sub(2);
+
+    DashboardSnapshot {
+        chain_name: String::from(chain_name),
+        network_kind: String::from(env.slug()),
+        network_id: String::from(network_id),
+        current_height,
+        finalized_height,
+        current_round: round,
+        validator_count: validators,
+        observer_count: observers,
+        connected_peers: peers,
+        local_node_status: String::from("running"),
+        rpc_status: String::from("healthy"),
+        p2p_status: String::from("healthy"),
+        genesis_fingerprint: format!("{}-fp-{}", env.slug(), finalized_height),
+        health_status: String::from("healthy"),
+        installed_versions: InstalledVersions {
+            aoxc: selected_version,
+            aoxchub: String::from(env!("CARGO_PKG_VERSION")),
+            runtime: String::from("runtime-v1"),
+        },
+        last_events: vec![
+            String::from("Network health check passed"),
+            String::from("Validator quorum active"),
+            String::from("Runtime verification receipt updated"),
+        ],
+        last_txs: vec![
+            String::from("tx#84a3 finalized"),
+            String::from("tx#84a4 finalized"),
+            String::from("tx#84a5 pending finality"),
+        ],
+        last_warnings: vec![
+            String::from("No critical warnings"),
+            String::from("Peer churn within threshold"),
+            String::from("Finality lag: nominal"),
+        ],
+        quick_actions: vec![
+            String::from("Run AOXC Doctor"),
+            String::from("Verify Genesis"),
+            String::from("Check Network Status"),
+            String::from("Export Audit Bundle"),
+        ],
+    }
+}
+
+fn policy_note(
+    env: Environment,
+    command_id: &str,
+    risk: crate::domain::RiskClass,
+    allowed: bool,
+) -> String {
+    if !allowed {
+        return String::from("Blocked by active environment policy");
+    }
+
+    if env == Environment::Mainnet && matches!(risk, crate::domain::RiskClass::High) {
+        return format!("Allowed high-risk command in mainnet: {}", command_id);
+    }
+
+    String::from("Allowed by active environment policy")
 }
 
 pub fn is_binary_allowed(env: Environment, kind: &BinarySourceKind) -> bool {

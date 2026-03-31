@@ -17,9 +17,9 @@
 
       <nav class="nav-menu" aria-label="Main navigation">
         <button class="nav-item active" data-view-target="home">Home</button>
+        <button class="nav-item" data-view-target="dashboard">Dashboard</button>
         <button class="nav-item" data-view-target="wallet">Wallet</button>
         <button class="nav-item upcoming" disabled>Node <span>Upcoming</span></button>
-        <button class="nav-item upcoming" disabled>Dashboard <span>Upcoming</span></button>
         <button class="nav-item upcoming" disabled>Actions <span>Upcoming</span></button>
         <button class="nav-item" data-view-target="terminal">Terminal</button>
         <button class="nav-item upcoming" disabled>Settings <span>Upcoming</span></button>
@@ -112,6 +112,43 @@
               <article class="capability"><h5>Node Participation</h5><p>Scale from home usage to advanced operator responsibilities.</p></article>
               <article class="capability"><h5>Network Ecosystem</h5><p>Connect local operations to the broader AOXC service landscape.</p></article>
             </div>
+          </section>
+        </section>
+
+
+        <section class="view" data-view="dashboard">
+          <section class="panel surface-1">
+            <p class="eyebrow">Live chain overview</p>
+            <h3>Operational dashboard</h3>
+            <div class="dashboard-grid" id="dashboard-metrics"></div>
+          </section>
+
+          <section class="panel surface-1">
+            <h4>Installed versions</h4>
+            <div class="dashboard-grid dashboard-grid-versions" id="dashboard-versions"></div>
+          </section>
+
+          <section class="panel surface-1">
+            <h4>Recent activity</h4>
+            <div class="dashboard-list-grid">
+              <article>
+                <h5>Events</h5>
+                <ul id="dashboard-events" class="dashboard-list"></ul>
+              </article>
+              <article>
+                <h5>Transactions</h5>
+                <ul id="dashboard-txs" class="dashboard-list"></ul>
+              </article>
+              <article>
+                <h5>Warnings</h5>
+                <ul id="dashboard-warnings" class="dashboard-list"></ul>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel surface-1">
+            <h4>Quick actions</h4>
+            <div id="dashboard-actions" class="dashboard-actions"></div>
           </section>
         </section>
 

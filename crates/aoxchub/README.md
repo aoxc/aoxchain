@@ -21,6 +21,11 @@ AOXCHub is a localhost-only operator control plane for AOXChain. It presents app
 5. Select an approved AOXC binary source.
 6. Review preview text, confirm execution, and monitor terminal output.
 
+## Product Blueprint
+A crate-local operator blueprint is maintained in `OPERATOR_BLUEPRINT.md`.
+
+The repository-level full product specification is maintained in `../../docs/AOXCHUB_FULL_SPEC.md`.
+
 ## Notes
 - The service binds to `127.0.0.1` by default and is not designed for remote exposure.
 - AOXCHub is orchestration and observability only; AOXC remains the canonical operational binary.
