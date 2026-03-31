@@ -2394,7 +2394,7 @@ mod tests {
     }
 
     #[test]
-    fn readiness_scores_full_candidate_when_all_controls_pass() {
+    fn readiness_reflects_release_evidence_gaps_in_score() {
         let mut settings = Settings::default_for("/tmp/aoxc".to_string());
         settings.profile = "mainnet".to_string();
         settings.logging.json = true;
@@ -2403,20 +2403,26 @@ mod tests {
         let readiness =
             evaluate_profile_readiness("mainnet", &settings, None, Some("active"), true, true);
 
-        assert_eq!(readiness.readiness_score, 100);
-        assert_eq!(readiness.verdict, "candidate");
-        assert!(readiness.blockers.is_empty());
-        assert_eq!(readiness.remediation_plan.len(), 1);
-        assert!(readiness.remediation_plan[0].contains("100%"));
+        assert_eq!(readiness.readiness_score, 75);
+        assert_eq!(readiness.verdict, "not-ready");
+        assert!(!readiness.blockers.is_empty());
+        assert!(!readiness.remediation_plan.is_empty());
+        assert!(
+            readiness
+                .remediation_plan
+                .iter()
+                .any(|step| step.contains("promotion") || step.contains("release")),
+            "remediation plan should include actionable production hardening guidance"
+        );
         assert_eq!(readiness.track_progress.len(), 2);
         assert_eq!(readiness.track_progress[0].ratio, 100);
         assert_eq!(readiness.track_progress[1].ratio, 100);
-        assert!(readiness.next_focus.is_empty());
+        assert!(!readiness.next_focus.is_empty());
         assert!(
             readiness
                 .area_progress
                 .iter()
-                .all(|progress| progress.ratio == 100)
+                .any(|progress| progress.ratio < 100)
         );
     }
 
@@ -2705,7 +2711,8 @@ security_mode = "audit_strict"
         .expect("report should write");
 
         let saved = fs::read_to_string(&path).expect("report should be readable");
-        assert!(saved.contains("Overall readiness: **100%**"));
+        let expected = format!("Overall readiness: **{}%**", readiness.readiness_score);
+        assert!(saved.contains(&expected));
 
         let _ = fs::remove_dir_all(dir);
     }
