@@ -29,6 +29,14 @@ The runtime currently provides a deterministic multi-lane execution skeleton wit
 
 This is not yet production-final relay infrastructure.
 
+## AOXCVM-NEXT bootstrap track (April 1, 2026)
+The crate now includes a `nextvm` bootstrap module for a ground-up VM path with:
+- deterministic instruction execution and explicit gas accounting,
+- capability-gated state and host actions,
+- crypto-profile validation hooks with post-quantum hybrid requirements.
+
+This surface is intentionally minimal and is intended to be extended through formal execution-spec milestones.
+
 ## AOXCLang Kernel architecture (target)
 
 ### 1) Language Policy Layer (kernel-native)

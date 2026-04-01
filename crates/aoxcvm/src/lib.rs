@@ -20,6 +20,7 @@ pub mod kernel;
 pub mod lanes;
 pub mod language;
 pub mod language_adapter;
+pub mod nextvm;
 pub mod routing;
 pub mod system;
 pub mod vm_kind;
