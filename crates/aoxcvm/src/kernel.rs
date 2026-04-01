@@ -925,6 +925,9 @@ impl<S: HostState> CoreKernel<S> {
         let Some(registration) = self.lanes.resolve(tx.lane) else {
             return self.failure_receipt(tx, fuel.used(), KernelError::LaneNotRegistered(tx.lane));
         };
+        if let Err(err) = self.validate_lane_policy(tx, registration.policy) {
+            return self.failure_receipt(tx, fuel.used(), err);
+        }
 
         let mut journal = StateJournal::new();
         journal.begin_transaction();
@@ -1062,6 +1065,30 @@ impl<S: HostState> CoreKernel<S> {
         fuel.charge(payload_len.saturating_mul(self.schedule.byte_cost))?;
         Ok(())
     }
+
+    fn validate_lane_policy(
+        &self,
+        tx: &CanonicalTxEnvelope,
+        policy: LanePolicy,
+    ) -> Result<(), KernelError> {
+        if tx.intent_flags.contains(IntentFlags::SETTLEMENT_ONLY)
+            && policy.class != LaneClass::Settlement
+        {
+            return Err(KernelError::LanePolicyViolation(
+                "settlement-only transactions require settlement lane class",
+            ));
+        }
+
+        if tx.intent_flags.contains(IntentFlags::CROSS_LANE)
+            && policy.trust_level == TrustLevel::Untrusted
+        {
+            return Err(KernelError::LanePolicyViolation(
+                "untrusted lanes cannot emit cross-lane settlement intents",
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 fn derive_hash32(domain: &[u8], payload: &[u8]) -> [u8; 32] {
@@ -1163,6 +1190,10 @@ mod tests {
     }
 
     fn sample_tx(lane: LaneId, gas_limit: Gas) -> CanonicalTxEnvelope {
+        sample_tx_with_flags(lane, gas_limit, IntentFlags::new(IntentFlags::CROSS_LANE))
+    }
+
+    fn sample_tx_with_flags(lane: LaneId, gas_limit: Gas, intent_flags: IntentFlags) -> CanonicalTxEnvelope {
         CanonicalTxEnvelope {
             tx_id: [9u8; 32],
             sender: b"alice".to_vec(),
@@ -1176,7 +1207,7 @@ mod tests {
                 scheme: b"ed25519".to_vec(),
                 proof: vec![1, 2, 3, 4],
             },
-            intent_flags: IntentFlags::new(IntentFlags::CROSS_LANE),
+            intent_flags,
             signature: vec![1, 2, 3],
         }
     }
