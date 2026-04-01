@@ -9,12 +9,6 @@ pub enum LanguageKind {
     Move,
     Wasm,
     PlutusUtxoScript,
-    SolanaSealevel,
-    Cairo,
-    BitcoinScript,
-    CosmWasm,
-    Ink,
-    NativeRust,
 }
 
 /// Proposed canonical name for the language-first kernel model.
@@ -30,22 +24,6 @@ pub struct LanguageInteropProfile {
 }
 
 impl LanguageKind {
-    /// Returns every language family currently modeled by the kernel policy layer.
-    pub const fn all() -> &'static [LanguageKind] {
-        &[
-            LanguageKind::EvmBytecode,
-            LanguageKind::Move,
-            LanguageKind::Wasm,
-            LanguageKind::PlutusUtxoScript,
-            LanguageKind::SolanaSealevel,
-            LanguageKind::Cairo,
-            LanguageKind::BitcoinScript,
-            LanguageKind::CosmWasm,
-            LanguageKind::Ink,
-            LanguageKind::NativeRust,
-        ]
-    }
-
     /// Returns a policy profile for language-first kernel scheduling.
     pub const fn relay_profile(self) -> LanguageInteropProfile {
         match self {
@@ -73,42 +51,6 @@ impl LanguageKind {
                 deterministic_by_default: true,
                 requires_finality_proof_for_relay: true,
             },
-            Self::SolanaSealevel => LanguageInteropProfile {
-                canonical_abi: "sealevel_program_abi",
-                state_model: "account",
-                deterministic_by_default: true,
-                requires_finality_proof_for_relay: true,
-            },
-            Self::Cairo => LanguageInteropProfile {
-                canonical_abi: "starknet_cairo_abi",
-                state_model: "contract_storage",
-                deterministic_by_default: true,
-                requires_finality_proof_for_relay: true,
-            },
-            Self::BitcoinScript => LanguageInteropProfile {
-                canonical_abi: "bitcoin_script_witness",
-                state_model: "utxo",
-                deterministic_by_default: true,
-                requires_finality_proof_for_relay: true,
-            },
-            Self::CosmWasm => LanguageInteropProfile {
-                canonical_abi: "cosmwasm_abi",
-                state_model: "kv_or_module",
-                deterministic_by_default: true,
-                requires_finality_proof_for_relay: true,
-            },
-            Self::Ink => LanguageInteropProfile {
-                canonical_abi: "ink_contract_abi",
-                state_model: "account_storage",
-                deterministic_by_default: true,
-                requires_finality_proof_for_relay: true,
-            },
-            Self::NativeRust => LanguageInteropProfile {
-                canonical_abi: "native_host_abi",
-                state_model: "host_defined",
-                deterministic_by_default: true,
-                requires_finality_proof_for_relay: true,
-            },
         }
     }
 }
@@ -119,18 +61,13 @@ mod tests {
 
     #[test]
     fn relay_profiles_require_proofs_for_all_language_families() {
-        for family in LanguageKind::all() {
+        for family in [
+            LanguageKind::EvmBytecode,
+            LanguageKind::Move,
+            LanguageKind::Wasm,
+            LanguageKind::PlutusUtxoScript,
+        ] {
             assert!(family.relay_profile().requires_finality_proof_for_relay);
-        }
-    }
-
-    #[test]
-    fn relay_profiles_expose_non_empty_kernel_metadata() {
-        for family in LanguageKind::all() {
-            let profile = family.relay_profile();
-            assert!(!profile.canonical_abi.is_empty());
-            assert!(!profile.state_model.is_empty());
-            assert!(profile.deterministic_by_default);
         }
     }
 }
