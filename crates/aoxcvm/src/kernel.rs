@@ -434,6 +434,61 @@ impl CrossLaneBus {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LaneExecutionIntent {
+    pub lane: LaneId,
+    pub tx_id: [u8; 32],
+    pub declared_reads: BTreeSet<StateKey>,
+    pub declared_writes: BTreeSet<StateKey>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeterministicExecutionPlan {
+    pub serial_order: Vec<[u8; 32]>,
+    pub parallel_batches: Vec<Vec<[u8; 32]>>,
+}
+
+pub fn plan_deterministic_batches(mut intents: Vec<LaneExecutionIntent>) -> DeterministicExecutionPlan {
+    intents.sort_by_key(|intent| (intent.lane, intent.tx_id));
+
+    let serial_order = intents.iter().map(|intent| intent.tx_id).collect::<Vec<_>>();
+    let mut parallel_batches: Vec<Vec<[u8; 32]>> = Vec::new();
+    let mut batch_reads: Vec<BTreeSet<StateKey>> = Vec::new();
+    let mut batch_writes: Vec<BTreeSet<StateKey>> = Vec::new();
+
+    for intent in intents {
+        let mut placed = false;
+        for index in 0..parallel_batches.len() {
+            let has_write_conflict = !intent
+                .declared_writes
+                .is_disjoint(&batch_writes[index]);
+            let has_read_write_overlap = !intent
+                .declared_reads
+                .is_disjoint(&batch_writes[index])
+                || !intent.declared_writes.is_disjoint(&batch_reads[index]);
+
+            if !has_write_conflict && !has_read_write_overlap {
+                parallel_batches[index].push(intent.tx_id);
+                batch_reads[index].extend(intent.declared_reads.clone());
+                batch_writes[index].extend(intent.declared_writes.clone());
+                placed = true;
+                break;
+            }
+        }
+
+        if !placed {
+            parallel_batches.push(vec![intent.tx_id]);
+            batch_reads.push(intent.declared_reads);
+            batch_writes.push(intent.declared_writes);
+        }
+    }
+
+    DeterministicExecutionPlan {
+        serial_order,
+        parallel_batches,
+    }
+}
+
 pub trait HostState {
     fn get(&self, key: &[u8]) -> Option<StateValue>;
     fn set(&mut self, key: StateKey, value: StateValue);
@@ -1284,5 +1339,35 @@ mod tests {
                 })
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn deterministic_planner_groups_conflict_free_intents() {
+        let intents = vec![
+            LaneExecutionIntent {
+                lane: LaneId::Evm,
+                tx_id: [1u8; 32],
+                declared_reads: BTreeSet::from([b"lane/a/r1".to_vec()]),
+                declared_writes: BTreeSet::from([b"lane/a/w1".to_vec()]),
+            },
+            LaneExecutionIntent {
+                lane: LaneId::Wasm,
+                tx_id: [2u8; 32],
+                declared_reads: BTreeSet::from([b"lane/b/r1".to_vec()]),
+                declared_writes: BTreeSet::from([b"lane/b/w1".to_vec()]),
+            },
+            LaneExecutionIntent {
+                lane: LaneId::Move,
+                tx_id: [3u8; 32],
+                declared_reads: BTreeSet::from([b"lane/a/w1".to_vec()]),
+                declared_writes: BTreeSet::new(),
+            },
+        ];
+
+        let plan = plan_deterministic_batches(intents);
+        assert_eq!(plan.serial_order, vec![[1u8; 32], [2u8; 32], [3u8; 32]]);
+        assert_eq!(plan.parallel_batches.len(), 2);
+        assert_eq!(plan.parallel_batches[0], vec![[1u8; 32], [2u8; 32]]);
+        assert_eq!(plan.parallel_batches[1], vec![[3u8; 32]]);
     }
 }
