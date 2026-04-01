@@ -143,6 +143,8 @@ pub struct Receipt {
     pub output: Vec<u8>,
     pub state_diff_hash: [u8; 32],
     pub receipt_hash: [u8; 32],
+    pub cross_lane_message_count: u32,
+    pub cross_lane_message_root: [u8; 32],
     pub error: Option<KernelError>,
 }
 
@@ -154,6 +156,36 @@ pub struct UnifiedReceipt {
     pub output: Vec<u8>,
     pub state_diff_hash: [u8; 32],
     pub receipt_hash: [u8; 32],
+    pub cross_lane_message_count: u32,
+    pub cross_lane_message_root: [u8; 32],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanonicalStatus {
+    Success,
+    Failure,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SecurityFlag {
+    CapabilityGatedHost,
+    DeterministicReplayAnchor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalSettlementReceipt {
+    pub tx_id: [u8; 32],
+    pub lane: LaneId,
+    pub status: CanonicalStatus,
+    pub gas_used: Gas,
+    pub state_diff_hash: [u8; 32],
+    pub receipt_hash: [u8; 32],
+    pub event_count: u32,
+    pub replay_hash: [u8; 32],
+    pub execution_trace_hash: [u8; 32],
+    pub cross_lane_message_count: u32,
+    pub cross_lane_message_root: [u8; 32],
+    pub security_flags: BTreeSet<SecurityFlag>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -191,6 +223,39 @@ impl Receipt {
             output: self.output.clone(),
             state_diff_hash: self.state_diff_hash,
             receipt_hash: self.receipt_hash,
+            cross_lane_message_count: self.cross_lane_message_count,
+            cross_lane_message_root: self.cross_lane_message_root,
+        }
+    }
+
+    pub fn canonical(&self) -> CanonicalSettlementReceipt {
+        let status = if self.success {
+            CanonicalStatus::Success
+        } else {
+            CanonicalStatus::Failure
+        };
+
+        let event_count = u32::try_from(self.events.len()).unwrap_or(u32::MAX);
+        let replay_hash = derive_hash32(b"AOXC-REPLAY", &self.receipt_hash);
+        let execution_trace_hash = derive_execution_trace_hash(&self.events, &self.output);
+        let security_flags = BTreeSet::from([
+            SecurityFlag::CapabilityGatedHost,
+            SecurityFlag::DeterministicReplayAnchor,
+        ]);
+
+        CanonicalSettlementReceipt {
+            tx_id: self.tx_id,
+            lane: self.lane,
+            status,
+            gas_used: self.gas_used,
+            state_diff_hash: self.state_diff_hash,
+            receipt_hash: self.receipt_hash,
+            event_count,
+            replay_hash,
+            execution_trace_hash,
+            cross_lane_message_count: self.cross_lane_message_count,
+            cross_lane_message_root: self.cross_lane_message_root,
+            security_flags,
         }
     }
 
@@ -730,6 +795,7 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
 pub struct LaneOutput {
     pub output: Vec<u8>,
     pub events: Vec<Event>,
+    pub cross_lane_messages: Vec<CrossLaneMessage>,
 }
 
 pub trait ExecutionAdapter<S: HostState> {
@@ -759,6 +825,7 @@ impl<S: HostState, T: ExecutionAdapter<S>> LaneAdapter<S> for T {
         Ok(LaneOutput {
             output: out.output,
             events: out.events,
+            cross_lane_messages: Vec::new(),
         })
     }
 }
@@ -892,6 +959,8 @@ impl<S: HostState> CoreKernel<S> {
                     output: lane_out.output,
                     state_diff_hash,
                     receipt_hash,
+                    cross_lane_message_count,
+                    cross_lane_message_root,
                     error: None,
                 }
             }
@@ -976,6 +1045,8 @@ impl<S: HostState> CoreKernel<S> {
             output: Vec::new(),
             state_diff_hash: [0u8; 32],
             receipt_hash: derive_hash32(b"AOXC-RECEIPT-ERR", format!("{:?}", error).as_bytes()),
+            cross_lane_message_count: 0,
+            cross_lane_message_root: [0u8; 32],
             error: Some(error),
         }
     }
@@ -1045,6 +1116,7 @@ mod tests {
             Ok(LaneOutput {
                 output: b"ok".to_vec(),
                 events: vec![event],
+                cross_lane_messages: Vec::new(),
             })
         }
     }
