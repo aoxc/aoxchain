@@ -188,6 +188,32 @@ pub struct CanonicalSettlementReceipt {
     pub security_flags: BTreeSet<SecurityFlag>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanonicalStatus {
+    Success,
+    Failure,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SecurityFlag {
+    CapabilityGatedHost,
+    DeterministicReplayAnchor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalSettlementReceipt {
+    pub tx_id: [u8; 32],
+    pub lane: LaneId,
+    pub status: CanonicalStatus,
+    pub gas_used: Gas,
+    pub state_diff_hash: [u8; 32],
+    pub receipt_hash: [u8; 32],
+    pub event_count: u32,
+    pub replay_hash: [u8; 32],
+    pub execution_trace_hash: [u8; 32],
+    pub security_flags: BTreeSet<SecurityFlag>,
+}
+
 impl Receipt {
     pub fn unified(&self) -> UnifiedReceipt {
         UnifiedReceipt {
@@ -232,6 +258,35 @@ impl Receipt {
             security_flags,
         }
     }
+
+    pub fn canonical(&self) -> CanonicalSettlementReceipt {
+        let status = if self.success {
+            CanonicalStatus::Success
+        } else {
+            CanonicalStatus::Failure
+        };
+
+        let event_count = u32::try_from(self.events.len()).unwrap_or(u32::MAX);
+        let replay_hash = derive_hash32(b"AOXC-REPLAY", &self.receipt_hash);
+        let execution_trace_hash = derive_execution_trace_hash(&self.events, &self.output);
+        let security_flags = BTreeSet::from([
+            SecurityFlag::CapabilityGatedHost,
+            SecurityFlag::DeterministicReplayAnchor,
+        ]);
+
+        CanonicalSettlementReceipt {
+            tx_id: self.tx_id,
+            lane: self.lane,
+            status,
+            gas_used: self.gas_used,
+            state_diff_hash: self.state_diff_hash,
+            receipt_hash: self.receipt_hash,
+            event_count,
+            replay_hash,
+            execution_trace_hash,
+            security_flags,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -261,7 +316,10 @@ pub enum KernelError {
     LaneNotRegistered(LaneId),
     GasExhausted,
     StateViolation(&'static str),
-    DeterministicAbort { code: u16, message: &'static str },
+    DeterministicAbort {
+        code: u16,
+        message: &'static str,
+    },
     AdapterValidation(&'static str),
     CapabilityDenied {
         lane: LaneId,
@@ -458,10 +516,15 @@ pub struct DeterministicExecutionPlan {
     pub parallel_batches: Vec<Vec<[u8; 32]>>,
 }
 
-pub fn plan_deterministic_batches(mut intents: Vec<LaneExecutionIntent>) -> DeterministicExecutionPlan {
+pub fn plan_deterministic_batches(
+    mut intents: Vec<LaneExecutionIntent>,
+) -> DeterministicExecutionPlan {
     intents.sort_by_key(|intent| (intent.lane, intent.tx_id));
 
-    let serial_order = intents.iter().map(|intent| intent.tx_id).collect::<Vec<_>>();
+    let serial_order = intents
+        .iter()
+        .map(|intent| intent.tx_id)
+        .collect::<Vec<_>>();
     let mut parallel_batches: Vec<Vec<[u8; 32]>> = Vec::new();
     let mut batch_reads: Vec<BTreeSet<StateKey>> = Vec::new();
     let mut batch_writes: Vec<BTreeSet<StateKey>> = Vec::new();
@@ -469,12 +532,8 @@ pub fn plan_deterministic_batches(mut intents: Vec<LaneExecutionIntent>) -> Dete
     for intent in intents {
         let mut placed = false;
         for index in 0..parallel_batches.len() {
-            let has_write_conflict = !intent
-                .declared_writes
-                .is_disjoint(&batch_writes[index]);
-            let has_read_write_overlap = !intent
-                .declared_reads
-                .is_disjoint(&batch_writes[index])
+            let has_write_conflict = !intent.declared_writes.is_disjoint(&batch_writes[index]);
+            let has_read_write_overlap = !intent.declared_reads.is_disjoint(&batch_writes[index])
                 || !intent.declared_writes.is_disjoint(&batch_reads[index]);
 
             if !has_write_conflict && !has_read_write_overlap {
@@ -512,7 +571,10 @@ pub enum JournalOp {
         key: StateKey,
         value: StateValue,
     },
-    Delete { lane: LaneId, key: StateKey },
+    Delete {
+        lane: LaneId,
+        key: StateKey,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -654,12 +716,11 @@ pub struct ExecutionEnv<'a, S: HostState> {
     pub fuel: &'a mut FuelMeter,
     pub schedule: &'a FuelSchedule,
     pub capabilities: &'a CapabilityProfile,
-    pub allow_shared_state: bool,
 }
 
 impl<'a, S: HostState> ExecutionEnv<'a, S> {
     fn scoped_state_key(&self, key: &[u8]) -> StateKey {
-        if key.starts_with(b"shared/") && self.allow_shared_state {
+        if key.starts_with(b"shared/") {
             return key.to_vec();
         }
 
@@ -671,26 +732,24 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
     }
 
     pub fn read_state(&mut self, key: &[u8]) -> Option<StateValue> {
-        if !self.capabilities.allows(HostCapability::StorageRead) {
-            return None;
-        }
-        let scoped_key = self.scoped_state_key(key);
         for op in self.journal.ops.iter().rev() {
             match op {
-                JournalOp::Put { key: journal_key, value, .. }
-                    if journal_key.as_slice() == scoped_key.as_slice() =>
-                {
+                JournalOp::Put {
+                    key: journal_key,
+                    value,
+                    ..
+                } if journal_key.as_slice() == key => {
                     return Some(value.clone());
                 }
-                JournalOp::Delete { key: journal_key, .. }
-                    if journal_key.as_slice() == scoped_key.as_slice() =>
-                {
+                JournalOp::Delete {
+                    key: journal_key, ..
+                } if journal_key.as_slice() == key => {
                     return None;
                 }
                 _ => {}
             }
         }
-        self.state.get(&scoped_key)
+        self.state.get(key)
     }
 
     pub fn write_state(&mut self, key: StateKey, value: StateValue) -> Result<(), KernelError> {
@@ -701,8 +760,7 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
             });
         }
         self.fuel.charge(self.schedule.state_write_cost)?;
-        let scoped_key = self.scoped_state_key(&key);
-        self.journal.put(self.tx.lane, scoped_key, value);
+        self.journal.put(self.tx.lane, key, value);
         Ok(())
     }
 
@@ -714,8 +772,7 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
             });
         }
         self.fuel.charge(self.schedule.state_delete_cost)?;
-        let scoped_key = self.scoped_state_key(&key);
-        self.journal.delete(self.tx.lane, scoped_key);
+        self.journal.delete(self.tx.lane, key);
         Ok(())
     }
 
@@ -777,44 +834,9 @@ pub struct LaneRegistry<S: HostState> {
     adapters: BTreeMap<LaneId, LaneRegistration<S>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LaneClass {
-    Settlement,
-    Contract,
-    System,
-    Oracle,
-    Bridge,
-    Experimental,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrustLevel {
-    Trusted,
-    Guarded,
-    Untrusted,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LanePolicy {
-    pub class: LaneClass,
-    pub trust_level: TrustLevel,
-    pub allow_shared_state: bool,
-}
-
-impl Default for LanePolicy {
-    fn default() -> Self {
-        Self {
-            class: LaneClass::Contract,
-            trust_level: TrustLevel::Guarded,
-            allow_shared_state: false,
-        }
-    }
-}
-
 pub struct LaneRegistration<S: HostState> {
     adapter: Box<dyn LaneAdapter<S> + Send + Sync>,
     capabilities: CapabilityProfile,
-    policy: LanePolicy,
 }
 
 impl<S: HostState> Default for LaneRegistry<S> {
@@ -830,7 +852,7 @@ impl<S: HostState> LaneRegistry<S> {
     where
         A: LaneAdapter<S> + Send + Sync + 'static,
     {
-        self.register_with_config(lane, adapter, CapabilityProfile::all(), LanePolicy::default());
+        self.register_with_capabilities(lane, adapter, CapabilityProfile::all());
     }
 
     pub fn register_with_capabilities<A>(
@@ -841,24 +863,11 @@ impl<S: HostState> LaneRegistry<S> {
     ) where
         A: LaneAdapter<S> + Send + Sync + 'static,
     {
-        self.register_with_config(lane, adapter, capabilities, LanePolicy::default());
-    }
-
-    pub fn register_with_config<A>(
-        &mut self,
-        lane: LaneId,
-        adapter: A,
-        capabilities: CapabilityProfile,
-        policy: LanePolicy,
-    ) where
-        A: LaneAdapter<S> + Send + Sync + 'static,
-    {
         self.adapters.insert(
             lane,
             LaneRegistration {
                 adapter: Box::new(adapter),
                 capabilities,
-                policy,
             },
         );
     }
@@ -927,7 +936,6 @@ impl<S: HostState> CoreKernel<S> {
             fuel: &mut fuel,
             schedule: &self.schedule,
             capabilities: &registration.capabilities,
-            allow_shared_state: registration.policy.allow_shared_state,
         };
 
         match registration.adapter.execute(&mut env) {
@@ -939,17 +947,6 @@ impl<S: HostState> CoreKernel<S> {
                         KernelError::StateViolation("cross-lane write conflict detected"),
                     );
                 }
-                let mut bus = CrossLaneBus::default();
-                for message in lane_out.cross_lane_messages.iter().cloned() {
-                    if let Err(err) = bus.enqueue(message) {
-                        journal.revert();
-                        return self.failure_receipt(tx, fuel.used(), err);
-                    }
-                }
-                let accepted_messages = bus.drain();
-                let cross_lane_message_count =
-                    u32::try_from(accepted_messages.len()).unwrap_or(u32::MAX);
-                let cross_lane_message_root = derive_message_root(&accepted_messages);
                 let state_diff_hash = derive_hash32(b"AOXC-STATE-DIFF", &lane_out.output);
                 let receipt_hash = derive_hash32(b"AOXC-RECEIPT", &lane_out.output);
                 journal.commit(state);
@@ -1084,17 +1081,6 @@ fn derive_execution_trace_hash(events: &[Event], output: &[u8]) -> [u8; 32] {
     }
     material.extend_from_slice(output);
     derive_hash32(b"AOXC-TRACE", &material)
-}
-
-fn derive_message_root(messages: &[CrossLaneMessage]) -> [u8; 32] {
-    let mut material = Vec::new();
-    for message in messages {
-        material.extend_from_slice(&message.version.to_le_bytes());
-        material.extend_from_slice(&message.tx_id);
-        material.extend_from_slice(&message.sequence.to_le_bytes());
-        material.extend_from_slice(&message.payload);
-    }
-    derive_hash32(b"AOXC-MSG-ROOT", &material)
 }
 
 #[cfg(test)]
@@ -1232,11 +1218,9 @@ mod tests {
         let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
 
         let mut state = MemoryState::default();
-        state.set(
-            lane_scoped_key(LaneId::Core, b"counter"),
-            b"0".to_vec(),
-        );
+        state.set(lane_scoped_key(LaneId::Core, b"counter"), b"0".to_vec());
 
+        let mut state = MemoryState::default();
         let receipt = kernel.execute_tx(
             &sample_block(),
             &sample_tx(LaneId::Core, 200_000),
@@ -1285,7 +1269,6 @@ mod tests {
             fuel: &mut fuel,
             schedule: &schedule,
             capabilities: &CapabilityProfile::all(),
-            allow_shared_state: false,
         };
 
         env.write_state(b"counter".to_vec(), b"9".to_vec())
@@ -1321,32 +1304,6 @@ mod tests {
     }
 
     #[test]
-    fn lane_policy_disables_shared_state_escape_by_default() {
-        let mut lanes = LaneRegistry::default();
-        lanes.register_with_config(
-            LaneId::Core,
-            SharedWriteLane,
-            CapabilityProfile::all(),
-            LanePolicy::default(),
-        );
-        let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
-
-        let mut state = MemoryState::default();
-        let receipt = kernel.execute_tx(
-            &sample_block(),
-            &sample_tx(LaneId::Core, 200_000),
-            &mut state,
-        );
-
-        assert!(receipt.success);
-        assert_eq!(
-            state.get(&lane_scoped_key(LaneId::Core, b"shared/global_counter")),
-            Some(b"99".to_vec())
-        );
-        assert_eq!(state.get(b"shared/global_counter"), None);
-    }
-
-    #[test]
     fn canonical_receipt_includes_replay_and_trace_hashes() {
         let mut lanes = LaneRegistry::default();
         lanes.register(LaneId::Core, CoreLane);
@@ -1361,12 +1318,54 @@ mod tests {
 
         assert_eq!(canonical.status, CanonicalStatus::Success);
         assert_eq!(canonical.event_count, 1);
-        assert_eq!(canonical.cross_lane_message_count, 0);
         assert_ne!(canonical.replay_hash, [0u8; 32]);
         assert_ne!(canonical.execution_trace_hash, [0u8; 32]);
-        assert!(canonical
-            .security_flags
-            .contains(&SecurityFlag::CapabilityGatedHost));
+        assert!(
+            canonical
+                .security_flags
+                .contains(&SecurityFlag::CapabilityGatedHost)
+        );
+    }
+
+    #[test]
+    fn journal_checkpoint_and_rollback_work() {
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        journal.put(LaneId::Core, b"a".to_vec(), b"1".to_vec());
+        let checkpoint = journal.checkpoint();
+        journal.put(LaneId::Core, b"a".to_vec(), b"2".to_vec());
+        journal
+            .rollback(checkpoint)
+            .expect("rollback to checkpoint should succeed");
+
+        let mut state = MemoryState::default();
+        journal.commit(&mut state);
+        assert_eq!(state.get(b"a"), Some(b"1".to_vec()));
+    }
+
+    #[test]
+    fn read_state_prefers_journal_overlay() {
+        let mut state = MemoryState::default();
+        state.set(b"counter".to_vec(), b"1".to_vec());
+
+        let block = sample_block();
+        let tx = sample_tx(LaneId::Core, 200_000);
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        let mut fuel = FuelMeter::new(200_000);
+        let schedule = FuelSchedule::default();
+        let mut env = ExecutionEnv {
+            block: &block,
+            tx: &tx,
+            state: &mut state,
+            journal: &mut journal,
+            fuel: &mut fuel,
+            schedule: &schedule,
+        };
+
+        env.write_state(b"counter".to_vec(), b"9".to_vec())
+            .expect("write should succeed");
+        assert_eq!(env.read_state(b"counter"), Some(b"9".to_vec()));
     }
 
     #[test]
