@@ -1,6 +1,7 @@
 # READ.md
 
 > Scope: `crates/aoxcvm`
+> System role: AOXChain execution/interoperability kernel surface
 
 ## Core identity
 This crate is the **AOXCLang Kernel** candidate for AOXChain.
