@@ -1,12 +1,16 @@
 # AOXCore
 
 ## Purpose
-AOXCore provides the canonical core data models and deterministic execution
-foundations for the AOXC chain runtime.
+AOXCore provides the canonical kernel data models and deterministic protocol
+boundaries for AOXC runtime behavior.
 
-This crate defines the low-level primitives that shape runtime behavior,
-including block-domain types, transaction-domain types, receipts, state
-structures, and associated deterministic hashing and transition helpers.
+This crate defines low-level primitives that shape protocol truth, including:
+
+- block-domain types,
+- transaction-domain types,
+- receipt and state structures,
+- canonical protocol envelope types,
+- interoperability-aware kernel boundary types.
 
 ## Responsibility Boundary
 This crate is responsible for:
@@ -16,6 +20,7 @@ This crate is responsible for:
 - canonical receipt models and hashing
 - canonical account and world-state structures
 - deterministic state-transition foundations
+- interoperability-native kernel protocol boundaries
 - runtime-facing validation primitives that must remain stable and auditable
 
 This crate is not responsible for:
