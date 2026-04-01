@@ -156,6 +156,32 @@ pub struct UnifiedReceipt {
     pub receipt_hash: [u8; 32],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanonicalStatus {
+    Success,
+    Failure,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SecurityFlag {
+    CapabilityGatedHost,
+    DeterministicReplayAnchor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalSettlementReceipt {
+    pub tx_id: [u8; 32],
+    pub lane: LaneId,
+    pub status: CanonicalStatus,
+    pub gas_used: Gas,
+    pub state_diff_hash: [u8; 32],
+    pub receipt_hash: [u8; 32],
+    pub event_count: u32,
+    pub replay_hash: [u8; 32],
+    pub execution_trace_hash: [u8; 32],
+    pub security_flags: BTreeSet<SecurityFlag>,
+}
+
 impl Receipt {
     pub fn unified(&self) -> UnifiedReceipt {
         UnifiedReceipt {
@@ -165,6 +191,35 @@ impl Receipt {
             output: self.output.clone(),
             state_diff_hash: self.state_diff_hash,
             receipt_hash: self.receipt_hash,
+        }
+    }
+
+    pub fn canonical(&self) -> CanonicalSettlementReceipt {
+        let status = if self.success {
+            CanonicalStatus::Success
+        } else {
+            CanonicalStatus::Failure
+        };
+
+        let event_count = u32::try_from(self.events.len()).unwrap_or(u32::MAX);
+        let replay_hash = derive_hash32(b"AOXC-REPLAY", &self.receipt_hash);
+        let execution_trace_hash = derive_execution_trace_hash(&self.events, &self.output);
+        let security_flags = BTreeSet::from([
+            SecurityFlag::CapabilityGatedHost,
+            SecurityFlag::DeterministicReplayAnchor,
+        ]);
+
+        CanonicalSettlementReceipt {
+            tx_id: self.tx_id,
+            lane: self.lane,
+            status,
+            gas_used: self.gas_used,
+            state_diff_hash: self.state_diff_hash,
+            receipt_hash: self.receipt_hash,
+            event_count,
+            replay_hash,
+            execution_trace_hash,
+            security_flags,
         }
     }
 }
@@ -198,6 +253,10 @@ pub enum KernelError {
     StateViolation(&'static str),
     DeterministicAbort { code: u16, message: &'static str },
     AdapterValidation(&'static str),
+    CapabilityDenied {
+        lane: LaneId,
+        capability: HostCapability,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -230,6 +289,40 @@ pub struct LaneCapabilityManifest {
     pub cross_lane_support: bool,
     pub determinism_level: u8,
     pub compatibility_tier: CompatibilityTier,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum HostCapability {
+    StorageRead,
+    StorageWrite,
+    EventEmit,
+    CrossLaneCall,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CapabilityProfile {
+    allowed: BTreeSet<HostCapability>,
+}
+
+impl CapabilityProfile {
+    pub fn strict(allowed: impl IntoIterator<Item = HostCapability>) -> Self {
+        Self {
+            allowed: allowed.into_iter().collect(),
+        }
+    }
+
+    pub fn allows(&self, capability: HostCapability) -> bool {
+        self.allowed.contains(&capability)
+    }
+
+    pub fn all() -> Self {
+        Self::strict([
+            HostCapability::StorageRead,
+            HostCapability::StorageWrite,
+            HostCapability::EventEmit,
+            HostCapability::CrossLaneCall,
+        ])
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -332,13 +425,18 @@ pub trait HostState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JournalOp {
-    Put { key: StateKey, value: StateValue },
-    Delete { key: StateKey },
+    Put {
+        lane: LaneId,
+        key: StateKey,
+        value: StateValue,
+    },
+    Delete { lane: LaneId, key: StateKey },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateJournal {
     ops: Vec<JournalOp>,
+    checkpoints: Vec<usize>,
 }
 
 impl StateJournal {
@@ -346,12 +444,32 @@ impl StateJournal {
         Self::default()
     }
 
-    pub fn put(&mut self, key: StateKey, value: StateValue) {
-        self.ops.push(JournalOp::Put { key, value });
+    pub fn begin_transaction(&mut self) {
+        self.ops.clear();
+        self.checkpoints.clear();
     }
 
-    pub fn delete(&mut self, key: StateKey) {
-        self.ops.push(JournalOp::Delete { key });
+    pub fn checkpoint(&mut self) -> usize {
+        let marker = self.ops.len();
+        self.checkpoints.push(marker);
+        marker
+    }
+
+    pub fn rollback(&mut self, checkpoint: usize) -> Result<(), KernelError> {
+        if checkpoint > self.ops.len() {
+            return Err(KernelError::StateViolation("invalid journal checkpoint"));
+        }
+        self.ops.truncate(checkpoint);
+        self.checkpoints.retain(|marker| *marker <= checkpoint);
+        Ok(())
+    }
+
+    pub fn put(&mut self, lane: LaneId, key: StateKey, value: StateValue) {
+        self.ops.push(JournalOp::Put { lane, key, value });
+    }
+
+    pub fn delete(&mut self, lane: LaneId, key: StateKey) {
+        self.ops.push(JournalOp::Delete { lane, key });
     }
 
     pub fn len(&self) -> usize {
@@ -365,13 +483,32 @@ impl StateJournal {
     pub fn commit(self, state: &mut impl HostState) {
         for op in self.ops {
             match op {
-                JournalOp::Put { key, value } => state.set(key, value),
-                JournalOp::Delete { key } => state.delete(&key),
+                JournalOp::Put { key, value, .. } => state.set(key, value),
+                JournalOp::Delete { key, .. } => state.delete(&key),
             }
         }
     }
 
     pub fn revert(self) {}
+
+    pub fn lane_conflicts(&self) -> BTreeSet<StateKey> {
+        let mut owners: BTreeMap<&[u8], LaneId> = BTreeMap::new();
+        let mut conflicts = BTreeSet::new();
+        for op in &self.ops {
+            let (lane, key) = match op {
+                JournalOp::Put { lane, key, .. } => (*lane, key.as_slice()),
+                JournalOp::Delete { lane, key } => (*lane, key.as_slice()),
+            };
+            if let Some(existing) = owners.get(key) {
+                if *existing != lane {
+                    conflicts.insert(key.to_vec());
+                }
+            } else {
+                owners.insert(key, lane);
+            }
+        }
+        conflicts
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -434,26 +571,59 @@ pub struct ExecutionEnv<'a, S: HostState> {
     pub journal: &'a mut StateJournal,
     pub fuel: &'a mut FuelMeter,
     pub schedule: &'a FuelSchedule,
+    pub capabilities: &'a CapabilityProfile,
 }
 
 impl<'a, S: HostState> ExecutionEnv<'a, S> {
     pub fn read_state(&mut self, key: &[u8]) -> Option<StateValue> {
+        if !self.capabilities.allows(HostCapability::StorageRead) {
+            return None;
+        }
+        for op in self.journal.ops.iter().rev() {
+            match op {
+                JournalOp::Put { key: journal_key, value, .. } if journal_key.as_slice() == key => {
+                    return Some(value.clone());
+                }
+                JournalOp::Delete { key: journal_key, .. } if journal_key.as_slice() == key => {
+                    return None;
+                }
+                _ => {}
+            }
+        }
         self.state.get(key)
     }
 
     pub fn write_state(&mut self, key: StateKey, value: StateValue) -> Result<(), KernelError> {
+        if !self.capabilities.allows(HostCapability::StorageWrite) {
+            return Err(KernelError::CapabilityDenied {
+                lane: self.tx.lane,
+                capability: HostCapability::StorageWrite,
+            });
+        }
         self.fuel.charge(self.schedule.state_write_cost)?;
-        self.journal.put(key, value);
+        self.journal.put(self.tx.lane, key, value);
         Ok(())
     }
 
     pub fn delete_state(&mut self, key: StateKey) -> Result<(), KernelError> {
+        if !self.capabilities.allows(HostCapability::StorageWrite) {
+            return Err(KernelError::CapabilityDenied {
+                lane: self.tx.lane,
+                capability: HostCapability::StorageWrite,
+            });
+        }
         self.fuel.charge(self.schedule.state_delete_cost)?;
-        self.journal.delete(key);
+        self.journal.delete(self.tx.lane, key);
         Ok(())
     }
 
     pub fn emit_event(&mut self, topic: Vec<u8>, data: Vec<u8>) -> Result<Event, KernelError> {
+        if !self.capabilities.allows(HostCapability::EventEmit) {
+            return Err(KernelError::CapabilityDenied {
+                lane: self.tx.lane,
+                capability: HostCapability::EventEmit,
+            });
+        }
         self.fuel.charge(self.schedule.event_base)?;
         Ok(Event {
             lane: self.tx.lane,
@@ -500,7 +670,12 @@ impl<S: HostState, T: ExecutionAdapter<S>> LaneAdapter<S> for T {
 }
 
 pub struct LaneRegistry<S: HostState> {
-    adapters: BTreeMap<LaneId, Box<dyn LaneAdapter<S> + Send + Sync>>,
+    adapters: BTreeMap<LaneId, LaneRegistration<S>>,
+}
+
+pub struct LaneRegistration<S: HostState> {
+    adapter: Box<dyn LaneAdapter<S> + Send + Sync>,
+    capabilities: CapabilityProfile,
 }
 
 impl<S: HostState> Default for LaneRegistry<S> {
@@ -516,11 +691,28 @@ impl<S: HostState> LaneRegistry<S> {
     where
         A: LaneAdapter<S> + Send + Sync + 'static,
     {
-        self.adapters.insert(lane, Box::new(adapter));
+        self.register_with_capabilities(lane, adapter, CapabilityProfile::all());
     }
 
-    pub fn resolve(&self, lane: LaneId) -> Option<&(dyn LaneAdapter<S> + Send + Sync)> {
-        self.adapters.get(&lane).map(Box::as_ref)
+    pub fn register_with_capabilities<A>(
+        &mut self,
+        lane: LaneId,
+        adapter: A,
+        capabilities: CapabilityProfile,
+    ) where
+        A: LaneAdapter<S> + Send + Sync + 'static,
+    {
+        self.adapters.insert(
+            lane,
+            LaneRegistration {
+                adapter: Box::new(adapter),
+                capabilities,
+            },
+        );
+    }
+
+    pub fn resolve(&self, lane: LaneId) -> Option<&LaneRegistration<S>> {
+        self.adapters.get(&lane)
     }
 
     pub fn lanes(&self) -> BTreeSet<LaneId> {
@@ -569,11 +761,12 @@ impl<S: HostState> CoreKernel<S> {
             return self.failure_receipt(tx, fuel.used(), err);
         }
 
-        let Some(adapter) = self.lanes.resolve(tx.lane) else {
+        let Some(registration) = self.lanes.resolve(tx.lane) else {
             return self.failure_receipt(tx, fuel.used(), KernelError::LaneNotRegistered(tx.lane));
         };
 
         let mut journal = StateJournal::new();
+        journal.begin_transaction();
         let mut env = ExecutionEnv {
             block,
             tx,
@@ -581,10 +774,18 @@ impl<S: HostState> CoreKernel<S> {
             journal: &mut journal,
             fuel: &mut fuel,
             schedule: &self.schedule,
+            capabilities: &registration.capabilities,
         };
 
-        match adapter.execute(&mut env) {
+        match registration.adapter.execute(&mut env) {
             Ok(lane_out) => {
+                if !journal.lane_conflicts().is_empty() {
+                    return self.failure_receipt(
+                        tx,
+                        fuel.used(),
+                        KernelError::StateViolation("cross-lane write conflict detected"),
+                    );
+                }
                 let state_diff_hash = derive_hash32(b"AOXC-STATE-DIFF", &lane_out.output);
                 let receipt_hash = derive_hash32(b"AOXC-RECEIPT", &lane_out.output);
                 journal.commit(state);
@@ -631,6 +832,15 @@ impl<S: HostState> CoreKernel<S> {
             commitment,
             finality_proof,
         }
+    }
+
+    pub fn execute_tx_canonical(
+        &self,
+        block: &BlockExecutionContext,
+        tx: &CanonicalTxEnvelope,
+        state: &mut S,
+    ) -> CanonicalSettlementReceipt {
+        self.execute_tx(block, tx, state).canonical()
     }
 
     pub fn conformance_replay(
@@ -696,6 +906,16 @@ fn derive_hash32(domain: &[u8], payload: &[u8]) -> [u8; 32] {
         out[(index * 7) % 32] = out[(index * 7) % 32].wrapping_add(*byte);
     }
     out
+}
+
+fn derive_execution_trace_hash(events: &[Event], output: &[u8]) -> [u8; 32] {
+    let mut material = Vec::new();
+    for event in events {
+        material.extend_from_slice(&event.topic);
+        material.extend_from_slice(&event.data);
+    }
+    material.extend_from_slice(output);
+    derive_hash32(b"AOXC-TRACE", &material)
 }
 
 #[cfg(test)]
@@ -815,6 +1035,97 @@ mod tests {
 
         assert!(!receipt.success);
         assert_eq!(state.get(b"counter"), Some(b"0".to_vec()));
+    }
+
+    #[test]
+    fn journal_checkpoint_and_rollback_work() {
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        journal.put(LaneId::Core, b"a".to_vec(), b"1".to_vec());
+        let checkpoint = journal.checkpoint();
+        journal.put(LaneId::Core, b"a".to_vec(), b"2".to_vec());
+        journal
+            .rollback(checkpoint)
+            .expect("rollback to checkpoint should succeed");
+
+        let mut state = MemoryState::default();
+        journal.commit(&mut state);
+        assert_eq!(state.get(b"a"), Some(b"1".to_vec()));
+    }
+
+    #[test]
+    fn read_state_prefers_journal_overlay() {
+        let mut state = MemoryState::default();
+        state.set(b"counter".to_vec(), b"1".to_vec());
+
+        let block = sample_block();
+        let tx = sample_tx(LaneId::Core, 200_000);
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        let mut fuel = FuelMeter::new(200_000);
+        let schedule = FuelSchedule::default();
+        let mut env = ExecutionEnv {
+            block: &block,
+            tx: &tx,
+            state: &mut state,
+            journal: &mut journal,
+            fuel: &mut fuel,
+            schedule: &schedule,
+            capabilities: &CapabilityProfile::all(),
+        };
+
+        env.write_state(b"counter".to_vec(), b"9".to_vec())
+            .expect("write should succeed");
+        assert_eq!(env.read_state(b"counter"), Some(b"9".to_vec()));
+    }
+
+    #[test]
+    fn lane_without_storage_write_capability_is_blocked() {
+        let mut lanes = LaneRegistry::default();
+        lanes.register_with_capabilities(
+            LaneId::Core,
+            CoreLane,
+            CapabilityProfile::strict([HostCapability::StorageRead, HostCapability::EventEmit]),
+        );
+        let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
+
+        let mut state = MemoryState::default();
+        let receipt = kernel.execute_tx(
+            &sample_block(),
+            &sample_tx(LaneId::Core, 200_000),
+            &mut state,
+        );
+
+        assert!(!receipt.success);
+        assert_eq!(
+            receipt.error,
+            Some(KernelError::CapabilityDenied {
+                lane: LaneId::Core,
+                capability: HostCapability::StorageWrite,
+            })
+        );
+    }
+
+    #[test]
+    fn canonical_receipt_includes_replay_and_trace_hashes() {
+        let mut lanes = LaneRegistry::default();
+        lanes.register(LaneId::Core, CoreLane);
+        let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
+
+        let mut state = MemoryState::default();
+        let canonical = kernel.execute_tx_canonical(
+            &sample_block(),
+            &sample_tx(LaneId::Core, 200_000),
+            &mut state,
+        );
+
+        assert_eq!(canonical.status, CanonicalStatus::Success);
+        assert_eq!(canonical.event_count, 1);
+        assert_ne!(canonical.replay_hash, [0u8; 32]);
+        assert_ne!(canonical.execution_trace_hash, [0u8; 32]);
+        assert!(canonical
+            .security_flags
+            .contains(&SecurityFlag::CapabilityGatedHost));
     }
 
     #[test]
