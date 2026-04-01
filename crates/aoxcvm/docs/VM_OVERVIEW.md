@@ -81,39 +81,3 @@ It only summarizes AOXCVM’s role and boundaries inside AOXChain.
 
 For normative details, use the dedicated documents under `docs/`, `audit/`, `schemas/`, and
 crate-level governance files.
-
-## 8) Is AOXCVM truly different? (direct answer)
-
-Yes—if AOXCVM is implemented as intended, it should be a **deterministic, policy-governed,
-object-capability VM** rather than a generic gas-metered bytecode sandbox.
-
-A practical target profile is:
-
-- **Execution identity**: deterministic state machine first, not app-runtime first.
-- **Authority model**: capability/witness-based permissions, not global caller privilege.
-- **State semantics**: typed object lifecycle with explicit ownership and access paths.
-- **Host boundary**: syscall surface controlled by governance and versioned registries.
-- **Upgrade path**: feature gates + compatibility rules with explicit activation/deprecation.
-- **Security posture**: verifier-enforced invariants before execution, not only runtime checks.
-
-## 9) AOXCVM vs generic VM (operator view)
-
-| Dimension | Generic contract VM | AOXCVM target posture |
-| --- | --- | --- |
-| State model | Account/storage slots | Typed object classes + lifecycle rules |
-| Authorization | Caller/context-centric | Capability and witness-centric |
-| Host calls | Broad runtime API | Registry/policy-gated syscalls |
-| Upgrades | Runtime or client-dependent | Governance-activated feature/version policy |
-| Determinism controls | Partial, framework-dependent | First-class verifier + policy invariant set |
-| Crypto evolution | Usually implicit or bolt-on | Planned classical-to-PQ migration surfaces |
-
-## 10) If the goal is a "full" AOXCVM, what must be finished
-
-A complete AOXCVM should be accepted only when these are simultaneously true:
-
-1. verifier, policy, and engine invariants are stable and reproducible across nodes;
-2. syscall registry and capability controls are complete for supported production workflows;
-3. object lifecycle, rollback, and receipt commitments are externally auditable;
-4. compatibility and upgrade procedures are governed by versioned artifacts and test evidence;
-5. operational docs (threat model, failure modes, release gates) match implemented behavior.
-
