@@ -1,26 +1,39 @@
-// AOXC MIT License
-// Experimental software under active construction.
-// This file is part of the AOXC pre-release codebase.
-
-//! AOXC Multi-VM Runtime (AOVM)
-//!
-//! This crate implements a deterministic multi-lane execution runtime
-//! capable of hosting EVM, Move/Sui-style, WASM, and Cardano-style lanes
-//! under a shared settlement host.
-
-pub mod adapter_registry;
-pub mod compatibility;
+//! AOXCVM vNext: L1-native, crypto-agile, quantum-resilient VM scaffold.
+pub mod abi;
+pub mod auth;
+pub mod build_info;
+pub mod bytecode;
+pub mod compiler;
+pub mod config;
+pub mod constants;
 pub mod context;
-pub mod contracts;
-pub mod error;
+pub mod crypto;
+pub mod decode;
+pub mod domains;
+pub mod encode;
+pub mod engine;
+pub mod errors;
+pub mod feature_flags;
 pub mod gas;
+pub mod governance;
 pub mod host;
-pub mod hypervm;
-pub mod kernel;
-pub mod lanes;
-pub mod language;
-pub mod language_adapter;
-pub mod nextvm;
-pub mod routing;
-pub mod system;
-pub mod vm_kind;
+pub mod instructions;
+pub mod limits;
+pub mod loader;
+pub mod markers;
+pub mod memory;
+pub mod object;
+pub mod package;
+pub mod policy;
+pub mod prelude;
+pub mod receipts;
+pub mod result;
+pub mod state;
+pub mod storage;
+pub mod syscall;
+pub mod traits;
+pub mod tx;
+pub mod verifier;
+pub mod version;
+pub mod vm;
+
