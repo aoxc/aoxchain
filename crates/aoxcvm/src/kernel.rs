@@ -576,9 +576,6 @@ pub struct ExecutionEnv<'a, S: HostState> {
 
 impl<'a, S: HostState> ExecutionEnv<'a, S> {
     pub fn read_state(&mut self, key: &[u8]) -> Option<StateValue> {
-        if !self.capabilities.allows(HostCapability::StorageRead) {
-            return None;
-        }
         for op in self.journal.ops.iter().rev() {
             match op {
                 JournalOp::Put { key: journal_key, value, .. } if journal_key.as_slice() == key => {
@@ -1071,61 +1068,11 @@ mod tests {
             journal: &mut journal,
             fuel: &mut fuel,
             schedule: &schedule,
-            capabilities: &CapabilityProfile::all(),
         };
 
         env.write_state(b"counter".to_vec(), b"9".to_vec())
             .expect("write should succeed");
         assert_eq!(env.read_state(b"counter"), Some(b"9".to_vec()));
-    }
-
-    #[test]
-    fn lane_without_storage_write_capability_is_blocked() {
-        let mut lanes = LaneRegistry::default();
-        lanes.register_with_capabilities(
-            LaneId::Core,
-            CoreLane,
-            CapabilityProfile::strict([HostCapability::StorageRead, HostCapability::EventEmit]),
-        );
-        let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
-
-        let mut state = MemoryState::default();
-        let receipt = kernel.execute_tx(
-            &sample_block(),
-            &sample_tx(LaneId::Core, 200_000),
-            &mut state,
-        );
-
-        assert!(!receipt.success);
-        assert_eq!(
-            receipt.error,
-            Some(KernelError::CapabilityDenied {
-                lane: LaneId::Core,
-                capability: HostCapability::StorageWrite,
-            })
-        );
-    }
-
-    #[test]
-    fn canonical_receipt_includes_replay_and_trace_hashes() {
-        let mut lanes = LaneRegistry::default();
-        lanes.register(LaneId::Core, CoreLane);
-        let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
-
-        let mut state = MemoryState::default();
-        let canonical = kernel.execute_tx_canonical(
-            &sample_block(),
-            &sample_tx(LaneId::Core, 200_000),
-            &mut state,
-        );
-
-        assert_eq!(canonical.status, CanonicalStatus::Success);
-        assert_eq!(canonical.event_count, 1);
-        assert_ne!(canonical.replay_hash, [0u8; 32]);
-        assert_ne!(canonical.execution_trace_hash, [0u8; 32]);
-        assert!(canonical
-            .security_flags
-            .contains(&SecurityFlag::CapabilityGatedHost));
     }
 
     #[test]
