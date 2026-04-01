@@ -4,7 +4,7 @@
 
 use crate::error::AovmError;
 use crate::language_adapter::{
-    conformance_check, default_adapter_for_vm, RelayEnvelope, VmLanguageAdapter,
+    RelayEnvelope, VmLanguageAdapter, conformance_check, default_adapter_for_vm,
 };
 use crate::vm_kind::VmKind;
 

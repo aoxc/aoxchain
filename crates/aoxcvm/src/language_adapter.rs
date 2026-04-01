@@ -183,9 +183,7 @@ pub fn conformance_check<A: LanguageAdapter>(
 
     for envelope in envelopes {
         if !seen_message_ids.insert(envelope.message_id) {
-            return Err(AovmError::InvalidTransaction(
-                "duplicate relay message id",
-            ));
+            return Err(AovmError::InvalidTransaction("duplicate relay message id"));
         }
 
         adapter.validate_relay(envelope)?;
@@ -201,8 +199,8 @@ pub fn conformance_check<A: LanguageAdapter>(
 #[cfg(test)]
 mod tests {
     use super::{
-        conformance_check, default_adapter_for_vm, LanguageAdapter, RelayEnvelope,
-        VmLanguageAdapter,
+        LanguageAdapter, RelayEnvelope, VmLanguageAdapter, conformance_check,
+        default_adapter_for_vm,
     };
     use crate::language::LanguageKind;
     use crate::vm_kind::VmKind;
@@ -278,7 +276,10 @@ mod tests {
             .validate_basic()
             .expect_err("empty payload must be rejected");
 
-        assert_eq!(err.to_string(), "invalid transaction: relay payload is empty");
+        assert_eq!(
+            err.to_string(),
+            "invalid transaction: relay payload is empty"
+        );
     }
 
     #[test]
@@ -296,7 +297,10 @@ mod tests {
             .validate_basic()
             .expect_err("empty finality proof must be rejected");
 
-        assert_eq!(err.to_string(), "invalid transaction: finality proof is empty");
+        assert_eq!(
+            err.to_string(),
+            "invalid transaction: finality proof is empty"
+        );
     }
 
     #[test]
