@@ -1,4 +1,7 @@
-//! admission scaffold module.
+//! Admission policy entry-point for mempool ingestion.
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ModuleMarker;
+use crate::tx::{envelope::TxEnvelope, validation, validation::ValidationPolicy};
+
+pub fn admit(tx: &TxEnvelope, policy: ValidationPolicy) -> Result<(), validation::ValidationError> {
+    validation::validate(tx, policy)
+}
