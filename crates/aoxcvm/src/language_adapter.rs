@@ -8,28 +8,6 @@ use crate::error::AovmError;
 use crate::language::LanguageKind;
 use crate::vm_kind::VmKind;
 
-/// Finality proof category accepted by a relay adapter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FinalityProofKind {
-    LightClientInclusion,
-    ValidityProof,
-    CheckpointAttestation,
-}
-
-/// Deterministic replay domain identifier used by kernel admission checks.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReplayDomainTag(pub Vec<u8>);
-
-impl ReplayDomainTag {
-    pub fn new(language: LanguageKind, vm: VmKind, domain: &str) -> Result<Self, AovmError> {
-        if domain.is_empty() {
-            return Err(AovmError::InvalidTransaction("replay domain is empty"));
-        }
-        let tag = format!("aoxclang:{}:{}:{domain}", language.as_id(), vm.as_str()).into_bytes();
-        Ok(Self(tag))
-    }
-}
-
 /// Canonical relay envelope validated by language adapters before settlement.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelayEnvelope {
@@ -62,9 +40,7 @@ impl RelayEnvelope {
 pub trait LanguageAdapter {
     fn language_kind(&self) -> LanguageKind;
     fn vm_kind(&self) -> VmKind;
-    fn proof_kind(&self) -> FinalityProofKind;
     fn replay_domain(&self) -> &'static str;
-    fn replay_tag(&self) -> Result<ReplayDomainTag, AovmError>;
     fn validate_relay(&self, envelope: &RelayEnvelope) -> Result<(), AovmError>;
 }
 
@@ -72,19 +48,13 @@ pub trait LanguageAdapter {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VmLanguageAdapter {
     vm_kind: VmKind,
-    proof_kind: FinalityProofKind,
     replay_domain: &'static str,
 }
 
 impl VmLanguageAdapter {
-    pub const fn new(
-        vm_kind: VmKind,
-        proof_kind: FinalityProofKind,
-        replay_domain: &'static str,
-    ) -> Self {
+    pub const fn new(vm_kind: VmKind, replay_domain: &'static str) -> Self {
         Self {
             vm_kind,
-            proof_kind,
             replay_domain,
         }
     }
@@ -99,48 +69,16 @@ impl LanguageAdapter for VmLanguageAdapter {
         self.vm_kind
     }
 
-    fn proof_kind(&self) -> FinalityProofKind {
-        self.proof_kind
-    }
-
     fn replay_domain(&self) -> &'static str {
         self.replay_domain
     }
 
-    fn replay_tag(&self) -> Result<ReplayDomainTag, AovmError> {
-        ReplayDomainTag::new(self.language_kind(), self.vm_kind(), self.replay_domain())
-    }
-
     fn validate_relay(&self, envelope: &RelayEnvelope) -> Result<(), AovmError> {
         envelope.validate_basic()?;
-        let _tag = self.replay_tag()?;
+        if self.replay_domain().is_empty() {
+            return Err(AovmError::InvalidTransaction("replay domain is empty"));
+        }
         Ok(())
-    }
-}
-
-/// Returns the default adapter profile for a VM lane.
-pub const fn default_adapter_for_vm(vm_kind: VmKind) -> VmLanguageAdapter {
-    match vm_kind {
-        VmKind::Evm => VmLanguageAdapter::new(
-            VmKind::Evm,
-            FinalityProofKind::LightClientInclusion,
-            "evm/default",
-        ),
-        VmKind::SuiMove => VmLanguageAdapter::new(
-            VmKind::SuiMove,
-            FinalityProofKind::CheckpointAttestation,
-            "move/default",
-        ),
-        VmKind::Wasm => VmLanguageAdapter::new(
-            VmKind::Wasm,
-            FinalityProofKind::LightClientInclusion,
-            "wasm/default",
-        ),
-        VmKind::Cardano => VmLanguageAdapter::new(
-            VmKind::Cardano,
-            FinalityProofKind::CheckpointAttestation,
-            "cardano/default",
-        ),
     }
 }
 
@@ -167,10 +105,7 @@ pub fn conformance_check<A: LanguageAdapter>(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        FinalityProofKind, LanguageAdapter, RelayEnvelope, VmLanguageAdapter, conformance_check,
-        default_adapter_for_vm,
-    };
+    use super::{LanguageAdapter, RelayEnvelope, VmLanguageAdapter, conformance_check};
     use crate::language::LanguageKind;
     use crate::vm_kind::VmKind;
 
@@ -187,23 +122,14 @@ mod tests {
 
     #[test]
     fn adapter_maps_vm_to_language_family() {
-        let adapter = VmLanguageAdapter::new(
-            VmKind::SuiMove,
-            FinalityProofKind::CheckpointAttestation,
-            "move/domain",
-        );
+        let adapter = VmLanguageAdapter::new(VmKind::SuiMove, "move/domain");
         assert_eq!(adapter.vm_kind(), VmKind::SuiMove);
         assert_eq!(adapter.language_kind(), LanguageKind::Move);
-        assert_eq!(adapter.proof_kind(), FinalityProofKind::CheckpointAttestation);
     }
 
     #[test]
     fn conformance_rejects_duplicate_message_ids() {
-        let adapter = VmLanguageAdapter::new(
-            VmKind::Evm,
-            FinalityProofKind::LightClientInclusion,
-            "evm/domain",
-        );
+        let adapter = VmLanguageAdapter::new(VmKind::Evm, "evm/domain");
         let envelopes = vec![envelope(7), envelope(7)];
         let err = conformance_check(&adapter, &envelopes).expect_err("must reject duplicates");
         assert_eq!(
@@ -214,23 +140,8 @@ mod tests {
 
     #[test]
     fn conformance_accepts_unique_proved_envelopes() {
-        let adapter = VmLanguageAdapter::new(
-            VmKind::Wasm,
-            FinalityProofKind::LightClientInclusion,
-            "wasm/domain",
-        );
+        let adapter = VmLanguageAdapter::new(VmKind::Wasm, "wasm/domain");
         let envelopes = vec![envelope(1), envelope(2), envelope(3)];
         conformance_check(&adapter, &envelopes).expect("envelopes should conform");
-    }
-
-    #[test]
-    fn default_adapters_have_stable_replay_tags() {
-        for vm in [VmKind::Evm, VmKind::SuiMove, VmKind::Wasm, VmKind::Cardano] {
-            let adapter = default_adapter_for_vm(vm);
-            let tag = adapter
-                .replay_tag()
-                .expect("default adapters must emit replay tags");
-            assert!(!tag.0.is_empty());
-        }
     }
 }

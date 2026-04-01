@@ -25,10 +25,6 @@ Traditional bridge stacks are chain-centric. AOXCLang Kernel is:
 - Move family,
 - WASM contract family,
 - UTXO/script validator family,
-- Solana/Sealevel family,
-- Cairo/Starknet family,
-- CosmWasm and ink! families,
-- native host module family,
 - future validity-proof execution families (with explicit policy admission).
 
 ## Kernel invariants
