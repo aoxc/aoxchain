@@ -1136,6 +1136,22 @@ mod tests {
         }
     }
 
+    struct SharedWriteLane;
+
+    impl LaneAdapter<MemoryState> for SharedWriteLane {
+        fn execute(
+            &self,
+            env: &mut ExecutionEnv<'_, MemoryState>,
+        ) -> Result<LaneOutput, KernelError> {
+            env.write_state(b"shared/global_counter".to_vec(), b"99".to_vec())?;
+            Ok(LaneOutput {
+                output: b"shared-write".to_vec(),
+                events: Vec::new(),
+                cross_lane_messages: Vec::new(),
+            })
+        }
+    }
+
     fn sample_block() -> BlockExecutionContext {
         BlockExecutionContext {
             chain_id: 4242,
@@ -1204,6 +1220,7 @@ mod tests {
         let mut state = MemoryState::default();
         state.set(lane_scoped_key(LaneId::Core, b"counter"), b"0".to_vec());
 
+        let mut state = MemoryState::default();
         let receipt = kernel.execute_tx(
             &sample_block(),
             &sample_tx(LaneId::Core, 200_000),
