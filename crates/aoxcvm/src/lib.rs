@@ -36,4 +36,3 @@ pub mod tx;
 pub mod verifier;
 pub mod version;
 pub mod vm;
-
