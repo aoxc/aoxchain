@@ -1,0 +1,4 @@
+//! call_stack scaffold module.
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ModuleMarker;

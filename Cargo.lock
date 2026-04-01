@@ -356,11 +356,8 @@ dependencies = [
 name = "aoxcvm"
 version = "0.1.1-akdeniz"
 dependencies = [
- "aoxconfig",
- "aoxcontract",
  "serde",
  "thiserror 2.0.18",
- "tokio",
 ]
 
 [[package]]
