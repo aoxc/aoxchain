@@ -87,6 +87,9 @@ mod tests {
         assert_eq!(VmKind::Evm.language_kind(), LanguageKind::EvmBytecode);
         assert_eq!(VmKind::SuiMove.language_kind(), LanguageKind::Move);
         assert_eq!(VmKind::Wasm.language_kind(), LanguageKind::Wasm);
-        assert_eq!(VmKind::Cardano.language_kind(), LanguageKind::PlutusUtxoScript);
+        assert_eq!(
+            VmKind::Cardano.language_kind(),
+            LanguageKind::PlutusUtxoScript
+        );
     }
 }
