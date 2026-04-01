@@ -63,10 +63,6 @@ AOXCLang Kernel should progressively support or map to:
 - Move ecosystems,
 - WASM smart-contract ecosystems,
 - UTXO script ecosystems,
-- Solana/Sealevel execution,
-- Cairo/Starknet execution,
-- CosmWasm and ink! ecosystems,
-- native host/runtime module execution,
 - ZK validity-proof backed rollup execution surfaces,
 - chain-native DSL adapters where deterministic constraints can be formalized.
 

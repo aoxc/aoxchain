@@ -4,7 +4,7 @@
 
 use crate::error::AovmError;
 use crate::language_adapter::{
-    FinalityProofKind, RelayEnvelope, VmLanguageAdapter, conformance_check,
+    RelayEnvelope, VmLanguageAdapter, conformance_check, default_adapter_for_vm,
 };
 use crate::vm_kind::VmKind;
 
@@ -15,28 +15,7 @@ pub struct AdapterRegistry;
 impl AdapterRegistry {
     /// Returns the default adapter for a VM lane.
     pub fn adapter_for_vm(&self, vm_kind: VmKind) -> VmLanguageAdapter {
-        match vm_kind {
-            VmKind::Evm => VmLanguageAdapter::new(
-                VmKind::Evm,
-                FinalityProofKind::LightClientInclusion,
-                "evm/default",
-            ),
-            VmKind::SuiMove => VmLanguageAdapter::new(
-                VmKind::SuiMove,
-                FinalityProofKind::CheckpointAttestation,
-                "move/default",
-            ),
-            VmKind::Wasm => VmLanguageAdapter::new(
-                VmKind::Wasm,
-                FinalityProofKind::LightClientInclusion,
-                "wasm/default",
-            ),
-            VmKind::Cardano => VmLanguageAdapter::new(
-                VmKind::Cardano,
-                FinalityProofKind::CheckpointAttestation,
-                "cardano/default",
-            ),
-        }
+        default_adapter_for_vm(vm_kind)
     }
 
     /// Runs relay conformance checks using the lane default adapter profile.
