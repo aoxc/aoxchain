@@ -151,6 +151,45 @@ These five changes should be treated as the minimum threshold for AOXCVM to qual
 - Ensure every new control path has tests for success, failure, rollback, and replay.
 - Treat receipts as audit and settlement artifacts, not logging byproducts.
 
+## Advanced differentiated build profiles (farklı geliştirme yolları)
+To support "full advanced" AOXCVM evolution without forcing one monolithic runtime shape, maintain three explicit build profiles with shared settlement invariants:
+
+1. **CoreNet profile (baseline L1 settlement)**
+   - Primary target: public deterministic mainnet execution.
+   - Required features:
+     - strict capability minimization,
+     - deterministic scheduler with bounded parallelism,
+     - canonical receipt and replay proof material.
+   - Non-goals:
+     - privileged enterprise hooks,
+     - profile-specific host bypass paths.
+
+2. **Regulated profile (permissioned + audit heavy)**
+   - Primary target: consortium or regulated deployments requiring policy proofs.
+   - Required features:
+     - governance-enforced lane admission,
+     - signed policy bundles (capability, syscall, and upgrade policy),
+     - extended audit receipt fields for compliance evidence.
+   - Non-goals:
+     - weakening deterministic guarantees,
+     - hidden policy exceptions.
+
+3. **Research profile (experimental lane innovation)**
+   - Primary target: rapid prototyping for new lane classes, bytecode formats, and cryptographic paths.
+   - Required features:
+     - strict feature-flag isolation,
+     - sandboxed lane registration and host authority caps,
+     - mandatory replay + rollback regression before promotion.
+   - Non-goals:
+     - production-default activation,
+     - governance bypass into CoreNet or Regulated profiles.
+
+### Profile invariants (must hold in every profile)
+- Canonical settlement boundary and atomic cross-lane commit semantics.
+- Deterministic replay equality for state transitions and receipts.
+- Explicit capability declaration for every host-facing action.
+- Versioned upgrade policy with auditable admission/rollback outcomes.
+
 ## Recommended immediate next task
 Implement **Phase 1** with an in-memory `HostJournal` prototype and deterministic tests covering:
 - nested checkpoints,
