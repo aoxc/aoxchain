@@ -398,6 +398,7 @@ impl CrossLaneMessage {
 pub struct CrossLaneBus {
     queue: Vec<CrossLaneMessage>,
     seen: BTreeSet<(LaneId, LaneId, [u8; 32], u64, u16)>,
+    expected_sequence: BTreeMap<(LaneId, LaneId, [u8; 32], u16), u64>,
 }
 
 impl CrossLaneBus {
@@ -408,6 +409,22 @@ impl CrossLaneBus {
                 message: "cross-lane replay detected",
             });
         }
+        let causal_key = (
+            message.source_lane,
+            message.target_lane,
+            message.tx_id,
+            message.version,
+        );
+        let expected = *self.expected_sequence.get(&causal_key).unwrap_or(&0);
+        if message.sequence != expected {
+            self.seen.remove(&message.replay_key());
+            return Err(KernelError::DeterministicAbort {
+                code: 78,
+                message: "cross-lane causal ordering violation",
+            });
+        }
+        self.expected_sequence
+            .insert(causal_key, expected.saturating_add(1));
         self.queue.push(message);
         Ok(())
     }
@@ -575,6 +592,18 @@ pub struct ExecutionEnv<'a, S: HostState> {
 }
 
 impl<'a, S: HostState> ExecutionEnv<'a, S> {
+    fn scoped_state_key(&self, key: &[u8]) -> StateKey {
+        if key.starts_with(b"shared/") {
+            return key.to_vec();
+        }
+
+        let mut scoped = b"lane/".to_vec();
+        scoped.extend_from_slice(&self.tx.lane.commitment_discriminant());
+        scoped.push(b'/');
+        scoped.extend_from_slice(key);
+        scoped
+    }
+
     pub fn read_state(&mut self, key: &[u8]) -> Option<StateValue> {
         for op in self.journal.ops.iter().rev() {
             match op {
@@ -996,6 +1025,14 @@ mod tests {
         }
     }
 
+    fn lane_scoped_key(lane: LaneId, key: &[u8]) -> Vec<u8> {
+        let mut scoped = b"lane/".to_vec();
+        scoped.extend_from_slice(&lane.commitment_discriminant());
+        scoped.push(b'/');
+        scoped.extend_from_slice(key);
+        scoped
+    }
+
     #[test]
     fn commits_journal_on_success() {
         let mut lanes = LaneRegistry::default();
@@ -1010,7 +1047,10 @@ mod tests {
         );
 
         assert!(receipt.success);
-        assert_eq!(state.get(b"counter"), Some(b"1".to_vec()));
+        assert_eq!(
+            state.get(&lane_scoped_key(LaneId::Core, b"counter")),
+            Some(b"1".to_vec())
+        );
         assert_eq!(receipt.events.len(), 1);
         assert_ne!(receipt.receipt_hash, [0u8; 32]);
     }
@@ -1022,7 +1062,10 @@ mod tests {
         let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
 
         let mut state = MemoryState::default();
-        state.set(b"counter".to_vec(), b"0".to_vec());
+        state.set(
+            lane_scoped_key(LaneId::Core, b"counter"),
+            b"0".to_vec(),
+        );
 
         let receipt = kernel.execute_tx(
             &sample_block(),
@@ -1031,7 +1074,101 @@ mod tests {
         );
 
         assert!(!receipt.success);
-        assert_eq!(state.get(b"counter"), Some(b"0".to_vec()));
+        assert_eq!(
+            state.get(&lane_scoped_key(LaneId::Core, b"counter")),
+            Some(b"0".to_vec())
+        );
+    }
+
+    #[test]
+    fn journal_checkpoint_and_rollback_work() {
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        journal.put(LaneId::Core, b"a".to_vec(), b"1".to_vec());
+        let checkpoint = journal.checkpoint();
+        journal.put(LaneId::Core, b"a".to_vec(), b"2".to_vec());
+        journal
+            .rollback(checkpoint)
+            .expect("rollback to checkpoint should succeed");
+
+        let mut state = MemoryState::default();
+        journal.commit(&mut state);
+        assert_eq!(state.get(b"a"), Some(b"1".to_vec()));
+    }
+
+    #[test]
+    fn read_state_prefers_journal_overlay() {
+        let mut state = MemoryState::default();
+        state.set(b"counter".to_vec(), b"1".to_vec());
+
+        let block = sample_block();
+        let tx = sample_tx(LaneId::Core, 200_000);
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        let mut fuel = FuelMeter::new(200_000);
+        let schedule = FuelSchedule::default();
+        let mut env = ExecutionEnv {
+            block: &block,
+            tx: &tx,
+            state: &mut state,
+            journal: &mut journal,
+            fuel: &mut fuel,
+            schedule: &schedule,
+            capabilities: &CapabilityProfile::all(),
+        };
+
+        env.write_state(b"counter".to_vec(), b"9".to_vec())
+            .expect("write should succeed");
+        assert_eq!(env.read_state(b"counter"), Some(b"9".to_vec()));
+    }
+
+    #[test]
+    fn lane_without_storage_write_capability_is_blocked() {
+        let mut lanes = LaneRegistry::default();
+        lanes.register_with_capabilities(
+            LaneId::Core,
+            CoreLane,
+            CapabilityProfile::strict([HostCapability::StorageRead, HostCapability::EventEmit]),
+        );
+        let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
+
+        let mut state = MemoryState::default();
+        let receipt = kernel.execute_tx(
+            &sample_block(),
+            &sample_tx(LaneId::Core, 200_000),
+            &mut state,
+        );
+
+        assert!(!receipt.success);
+        assert_eq!(
+            receipt.error,
+            Some(KernelError::CapabilityDenied {
+                lane: LaneId::Core,
+                capability: HostCapability::StorageWrite,
+            })
+        );
+    }
+
+    #[test]
+    fn canonical_receipt_includes_replay_and_trace_hashes() {
+        let mut lanes = LaneRegistry::default();
+        lanes.register(LaneId::Core, CoreLane);
+        let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
+
+        let mut state = MemoryState::default();
+        let canonical = kernel.execute_tx_canonical(
+            &sample_block(),
+            &sample_tx(LaneId::Core, 200_000),
+            &mut state,
+        );
+
+        assert_eq!(canonical.status, CanonicalStatus::Success);
+        assert_eq!(canonical.event_count, 1);
+        assert_ne!(canonical.replay_hash, [0u8; 32]);
+        assert_ne!(canonical.execution_trace_hash, [0u8; 32]);
+        assert!(canonical
+            .security_flags
+            .contains(&SecurityFlag::CapabilityGatedHost));
     }
 
     #[test]
@@ -1096,7 +1233,7 @@ mod tests {
             source_lane: LaneId::Evm,
             target_lane: LaneId::Wasm,
             tx_id: [5u8; 32],
-            sequence: 42,
+            sequence: 0,
             payload: b"bridge".to_vec(),
         };
 
@@ -1104,6 +1241,33 @@ mod tests {
         assert!(matches!(
             bus.enqueue(message),
             Err(KernelError::DeterministicAbort { code: 77, .. })
+        ));
+    }
+
+    #[test]
+    fn enforces_cross_lane_causal_ordering() {
+        let mut bus = CrossLaneBus::default();
+        let first = CrossLaneMessage {
+            version: 1,
+            source_lane: LaneId::Evm,
+            target_lane: LaneId::Wasm,
+            tx_id: [7u8; 32],
+            sequence: 0,
+            payload: b"first".to_vec(),
+        };
+        let out_of_order = CrossLaneMessage {
+            version: 1,
+            source_lane: LaneId::Evm,
+            target_lane: LaneId::Wasm,
+            tx_id: [7u8; 32],
+            sequence: 2,
+            payload: b"third".to_vec(),
+        };
+
+        assert!(bus.enqueue(first).is_ok());
+        assert!(matches!(
+            bus.enqueue(out_of_order),
+            Err(KernelError::DeterministicAbort { code: 78, .. })
         ));
     }
 
