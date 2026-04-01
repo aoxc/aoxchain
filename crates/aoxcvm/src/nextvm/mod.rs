@@ -7,14 +7,12 @@
 
 pub mod crypto;
 pub mod error;
-pub mod host;
 pub mod opcode;
 pub mod state;
 pub mod vm;
 
 pub use crypto::{CryptoProfile, SignatureEnvelope};
 pub use error::NextVmError;
-pub use host::{HostAdapter, HostCallRequest, NullHost};
 pub use opcode::{Instruction, Opcode};
 pub use state::{Capability, StateStore};
 pub use vm::{ExecutionOutcome, VmConfig, VmExecution};

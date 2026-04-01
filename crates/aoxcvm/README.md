@@ -33,8 +33,7 @@ This is not yet production-final relay infrastructure.
 The crate now includes a `nextvm` bootstrap module for a ground-up VM path with:
 - deterministic instruction execution and explicit gas accounting,
 - capability-gated state and host actions,
-- crypto-profile validation hooks with post-quantum hybrid requirements,
-- transactional checkpoints (`checkpoint/commit/rollback`) and deterministic execution traces.
+- crypto-profile validation hooks with post-quantum hybrid requirements.
 
 This surface is intentionally minimal and is intended to be extended through formal execution-spec milestones.
 

@@ -1,6 +1,5 @@
 use crate::nextvm::crypto::{CryptoProfile, SignatureEnvelope};
 use crate::nextvm::error::NextVmError;
-use crate::nextvm::host::{HostAdapter, NullHost};
 use crate::nextvm::opcode::{Instruction, Opcode};
 use crate::nextvm::state::{Capability, StateStore};
 
@@ -21,39 +20,19 @@ impl Default for VmConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TraceEvent {
-    pub pc: usize,
-    pub opcode: Opcode,
-    pub gas_used: u64,
-    pub registers: [u64; 4],
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExecutionOutcome {
     pub gas_used: u64,
     pub halted: bool,
-    pub registers: [u64; 4],
-    pub trace: Vec<TraceEvent>,
+    pub accumulator: u64,
 }
 
-pub struct VmExecution<'a, H: HostAdapter = NullHost> {
+pub struct VmExecution<'a> {
     pub config: VmConfig,
     pub state: &'a mut StateStore,
-    pub host: H,
 }
 
-impl<'a> VmExecution<'a, NullHost> {
-    pub fn new(config: VmConfig, state: &'a mut StateStore) -> Self {
-        Self {
-            config,
-            state,
-            host: NullHost,
-        }
-    }
-}
-
-impl<'a, H: HostAdapter> VmExecution<'a, H> {
+impl<'a> VmExecution<'a> {
     pub fn run(
         &mut self,
         program: &[Instruction],
@@ -63,9 +42,8 @@ impl<'a, H: HostAdapter> VmExecution<'a, H> {
 
         let mut pc = 0usize;
         let mut gas_used = 0u64;
-        let mut registers = [0u64; 4];
+        let mut accumulator = 0u64;
         let mut steps = 0usize;
-        let mut trace = Vec::new();
 
         while steps < self.config.max_steps {
             let instruction = program.get(pc).ok_or(NextVmError::ProgramCounterOutOfRange)?;
@@ -75,106 +53,54 @@ impl<'a, H: HostAdapter> VmExecution<'a, H> {
             }
             gas_used = next_gas;
 
-            let mut next_pc = pc + 1;
             match instruction.opcode {
                 Opcode::Noop => {}
-                Opcode::MovImm => {
-                    let register = Self::register_index(instruction.operand_a)?;
-                    registers[register] = instruction.operand_b;
-                }
                 Opcode::Add => {
-                    let dst = Self::register_index(instruction.operand_a)?;
-                    let src = Self::register_index(instruction.operand_b)?;
-                    registers[dst] = registers[dst].saturating_add(registers[src]);
+                    accumulator = instruction.operand_a.saturating_add(instruction.operand_b);
                 }
                 Opcode::Sub => {
-                    let dst = Self::register_index(instruction.operand_a)?;
-                    let src = Self::register_index(instruction.operand_b)?;
-                    registers[dst] = registers[dst].saturating_sub(registers[src]);
+                    accumulator = instruction.operand_a.saturating_sub(instruction.operand_b);
                 }
                 Opcode::Store => {
-                    Self::require(self.state, Capability::StorageWrite)?;
-                    let src = Self::register_index(instruction.operand_b)?;
-                    self.state.set(instruction.operand_a, registers[src]);
+                    if !self.state.has_capability(Capability::StorageWrite) {
+                        return Err(NextVmError::MissingCapability(
+                            Capability::StorageWrite.as_str(),
+                        ));
+                    }
+                    self.state.set(instruction.operand_a, instruction.operand_b);
                 }
                 Opcode::Load => {
-                    Self::require(self.state, Capability::StorageRead)?;
-                    let dst = Self::register_index(instruction.operand_b)?;
-                    registers[dst] = self.state.get(instruction.operand_a);
+                    if !self.state.has_capability(Capability::StorageRead) {
+                        return Err(NextVmError::MissingCapability(
+                            Capability::StorageRead.as_str(),
+                        ));
+                    }
+                    accumulator = self.state.get(instruction.operand_a);
                 }
                 Opcode::CallHost => {
-                    Self::require(self.state, Capability::HostCall)?;
-                    let register = Self::register_index(instruction.operand_a)?;
-                    registers[register] = self.host.call(crate::nextvm::host::HostCallRequest {
-                        selector: instruction.operand_b,
-                        arg0: registers[register],
-                    })?;
-                }
-                Opcode::Checkpoint => {
-                    self.state.checkpoint();
-                }
-                Opcode::Commit => {
-                    self.state.commit();
-                }
-                Opcode::Rollback => {
-                    self.state.rollback();
-                }
-                Opcode::JumpIfZero => {
-                    let register = Self::register_index(instruction.operand_a)?;
-                    if registers[register] == 0 {
-                        next_pc = instruction.operand_b as usize;
+                    if !self.state.has_capability(Capability::HostCall) {
+                        return Err(NextVmError::MissingCapability(Capability::HostCall.as_str()));
                     }
+                    accumulator = accumulator.saturating_add(1);
                 }
                 Opcode::Halt => {
-                    trace.push(TraceEvent {
-                        pc,
-                        opcode: instruction.opcode,
-                        gas_used,
-                        registers,
-                    });
                     return Ok(ExecutionOutcome {
                         gas_used,
                         halted: true,
-                        registers,
-                        trace,
+                        accumulator,
                     });
                 }
             }
 
-            trace.push(TraceEvent {
-                pc,
-                opcode: instruction.opcode,
-                gas_used,
-                registers,
-            });
-
-            pc = next_pc;
+            pc += 1;
             steps += 1;
         }
 
         Ok(ExecutionOutcome {
             gas_used,
             halted: false,
-            registers,
-            trace,
+            accumulator,
         })
-    }
-
-    fn require(state: &StateStore, capability: Capability) -> Result<(), NextVmError> {
-        if state.has_capability(capability) {
-            Ok(())
-        } else {
-            Err(NextVmError::MissingCapability(capability.as_str()))
-        }
-    }
-
-    fn register_index(raw: u64) -> Result<usize, NextVmError> {
-        let index = usize::try_from(raw).map_err(|_| NextVmError::InvalidRegisterIndex(raw))?;
-        if index < 4 {
-            Ok(index)
-        } else {
-            Err(NextVmError::InvalidRegisterIndex(raw))
-        }
     }
 }
 
@@ -190,37 +116,37 @@ mod tests {
     }
 
     #[test]
-    fn run_halts_and_updates_registers() {
+    fn run_halts_and_updates_accumulator() {
         let mut state = StateStore::with_capabilities([
             Capability::StorageRead,
             Capability::StorageWrite,
             Capability::HostCall,
         ]);
-        let mut execution = VmExecution::new(VmConfig::default(), &mut state);
+        let mut execution = VmExecution {
+            config: VmConfig::default(),
+            state: &mut state,
+        };
 
         let program = vec![
-            Instruction::new(Opcode::MovImm, 0, 7),
-            Instruction::new(Opcode::MovImm, 1, 9),
-            Instruction::new(Opcode::Add, 0, 1),
-            Instruction::new(Opcode::CallHost, 0, 1),
+            Instruction::new(Opcode::Add, 7, 9),
+            Instruction::new(Opcode::CallHost, 0, 0),
             Instruction::new(Opcode::Halt, 0, 0),
         ];
 
         let outcome = execution.run(&program, &valid_hybrid_envelope()).unwrap();
         assert!(outcome.halted);
-        assert_eq!(outcome.registers[0], 17);
-        assert_eq!(outcome.trace.len(), 5);
+        assert_eq!(outcome.accumulator, 17);
     }
 
     #[test]
     fn store_requires_capability() {
         let mut state = StateStore::with_capabilities([Capability::StorageRead]);
-        let mut execution = VmExecution::new(VmConfig::default(), &mut state);
+        let mut execution = VmExecution {
+            config: VmConfig::default(),
+            state: &mut state,
+        };
 
-        let program = vec![
-            Instruction::new(Opcode::MovImm, 0, 99),
-            Instruction::new(Opcode::Store, 3, 0),
-        ];
+        let program = vec![Instruction::new(Opcode::Store, 3, 99)];
         let error = execution.run(&program, &valid_hybrid_envelope()).unwrap_err();
         assert_eq!(
             error,
@@ -231,13 +157,13 @@ mod tests {
     #[test]
     fn pq_required_profile_rejects_missing_pq_signature() {
         let mut state = StateStore::with_capabilities([]);
-        let mut execution = VmExecution::new(
-            VmConfig {
+        let mut execution = VmExecution {
+            config: VmConfig {
                 crypto_profile: CryptoProfile::HybridPqRequired,
                 ..VmConfig::default()
             },
-            &mut state,
-        );
+            state: &mut state,
+        };
 
         let envelope = SignatureEnvelope {
             classical_sig: vec![1],
@@ -248,44 +174,5 @@ mod tests {
             .run(&[Instruction::new(Opcode::Halt, 0, 0)], &envelope)
             .unwrap_err();
         assert_eq!(error, NextVmError::InvalidSignatureEnvelope);
-    }
-
-    #[test]
-    fn checkpoint_rollback_restores_previous_value() {
-        let mut state = StateStore::with_capabilities([
-            Capability::StorageRead,
-            Capability::StorageWrite,
-        ]);
-        state.set(10, 5);
-
-        let mut execution = VmExecution::new(VmConfig::default(), &mut state);
-        let program = vec![
-            Instruction::new(Opcode::Checkpoint, 0, 0),
-            Instruction::new(Opcode::MovImm, 0, 42),
-            Instruction::new(Opcode::Store, 10, 0),
-            Instruction::new(Opcode::Rollback, 0, 0),
-            Instruction::new(Opcode::Load, 10, 1),
-            Instruction::new(Opcode::Halt, 0, 0),
-        ];
-
-        let outcome = execution.run(&program, &valid_hybrid_envelope()).unwrap();
-        assert_eq!(outcome.registers[1], 5);
-    }
-
-    #[test]
-    fn jump_if_zero_changes_program_counter() {
-        let mut state = StateStore::with_capabilities([]);
-        let mut execution = VmExecution::new(VmConfig::default(), &mut state);
-        let program = vec![
-            Instruction::new(Opcode::MovImm, 0, 0),
-            Instruction::new(Opcode::JumpIfZero, 0, 4),
-            Instruction::new(Opcode::MovImm, 1, 99),
-            Instruction::new(Opcode::Noop, 0, 0),
-            Instruction::new(Opcode::MovImm, 1, 7),
-            Instruction::new(Opcode::Halt, 0, 0),
-        ];
-
-        let outcome = execution.run(&program, &valid_hybrid_envelope()).unwrap();
-        assert_eq!(outcome.registers[1], 7);
     }
 }

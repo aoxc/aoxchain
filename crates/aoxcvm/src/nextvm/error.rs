@@ -8,8 +8,6 @@ pub enum NextVmError {
     ProgramCounterOutOfRange,
     #[error("host capability '{0}' is required")]
     MissingCapability(&'static str),
-    #[error("invalid register index: {0}")]
-    InvalidRegisterIndex(u64),
     #[error("invalid signature envelope for configured crypto profile")]
     InvalidSignatureEnvelope,
 }
