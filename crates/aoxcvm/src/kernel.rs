@@ -332,13 +332,18 @@ pub trait HostState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JournalOp {
-    Put { key: StateKey, value: StateValue },
-    Delete { key: StateKey },
+    Put {
+        lane: LaneId,
+        key: StateKey,
+        value: StateValue,
+    },
+    Delete { lane: LaneId, key: StateKey },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateJournal {
     ops: Vec<JournalOp>,
+    checkpoints: Vec<usize>,
 }
 
 impl StateJournal {
@@ -346,12 +351,32 @@ impl StateJournal {
         Self::default()
     }
 
-    pub fn put(&mut self, key: StateKey, value: StateValue) {
-        self.ops.push(JournalOp::Put { key, value });
+    pub fn begin_transaction(&mut self) {
+        self.ops.clear();
+        self.checkpoints.clear();
     }
 
-    pub fn delete(&mut self, key: StateKey) {
-        self.ops.push(JournalOp::Delete { key });
+    pub fn checkpoint(&mut self) -> usize {
+        let marker = self.ops.len();
+        self.checkpoints.push(marker);
+        marker
+    }
+
+    pub fn rollback(&mut self, checkpoint: usize) -> Result<(), KernelError> {
+        if checkpoint > self.ops.len() {
+            return Err(KernelError::StateViolation("invalid journal checkpoint"));
+        }
+        self.ops.truncate(checkpoint);
+        self.checkpoints.retain(|marker| *marker <= checkpoint);
+        Ok(())
+    }
+
+    pub fn put(&mut self, lane: LaneId, key: StateKey, value: StateValue) {
+        self.ops.push(JournalOp::Put { lane, key, value });
+    }
+
+    pub fn delete(&mut self, lane: LaneId, key: StateKey) {
+        self.ops.push(JournalOp::Delete { lane, key });
     }
 
     pub fn len(&self) -> usize {
@@ -365,13 +390,32 @@ impl StateJournal {
     pub fn commit(self, state: &mut impl HostState) {
         for op in self.ops {
             match op {
-                JournalOp::Put { key, value } => state.set(key, value),
-                JournalOp::Delete { key } => state.delete(&key),
+                JournalOp::Put { key, value, .. } => state.set(key, value),
+                JournalOp::Delete { key, .. } => state.delete(&key),
             }
         }
     }
 
     pub fn revert(self) {}
+
+    pub fn lane_conflicts(&self) -> BTreeSet<StateKey> {
+        let mut owners: BTreeMap<&[u8], LaneId> = BTreeMap::new();
+        let mut conflicts = BTreeSet::new();
+        for op in &self.ops {
+            let (lane, key) = match op {
+                JournalOp::Put { lane, key, .. } => (*lane, key.as_slice()),
+                JournalOp::Delete { lane, key } => (*lane, key.as_slice()),
+            };
+            if let Some(existing) = owners.get(key) {
+                if *existing != lane {
+                    conflicts.insert(key.to_vec());
+                }
+            } else {
+                owners.insert(key, lane);
+            }
+        }
+        conflicts
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -438,18 +482,29 @@ pub struct ExecutionEnv<'a, S: HostState> {
 
 impl<'a, S: HostState> ExecutionEnv<'a, S> {
     pub fn read_state(&mut self, key: &[u8]) -> Option<StateValue> {
+        for op in self.journal.ops.iter().rev() {
+            match op {
+                JournalOp::Put { key: journal_key, value, .. } if journal_key.as_slice() == key => {
+                    return Some(value.clone());
+                }
+                JournalOp::Delete { key: journal_key, .. } if journal_key.as_slice() == key => {
+                    return None;
+                }
+                _ => {}
+            }
+        }
         self.state.get(key)
     }
 
     pub fn write_state(&mut self, key: StateKey, value: StateValue) -> Result<(), KernelError> {
         self.fuel.charge(self.schedule.state_write_cost)?;
-        self.journal.put(key, value);
+        self.journal.put(self.tx.lane, key, value);
         Ok(())
     }
 
     pub fn delete_state(&mut self, key: StateKey) -> Result<(), KernelError> {
         self.fuel.charge(self.schedule.state_delete_cost)?;
-        self.journal.delete(key);
+        self.journal.delete(self.tx.lane, key);
         Ok(())
     }
 
@@ -574,6 +629,7 @@ impl<S: HostState> CoreKernel<S> {
         };
 
         let mut journal = StateJournal::new();
+        journal.begin_transaction();
         let mut env = ExecutionEnv {
             block,
             tx,
@@ -585,6 +641,13 @@ impl<S: HostState> CoreKernel<S> {
 
         match adapter.execute(&mut env) {
             Ok(lane_out) => {
+                if !journal.lane_conflicts().is_empty() {
+                    return self.failure_receipt(
+                        tx,
+                        fuel.used(),
+                        KernelError::StateViolation("cross-lane write conflict detected"),
+                    );
+                }
                 let state_diff_hash = derive_hash32(b"AOXC-STATE-DIFF", &lane_out.output);
                 let receipt_hash = derive_hash32(b"AOXC-RECEIPT", &lane_out.output);
                 journal.commit(state);
@@ -815,6 +878,47 @@ mod tests {
 
         assert!(!receipt.success);
         assert_eq!(state.get(b"counter"), Some(b"0".to_vec()));
+    }
+
+    #[test]
+    fn journal_checkpoint_and_rollback_work() {
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        journal.put(LaneId::Core, b"a".to_vec(), b"1".to_vec());
+        let checkpoint = journal.checkpoint();
+        journal.put(LaneId::Core, b"a".to_vec(), b"2".to_vec());
+        journal
+            .rollback(checkpoint)
+            .expect("rollback to checkpoint should succeed");
+
+        let mut state = MemoryState::default();
+        journal.commit(&mut state);
+        assert_eq!(state.get(b"a"), Some(b"1".to_vec()));
+    }
+
+    #[test]
+    fn read_state_prefers_journal_overlay() {
+        let mut state = MemoryState::default();
+        state.set(b"counter".to_vec(), b"1".to_vec());
+
+        let block = sample_block();
+        let tx = sample_tx(LaneId::Core, 200_000);
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        let mut fuel = FuelMeter::new(200_000);
+        let schedule = FuelSchedule::default();
+        let mut env = ExecutionEnv {
+            block: &block,
+            tx: &tx,
+            state: &mut state,
+            journal: &mut journal,
+            fuel: &mut fuel,
+            schedule: &schedule,
+        };
+
+        env.write_state(b"counter".to_vec(), b"9".to_vec())
+            .expect("write should succeed");
+        assert_eq!(env.read_state(b"counter"), Some(b"9".to_vec()));
     }
 
     #[test]
