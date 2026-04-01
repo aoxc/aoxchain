@@ -17,6 +17,8 @@ pub mod gas;
 pub mod host;
 pub mod hypervm;
 pub mod kernel;
+pub mod language;
+pub mod language_adapter;
 pub mod lanes;
 pub mod language;
 pub mod language_adapter;
