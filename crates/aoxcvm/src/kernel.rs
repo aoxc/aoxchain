@@ -198,6 +198,10 @@ pub enum KernelError {
     StateViolation(&'static str),
     DeterministicAbort { code: u16, message: &'static str },
     AdapterValidation(&'static str),
+    CapabilityDenied {
+        lane: LaneId,
+        capability: HostCapability,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -230,6 +234,40 @@ pub struct LaneCapabilityManifest {
     pub cross_lane_support: bool,
     pub determinism_level: u8,
     pub compatibility_tier: CompatibilityTier,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum HostCapability {
+    StorageRead,
+    StorageWrite,
+    EventEmit,
+    CrossLaneCall,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CapabilityProfile {
+    allowed: BTreeSet<HostCapability>,
+}
+
+impl CapabilityProfile {
+    pub fn strict(allowed: impl IntoIterator<Item = HostCapability>) -> Self {
+        Self {
+            allowed: allowed.into_iter().collect(),
+        }
+    }
+
+    pub fn allows(&self, capability: HostCapability) -> bool {
+        self.allowed.contains(&capability)
+    }
+
+    pub fn all() -> Self {
+        Self::strict([
+            HostCapability::StorageRead,
+            HostCapability::StorageWrite,
+            HostCapability::EventEmit,
+            HostCapability::CrossLaneCall,
+        ])
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -478,6 +516,7 @@ pub struct ExecutionEnv<'a, S: HostState> {
     pub journal: &'a mut StateJournal,
     pub fuel: &'a mut FuelMeter,
     pub schedule: &'a FuelSchedule,
+    pub capabilities: &'a CapabilityProfile,
 }
 
 impl<'a, S: HostState> ExecutionEnv<'a, S> {
@@ -497,18 +536,36 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
     }
 
     pub fn write_state(&mut self, key: StateKey, value: StateValue) -> Result<(), KernelError> {
+        if !self.capabilities.allows(HostCapability::StorageWrite) {
+            return Err(KernelError::CapabilityDenied {
+                lane: self.tx.lane,
+                capability: HostCapability::StorageWrite,
+            });
+        }
         self.fuel.charge(self.schedule.state_write_cost)?;
         self.journal.put(self.tx.lane, key, value);
         Ok(())
     }
 
     pub fn delete_state(&mut self, key: StateKey) -> Result<(), KernelError> {
+        if !self.capabilities.allows(HostCapability::StorageWrite) {
+            return Err(KernelError::CapabilityDenied {
+                lane: self.tx.lane,
+                capability: HostCapability::StorageWrite,
+            });
+        }
         self.fuel.charge(self.schedule.state_delete_cost)?;
         self.journal.delete(self.tx.lane, key);
         Ok(())
     }
 
     pub fn emit_event(&mut self, topic: Vec<u8>, data: Vec<u8>) -> Result<Event, KernelError> {
+        if !self.capabilities.allows(HostCapability::EventEmit) {
+            return Err(KernelError::CapabilityDenied {
+                lane: self.tx.lane,
+                capability: HostCapability::EventEmit,
+            });
+        }
         self.fuel.charge(self.schedule.event_base)?;
         Ok(Event {
             lane: self.tx.lane,
@@ -555,7 +612,12 @@ impl<S: HostState, T: ExecutionAdapter<S>> LaneAdapter<S> for T {
 }
 
 pub struct LaneRegistry<S: HostState> {
-    adapters: BTreeMap<LaneId, Box<dyn LaneAdapter<S> + Send + Sync>>,
+    adapters: BTreeMap<LaneId, LaneRegistration<S>>,
+}
+
+pub struct LaneRegistration<S: HostState> {
+    adapter: Box<dyn LaneAdapter<S> + Send + Sync>,
+    capabilities: CapabilityProfile,
 }
 
 impl<S: HostState> Default for LaneRegistry<S> {
@@ -571,11 +633,28 @@ impl<S: HostState> LaneRegistry<S> {
     where
         A: LaneAdapter<S> + Send + Sync + 'static,
     {
-        self.adapters.insert(lane, Box::new(adapter));
+        self.register_with_capabilities(lane, adapter, CapabilityProfile::all());
     }
 
-    pub fn resolve(&self, lane: LaneId) -> Option<&(dyn LaneAdapter<S> + Send + Sync)> {
-        self.adapters.get(&lane).map(Box::as_ref)
+    pub fn register_with_capabilities<A>(
+        &mut self,
+        lane: LaneId,
+        adapter: A,
+        capabilities: CapabilityProfile,
+    ) where
+        A: LaneAdapter<S> + Send + Sync + 'static,
+    {
+        self.adapters.insert(
+            lane,
+            LaneRegistration {
+                adapter: Box::new(adapter),
+                capabilities,
+            },
+        );
+    }
+
+    pub fn resolve(&self, lane: LaneId) -> Option<&LaneRegistration<S>> {
+        self.adapters.get(&lane)
     }
 
     pub fn lanes(&self) -> BTreeSet<LaneId> {
@@ -624,7 +703,7 @@ impl<S: HostState> CoreKernel<S> {
             return self.failure_receipt(tx, fuel.used(), err);
         }
 
-        let Some(adapter) = self.lanes.resolve(tx.lane) else {
+        let Some(registration) = self.lanes.resolve(tx.lane) else {
             return self.failure_receipt(tx, fuel.used(), KernelError::LaneNotRegistered(tx.lane));
         };
 
@@ -637,9 +716,10 @@ impl<S: HostState> CoreKernel<S> {
             journal: &mut journal,
             fuel: &mut fuel,
             schedule: &self.schedule,
+            capabilities: &registration.capabilities,
         };
 
-        match adapter.execute(&mut env) {
+        match registration.adapter.execute(&mut env) {
             Ok(lane_out) => {
                 if !journal.lane_conflicts().is_empty() {
                     return self.failure_receipt(
