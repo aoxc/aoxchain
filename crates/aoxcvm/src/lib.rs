@@ -17,6 +17,7 @@ pub mod host;
 pub mod hypervm;
 pub mod kernel;
 pub mod lanes;
+pub mod language;
 pub mod routing;
 pub mod system;
 pub mod vm_kind;

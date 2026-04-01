@@ -4,14 +4,15 @@
   <img src="./logos/aoxc.png" alt="AOXChain Logo" width="180" />
 </p>
 
-AOXChain is an experimental, modular Layer-1 engineering workspace focused on deterministic execution, auditable operations, and evidence-governed release readiness.
+AOXChain is an experimental, modular Layer-1 engineering workspace focused on deterministic kernel behavior, interoperability-native protocol boundaries, auditable operations, and evidence-governed release readiness.
 
 > **Repository status (March 30, 2026):** Active development. Interfaces, procedures, and compatibility guarantees can change while controls mature.
 
 ## 1) Purpose
 
 This repository is used to design and validate:
-- deterministic state transition and execution behavior,
+- deterministic kernel state-transition behavior,
+- native kernel handling of foreign chain identity, proof types, finality classes, and authority domains,
 - consensus and networking safety boundaries,
 - operator-grade runtime controls,
 - audit-ready evidence for release and production-closure decisions.

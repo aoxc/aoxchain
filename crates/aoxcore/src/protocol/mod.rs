@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt;
 
+pub mod interop;
+
 const PROTOCOL_MESSAGE_NAMESPACE: &[u8] = b"AOXC/PROTOCOL/MESSAGE_ENVELOPE";
 const MESSAGE_ENVELOPE_HASH_VERSION: u8 = 1;
 const ZERO32: [u8; 32] = [0u8; 32];
