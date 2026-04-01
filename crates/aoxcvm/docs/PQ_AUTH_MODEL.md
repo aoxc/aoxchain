@@ -34,4 +34,3 @@ Currently modeled algorithms:
 - empty signer sets are always invalid;
 - profile checks must not depend on host-local entropy or wall-clock state;
 - key-rotation flows should require at least one post-quantum signer by default.
-- auth envelopes should enforce bounded sizes (default: at most 16 signatures, at most 4096 bytes per signature witness).
