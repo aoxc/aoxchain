@@ -1,0 +1,10 @@
+//! classes subsystem for AOXCVM vNext.
+pub mod asset;
+pub mod capability;
+pub mod contract;
+pub mod governance;
+pub mod identity;
+pub mod package;
+pub mod receipt;
+pub mod registry;
+pub mod vault;
