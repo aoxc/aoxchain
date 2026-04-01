@@ -156,6 +156,32 @@ pub struct UnifiedReceipt {
     pub receipt_hash: [u8; 32],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanonicalStatus {
+    Success,
+    Failure,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SecurityFlag {
+    CapabilityGatedHost,
+    DeterministicReplayAnchor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalSettlementReceipt {
+    pub tx_id: [u8; 32],
+    pub lane: LaneId,
+    pub status: CanonicalStatus,
+    pub gas_used: Gas,
+    pub state_diff_hash: [u8; 32],
+    pub receipt_hash: [u8; 32],
+    pub event_count: u32,
+    pub replay_hash: [u8; 32],
+    pub execution_trace_hash: [u8; 32],
+    pub security_flags: BTreeSet<SecurityFlag>,
+}
+
 impl Receipt {
     pub fn unified(&self) -> UnifiedReceipt {
         UnifiedReceipt {
@@ -165,6 +191,35 @@ impl Receipt {
             output: self.output.clone(),
             state_diff_hash: self.state_diff_hash,
             receipt_hash: self.receipt_hash,
+        }
+    }
+
+    pub fn canonical(&self) -> CanonicalSettlementReceipt {
+        let status = if self.success {
+            CanonicalStatus::Success
+        } else {
+            CanonicalStatus::Failure
+        };
+
+        let event_count = u32::try_from(self.events.len()).unwrap_or(u32::MAX);
+        let replay_hash = derive_hash32(b"AOXC-REPLAY", &self.receipt_hash);
+        let execution_trace_hash = derive_execution_trace_hash(&self.events, &self.output);
+        let security_flags = BTreeSet::from([
+            SecurityFlag::CapabilityGatedHost,
+            SecurityFlag::DeterministicReplayAnchor,
+        ]);
+
+        CanonicalSettlementReceipt {
+            tx_id: self.tx_id,
+            lane: self.lane,
+            status,
+            gas_used: self.gas_used,
+            state_diff_hash: self.state_diff_hash,
+            receipt_hash: self.receipt_hash,
+            event_count,
+            replay_hash,
+            execution_trace_hash,
+            security_flags,
         }
     }
 }
@@ -776,6 +831,15 @@ impl<S: HostState> CoreKernel<S> {
         }
     }
 
+    pub fn execute_tx_canonical(
+        &self,
+        block: &BlockExecutionContext,
+        tx: &CanonicalTxEnvelope,
+        state: &mut S,
+    ) -> CanonicalSettlementReceipt {
+        self.execute_tx(block, tx, state).canonical()
+    }
+
     pub fn conformance_replay(
         &self,
         block: &BlockExecutionContext,
@@ -839,6 +903,16 @@ fn derive_hash32(domain: &[u8], payload: &[u8]) -> [u8; 32] {
         out[(index * 7) % 32] = out[(index * 7) % 32].wrapping_add(*byte);
     }
     out
+}
+
+fn derive_execution_trace_hash(events: &[Event], output: &[u8]) -> [u8; 32] {
+    let mut material = Vec::new();
+    for event in events {
+        material.extend_from_slice(&event.topic);
+        material.extend_from_slice(&event.data);
+    }
+    material.extend_from_slice(output);
+    derive_hash32(b"AOXC-TRACE", &material)
 }
 
 #[cfg(test)]
