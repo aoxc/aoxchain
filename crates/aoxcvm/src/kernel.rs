@@ -251,7 +251,10 @@ pub enum KernelError {
     LaneNotRegistered(LaneId),
     GasExhausted,
     StateViolation(&'static str),
-    DeterministicAbort { code: u16, message: &'static str },
+    DeterministicAbort {
+        code: u16,
+        message: &'static str,
+    },
     AdapterValidation(&'static str),
     CapabilityDenied {
         lane: LaneId,
@@ -448,10 +451,15 @@ pub struct DeterministicExecutionPlan {
     pub parallel_batches: Vec<Vec<[u8; 32]>>,
 }
 
-pub fn plan_deterministic_batches(mut intents: Vec<LaneExecutionIntent>) -> DeterministicExecutionPlan {
+pub fn plan_deterministic_batches(
+    mut intents: Vec<LaneExecutionIntent>,
+) -> DeterministicExecutionPlan {
     intents.sort_by_key(|intent| (intent.lane, intent.tx_id));
 
-    let serial_order = intents.iter().map(|intent| intent.tx_id).collect::<Vec<_>>();
+    let serial_order = intents
+        .iter()
+        .map(|intent| intent.tx_id)
+        .collect::<Vec<_>>();
     let mut parallel_batches: Vec<Vec<[u8; 32]>> = Vec::new();
     let mut batch_reads: Vec<BTreeSet<StateKey>> = Vec::new();
     let mut batch_writes: Vec<BTreeSet<StateKey>> = Vec::new();
@@ -459,12 +467,8 @@ pub fn plan_deterministic_batches(mut intents: Vec<LaneExecutionIntent>) -> Dete
     for intent in intents {
         let mut placed = false;
         for index in 0..parallel_batches.len() {
-            let has_write_conflict = !intent
-                .declared_writes
-                .is_disjoint(&batch_writes[index]);
-            let has_read_write_overlap = !intent
-                .declared_reads
-                .is_disjoint(&batch_writes[index])
+            let has_write_conflict = !intent.declared_writes.is_disjoint(&batch_writes[index]);
+            let has_read_write_overlap = !intent.declared_reads.is_disjoint(&batch_writes[index])
                 || !intent.declared_writes.is_disjoint(&batch_reads[index]);
 
             if !has_write_conflict && !has_read_write_overlap {
@@ -502,7 +506,10 @@ pub enum JournalOp {
         key: StateKey,
         value: StateValue,
     },
-    Delete { lane: LaneId, key: StateKey },
+    Delete {
+        lane: LaneId,
+        key: StateKey,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -662,10 +669,16 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
     pub fn read_state(&mut self, key: &[u8]) -> Option<StateValue> {
         for op in self.journal.ops.iter().rev() {
             match op {
-                JournalOp::Put { key: journal_key, value, .. } if journal_key.as_slice() == key => {
+                JournalOp::Put {
+                    key: journal_key,
+                    value,
+                    ..
+                } if journal_key.as_slice() == key => {
                     return Some(value.clone());
                 }
-                JournalOp::Delete { key: journal_key, .. } if journal_key.as_slice() == key => {
+                JournalOp::Delete {
+                    key: journal_key, ..
+                } if journal_key.as_slice() == key => {
                     return None;
                 }
                 _ => {}
@@ -1117,10 +1130,7 @@ mod tests {
         let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
 
         let mut state = MemoryState::default();
-        state.set(
-            lane_scoped_key(LaneId::Core, b"counter"),
-            b"0".to_vec(),
-        );
+        state.set(lane_scoped_key(LaneId::Core, b"counter"), b"0".to_vec());
 
         let receipt = kernel.execute_tx(
             &sample_block(),
@@ -1221,9 +1231,11 @@ mod tests {
         assert_eq!(canonical.event_count, 1);
         assert_ne!(canonical.replay_hash, [0u8; 32]);
         assert_ne!(canonical.execution_trace_hash, [0u8; 32]);
-        assert!(canonical
-            .security_flags
-            .contains(&SecurityFlag::CapabilityGatedHost));
+        assert!(
+            canonical
+                .security_flags
+                .contains(&SecurityFlag::CapabilityGatedHost)
+        );
     }
 
     #[test]
