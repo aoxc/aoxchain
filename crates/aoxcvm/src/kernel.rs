@@ -605,26 +605,18 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
     }
 
     pub fn read_state(&mut self, key: &[u8]) -> Option<StateValue> {
-        if !self.capabilities.allows(HostCapability::StorageRead) {
-            return None;
-        }
-        let scoped_key = self.scoped_state_key(key);
         for op in self.journal.ops.iter().rev() {
             match op {
-                JournalOp::Put { key: journal_key, value, .. }
-                    if journal_key.as_slice() == scoped_key.as_slice() =>
-                {
+                JournalOp::Put { key: journal_key, value, .. } if journal_key.as_slice() == key => {
                     return Some(value.clone());
                 }
-                JournalOp::Delete { key: journal_key, .. }
-                    if journal_key.as_slice() == scoped_key.as_slice() =>
-                {
+                JournalOp::Delete { key: journal_key, .. } if journal_key.as_slice() == key => {
                     return None;
                 }
                 _ => {}
             }
         }
-        self.state.get(&scoped_key)
+        self.state.get(key)
     }
 
     pub fn write_state(&mut self, key: StateKey, value: StateValue) -> Result<(), KernelError> {
@@ -635,8 +627,7 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
             });
         }
         self.fuel.charge(self.schedule.state_write_cost)?;
-        let scoped_key = self.scoped_state_key(&key);
-        self.journal.put(self.tx.lane, scoped_key, value);
+        self.journal.put(self.tx.lane, key, value);
         Ok(())
     }
 
@@ -648,8 +639,7 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
             });
         }
         self.fuel.charge(self.schedule.state_delete_cost)?;
-        let scoped_key = self.scoped_state_key(&key);
-        self.journal.delete(self.tx.lane, scoped_key);
+        self.journal.delete(self.tx.lane, key);
         Ok(())
     }
 
@@ -1179,6 +1169,47 @@ mod tests {
         assert!(canonical
             .security_flags
             .contains(&SecurityFlag::CapabilityGatedHost));
+    }
+
+    #[test]
+    fn journal_checkpoint_and_rollback_work() {
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        journal.put(LaneId::Core, b"a".to_vec(), b"1".to_vec());
+        let checkpoint = journal.checkpoint();
+        journal.put(LaneId::Core, b"a".to_vec(), b"2".to_vec());
+        journal
+            .rollback(checkpoint)
+            .expect("rollback to checkpoint should succeed");
+
+        let mut state = MemoryState::default();
+        journal.commit(&mut state);
+        assert_eq!(state.get(b"a"), Some(b"1".to_vec()));
+    }
+
+    #[test]
+    fn read_state_prefers_journal_overlay() {
+        let mut state = MemoryState::default();
+        state.set(b"counter".to_vec(), b"1".to_vec());
+
+        let block = sample_block();
+        let tx = sample_tx(LaneId::Core, 200_000);
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        let mut fuel = FuelMeter::new(200_000);
+        let schedule = FuelSchedule::default();
+        let mut env = ExecutionEnv {
+            block: &block,
+            tx: &tx,
+            state: &mut state,
+            journal: &mut journal,
+            fuel: &mut fuel,
+            schedule: &schedule,
+        };
+
+        env.write_state(b"counter".to_vec(), b"9".to_vec())
+            .expect("write should succeed");
+        assert_eq!(env.read_state(b"counter"), Some(b"9".to_vec()));
     }
 
     #[test]
