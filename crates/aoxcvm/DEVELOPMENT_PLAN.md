@@ -151,20 +151,6 @@ These five changes should be treated as the minimum threshold for AOXCVM to qual
 - Ensure every new control path has tests for success, failure, rollback, and replay.
 - Treat receipts as audit and settlement artifacts, not logging byproducts.
 
-## Delivery model (single-pass vs phased)
-Building all kernel features in one large pass is technically possible but operationally unsafe for this repository profile.
-
-AOXCVM changes should be delivered in **small deterministic slices** because each slice modifies consensus-sensitive behavior (state transitions, host authority, replay boundaries, and receipts).
-
-Required discipline:
-- one invariant family per PR (journal, capability gate, receipt canonicalization, message bus, scheduler graph),
-- mandatory replay tests and rollback tests per slice,
-- no simultaneous refactor of host state + scheduler + receipt format in a single unrecoverable change set.
-
-Practical answer:
-- **Not recommended:** “tüm kodu tek seferde geliştirmek”.
-- **Recommended:** phased kernel hardening with acceptance gates at each phase boundary.
-
 ## Recommended immediate next task
 Implement **Phase 1** with an in-memory `HostJournal` prototype and deterministic tests covering:
 - nested checkpoints,
