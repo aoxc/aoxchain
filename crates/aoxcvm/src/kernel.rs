@@ -188,6 +188,32 @@ pub struct CanonicalSettlementReceipt {
     pub security_flags: BTreeSet<SecurityFlag>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanonicalStatus {
+    Success,
+    Failure,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SecurityFlag {
+    CapabilityGatedHost,
+    DeterministicReplayAnchor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalSettlementReceipt {
+    pub tx_id: [u8; 32],
+    pub lane: LaneId,
+    pub status: CanonicalStatus,
+    pub gas_used: Gas,
+    pub state_diff_hash: [u8; 32],
+    pub receipt_hash: [u8; 32],
+    pub event_count: u32,
+    pub replay_hash: [u8; 32],
+    pub execution_trace_hash: [u8; 32],
+    pub security_flags: BTreeSet<SecurityFlag>,
+}
+
 impl Receipt {
     pub fn unified(&self) -> UnifiedReceipt {
         UnifiedReceipt {
@@ -232,6 +258,35 @@ impl Receipt {
             security_flags,
         }
     }
+
+    pub fn canonical(&self) -> CanonicalSettlementReceipt {
+        let status = if self.success {
+            CanonicalStatus::Success
+        } else {
+            CanonicalStatus::Failure
+        };
+
+        let event_count = u32::try_from(self.events.len()).unwrap_or(u32::MAX);
+        let replay_hash = derive_hash32(b"AOXC-REPLAY", &self.receipt_hash);
+        let execution_trace_hash = derive_execution_trace_hash(&self.events, &self.output);
+        let security_flags = BTreeSet::from([
+            SecurityFlag::CapabilityGatedHost,
+            SecurityFlag::DeterministicReplayAnchor,
+        ]);
+
+        CanonicalSettlementReceipt {
+            tx_id: self.tx_id,
+            lane: self.lane,
+            status,
+            gas_used: self.gas_used,
+            state_diff_hash: self.state_diff_hash,
+            receipt_hash: self.receipt_hash,
+            event_count,
+            replay_hash,
+            execution_trace_hash,
+            security_flags,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -261,7 +316,10 @@ pub enum KernelError {
     LaneNotRegistered(LaneId),
     GasExhausted,
     StateViolation(&'static str),
-    DeterministicAbort { code: u16, message: &'static str },
+    DeterministicAbort {
+        code: u16,
+        message: &'static str,
+    },
     AdapterValidation(&'static str),
     CapabilityDenied {
         lane: LaneId,
@@ -458,10 +516,15 @@ pub struct DeterministicExecutionPlan {
     pub parallel_batches: Vec<Vec<[u8; 32]>>,
 }
 
-pub fn plan_deterministic_batches(mut intents: Vec<LaneExecutionIntent>) -> DeterministicExecutionPlan {
+pub fn plan_deterministic_batches(
+    mut intents: Vec<LaneExecutionIntent>,
+) -> DeterministicExecutionPlan {
     intents.sort_by_key(|intent| (intent.lane, intent.tx_id));
 
-    let serial_order = intents.iter().map(|intent| intent.tx_id).collect::<Vec<_>>();
+    let serial_order = intents
+        .iter()
+        .map(|intent| intent.tx_id)
+        .collect::<Vec<_>>();
     let mut parallel_batches: Vec<Vec<[u8; 32]>> = Vec::new();
     let mut batch_reads: Vec<BTreeSet<StateKey>> = Vec::new();
     let mut batch_writes: Vec<BTreeSet<StateKey>> = Vec::new();
@@ -469,12 +532,8 @@ pub fn plan_deterministic_batches(mut intents: Vec<LaneExecutionIntent>) -> Dete
     for intent in intents {
         let mut placed = false;
         for index in 0..parallel_batches.len() {
-            let has_write_conflict = !intent
-                .declared_writes
-                .is_disjoint(&batch_writes[index]);
-            let has_read_write_overlap = !intent
-                .declared_reads
-                .is_disjoint(&batch_writes[index])
+            let has_write_conflict = !intent.declared_writes.is_disjoint(&batch_writes[index]);
+            let has_read_write_overlap = !intent.declared_reads.is_disjoint(&batch_writes[index])
                 || !intent.declared_writes.is_disjoint(&batch_reads[index]);
 
             if !has_write_conflict && !has_read_write_overlap {
@@ -512,7 +571,10 @@ pub enum JournalOp {
         key: StateKey,
         value: StateValue,
     },
-    Delete { lane: LaneId, key: StateKey },
+    Delete {
+        lane: LaneId,
+        key: StateKey,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -670,26 +732,24 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
     }
 
     pub fn read_state(&mut self, key: &[u8]) -> Option<StateValue> {
-        if !self.capabilities.allows(HostCapability::StorageRead) {
-            return None;
-        }
-        let scoped_key = self.scoped_state_key(key);
         for op in self.journal.ops.iter().rev() {
             match op {
-                JournalOp::Put { key: journal_key, value, .. }
-                    if journal_key.as_slice() == scoped_key.as_slice() =>
-                {
+                JournalOp::Put {
+                    key: journal_key,
+                    value,
+                    ..
+                } if journal_key.as_slice() == key => {
                     return Some(value.clone());
                 }
-                JournalOp::Delete { key: journal_key, .. }
-                    if journal_key.as_slice() == scoped_key.as_slice() =>
-                {
+                JournalOp::Delete {
+                    key: journal_key, ..
+                } if journal_key.as_slice() == key => {
                     return None;
                 }
                 _ => {}
             }
         }
-        self.state.get(&scoped_key)
+        self.state.get(key)
     }
 
     pub fn write_state(&mut self, key: StateKey, value: StateValue) -> Result<(), KernelError> {
@@ -700,8 +760,7 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
             });
         }
         self.fuel.charge(self.schedule.state_write_cost)?;
-        let scoped_key = self.scoped_state_key(&key);
-        self.journal.put(self.tx.lane, scoped_key, value);
+        self.journal.put(self.tx.lane, key, value);
         Ok(())
     }
 
@@ -713,8 +772,7 @@ impl<'a, S: HostState> ExecutionEnv<'a, S> {
             });
         }
         self.fuel.charge(self.schedule.state_delete_cost)?;
-        let scoped_key = self.scoped_state_key(&key);
-        self.journal.delete(self.tx.lane, scoped_key);
+        self.journal.delete(self.tx.lane, key);
         Ok(())
     }
 
@@ -889,17 +947,6 @@ impl<S: HostState> CoreKernel<S> {
                         KernelError::StateViolation("cross-lane write conflict detected"),
                     );
                 }
-                let mut bus = CrossLaneBus::default();
-                for message in lane_out.cross_lane_messages.iter().cloned() {
-                    if let Err(err) = bus.enqueue(message) {
-                        journal.revert();
-                        return self.failure_receipt(tx, fuel.used(), err);
-                    }
-                }
-                let accepted_messages = bus.drain();
-                let cross_lane_message_count =
-                    u32::try_from(accepted_messages.len()).unwrap_or(u32::MAX);
-                let cross_lane_message_root = derive_message_root(&accepted_messages);
                 let state_diff_hash = derive_hash32(b"AOXC-STATE-DIFF", &lane_out.output);
                 let receipt_hash = derive_hash32(b"AOXC-RECEIPT", &lane_out.output);
                 journal.commit(state);
@@ -1036,17 +1083,6 @@ fn derive_execution_trace_hash(events: &[Event], output: &[u8]) -> [u8; 32] {
     derive_hash32(b"AOXC-TRACE", &material)
 }
 
-fn derive_message_root(messages: &[CrossLaneMessage]) -> [u8; 32] {
-    let mut material = Vec::new();
-    for message in messages {
-        material.extend_from_slice(&message.version.to_le_bytes());
-        material.extend_from_slice(&message.tx_id);
-        material.extend_from_slice(&message.sequence.to_le_bytes());
-        material.extend_from_slice(&message.payload);
-    }
-    derive_hash32(b"AOXC-MSG-ROOT", &material)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1166,10 +1202,7 @@ mod tests {
         let kernel = CoreKernel::new(FuelSchedule::default(), lanes);
 
         let mut state = MemoryState::default();
-        state.set(
-            lane_scoped_key(LaneId::Core, b"counter"),
-            b"0".to_vec(),
-        );
+        state.set(lane_scoped_key(LaneId::Core, b"counter"), b"0".to_vec());
 
         let receipt = kernel.execute_tx(
             &sample_block(),
@@ -1268,12 +1301,54 @@ mod tests {
 
         assert_eq!(canonical.status, CanonicalStatus::Success);
         assert_eq!(canonical.event_count, 1);
-        assert_eq!(canonical.cross_lane_message_count, 0);
         assert_ne!(canonical.replay_hash, [0u8; 32]);
         assert_ne!(canonical.execution_trace_hash, [0u8; 32]);
-        assert!(canonical
-            .security_flags
-            .contains(&SecurityFlag::CapabilityGatedHost));
+        assert!(
+            canonical
+                .security_flags
+                .contains(&SecurityFlag::CapabilityGatedHost)
+        );
+    }
+
+    #[test]
+    fn journal_checkpoint_and_rollback_work() {
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        journal.put(LaneId::Core, b"a".to_vec(), b"1".to_vec());
+        let checkpoint = journal.checkpoint();
+        journal.put(LaneId::Core, b"a".to_vec(), b"2".to_vec());
+        journal
+            .rollback(checkpoint)
+            .expect("rollback to checkpoint should succeed");
+
+        let mut state = MemoryState::default();
+        journal.commit(&mut state);
+        assert_eq!(state.get(b"a"), Some(b"1".to_vec()));
+    }
+
+    #[test]
+    fn read_state_prefers_journal_overlay() {
+        let mut state = MemoryState::default();
+        state.set(b"counter".to_vec(), b"1".to_vec());
+
+        let block = sample_block();
+        let tx = sample_tx(LaneId::Core, 200_000);
+        let mut journal = StateJournal::new();
+        journal.begin_transaction();
+        let mut fuel = FuelMeter::new(200_000);
+        let schedule = FuelSchedule::default();
+        let mut env = ExecutionEnv {
+            block: &block,
+            tx: &tx,
+            state: &mut state,
+            journal: &mut journal,
+            fuel: &mut fuel,
+            schedule: &schedule,
+        };
+
+        env.write_state(b"counter".to_vec(), b"9".to_vec())
+            .expect("write should succeed");
+        assert_eq!(env.read_state(b"counter"), Some(b"9".to_vec()));
     }
 
     #[test]
