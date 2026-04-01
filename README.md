@@ -13,7 +13,6 @@ AOXChain is an experimental, modular Layer-1 engineering workspace focused on de
 This repository is used to design and validate:
 - deterministic kernel state-transition behavior,
 - native kernel handling of foreign chain identity, proof types, finality classes, and authority domains,
-- verified counterpart relationships where remote contracts/programs remain canonical on their home chains,
 - consensus and networking safety boundaries,
 - operator-grade runtime controls,
 - audit-ready evidence for release and production-closure decisions.

@@ -51,12 +51,11 @@ This flow is intentionally structured so that operational actions remain observa
 For cross-chain workflows, kernel control flow is explicit:
 
 1. **Ingress classification:** the kernel resolves foreign chain profile, authority domain, and proof/finality expectations.
-2. **Counterpart binding:** the kernel binds the message to a verified counterpart relationship for a remote canonical contract/program.
-3. **Canonicalization:** foreign events and intents are normalized into canonical cross-chain message records.
-4. **Verification dispatch boundary:** proof-type selection and verifier dispatch are decided at kernel boundary interfaces.
-5. **Settlement policy evaluation:** inbound and outbound settlement decisions are evaluated under deterministic policy classes.
-6. **Execution delegation:** if execution is required, the kernel delegates to execution modules with explicit constraints and expected outputs.
-7. **Finality bookkeeping:** finality class, acknowledgement status, and replay-protection state are persisted as canonical kernel truth.
+2. **Canonicalization:** foreign events and intents are normalized into canonical cross-chain message records.
+3. **Verification dispatch boundary:** proof-type selection and verifier dispatch are decided at kernel boundary interfaces.
+4. **Settlement policy evaluation:** inbound and outbound settlement decisions are evaluated under deterministic policy classes.
+5. **Execution delegation:** if execution is required, the kernel delegates to execution modules with explicit constraints and expected outputs.
+6. **Finality bookkeeping:** finality class and replay-protection state are persisted as canonical kernel truth.
 
 ---
 
@@ -89,28 +88,11 @@ AOXChain treats boundary enforcement as a first-class architectural concern.
 
 ### Interoperability Boundary (Kernel-First)
 - Foreign chain identity classification is a kernel concern, not an RPC or execution concern.
-- Foreign execution compatibility class is a kernel policy input, not an executor-owned assumption.
 - Proof type taxonomy and verifier dispatch decisions are kernel policy surfaces.
 - Finality class interpretation must be explicit, typed, and auditable at kernel level.
 - Authority-domain mapping and universal identity translation must remain deterministic and fail-closed.
 - Replay protection and message-domain separation must be enforced before execution dispatch.
 - Cross-chain routing semantics must be canonicalized in kernel-owned types.
-- Verified counterpart references and remote interaction progression are kernel-owned state.
-
-### Verified Counterpart Boundary
-- Remote contracts/programs remain canonical on their origin chains.
-- AOXChain does not attempt to absorb all foreign runtime execution into local VM behavior.
-- The kernel stores and governs a verified counterpart relationship that links:
-  - remote canonical object identity,
-  - remote gate/entry surface identity,
-  - local policy and settlement interpretation state.
-- Local execution, services, and operations consume this kernel state; they must not redefine counterpart truth.
-
-### Remote Gate and Paired Interaction Boundary
-- Advanced interaction requires explicit remote gate surfaces on the foreign chain plus kernel-governed paired interaction state on AOXChain.
-- Acknowledgement handling, replay-safe message identity, and settlement progression are protocol concerns, not ad-hoc relayer conventions.
-- Kernel policy must explicitly classify progression states (for example observed, acknowledged, settled, rejected, expired).
-- Transport and relayer components may deliver evidence, but cannot directly finalize settlement outcomes.
 
 ### Execution Boundary
 - Execution lanes must preserve deterministic semantics under shared policy constraints.
@@ -144,8 +126,7 @@ AOXChain is therefore positioned as:
 - proof-aware,
 - finality-aware,
 - policy-governed,
-- interoperability-native at the kernel layer,
-- counterpart-aware for remote canonical contracts/programs.
+- interoperability-native at the kernel layer.
 
 Execution remains essential but secondary: execution engines are replaceable implementation surfaces, while cross-chain trust interpretation and settlement safety are kernel responsibilities.
 
@@ -155,14 +136,11 @@ Execution remains essential but secondary: execution engines are replaceable imp
 
 ### `aoxcore` (Kernel protocol domain)
 - chain profile registry types and lookup contracts;
-- chain compatibility class vocabulary for heterogeneous execution families;
 - canonical cross-chain message model and domain separation rules;
 - proof type registry interfaces and verifier dispatch boundary traits;
 - finality classification types and decision inputs;
 - settlement policy evaluation input/output models;
 - authority-domain and universal identity mapping boundaries;
-- verified counterpart references for remote canonical contracts/programs;
-- remote gate identifiers, acknowledgement semantics, and interaction status progression;
 - replay protection and canonical routing keys.
 
 ### `aoxcunity` (Kernel consensus and finalization)

@@ -31,8 +31,6 @@ Within `protocol`, the kernel explicitly owns:
 - finality classification input vocabulary,
 - policy-evaluation input and outcome types,
 - authority-domain / universal identity mapping boundaries,
-- verified counterpart references to remote canonical contracts/programs,
-- remote gate and paired interaction status progression vocabulary,
 - replay-protection domain separation semantics.
 
 These are typed in kernel space so higher layers consume a stable, audit-friendly protocol vocabulary.

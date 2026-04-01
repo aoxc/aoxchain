@@ -10,8 +10,7 @@ This crate defines low-level primitives that shape protocol truth, including:
 - transaction-domain types,
 - receipt and state structures,
 - canonical protocol envelope types,
-- interoperability-aware kernel boundary types,
-- verified counterpart and remote interaction boundary vocabulary.
+- interoperability-aware kernel boundary types.
 
 ## Responsibility Boundary
 This crate is responsible for:
