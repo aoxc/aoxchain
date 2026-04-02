@@ -102,11 +102,10 @@ impl Executor {
     fn validate(&self, code: &[u8]) -> Result<(), ExecutionTrap> {
         let mut pc = 0usize;
         while pc < code.len() {
-            let opcode =
-                Opcode::from_byte(code[pc]).map_err(|err| match err {
-                    OpcodeDecodeError::Unknown(byte) => ExecutionTrap::DecodeUnknownOpcode(byte),
-                    OpcodeDecodeError::Reserved(byte) => ExecutionTrap::DecodeReservedOpcode(byte),
-                })?;
+            let opcode = Opcode::from_byte(code[pc]).map_err(|err| match err {
+                OpcodeDecodeError::Unknown(byte) => ExecutionTrap::DecodeUnknownOpcode(byte),
+                OpcodeDecodeError::Reserved(byte) => ExecutionTrap::DecodeReservedOpcode(byte),
+            })?;
             pc += 1;
             if opcode == Opcode::PushI64 {
                 if code.len().saturating_sub(pc) < 8 {

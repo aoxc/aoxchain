@@ -259,7 +259,7 @@ endef
 	runtime-bundle-compat-check docker-check production-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
-	demo localnet devnet testnet testnet-gate testnet-readiness-gate reset doctor audit-chain logs down restart \
+	demo localnet devnet testnet testnet-gate testnet-readiness-gate aoxcvm-phase3-gate reset doctor audit-chain logs down restart \
 	network-create network-start network-stop network-status genesis-build chain-status \
 	chain-help chain-init chain-add-account chain-add-validator chain-start-persistent \
 	ui alpha
@@ -989,9 +989,14 @@ testnet-gate:
 	$(call print_banner,Running persistent testnet readiness gate)
 	@./scripts/validation/persistent_testnet_gate.sh
 
+
 testnet-readiness-gate:
 	$(call print_banner,Running testnet readiness quality gate)
 	@./scripts/validation/testnet_readiness_gate.sh
+
+aoxcvm-phase3-gate:
+	$(call print_banner,Running AOXCVM phase-3 release-grade gate)
+	@./scripts/validation/aoxcvm_phase3_gate.sh
 
 reset:
 	$(call print_banner,Resetting AOXC operator runtime)

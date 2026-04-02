@@ -143,6 +143,26 @@ jobs:
         run: |
           set -euo pipefail
           ./scripts/quality_gate.sh full
+      - name: Verify AOXCVM phase-3 gate script
+        run: |
+          set -euo pipefail
+          test -f ./scripts/validation/aoxcvm_phase3_gate.sh
+          chmod +x ./scripts/validation/aoxcvm_phase3_gate.sh
+
+      - name: Run AOXCVM phase-3 gate
+        run: |
+          set -euo pipefail
+          make --no-print-directory aoxcvm-phase3-gate
+
+      - name: Upload AOXCVM phase-3 artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aoxcvm-phase3-artifacts
+          path: artifacts/aoxcvm-phase3/
+          if-no-files-found: ignore
+          retention-days: 14
+
 
   desktop-gate:
     name: Desktop Tauri gate
