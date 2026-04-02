@@ -11,7 +11,7 @@ use crate::context::{
 };
 use crate::receipts::proof::ReceiptProof;
 use crate::state::JournaledState;
-use crate::tx::envelope::TxEnvelope;
+use crate::tx::{envelope::TxEnvelope, fee::FeeBudget, kind::TxKind, payload::TxPayload};
 use crate::verifier::determinism::{DeterminismError, DeterminismVerifier};
 use crate::vm::admission::{AdmissionError, validate_phase1_admission};
 use crate::vm::machine::{ExecutionResult, Program};
@@ -89,20 +89,27 @@ impl AOXCVMachineQX1 {
         Self { config }
     }
 
-    /// Executes and verifies a program with deterministic replay using
-    /// kernel-constructed context derived from the provided transaction envelope.
-    pub fn execute_phase1(
-        &self,
-        program: Program,
-        tx: TxEnvelope,
-    ) -> Result<KernelOutput, KernelError> {
-        let context = self.default_context_for_tx(&tx);
-        self.execute_phase1_with_context(program, context, tx)
+    /// Executes and verifies a program with deterministic replay using a default context.
+    pub fn execute_phase1(&self, program: Program) -> Result<KernelOutput, KernelError> {
+        let context = self.default_context();
+        let tx = Self::default_tx_for_context(&context);
+        self.execute_phase1_with_admission(program, context, tx)
     }
 
     /// Executes and verifies a program using caller-provided immutable execution context
     /// and explicit transaction-envelope admission.
     pub fn execute_phase1_with_context(
+        &self,
+        program: Program,
+        context: ExecutionContext,
+        tx: TxEnvelope,
+    ) -> Result<KernelOutput, KernelError> {
+        let tx = Self::default_tx_for_context(&context);
+        self.execute_phase1_with_admission(program, context, tx)
+    }
+
+    /// Executes phase-1 flow with explicit transaction-envelope admission.
+    pub fn execute_phase1_with_admission(
         &self,
         program: Program,
         context: ExecutionContext,
@@ -130,7 +137,17 @@ impl AOXCVMachineQX1 {
         })
     }
 
-    fn default_context_for_tx(&self, tx: &TxEnvelope) -> ExecutionContext {
+    fn default_tx_for_context(context: &ExecutionContext) -> TxEnvelope {
+        TxEnvelope::new(
+            context.environment.chain_id,
+            u64::from(context.tx.tx_index),
+            TxKind::UserCall,
+            FeeBudget::new(context.tx.gas_limit, 1),
+            TxPayload::new(vec![0_u8]),
+        )
+    }
+
+    fn default_context(&self) -> ExecutionContext {
         ExecutionContext::new(
             EnvironmentContext::new(tx.chain_id, 1),
             BlockContext::new(0, 0, 0, [0_u8; 32]),
@@ -302,7 +319,46 @@ mod tests {
 
         assert!(matches!(
             err,
-            KernelError::Admission(crate::vm::admission::AdmissionError::ContextTxGasMismatch)
+            KernelError::Admission(crate::vm::admission::AdmissionError::Context(
+                crate::context::execution::ContextError::DepthExceedsDeterminism
+            ))
+        ));
+    }
+
+    #[test]
+    fn rejects_admission_when_context_and_tx_chain_id_do_not_match() {
+        let kernel = AOXCVMachineQX1::new(KernelConfig::default());
+        let context = ExecutionContext::new(
+            EnvironmentContext::new(2626, 1),
+            BlockContext::new(1, 1, 1, [9_u8; 32]),
+            TxContext::new([7_u8; 32], 0, 500, false, 1, 0),
+            CallContext::new(0),
+            OriginContext::new([1_u8; 32], [2_u8; 32], [1_u8; 32], 0),
+        );
+
+        let tx = TxEnvelope::new(
+            2627,
+            1,
+            TxKind::UserCall,
+            FeeBudget::new(500, 1),
+            TxPayload::new(vec![1_u8]),
+        );
+
+        let err = kernel
+            .execute_phase1_with_admission(
+                Program {
+                    code: vec![Instruction::Halt],
+                },
+                context,
+                tx,
+            )
+            .expect_err("must fail");
+
+        assert!(matches!(
+            err,
+            KernelError::Admission(crate::vm::admission::AdmissionError::TxValidation(
+                crate::tx::validation::ValidationError::ChainIdMismatch
+            ))
         ));
     }
 }

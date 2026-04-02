@@ -30,7 +30,6 @@ surfaces so reviewers can audit completion claims against code and tests.
 The following automated checks are implemented as part of the crate:
 
 - kernel orchestration and context-bound checks in `src/vm/kernel.rs` tests,
-- explicit transaction-envelope admission through kernel entrypoints in `src/vm/kernel.rs`,
 - admission consistency checks in `src/vm/admission.rs` tests,
 - journal rollback/merge/conflict/atomicity checks in `src/host/journal.rs` tests,
 - deterministic verifier and execution path checks in `src/verifier/*` and `src/vm/*` tests,
