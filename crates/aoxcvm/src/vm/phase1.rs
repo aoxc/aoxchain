@@ -11,6 +11,7 @@ use aoxcontract::ContractDescriptor;
 
 /// Stable execution context contract.
 pub type ExecutionContractContext = ExecutionContext;
+
 /// Stable receipt contract.
 pub type Receipt = ExecutionReceipt;
 
@@ -29,7 +30,8 @@ pub enum SpecError {
 }
 
 impl VmSpec {
-    /// Build a phase-1 VM spec from contract-policy config with fail-closed target checks.
+    /// Build a phase-1 VM spec from contract-policy config with fail-closed
+    /// VM target admission.
     pub fn from_config(
         config: &ContractsConfig,
         descriptor: &ContractDescriptor,
@@ -69,6 +71,9 @@ pub struct ExecutionContract {
 }
 
 /// Canonical execution output contract.
+///
+/// This structure intentionally exposes only the stable, protocol-relevant
+/// outcome surface required by Phase 1 integration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionOutcome {
     pub receipt: Receipt,
@@ -76,7 +81,10 @@ pub struct ExecutionOutcome {
     pub vm_error: Option<VmError>,
 }
 
-/// Pre-execution admission errors (strictly outside VM execution).
+/// Pre-execution admission errors.
+///
+/// These errors are raised strictly before execution begins. They must never
+/// represent an in-VM runtime failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AdmissionError {
     InvalidAuth,
@@ -104,7 +112,10 @@ impl From<ContextError> for ExecuteError {
     }
 }
 
-/// Host boundary: VM cannot persist state directly.
+/// Host boundary: the VM kernel must never persist state directly.
+///
+/// All durable state transitions must flow through this interface so that
+/// checkpoint, rollback, and commit semantics remain explicit and testable.
 pub trait Host {
     fn load_state(&self) -> JournaledState;
     fn checkpoint(&mut self) -> Result<usize, ()>;
@@ -117,19 +128,24 @@ pub trait AuthVerifier {
     fn verify(&self, tx: &TxEnvelope, auth: &AuthEnvelope) -> bool;
 }
 
-/// Object/bytecode admission boundary.
+/// Object and bytecode admission boundary.
 pub trait ObjectVerifier {
     fn verify(&self, object: &[u8], program: &Program, spec: VmSpec) -> bool;
 }
 
 /// Canonical phase-1 kernel entry.
 ///
-/// The ordering is strict:
-/// 1. auth verify,
-/// 2. object/bytecode verify,
-/// 3. host checkpoint,
-/// 4. VM execute,
-/// 5. host rollback|commit.
+/// The lifecycle ordering is intentionally strict:
+/// 1. malformed-input rejection,
+/// 2. deterministic context validation,
+/// 3. authentication verification,
+/// 4. object verification,
+/// 5. host checkpoint,
+/// 6. VM execution,
+/// 7. rollback or commit.
+///
+/// This ordering is a security boundary. Invalid admission input must fail
+/// closed before any state-transition lifecycle begins.
 pub fn execute(
     contract: &ExecutionContract,
     host: &mut impl Host,
@@ -161,6 +177,7 @@ pub fn execute(
 
     let checkpoint = host.checkpoint().map_err(|_| ExecuteError::Host)?;
     let initial_state = host.load_state();
+
     let envelope = Machine::with_state(
         contract.program.clone(),
         contract.tx.fee_budget.gas_limit,
@@ -191,6 +208,10 @@ pub fn execute(
 }
 
 /// Minimal in-memory host implementation for deterministic tests.
+///
+/// This host intentionally keeps semantics small and explicit. It is suitable
+/// for unit and lifecycle tests, but not intended as a production storage
+/// backend.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InMemoryHost {
     state: JournaledState,
@@ -218,13 +239,16 @@ impl Host for InMemoryHost {
         if checkpoint >= self.checkpoints.len() {
             return Err(());
         }
+
         self.state = state;
         self.checkpoints.truncate(checkpoint);
         Ok(())
     }
 }
 
-/// Baseline verifier that enforces envelope-level auth shape constraints.
+/// Baseline verifier that enforces minimum auth envelope shape.
+///
+/// Phase 1 intentionally keeps this implementation conservative.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BasicAuthVerifier;
 
@@ -247,8 +271,8 @@ impl ObjectVerifier for BasicObjectVerifier {
 #[cfg(test)]
 mod tests {
     use super::{
-        AdmissionError, BasicAuthVerifier, BasicObjectVerifier, ExecuteError, ExecutionContract,
-        InMemoryHost, VmSpec, execute,
+        AdmissionError, AuthVerifier, BasicAuthVerifier, BasicObjectVerifier, ExecuteError,
+        ExecutionContract, Host, InMemoryHost, ObjectVerifier, VmSpec, execute,
     };
     use crate::auth::{
         envelope::{AuthEnvelope, SignatureEntry},
@@ -263,6 +287,8 @@ mod tests {
     use crate::vm::machine::{Instruction, Program, VmError};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    /// Host spy used to validate lifecycle ordering and side effects at the
+    /// host boundary.
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     struct SpyHost {
         inner: InMemoryHost,
@@ -271,6 +297,32 @@ mod tests {
         commit_calls: usize,
     }
 
+    impl Host for SpyHost {
+        fn load_state(&self) -> crate::state::JournaledState {
+            self.inner.load_state()
+        }
+
+        fn checkpoint(&mut self) -> Result<usize, ()> {
+            self.checkpoint_calls += 1;
+            self.inner.checkpoint()
+        }
+
+        fn rollback(&mut self, checkpoint: usize) -> Result<(), ()> {
+            self.rollback_calls += 1;
+            self.inner.rollback(checkpoint)
+        }
+
+        fn commit(
+            &mut self,
+            checkpoint: usize,
+            state: crate::state::JournaledState,
+        ) -> Result<(), ()> {
+            self.commit_calls += 1;
+            self.inner.commit(checkpoint, state)
+        }
+    }
+
+    /// Counting verifier used to prove admission short-circuit ordering.
     #[derive(Debug, Default)]
     struct CountingAuthVerifier {
         calls: AtomicUsize,
@@ -297,13 +349,15 @@ mod tests {
         }
     }
 
-    impl super::AuthVerifier for CountingAuthVerifier {
+    impl AuthVerifier for CountingAuthVerifier {
         fn verify(&self, _tx: &TxEnvelope, _auth: &AuthEnvelope) -> bool {
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.allow
         }
     }
 
+    /// Counting verifier used to confirm that object verification is reached
+    /// only after successful auth admission.
     #[derive(Debug, Default)]
     struct CountingObjectVerifier {
         calls: AtomicUsize,
@@ -330,68 +384,10 @@ mod tests {
         }
     }
 
-    impl super::ObjectVerifier for CountingObjectVerifier {
+    impl ObjectVerifier for CountingObjectVerifier {
         fn verify(&self, _object: &[u8], _program: &Program, _spec: VmSpec) -> bool {
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.allow
-        }
-    }
-
-    impl super::Host for SpyHost {
-        fn load_state(&self) -> crate::state::JournaledState {
-            self.inner.load_state()
-        }
-
-        fn checkpoint(&mut self) -> Result<usize, ()> {
-            self.checkpoint_calls += 1;
-            self.inner.checkpoint()
-        }
-
-        fn rollback(&mut self, checkpoint: usize) -> Result<(), ()> {
-            self.rollback_calls += 1;
-            self.inner.rollback(checkpoint)
-        }
-
-        fn commit(
-            &mut self,
-            checkpoint: usize,
-            state: crate::state::JournaledState,
-        ) -> Result<(), ()> {
-            self.commit_calls += 1;
-            self.inner.commit(checkpoint, state)
-        }
-    }
-
-    #[derive(Debug, Clone, Default, PartialEq, Eq)]
-    struct SpyHost {
-        inner: InMemoryHost,
-        checkpoint_calls: usize,
-        rollback_calls: usize,
-        commit_calls: usize,
-    }
-
-    impl super::Host for SpyHost {
-        fn load_state(&self) -> crate::state::JournaledState {
-            self.inner.load_state()
-        }
-
-        fn checkpoint(&mut self) -> Result<usize, ()> {
-            self.checkpoint_calls += 1;
-            self.inner.checkpoint()
-        }
-
-        fn rollback(&mut self, checkpoint: usize) -> Result<(), ()> {
-            self.rollback_calls += 1;
-            self.inner.rollback(checkpoint)
-        }
-
-        fn commit(
-            &mut self,
-            checkpoint: usize,
-            state: crate::state::JournaledState,
-        ) -> Result<(), ()> {
-            self.commit_calls += 1;
-            self.inner.commit(checkpoint, state)
         }
     }
 
@@ -427,7 +423,7 @@ mod tests {
             auth,
             object: vec![1, 2, 3],
             context,
-            program: crate::vm::machine::Program { code },
+            program: Program { code },
         }
     }
 
@@ -446,6 +442,7 @@ mod tests {
             &BasicObjectVerifier,
         )
         .expect("run a");
+
         let b = execute(
             &contract,
             &mut host_b,
@@ -526,9 +523,10 @@ mod tests {
 
     #[test]
     fn invalid_auth_rejected_before_execution() {
-        let mut contract = valid_contract(vec![Instruction::Halt]);
-        contract.auth.signers.clear();
+        let contract = valid_contract(vec![Instruction::Halt]);
         let mut host = SpyHost::default();
+        let auth = CountingAuthVerifier::rejecting();
+        let object = CountingObjectVerifier::allowing();
 
         let err = execute(&contract, &mut host, VmSpec::default(), &auth, &object)
             .expect_err("reject invalid auth");
@@ -560,53 +558,10 @@ mod tests {
     }
 
     #[test]
-    fn execution_failure_rolls_back_and_does_not_commit() {
-        let contract = valid_contract(vec![
-            Instruction::Push(1),
-            Instruction::Push(0),
-            Instruction::Div,
-        ]);
-        let mut host = SpyHost::default();
-
-        let out = execute(
-            &contract,
-            &mut host,
-            VmSpec::default(),
-            &BasicAuthVerifier,
-            &BasicObjectVerifier,
-        )
-        .expect("execute");
-
-        assert_eq!(err, ExecuteError::Admission(AdmissionError::InvalidAuth));
-        assert_eq!(host.checkpoint_calls, 0);
-        assert_eq!(host.rollback_calls, 0);
-        assert_eq!(host.commit_calls, 0);
-    }
-
-    #[test]
-    fn invalid_object_rejected_before_execution() {
-        let mut contract = valid_contract(vec![Instruction::Halt]);
-        contract.object.clear();
-        let mut host = SpyHost::default();
-
-        let out = execute(
-            &contract,
-            &mut host,
-            VmSpec::default(),
-            &BasicAuthVerifier,
-            &BasicObjectVerifier,
-        )
-        .expect("execute");
-
-        assert_eq!(out.vm_error, None);
-        assert_eq!(host.checkpoint_calls, 1);
-        assert_eq!(host.rollback_calls, 0);
-        assert_eq!(host.commit_calls, 1);
-    }
-
-    #[test]
     fn oversize_object_is_fail_closed_before_object_verifier() {
         let mut contract = valid_contract(vec![Instruction::Halt]);
+        contract.object = vec![1, 2, 3];
+
         let mut host = SpyHost::default();
         let auth = CountingAuthVerifier::allowing();
         let object = CountingObjectVerifier::allowing();
@@ -614,11 +569,12 @@ mod tests {
             max_object_bytes: 2,
             ..VmSpec::default()
         };
-        contract.object = vec![1, 2, 3];
 
         let err = execute(&contract, &mut host, spec, &auth, &object).expect_err("reject object");
 
         assert_eq!(err, ExecuteError::Admission(AdmissionError::InvalidObject));
+        assert_eq!(auth.calls(), 1);
+        assert_eq!(object.calls(), 0);
         assert_eq!(host.checkpoint_calls, 0);
         assert_eq!(host.rollback_calls, 0);
         assert_eq!(host.commit_calls, 0);
@@ -646,5 +602,26 @@ mod tests {
         assert_eq!(host.checkpoint_calls, 1);
         assert_eq!(host.rollback_calls, 1);
         assert_eq!(host.commit_calls, 0);
+    }
+
+    #[test]
+    fn successful_execution_commits_without_rollback() {
+        let contract = valid_contract(vec![Instruction::Push(7), Instruction::Halt]);
+        let mut host = SpyHost::default();
+
+        let out = execute(
+            &contract,
+            &mut host,
+            VmSpec::default(),
+            &BasicAuthVerifier,
+            &BasicObjectVerifier,
+        )
+        .expect("execute");
+
+        assert_eq!(out.vm_error, None);
+        assert_eq!(out.receipt.status, ReceiptStatus::Success);
+        assert_eq!(host.checkpoint_calls, 1);
+        assert_eq!(host.rollback_calls, 0);
+        assert_eq!(host.commit_calls, 1);
     }
 }
