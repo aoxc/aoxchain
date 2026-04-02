@@ -77,9 +77,7 @@ impl ConstitutionalDecision {
             AoxcvmError::InvalidSignatureMetadata(_) => "invalid_signature_metadata",
             AoxcvmError::UnknownAuthProfile { .. } => "unknown_auth_profile",
             AoxcvmError::UnknownAuthProfileVersion { .. } => "unknown_auth_profile_version",
-            AoxcvmError::DuplicateAuthProfileVersion { .. } => {
-                "duplicate_auth_profile_version"
-            }
+            AoxcvmError::DuplicateAuthProfileVersion { .. } => "duplicate_auth_profile_version",
         }
     }
 }

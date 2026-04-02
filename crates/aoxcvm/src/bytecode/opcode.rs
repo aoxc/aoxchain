@@ -103,8 +103,14 @@ mod tests {
 
     #[test]
     fn reserved_and_unknown_are_fail_closed() {
-        assert_eq!(Opcode::from_byte(0x80), Err(OpcodeDecodeError::Reserved(0x80)));
-        assert_eq!(Opcode::from_byte(0x7f), Err(OpcodeDecodeError::Unknown(0x7f)));
+        assert_eq!(
+            Opcode::from_byte(0x80),
+            Err(OpcodeDecodeError::Reserved(0x80))
+        );
+        assert_eq!(
+            Opcode::from_byte(0x7f),
+            Err(OpcodeDecodeError::Unknown(0x7f))
+        );
     }
 
     #[test]
