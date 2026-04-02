@@ -7,7 +7,10 @@ use crate::vm::machine::{Instruction, Program};
 pub enum BytecodeError {
     EmptyProgram,
     MissingHalt,
-    ProgramTooLarge { max: usize, got: usize },
+    ProgramTooLarge {
+        max: usize,
+        got: usize,
+    },
     HaltNotTerminal,
     MemoryAccessOutOfBounds {
         offset: usize,

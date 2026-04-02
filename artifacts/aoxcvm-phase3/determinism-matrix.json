@@ -1,0 +1,20 @@
+{
+  "generated_at_utc": "2026-04-02T10:00:36Z",
+  "git_sha": "3b08952a08661e11e59b72f60a0f6801379194ac",
+  "probe": {
+    "debug_hash": "35f69863c36f5ade4ac12c2d5716efb95d7d2eae461a1866075c00bd696a9753",
+    "release_hash": "35f69863c36f5ade4ac12c2d5716efb95d7d2eae461a1866075c00bd696a9753",
+    "parity": true
+  },
+  "host_fixture": {
+    "os": "Linux",
+    "cpu_arch": "x86_64",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)"
+  },
+  "heterogeneous_validator_matrix": [
+    {"os": "linux", "cpu": "x86_64", "status": "required"},
+    {"os": "linux", "cpu": "aarch64", "status": "required"},
+    {"os": "macos", "cpu": "aarch64", "status": "required"},
+    {"os": "windows", "cpu": "x86_64", "status": "required"}
+  ]
+}
