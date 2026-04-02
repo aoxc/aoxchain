@@ -1,0 +1,18 @@
+{
+  "generated_at_utc": "2026-04-02T10:00:36Z",
+  "git_sha": "3b08952a08661e11e59b72f60a0f6801379194ac",
+  "gas_table_justification": {
+    "add": 3,
+    "storage_write": 200,
+    "pq_verify": 5000,
+    "invariant": "add < storage_write < pq_verify"
+  },
+  "dos_cost_envelope": {
+    "meter_limit": 10000,
+    "expected_out_of_gas_on_pq_verify": true
+  },
+  "benchmark_diff_gate": {
+    "policy": "manual-threshold-review",
+    "required_on_release": true
+  }
+}
