@@ -4,6 +4,7 @@ pub mod envelope;
 pub mod hybrid;
 pub mod nonce;
 pub mod policy;
+pub mod quantum;
 pub mod recovery;
 pub mod registry;
 pub mod replay;
