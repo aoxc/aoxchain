@@ -31,6 +31,7 @@ impl InvariantVerifier {
 mod tests {
     use super::{InvariantError, InvariantVerifier};
     use crate::receipts::outcome::{ExecutionReceipt, ReceiptStatus};
+    use crate::state::JournaledState;
     use crate::vm::machine::ExecutionResult;
 
     #[test]
@@ -43,6 +44,7 @@ mod tests {
                 state_root: [0; 32],
             },
             stack: vec![],
+            final_state: JournaledState::default(),
         };
         assert_eq!(
             InvariantVerifier::verify(&result, 100),

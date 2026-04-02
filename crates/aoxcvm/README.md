@@ -2,9 +2,31 @@
 
 AOXCVM is the AOXChain L1-native virtual machine redesign baseline.
 
+## Status
+- Architecture status: **Phase 1 kernel baseline implemented**
+- Delivery model: **Three-phase kernel-to-quantum roadmap**
+- Current priority: **Phase 2 — Runtime Expansion (capability hardening + canonical receipts)**
+
 ## Design posture
 - L1-first execution model.
-- Crypto agility with post-quantum migration surfaces.
-- Deterministic execution, explicit host boundaries, and governance-controlled evolution.
+- Deterministic execution with explicit host boundaries.
+- Versioned execution rules and migration-aware governance.
+- Crypto agility with hybrid and post-quantum authorization evolution.
+- Auditability through canonical receipts and replay discipline.
 
-This crate remains mostly scaffolded, with initial transaction-envelope primitives implemented for deterministic hashing, stateless validation, replay tracking, and dry-run request modeling.
+## Canonical specification surfaces
+- `ROADMAP.md`: AOXC-VMachine-QX1 three-phase architecture and delivery specification.
+- `docs/PHASE1_KERNEL_SPEC.md`: normative Phase 1 kernel completion criteria.
+- `docs/PHASE1_COMPLETION_REPORT.md`: implemented Phase 1 coverage and validation evidence matrix.
+- `docs/VM_OVERVIEW.md`: component scope and high-level execution model.
+- `docs/INVARIANTS.md`: deterministic and safety invariants expected at runtime.
+
+## Phase sequencing
+- **Phase 1 — Kernel Completion:** deterministic, rollback-safe, gas-safe, versioned, authorization-aware execution kernel.
+- **Phase 2 — Runtime Expansion:** package lifecycle, richer syscall and runtime capabilities without weakening kernel guarantees.
+- **Phase 3 — Quantum Hardening and Proof Ecosystem:** governed hybrid/PQ migration and deterministic witness/proof artifacts.
+
+## Immediate execution focus (Phase 1)
+The repository now carries a kernel-complete baseline aligned with the Phase 1 specification.
+Ongoing work is focused on expanding runtime surfaces without weakening deterministic replay,
+rollback safety, admission strictness, or canonical receipt guarantees.
