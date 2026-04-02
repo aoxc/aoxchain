@@ -147,7 +147,8 @@ impl EpochKeyBundle {
                 self.realm == prev.realm
                     && self.epoch_id == prev.epoch_id + 1
                     && self.valid_from >= prev.valid_until
-                    && self.predecessor_fingerprint.as_deref() == Some(&prev.canonical_fingerprint())
+                    && self.predecessor_fingerprint.as_deref()
+                        == Some(&prev.canonical_fingerprint())
             }
         }
     }
