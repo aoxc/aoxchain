@@ -215,10 +215,15 @@ pub fn execute(
         Some(err) => {
             host.rollback(checkpoint)
                 .map_err(|_| ExecuteError::HostRollback)?;
+
+            let receipt = envelope.result.receipt;
+            let gas_used = receipt.gas_used;
+            let stack = envelope.result.stack;
+
             Ok(ExecutionOutcome {
-                receipt: envelope.result.receipt,
-                stack: envelope.result.stack,
-                gas_used: envelope.result.receipt.gas_used,
+                receipt,
+                stack,
+                gas_used,
                 halt_reason: HaltReason::VmError(err.clone()),
                 spec_version: spec.spec_version,
                 journal_committed: false,
@@ -228,10 +233,15 @@ pub fn execute(
         None => {
             host.commit(checkpoint, envelope.result.final_state)
                 .map_err(|_| ExecuteError::HostCommit)?;
+
+            let receipt = envelope.result.receipt;
+            let gas_used = receipt.gas_used;
+            let stack = envelope.result.stack;
+
             Ok(ExecutionOutcome {
-                receipt: envelope.result.receipt,
-                stack: envelope.result.stack,
-                gas_used: envelope.result.receipt.gas_used,
+                receipt,
+                stack,
+                gas_used,
                 halt_reason: HaltReason::Success,
                 spec_version: spec.spec_version,
                 journal_committed: true,
@@ -327,8 +337,6 @@ mod tests {
     use crate::vm::machine::{Instruction, Program, VmError};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    /// Host spy used to validate lifecycle ordering and side effects at the
-    /// host boundary.
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     struct SpyHost {
         inner: InMemoryHost,
@@ -364,7 +372,6 @@ mod tests {
         }
     }
 
-    /// Counting verifier used to prove admission short-circuit ordering.
     #[derive(Debug, Default)]
     struct CountingAuthVerifier {
         calls: AtomicUsize,
@@ -398,8 +405,6 @@ mod tests {
         }
     }
 
-    /// Counting verifier used to confirm that object verification is reached
-    /// only after successful auth admission.
     #[derive(Debug, Default)]
     struct CountingObjectVerifier {
         calls: AtomicUsize,
