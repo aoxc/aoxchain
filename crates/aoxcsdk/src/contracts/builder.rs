@@ -232,6 +232,12 @@ impl ContractManifestBuilder {
 
     pub fn with_execution_profile(mut self, execution_profile: ExecutionProfile) -> Self {
         self.execution_profile = Some(execution_profile);
+        // Preserve fluent-builder call-order semantics: if a full execution profile
+        // is supplied after field-level overrides, the full profile becomes the
+        // canonical source of truth until a later field-level override is applied.
+        self.contract_class = None;
+        self.capability_profile = None;
+        self.policy_profile = None;
         self
     }
 
@@ -437,7 +443,7 @@ mod tests {
     use aoxcontract::{
         ArtifactDigest, ArtifactDigestAlgorithm, CapabilityProfile, ContractCapability,
         ContractClass, Entrypoint, ExecutionProfile, NetworkClass, PolicyProfile, RuntimeFamily,
-        VmTarget,
+        Validate, VmTarget,
     };
 
     fn digest(seed: &str) -> ArtifactDigest {
