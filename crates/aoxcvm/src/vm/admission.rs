@@ -2,7 +2,7 @@
 
 use crate::context::{deterministic::DeterminismLimits, execution::ExecutionContext};
 use crate::tx::{envelope::TxEnvelope, validation::ValidationPolicy};
-use aoxcontract::RuntimeBindingDescriptor;
+use aoxcontract::{ContractClass, RuntimeBindingDescriptor};
 
 /// Admission errors produced before instruction execution begins.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,6 +15,7 @@ pub enum AdmissionError {
     RestrictedAuthProfileRequired,
     RestrictedAuthProfileMismatch,
     GovernanceActivationRequired,
+    TxKindForbiddenForClass,
 }
 
 impl From<crate::context::execution::ContextError> for AdmissionError {
@@ -68,6 +69,17 @@ pub fn validate_phase2_admission(
     tx: &TxEnvelope,
     active_auth_profile: Option<&str>,
 ) -> Result<(), AdmissionError> {
+    if !tx_kind_allowed_for_class(
+        tx.kind,
+        &binding.resolved_profile.contract_class,
+        binding
+            .resolved_profile
+            .policy_profile
+            .governance_activation_required,
+    ) {
+        return Err(AdmissionError::TxKindForbiddenForClass);
+    }
+
     let policy = &binding.resolved_profile.policy_profile;
 
     if policy.governance_activation_required
@@ -81,12 +93,51 @@ pub fn validate_phase2_admission(
 
     if let Some(required_profile) = policy.restricted_to_auth_profile.as_deref() {
         let active = active_auth_profile.ok_or(AdmissionError::RestrictedAuthProfileRequired)?;
-        if active != required_profile {
+        if normalize_auth_profile(active) != Some(required_profile) {
             return Err(AdmissionError::RestrictedAuthProfileMismatch);
         }
     }
 
     Ok(())
+}
+
+fn normalize_auth_profile(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    let valid = !trimmed.is_empty()
+        && trimmed == value
+        && trimmed
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '_' | '-' | '.'));
+    valid.then_some(trimmed)
+}
+
+fn tx_kind_allowed_for_class(
+    tx_kind: crate::tx::kind::TxKind,
+    class: &ContractClass,
+    governance_required: bool,
+) -> bool {
+    use crate::tx::kind::TxKind;
+    match class {
+        ContractClass::Application => matches!(tx_kind, TxKind::UserCall),
+        ContractClass::Governed => matches!(tx_kind, TxKind::Governance | TxKind::System),
+        ContractClass::System => matches!(tx_kind, TxKind::Governance | TxKind::System),
+        ContractClass::Package => {
+            matches!(
+                tx_kind,
+                TxKind::PackagePublish | TxKind::System | TxKind::Governance
+            )
+        }
+        ContractClass::PolicyBound => {
+            if governance_required {
+                matches!(tx_kind, TxKind::Governance | TxKind::System)
+            } else {
+                matches!(
+                    tx_kind,
+                    TxKind::UserCall | TxKind::Governance | TxKind::System
+                )
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -105,7 +156,8 @@ mod tests {
         vm::admission::{AdmissionError, validate_phase1_admission},
     };
     use aoxcontract::{
-        ContractId, ExecutionProfileRef, LaneBinding, RuntimeBindingDescriptor, VmTarget,
+        ContractClass, ContractId, ExecutionProfileRef, LaneBinding, RuntimeBindingDescriptor,
+        VmTarget,
     };
 
     fn sample_context(gas_limit: u64) -> ExecutionContext {
@@ -192,6 +244,7 @@ mod tests {
     #[test]
     fn phase2_rejects_governance_required_for_user_call() {
         let mut binding = sample_binding();
+        binding.resolved_profile.contract_class = ContractClass::Governed;
         binding
             .resolved_profile
             .policy_profile
@@ -205,6 +258,7 @@ mod tests {
     #[test]
     fn phase2_accepts_matching_auth_profile_and_governance_tx() {
         let mut binding = sample_binding();
+        binding.resolved_profile.contract_class = ContractClass::PolicyBound;
         binding
             .resolved_profile
             .policy_profile
@@ -226,5 +280,14 @@ mod tests {
             validate_phase2_admission(&binding, &governance_tx, Some("ops-v1")),
             Ok(())
         );
+    }
+
+    #[test]
+    fn phase2_rejects_forbidden_tx_kind_for_system_class() {
+        let mut binding = sample_binding();
+        binding.resolved_profile.contract_class = ContractClass::System;
+
+        let err = validate_phase2_admission(&binding, &sample_tx(500_000), None).unwrap_err();
+        assert_eq!(err, AdmissionError::TxKindForbiddenForClass);
     }
 }

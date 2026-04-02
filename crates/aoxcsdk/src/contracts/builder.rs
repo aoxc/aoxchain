@@ -703,4 +703,107 @@ mod tests {
                 .governance_activation_required
         );
     }
+
+    #[test]
+    fn builder_override_precedence_profile_then_class_and_policy() {
+        let manifest = ContractManifestBuilder::wasm()
+            .with_name("precedence-1")
+            .with_package("aox.precedence.one")
+            .with_artifact_digest(digest(
+                "2222222222222222222222222222222222222222222222222222222222222222",
+            ))
+            .with_artifact_location("ipfs://policy/precedence1.wasm")
+            .add_entrypoint(
+                Entrypoint::new("execute", VmTarget::Wasm, None, vec![])
+                    .expect("entrypoint should build"),
+            )
+            .with_execution_profile(ExecutionProfile {
+                vm_target: VmTarget::Wasm,
+                contract_class: ContractClass::Application,
+                capability_profile: CapabilityProfile {
+                    storage_read: true,
+                    ..CapabilityProfile::default()
+                },
+                policy_profile: PolicyProfile {
+                    review_required: true,
+                    governance_activation_required: false,
+                    restricted_to_auth_profile: None,
+                },
+            })
+            .with_contract_class(ContractClass::PolicyBound)
+            .with_capability_profile(CapabilityProfile {
+                storage_read: true,
+                restricted_syscalls: true,
+                ..CapabilityProfile::default()
+            })
+            .with_policy_profile(PolicyProfile {
+                review_required: true,
+                governance_activation_required: false,
+                restricted_to_auth_profile: Some("ops-v1".into()),
+            })
+            .build()
+            .expect("manifest should build");
+
+        assert_eq!(
+            manifest.execution_profile.contract_class,
+            ContractClass::PolicyBound
+        );
+        assert!(
+            manifest
+                .execution_profile
+                .capability_profile
+                .restricted_syscalls
+        );
+        assert_eq!(
+            manifest
+                .execution_profile
+                .policy_profile
+                .restricted_to_auth_profile
+                .as_deref(),
+            Some("ops-v1")
+        );
+    }
+
+    #[test]
+    fn builder_override_precedence_class_then_execution_profile() {
+        let manifest = ContractManifestBuilder::wasm()
+            .with_name("precedence-2")
+            .with_package("aox.precedence.two")
+            .with_artifact_digest(digest(
+                "3333333333333333333333333333333333333333333333333333333333333333",
+            ))
+            .with_artifact_location("ipfs://policy/precedence2.wasm")
+            .add_entrypoint(
+                Entrypoint::new("execute", VmTarget::Wasm, None, vec![])
+                    .expect("entrypoint should build"),
+            )
+            .with_contract_class(ContractClass::PolicyBound)
+            .with_execution_profile(ExecutionProfile {
+                vm_target: VmTarget::Wasm,
+                contract_class: ContractClass::Governed,
+                capability_profile: CapabilityProfile {
+                    storage_read: true,
+                    governance_hooks: true,
+                    ..CapabilityProfile::default()
+                },
+                policy_profile: PolicyProfile {
+                    review_required: true,
+                    governance_activation_required: true,
+                    restricted_to_auth_profile: None,
+                },
+            })
+            .build()
+            .expect("manifest should build");
+
+        assert_eq!(
+            manifest.execution_profile.contract_class,
+            ContractClass::Governed
+        );
+        assert!(
+            manifest
+                .execution_profile
+                .capability_profile
+                .governance_hooks
+        );
+    }
 }

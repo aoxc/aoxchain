@@ -7,6 +7,14 @@ pub mod resolver {
         LaneBinding, PolicyProfile, RuntimeBindingDescriptor, VmTarget,
     };
 
+    fn is_canonical_auth_profile_id(value: &str) -> bool {
+        !value.trim().is_empty()
+            && value == value.trim()
+            && value.chars().all(|c| {
+                c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '_' | '-' | '.')
+            })
+    }
+
     /// Resolves VM runtime binding from a canonical contract descriptor.
     ///
     /// This resolver is intentionally deterministic and fail-closed:
@@ -126,7 +134,7 @@ pub mod resolver {
         capabilities: &CapabilityProfile,
     ) -> Result<(), ContractError> {
         let missing_or_empty_profile = match policy.restricted_to_auth_profile.as_deref() {
-            Some(id) => id.trim().is_empty(),
+            Some(id) => !is_canonical_auth_profile_id(id),
             None => true,
         };
         if missing_or_empty_profile {

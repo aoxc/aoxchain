@@ -1,5 +1,8 @@
 # AOXCVM Phase-2 Runtime Expansion Layer
 
+> Canonical constitutional law tables for this phase are defined in
+> `PHASE2_EXECUTION_LAW.md`.
+
 ## Objective
 
 Phase-2 extends the runtime surface **without weakening** the Phase-1 kernel guarantees:
