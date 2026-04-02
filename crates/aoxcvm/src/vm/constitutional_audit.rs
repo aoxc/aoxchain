@@ -6,6 +6,7 @@
 
 use crate::{
     auth::signer::SignerClass,
+    errors::AoxcvmError,
     policy::governance::GovernanceLane,
     vm::{
         admission::ActiveAuthProfile,
@@ -64,6 +65,23 @@ impl ConstitutionalDecision {
             auth_profile_version: active_profile.map(|p| p.profile_version),
         }
     }
+
+    /// Maps deterministic runtime errors into canonical constitutional reason codes.
+    pub const fn reason_code_for_error(err: &AoxcvmError) -> &'static str {
+        match err {
+            AoxcvmError::CapabilityDenied(_) => "capability_denied",
+            AoxcvmError::GovernanceLaneViolation(_) => "governance_lane_violation",
+            AoxcvmError::PolicyViolation(_) => "policy_violation",
+            AoxcvmError::AuthLimitExceeded { .. } => "auth_limit_exceeded",
+            AoxcvmError::EmptySignatureSet => "empty_signature_set",
+            AoxcvmError::InvalidSignatureMetadata(_) => "invalid_signature_metadata",
+            AoxcvmError::UnknownAuthProfile { .. } => "unknown_auth_profile",
+            AoxcvmError::UnknownAuthProfileVersion { .. } => "unknown_auth_profile_version",
+            AoxcvmError::DuplicateAuthProfileVersion { .. } => {
+                "duplicate_auth_profile_version"
+            }
+        }
+    }
 }
 
 /// Deterministic in-memory recorder for constitutional audit decisions.
@@ -98,6 +116,7 @@ const fn lane_wire_id(lane: GovernanceLane) -> &'static str {
 mod tests {
     use crate::{
         auth::{registry::AuthProfileId, signer::SignerClass},
+        errors::AoxcvmError,
         host::capability_check::HostOperation,
         policy::governance::{GovernanceAction, GovernanceLane},
         vm::{
@@ -172,5 +191,23 @@ mod tests {
         assert_eq!(decisions.len(), 2);
         assert_eq!(decisions[0].reason_code, "governance_lane_violation");
         assert_eq!(decisions[1].reason_code, "capability_denied");
+    }
+
+    #[test]
+    fn reason_code_mapping_is_stable_for_runtime_errors() {
+        assert_eq!(
+            ConstitutionalDecision::reason_code_for_error(&AoxcvmError::CapabilityDenied("x")),
+            "capability_denied"
+        );
+        assert_eq!(
+            ConstitutionalDecision::reason_code_for_error(&AoxcvmError::GovernanceLaneViolation(
+                "x"
+            )),
+            "governance_lane_violation"
+        );
+        assert_eq!(
+            ConstitutionalDecision::reason_code_for_error(&AoxcvmError::PolicyViolation("x")),
+            "policy_violation"
+        );
     }
 }
