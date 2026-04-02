@@ -2,7 +2,8 @@ version: 2
 release_line: aoxc.v.0.1.1-akdeniz
 objective: >
   Canonical full-surface production readiness matrix covering mainnet, testnet,
-  devnet, AOXHub, desktop wallet, and telemetry for one release decision.
+  devnet, AOXHub, desktop wallet, telemetry, and quantum consensus policy for
+  one release decision.
 surfaces:
   - id: mainnet
     owner: protocol-release
@@ -12,6 +13,14 @@ surfaces:
       - artifacts/network-production-closure/production-audit.json
     verification_command: aoxc mainnet-readiness --format json
     blocker: "Mainnet sign-off requires all checks green or exception-approved."
+  - id: quantum-consensus
+    owner: protocol-security
+    status: in_progress
+    required_evidence:
+      - identity/genesis.json
+      - docs/QUANTUM_CHECKLIST.md
+    verification_command: aoxc chain consensus-audit --format json --enforce
+    blocker: "Consensus identity profile must satisfy hybrid/PQ gate policy before promotion."
   - id: testnet
     owner: network-operations
     status: in_progress
