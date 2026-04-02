@@ -39,10 +39,6 @@ pub enum AoxcvmError {
         /// Duplicate version value.
         version: u16,
     },
-    /// Governance lane is not valid for requested action.
-    GovernanceLaneViolation(&'static str),
-    /// Runtime capability gate denied operation.
-    CapabilityDenied(&'static str),
 }
 
 impl fmt::Display for AoxcvmError {
@@ -73,10 +69,6 @@ impl fmt::Display for AoxcvmError {
                 f,
                 "duplicate auth profile version: id={profile_id}, version={version}",
             ),
-            Self::GovernanceLaneViolation(msg) => {
-                write!(f, "governance lane violation: {msg}")
-            }
-            Self::CapabilityDenied(msg) => write!(f, "capability denied: {msg}"),
         }
     }
 }

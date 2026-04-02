@@ -1,9 +1,9 @@
 use aoxconfig::contracts::ContractsConfig;
 use aoxcontract::{
     ArtifactDigest, ArtifactDigestAlgorithm, CapabilityProfile, ContractClass, ContractDescriptor,
-    Entrypoint, PolicyProfile, VmTarget,
+    Entrypoint, PolicyProfile, Validate, VmTarget,
 };
-use aoxcsdk::contracts::builder::ContractManifestBuilder;
+use aoxcsdk::contracts::builder::{BuilderError, ContractManifestBuilder};
 use aoxcvm::tx::{envelope::TxEnvelope, fee::FeeBudget, payload::TxPayload};
 use aoxcvm::{
     contracts::resolver::resolve_runtime_binding,
@@ -26,7 +26,10 @@ fn base_builder() -> ContractManifestBuilder {
         .with_contract_version("1.0.0")
         .with_artifact_digest(digest())
         .with_artifact_location("ipfs://phase2/full.wasm")
-        .add_entrypoint(Entrypoint::new("execute", VmTarget::Wasm, None, vec![]).unwrap())
+        .add_entrypoint(
+            Entrypoint::new("execute", VmTarget::Wasm, None, vec![])
+                .expect("entrypoint should build"),
+        )
 }
 
 #[test]
@@ -44,12 +47,13 @@ fn phase2_integration_builder_manifest_descriptor_resolver_ok_flow() {
             restricted_to_auth_profile: Some("ops-v1".into()),
         })
         .build()
-        .unwrap();
+        .expect("manifest should build");
 
-    manifest.validate().unwrap();
-    let descriptor = ContractDescriptor::new(manifest).unwrap();
+    manifest.validate().expect("manifest should validate");
+    let descriptor = ContractDescriptor::new(manifest).expect("descriptor should build");
 
-    let binding = resolve_runtime_binding(&descriptor, &ContractsConfig::default()).unwrap();
+    let binding = resolve_runtime_binding(&descriptor, &ContractsConfig::default())
+        .expect("binding should resolve");
     assert_eq!(binding.execution_profile.0, "phase2-policy-bound");
 
     let tx = TxEnvelope::new(
@@ -67,8 +71,8 @@ fn phase2_integration_builder_manifest_descriptor_resolver_ok_flow() {
 }
 
 #[test]
-fn phase2_integration_resolver_fail_closed_for_application_capability_escalation() {
-    let manifest = base_builder()
+fn phase2_integration_manifest_fail_closed_for_application_capability_escalation() {
+    let err = base_builder()
         .with_contract_class(ContractClass::Application)
         .with_capability_profile(CapabilityProfile {
             storage_read: true,
@@ -76,13 +80,17 @@ fn phase2_integration_resolver_fail_closed_for_application_capability_escalation
             ..CapabilityProfile::default()
         })
         .build()
-        .unwrap();
+        .expect_err("manifest build must fail for forbidden application capability");
 
-    manifest.validate().unwrap();
-    let descriptor = ContractDescriptor::new(manifest).unwrap();
-
-    let err = resolve_runtime_binding(&descriptor, &ContractsConfig::default()).unwrap_err();
-    assert!(err.to_string().contains("registry_access"));
+    match err {
+        BuilderError::Contract(contract_err) => {
+            assert!(
+                contract_err.to_string().contains("registry_access"),
+                "unexpected contract error: {contract_err}"
+            );
+        }
+        other => panic!("unexpected builder error variant: {other}"),
+    }
 }
 
 #[test]
@@ -95,10 +103,13 @@ fn phase2_integration_admission_rejects_tx_kind_mismatch_for_class() {
             ..CapabilityProfile::default()
         })
         .build()
-        .unwrap();
+        .expect("manifest should build");
 
-    let descriptor = ContractDescriptor::new(manifest).unwrap();
-    let binding = resolve_runtime_binding(&descriptor, &ContractsConfig::default()).unwrap();
+    manifest.validate().expect("manifest should validate");
+    let descriptor = ContractDescriptor::new(manifest).expect("descriptor should build");
+
+    let binding = resolve_runtime_binding(&descriptor, &ContractsConfig::default())
+        .expect("binding should resolve");
 
     let tx = TxEnvelope::new(
         2626,
@@ -108,12 +119,14 @@ fn phase2_integration_admission_rejects_tx_kind_mismatch_for_class() {
         TxPayload::new(vec![1]),
     );
 
-    let err = validate_phase2_admission(&binding, &tx, None).unwrap_err();
+    let err = validate_phase2_admission(&binding, &tx, None)
+        .expect_err("admission must reject tx kind forbidden for class");
+
     assert_eq!(err, AdmissionError::TxKindForbiddenForClass);
 }
 
 #[test]
-fn phase2_integration_rejects_policy_bound_with_malformed_auth_profile() {
+fn phase2_integration_rejects_policy_bound_with_malformed_active_auth_profile() {
     let manifest = base_builder()
         .with_contract_class(ContractClass::PolicyBound)
         .with_capability_profile(CapabilityProfile {
@@ -127,10 +140,13 @@ fn phase2_integration_rejects_policy_bound_with_malformed_auth_profile() {
             restricted_to_auth_profile: Some("ops-v1".into()),
         })
         .build()
-        .unwrap();
+        .expect("manifest should build");
 
-    let descriptor = ContractDescriptor::new(manifest).unwrap();
-    let binding = resolve_runtime_binding(&descriptor, &ContractsConfig::default()).unwrap();
+    manifest.validate().expect("manifest should validate");
+    let descriptor = ContractDescriptor::new(manifest).expect("descriptor should build");
+
+    let binding = resolve_runtime_binding(&descriptor, &ContractsConfig::default())
+        .expect("binding should resolve");
 
     let tx = TxEnvelope::new(
         2626,
@@ -140,6 +156,8 @@ fn phase2_integration_rejects_policy_bound_with_malformed_auth_profile() {
         TxPayload::new(vec![1]),
     );
 
-    let err = validate_phase2_admission(&binding, &tx, Some(" OPS-V1 ")).unwrap_err();
+    let err = validate_phase2_admission(&binding, &tx, Some(" OPS-V1 "))
+        .expect_err("admission must reject malformed or non-canonical auth profile");
+
     assert_eq!(err, AdmissionError::RestrictedAuthProfileMismatch);
 }
