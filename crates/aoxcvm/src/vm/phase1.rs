@@ -6,6 +6,8 @@ use crate::receipts::outcome::ExecutionReceipt;
 use crate::state::JournaledState;
 use crate::tx::envelope::TxEnvelope;
 use crate::vm::machine::{Machine, Program, VmError};
+use aoxconfig::contracts::ContractsConfig;
+use aoxcontract::{ContractDescriptor, VmTarget};
 
 /// Stable execution context contract.
 pub type ExecutionContractContext = ExecutionContext;
@@ -18,6 +20,40 @@ pub struct VmSpec {
     pub gas_limit: u64,
     pub max_memory: usize,
     pub max_object_bytes: usize,
+}
+
+/// Configuration-time spec derivation errors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecError {
+    VmTargetDisabledByConfig,
+}
+
+impl VmSpec {
+    /// Build a phase-1 VM spec from contract-policy config with fail-closed target checks.
+    pub fn from_config(
+        config: &ContractsConfig,
+        descriptor: &ContractDescriptor,
+    ) -> Result<Self, SpecError> {
+        let target_enabled = config
+            .artifact_policy
+            .allowed_vm_targets
+            .iter()
+            .any(|target| {
+                matches!(
+                    (target, &descriptor.manifest.vm_target),
+                    (VmTarget::Wasm, VmTarget::Wasm)
+                        | (VmTarget::Evm, VmTarget::Evm)
+                        | (VmTarget::SuiLike, VmTarget::SuiLike)
+                        | (VmTarget::Custom(_), VmTarget::Custom(_))
+                )
+            });
+
+        if !target_enabled {
+            return Err(SpecError::VmTargetDisabledByConfig);
+        }
+
+        Ok(Self::default())
+    }
 }
 
 impl Default for VmSpec {

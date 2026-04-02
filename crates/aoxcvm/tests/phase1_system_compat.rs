@@ -7,7 +7,10 @@ use aoxcvm::{
     contracts::resolver::resolve_runtime_binding,
     vm::{
         machine::{Instruction, Program},
-        phase1::{InMemoryHost, Phase1Tx, VmSpec, execute},
+        phase1::{
+            BasicAuthVerifier, BasicObjectVerifier, ExecutionContract, InMemoryHost, SpecError,
+            VmSpec, execute,
+        },
     },
 };
 
@@ -52,7 +55,7 @@ fn descriptor(vm_target: VmTarget) -> ContractDescriptor {
     ContractDescriptor::new(manifest).unwrap()
 }
 
-fn tx() -> Phase1Tx {
+fn tx() -> ExecutionContract {
     let tx = TxEnvelope::new(
         2626,
         1,
@@ -79,12 +82,11 @@ fn tx() -> Phase1Tx {
         OriginContext::new([0_u8; 32], [0_u8; 32], [0_u8; 32], 0),
     );
 
-    Phase1Tx {
+    ExecutionContract {
         tx,
         auth,
         context,
         object: vec![1, 2, 3],
-        entrypoint: "execute".to_string(),
         program: Program {
             code: vec![Instruction::Push(9), Instruction::Halt],
         },
@@ -96,7 +98,14 @@ fn phase1_public_api_executes_through_single_entrypoint() {
     let desc = descriptor(VmTarget::Wasm);
     let spec = VmSpec::from_config(&ContractsConfig::default(), &desc).unwrap();
 
-    let outcome = execute(&tx(), &desc, &mut InMemoryHost::default(), &spec).unwrap();
+    let outcome = execute(
+        &tx(),
+        &mut InMemoryHost::default(),
+        spec,
+        &BasicAuthVerifier,
+        &BasicObjectVerifier,
+    )
+    .unwrap();
     assert!(outcome.vm_error.is_none());
     assert_eq!(outcome.stack, vec![9]);
 }
@@ -107,10 +116,7 @@ fn phase1_vm_spec_is_fail_closed_when_config_disables_target() {
     cfg.artifact_policy.allowed_vm_targets = vec![VmTarget::Evm];
 
     let err = VmSpec::from_config(&cfg, &descriptor(VmTarget::Wasm)).unwrap_err();
-    assert!(matches!(
-        err,
-        aoxcvm::vm::phase1::SpecError::VmTargetDisabledByConfig
-    ));
+    assert!(matches!(err, SpecError::VmTargetDisabledByConfig));
 }
 
 #[test]
