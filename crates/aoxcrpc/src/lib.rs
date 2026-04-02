@@ -2,6 +2,7 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
+pub mod admission;
 pub mod config;
 pub mod contracts;
 pub mod error;

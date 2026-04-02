@@ -20,6 +20,8 @@ pub enum RpcError {
     ZkpValidationFailed(String),
     #[error("INTERNAL_ERROR")]
     InternalError,
+    #[error("ADMISSION_DENIED: {0}")]
+    AdmissionDenied(String),
 }
 
 impl RpcError {
@@ -32,6 +34,7 @@ impl RpcError {
             Self::MtlsAuthFailed => "MTLS_AUTH_FAILED",
             Self::ZkpValidationFailed(_) => "ZKP_VALIDATION_FAILED",
             Self::InternalError => "INTERNAL_ERROR",
+            Self::AdmissionDenied(_) => "ADMISSION_DENIED",
         }
     }
 
@@ -54,6 +57,9 @@ impl RpcError {
             Self::MtlsAuthFailed => Some("Verify client certificate chain and mTLS setup."),
             Self::ZkpValidationFailed(_) => Some("Regenerate and submit a valid ZKP proof."),
             Self::InternalError => None,
+            Self::AdmissionDenied(_) => Some(
+                "Reduce method cost, upgrade identity tier, or satisfy required signer policy.",
+            ),
         }
     }
 
