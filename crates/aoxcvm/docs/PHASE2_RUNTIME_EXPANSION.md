@@ -43,38 +43,6 @@ class-aware execution profile reference:
 The runtime binding payload now includes `resolved_profile` so consumers can
 inspect class/capability/policy context directly.
 
-### 4) Capability + Policy Enforcement in Resolver
-
-Resolver admission now fail-closes when runtime law and manifest policy diverge.
-
-Examples:
-
-- profile `storage_read=true` requires policy `StorageRead`,
-- profile `storage_write=true` requires policy `StorageWrite`,
-- profile `governance_hooks=true` requires policy `GovernanceBound`,
-- profile `restricted_syscalls=true` requires policy `PrivilegedHook`,
-- profile policy `review_required=true` requires manifest policy review,
-- profile policy `governance_activation_required=true` requires governance activation mode.
-
-### 5) Contract-Class Behavior Matrix (initial)
-
-Class-sensitive guardrails are now active in resolver policy enforcement:
-
-- `Application`: cannot request governed/restricted authority capabilities,
-- `System`: must remain `review_required=true`,
-- `Governed`: must require governance activation,
-- `Package`: max one entrypoint,
-- `PolicyBound`: must declare `restricted_to_auth_profile`.
-
-### 6) SDK Builder Alignment
-
-The contract builder now supports explicit Phase-2 profile shaping:
-
-- `with_execution_profile(...)`,
-- `with_contract_class(...)`,
-- `with_capability_profile(...)`,
-- `with_policy_profile(...)`.
-
 ## Non-Goals (still unchanged)
 
 This step does **not**:
