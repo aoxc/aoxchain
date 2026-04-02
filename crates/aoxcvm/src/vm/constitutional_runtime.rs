@@ -10,7 +10,6 @@ use crate::{
     policy::{
         execution::{CapabilityContext, RuntimeCapability, RuntimeCapabilityGate},
         governance::{GovernanceAction, GovernanceAuthority},
-        upgrade::{CompatibilityReport, UpgradeAction, UpgradeApproval, UpgradePolicy},
     },
     vm::admission::ActiveAuthProfile,
 };
@@ -137,24 +136,6 @@ impl ConstitutionalRuntime {
         ))
     }
 
-    /// Authorizes full upgrade execution pipeline.
-    pub fn authorize_upgrade_execution(
-        self,
-        authority: GovernanceAuthority,
-        action: UpgradeAction,
-        approval: UpgradeApproval,
-        compatibility: CompatibilityReport,
-        active_profile: Option<&ActiveAuthProfile>,
-    ) -> AoxcvmResult<ConstitutionalProvenance> {
-        self.authorize_upgrade_trigger(authority, active_profile)?;
-        UpgradePolicy.authorize(authority, action, approval, compatibility)?;
-        Ok(Self::provenance(
-            RuntimeSurface::UpgradeTrigger,
-            authority,
-            active_profile,
-        ))
-    }
-
     /// Authorizes host-bound restricted operations.
     pub fn authorize_host_operation(
         self,
@@ -177,7 +158,6 @@ mod tests {
         auth::{registry::AuthProfileId, signer::SignerClass},
         host::capability_check::HostOperation,
         policy::governance::{GovernanceAction, GovernanceAuthority, GovernanceLane},
-        policy::upgrade::{CompatibilityReport, UpgradeAction, UpgradeApproval},
         vm::{
             admission::ActiveAuthProfile,
             constitutional_runtime::{ConstitutionalRuntime, RuntimeSurface},
@@ -247,28 +227,5 @@ mod tests {
                 .authorize_host_operation(authority, HostOperation::RegistryWrite, None)
                 .is_err()
         );
-    }
-
-    #[test]
-    fn upgrade_execution_denies_missing_rollback_plan() {
-        let runtime = ConstitutionalRuntime::default();
-        let result = runtime.authorize_upgrade_execution(
-            governance_auth(),
-            UpgradeAction::ProtocolBinary,
-            UpgradeApproval {
-                approvals: 8,
-                rejections: 1,
-                vetoed: false,
-                min_approvals: 5,
-            },
-            CompatibilityReport {
-                backward_compatible: true,
-                migration_plan_attached: false,
-                rollback_plan_attached: false,
-            },
-            Some(&profile()),
-        );
-
-        assert!(result.is_err());
     }
 }
