@@ -35,20 +35,15 @@ impl SignatureAlgorithm {
 }
 
 /// Deterministic policy profile for signer verification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AuthProfile {
     /// Classic-only mode for legacy integration testing.
     Legacy,
     /// Requires at least one classical and one PQ signature.
     HybridMandatory,
     /// Post-quantum-only mode.
+    #[default]
     PostQuantumStrict,
-}
-
-impl Default for AuthProfile {
-    fn default() -> Self {
-        Self::PostQuantumStrict
-    }
 }
 
 impl AuthProfile {
