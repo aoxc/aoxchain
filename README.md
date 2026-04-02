@@ -71,7 +71,66 @@ make runtime-activate AOXC_NETWORK_KIND=devnet
 make runtime-status AOXC_NETWORK_KIND=devnet
 ```
 
-## 5) Decision Discipline
+## 3) How the Make system is organized
+
+The root `Makefile` is a single-runtime operator surface. It intentionally avoids environment fan-out and exposes auditable targets for:
+- build and packaging,
+- runtime installation and activation,
+- health and policy verification,
+- daemon lifecycle operations,
+- evidence and audit trace generation.
+
+Key target groups:
+- **Engineering quality:** `build`, `test`, `check`, `fmt`, `clippy`, `quality`, `ci`.
+- **Runtime management:** `runtime-install`, `runtime-verify`, `runtime-activate`, `runtime-status`, `runtime-doctor`, `runtime-reset`.
+- **Operations:** `ops-prepare`, `ops-start`, `ops-stop`, `ops-restart`, `ops-logs`, `ops-flow`.
+- **Guided workflows:** `demo`, `localnet`, `devnet`, `testnet`, `doctor`, `audit-chain`.
+- **Release/evidence:** `package-*`, `publish-release`, `audit`, `db-*`.
+
+## 4) Identity and key management baseline
+
+AOXChain identity derivation uses a canonical BIP44-style HD path envelope:
+
+- **Purpose:** `44`
+- **AOXC coin type:** `2626`
+- **Canonical path format:** `m/44/2626/<chain>/<role>/<zone>/<index>`
+
+Important implementation details:
+- Canonical persisted path components are constrained to the 31-bit unhardened range (`0 ..= 0x7FFF_FFFF`).
+- Hardened behavior is represented as a projection helper where needed, not by storing hardened markers in canonical path text.
+- Deterministic entropy derivation is domain-separated and combines master-seed + canonical path fields.
+- Node key bundles enforce role-path consistency and fingerprint validation for auditability.
+
+If you are asking whether the system is aligned to `m/44'/2626'`: AOXChain follows the BIP44 field semantics (`44`, `2626`) but stores canonical textual paths in unhardened numeric form (`m/44/2626/...`) as an explicit policy decision.
+
+## 5) Repository map
+
+| Path | Role |
+|---|---|
+| `crates/` | Rust workspace crates (kernel, execution, networking, RPC, SDK, operator tooling). |
+| `configs/` | Environment/runtime profiles and deterministic network definitions. |
+| `docs/` | mdBook-backed governance and technical documentation. |
+| `models/` | Readiness, risk, and profile models used by checks and audits. |
+| `scripts/` | Automation for quality gates and evidence generation. |
+| `tests/` | Integration and production-readiness validation suite. |
+| `artifacts/` | Generated release-evidence and production-closure bundles. |
+| `contracts/` | Contract surface and deployment matrix inputs. |
+
+## 6) Documentation baseline
+
+- `README.md`: repository purpose, setup, and operational entry points.
+- `READ.md`: canonical technical definitions and invariants.
+- `SCOPE.md`: in-scope and out-of-scope boundaries, compatibility policy.
+- `ARCHITECTURE.md`: component boundaries and data/control flow.
+- `SECURITY.md`: reporting and security coordination expectations.
+- `TESTING.md`: required validation layers and commands.
+- `QUANTUM_ROADMAP.md`: phased post-quantum transformation program (block structure, VM, network, governance, AI-assisted operations).
+- `QUANTUM_CHECKLIST.md`: release-gating checklist for quantum-resilience execution and evidence.
+
+mdBook entry points:
+- `docs/src/README.md`
+- `docs/src/SYSTEM_STATUS.md`
+- `docs/src/AI_TRAINING_AND_AUDIT_GUIDE.md`
 
 A change is considered high-risk and requires explicit documentation updates when it affects:
 - consensus/finality behavior,
