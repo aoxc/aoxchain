@@ -734,6 +734,7 @@ fn evaluate_full_surface_readiness(
         .join("docs")
         .join("src")
         .join("MAINNET_READINESS_CHECKLIST.md");
+    let consensus_gate = crate::cli::bootstrap::consensus_profile_gate_status(None, None);
 
     let surfaces = vec![
         build_surface(
@@ -762,6 +763,53 @@ fn evaluate_full_surface_readiness(
             vec![
                 mainnet_checklist.display().to_string(),
                 release_dir.display().to_string(),
+            ],
+        ),
+        build_surface(
+            "quantum-consensus",
+            "protocol-security",
+            vec![
+                surface_check(
+                    "consensus-profile-gate",
+                    consensus_gate
+                        .as_ref()
+                        .map(|status| status.passed)
+                        .unwrap_or(false),
+                    consensus_gate
+                        .as_ref()
+                        .map(|status| {
+                            if status.passed {
+                                status.detail.clone()
+                            } else if status.blockers.is_empty() {
+                                format!("{}; verdict={}", status.detail, status.verdict)
+                            } else {
+                                format!(
+                                    "{}; blockers={}",
+                                    status.detail,
+                                    status.blockers.join(" | ")
+                                )
+                            }
+                        })
+                        .unwrap_or_else(|error| {
+                            format!("consensus profile gate unavailable: {}", error)
+                        }),
+                ),
+                surface_check(
+                    "consensus-hybrid-or-pq-policy",
+                    consensus_gate
+                        .as_ref()
+                        .map(|status| !status.detail.contains("consensus_profile=classical"))
+                        .unwrap_or(false),
+                    "mainnet candidate path must avoid classical-only consensus profile"
+                        .to_string(),
+                ),
+            ],
+            vec![
+                repo_root
+                    .join("identity")
+                    .join("genesis.json")
+                    .display()
+                    .to_string(),
             ],
         ),
         build_surface(
@@ -2543,18 +2591,23 @@ mod tests {
             full.matrix_release_line.as_deref(),
             Some("aoxc.v.0.1.1-akdeniz")
         );
-        assert_eq!(full.matrix_surface_count, 6);
+        assert_eq!(full.matrix_surface_count, 7);
         assert!(
             full.matrix_warnings.is_empty(),
             "{:?}",
             full.matrix_warnings
         );
-        assert_eq!(full.total_surfaces, 6);
-        assert_eq!(full.surfaces.len(), 6);
+        assert_eq!(full.total_surfaces, 7);
+        assert_eq!(full.surfaces.len(), 7);
         assert!(
             full.surfaces
                 .iter()
                 .any(|surface| surface.surface == "mainnet")
+        );
+        assert!(
+            full.surfaces
+                .iter()
+                .any(|surface| surface.surface == "quantum-consensus")
         );
         assert!(
             full.surfaces
