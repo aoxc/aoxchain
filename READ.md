@@ -99,3 +99,38 @@ A change must be accompanied by documentation and validation updates when it tou
 ## 8) License and Liability
 
 AOXChain is distributed under the MIT License and provided **"as is"** without warranty or liability assumptions by maintainers or contributors, except where prohibited by law.
+
+## 9) Protocol Naming Contract
+
+For external and internal consistency, AOXChain naming should remain explicit and stable:
+
+- **Ecosystem / chain name:** `AOXChain`
+- **Protocol name:** `AOXC Constitutional Protocol`
+- **Network IDs:** `AOXC-DEVNET`, `AOXC-TESTNET`, `AOXC-MAINNET`
+
+Rationale:
+- preserves constitutional governance and kernel-boundary semantics,
+- keeps protocol branding concise for explorer/RPC/release surfaces,
+- keeps network identity deterministic across genesis, runtime, and tooling.
+
+## 10) Advanced Genesis Program (Operator Baseline)
+
+AOXChain genesis hardening is treated as an operational security surface.
+
+Mandatory controls before promotion:
+
+1. deterministic serialization is enabled,
+2. validator quorum policy is explicit and non-empty,
+3. binding references (`validators`, `bootnodes`, `certificate`) are populated,
+4. profile/environment alignment is verified,
+5. testnet validator-account threshold is reviewed.
+
+CLI surfaces:
+
+```bash
+aoxc genesis-template-advanced --profile testnet --out ./genesis.testnet.advanced.example.json
+aoxc genesis-security-audit --profile testnet --genesis ./genesis.testnet.advanced.example.json
+aoxc genesis-security-audit --profile testnet --genesis ./genesis.testnet.advanced.example.json --enforce
+```
+
+These commands provide a secure starting template and an enforceable security-audit gate for custom genesis workflows.

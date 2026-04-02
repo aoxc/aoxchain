@@ -13,6 +13,9 @@ use crate::config::{NetworkConfig, SecurityMode};
 use crate::error::NetworkError;
 use crate::gossip::peer::Peer;
 use crate::metrics::{NetworkMetrics, NetworkMetricsSnapshot};
+use crate::secure_session::{
+    HandshakeIntent, HandshakePolicy, HandshakeRejectReason, PeerClass, TransportCryptoProfile,
+};
 
 /// Canonical protocol framing version enforced by the in-memory AOXC transport.
 const PROTOCOL_ENVELOPE_VERSION: u16 = 1;
@@ -348,6 +351,27 @@ impl P2PNetwork {
             ));
         }
 
+        let transport_profile = required_transport_profile(self.config.security_mode);
+        let handshake_policy = handshake_policy_for_mode(&self.config, transport_profile);
+        let handshake_intent = HandshakeIntent {
+            peer_id: peer.id.clone(),
+            peer_class: peer_class_for_role(peer.role),
+            transport_profile,
+            protocol_version: 1,
+            max_frame_bytes: self.config.max_frame_bytes,
+            compression_enabled: false,
+            retry_token_present: true,
+            pq_kem_present: transport_profile.requires_post_quantum(),
+        };
+
+        if let Err(reason) = handshake_policy.evaluate(&handshake_intent) {
+            self.metrics.failed_handshakes = self.metrics.failed_handshakes.saturating_add(1);
+            return Err(NetworkError::PeerAdmissionDenied(format!(
+                "handshake admission denied: {}",
+                describe_handshake_reject(reason)
+            )));
+        }
+
         let ticket = SessionTicket {
             peer_id: peer.id.clone(),
             cert_fingerprint: peer.cert_fingerprint.clone(),
@@ -596,6 +620,53 @@ fn unix_now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0)
+}
+
+#[must_use]
+fn required_transport_profile(mode: SecurityMode) -> TransportCryptoProfile {
+    match mode {
+        SecurityMode::Insecure => TransportCryptoProfile::ClassicalV1,
+        SecurityMode::MutualAuth => TransportCryptoProfile::HybridV2,
+        SecurityMode::AuditStrict => TransportCryptoProfile::PostQuantumV3,
+    }
+}
+
+#[must_use]
+fn peer_class_for_role(role: crate::gossip::peer::PeerRole) -> PeerClass {
+    match role {
+        crate::gossip::peer::PeerRole::Validator => PeerClass::Validator,
+        crate::gossip::peer::PeerRole::Relay => PeerClass::Sentry,
+        crate::gossip::peer::PeerRole::Observer => PeerClass::Observer,
+        crate::gossip::peer::PeerRole::Bridge => PeerClass::Archive,
+    }
+}
+
+#[must_use]
+fn handshake_policy_for_mode(
+    config: &NetworkConfig,
+    required_profile: TransportCryptoProfile,
+) -> HandshakePolicy {
+    HandshakePolicy {
+        minimum_protocol_version: 1,
+        required_profile,
+        max_frame_bytes: config.max_frame_bytes,
+        allow_compression: false,
+        require_retry_token: config.security_mode != SecurityMode::Insecure,
+        require_pq_kem: required_profile.requires_post_quantum(),
+    }
+}
+
+#[must_use]
+fn describe_handshake_reject(reason: HandshakeRejectReason) -> &'static str {
+    match reason {
+        HandshakeRejectReason::EmptyPeerId => "empty peer identifier",
+        HandshakeRejectReason::ProtocolVersionTooOld => "protocol version too old",
+        HandshakeRejectReason::ProfileDowngradeRejected => "transport profile downgrade rejected",
+        HandshakeRejectReason::FrameBudgetExceeded => "declared frame budget exceeds policy",
+        HandshakeRejectReason::CompressionForbidden => "compression is forbidden",
+        HandshakeRejectReason::RetryTokenMissing => "retry token missing",
+        HandshakeRejectReason::PostQuantumKemMissing => "post-quantum KEM missing",
+    }
 }
 
 #[cfg(test)]
