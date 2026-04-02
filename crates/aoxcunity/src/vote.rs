@@ -13,9 +13,9 @@ use crate::validator::ValidatorId;
 
 const VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_VOTE_SIGNING_V1";
 const AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_AUTHENTICATED_VOTE_V1";
-const SIGNATURE_SCHEME_ED25519: u16 = 1;
-const SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3: u16 = 2;
-const SIGNATURE_SCHEME_DILITHIUM3: u16 = 3;
+pub const SIGNATURE_SCHEME_ED25519: u16 = 1;
+pub const SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3: u16 = 2;
+pub const SIGNATURE_SCHEME_DILITHIUM3: u16 = 3;
 
 /// Vote kind classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -58,6 +58,25 @@ pub struct VoteAuthenticationContext {
     pub validator_set_root: [u8; 32],
     pub pq_attestation_root: [u8; 32],
     pub signature_scheme: u16,
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConsensusIdentityProfile {
+    Classical,
+    Hybrid,
+    PostQuantum,
+}
+
+impl VoteAuthenticationContext {
+    pub fn identity_profile(&self) -> Result<ConsensusIdentityProfile, VoteAuthenticationError> {
+        match self.signature_scheme {
+            SIGNATURE_SCHEME_ED25519 => Ok(ConsensusIdentityProfile::Classical),
+            SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 => Ok(ConsensusIdentityProfile::Hybrid),
+            SIGNATURE_SCHEME_DILITHIUM3 => Ok(ConsensusIdentityProfile::PostQuantum),
+            _ => Err(VoteAuthenticationError::UnknownSignatureScheme),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,6 +123,9 @@ pub enum VoteAuthenticationError {
 
     #[error("vote requires an explicit post-quantum signature")]
     MissingPostQuantumSignature,
+
+    #[error("vote requires a non-zero post-quantum attestation root for hybrid/post-quantum identity profiles")]
+    MissingPostQuantumAttestationRoot,
 }
 
 impl Vote {
@@ -154,6 +176,15 @@ impl AuthenticatedVote {
     pub fn verify(&self) -> Result<VerifiedAuthenticatedVote, VoteAuthenticationError> {
         if !is_known_signature_scheme(self.context.signature_scheme) {
             return Err(VoteAuthenticationError::UnknownSignatureScheme);
+        }
+
+        let identity_profile = self.context.identity_profile()?;
+        if matches!(
+            identity_profile,
+            ConsensusIdentityProfile::Hybrid | ConsensusIdentityProfile::PostQuantum
+        ) && is_zero_hash32(&self.context.pq_attestation_root)
+        {
+            return Err(VoteAuthenticationError::MissingPostQuantumAttestationRoot);
         }
 
         if self.context.epoch >= PQ_MANDATORY_START_EPOCH
@@ -220,6 +251,10 @@ impl AuthenticatedVote {
     }
 }
 
+fn is_zero_hash32(value: &[u8; 32]) -> bool {
+    value.iter().all(|byte| *byte == 0)
+}
+
 fn is_known_signature_scheme(signature_scheme: u16) -> bool {
     matches!(
         signature_scheme,
@@ -265,9 +300,9 @@ mod tests {
     use pqcrypto_traits::sign::{PublicKey as _, SignedMessage as _};
 
     use super::{
-        AuthenticatedVote, SIGNATURE_SCHEME_DILITHIUM3, SIGNATURE_SCHEME_ED25519,
-        SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3, SignedVote, Vote, VoteAuthenticationContext,
-        VoteAuthenticationError, VoteKind,
+        AuthenticatedVote, ConsensusIdentityProfile, SIGNATURE_SCHEME_DILITHIUM3,
+        SIGNATURE_SCHEME_ED25519, SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3, SignedVote, Vote,
+        VoteAuthenticationContext, VoteAuthenticationError, VoteKind,
     };
 
     fn make_vote(block_hash: [u8; 32], round: u64, kind: VoteKind) -> Vote {
@@ -548,4 +583,73 @@ mod tests {
 
         assert!(authenticated.verify().is_ok());
     }
+    #[test]
+    fn vote_auth_context_maps_scheme_to_identity_profile() {
+        let classical = VoteAuthenticationContext {
+            network_id: 2626,
+            epoch: 0,
+            validator_set_root: [1u8; 32],
+            pq_attestation_root: [2u8; 32],
+            signature_scheme: SIGNATURE_SCHEME_ED25519,
+        };
+        let hybrid = VoteAuthenticationContext {
+            signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
+            ..classical
+        };
+        let post_quantum = VoteAuthenticationContext {
+            signature_scheme: SIGNATURE_SCHEME_DILITHIUM3,
+            ..classical
+        };
+
+        assert!(matches!(
+            classical.identity_profile().expect("classical profile"),
+            ConsensusIdentityProfile::Classical
+        ));
+        assert!(matches!(
+            hybrid.identity_profile().expect("hybrid profile"),
+            ConsensusIdentityProfile::Hybrid
+        ));
+        assert!(matches!(
+            post_quantum.identity_profile().expect("pq profile"),
+            ConsensusIdentityProfile::PostQuantum
+        ));
+    }
+
+    #[test]
+    fn authenticated_vote_rejects_hybrid_profile_without_pq_attestation_root() {
+        let signing_key = SigningKey::from_bytes(&[17u8; 32]);
+        let vote = Vote {
+            voter: signing_key.verifying_key().to_bytes(),
+            block_hash: [4u8; 32],
+            height: 77,
+            round: 2,
+            kind: VoteKind::Prepare,
+        };
+
+        let mut authenticated = AuthenticatedVote {
+            vote,
+            context: VoteAuthenticationContext {
+                network_id: 2626,
+                epoch: 0,
+                validator_set_root: [5u8; 32],
+                pq_attestation_root: [0u8; 32],
+                signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
+            },
+            signature: Vec::new(),
+            pq_public_key: None,
+            pq_signature: None,
+        };
+
+        let signature = signing_key.sign(&authenticated.signing_bytes());
+        authenticated.signature = signature.to_bytes().to_vec();
+
+        let error = authenticated
+            .verify()
+            .expect_err("missing pq attestation root must fail");
+        assert_eq!(
+            error,
+            VoteAuthenticationError::MissingPostQuantumAttestationRoot
+        );
+    }
+
 }
