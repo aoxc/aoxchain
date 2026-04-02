@@ -18,9 +18,11 @@ pub type Receipt = ExecutionReceipt;
 /// Canonical VM spec used by the phase-1 kernel entrypoint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VmSpec {
+    pub spec_version: u16,
     pub gas_limit: u64,
     pub max_memory: usize,
     pub max_object_bytes: usize,
+    pub strict_mode: bool,
 }
 
 /// Configuration-time spec derivation errors.
@@ -46,16 +48,22 @@ impl VmSpec {
             return Err(SpecError::VmTargetDisabledByConfig);
         }
 
-        Ok(Self::default())
+        Ok(Self {
+            max_object_bytes: config.artifact_policy.max_artifact_size as usize,
+            strict_mode: config.artifact_policy.review_required,
+            ..Self::default()
+        })
     }
 }
 
 impl Default for VmSpec {
     fn default() -> Self {
         Self {
+            spec_version: 1,
             gas_limit: 1_000_000,
             max_memory: 1024 * 1024,
             max_object_bytes: 64 * 1024,
+            strict_mode: true,
         }
     }
 }
@@ -78,7 +86,18 @@ pub struct ExecutionContract {
 pub struct ExecutionOutcome {
     pub receipt: Receipt,
     pub stack: Vec<u64>,
+    pub gas_used: u64,
+    pub halt_reason: HaltReason,
+    pub spec_version: u16,
+    pub journal_committed: bool,
     pub vm_error: Option<VmError>,
+}
+
+/// Canonical halt classification exposed by the phase-1 kernel output.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HaltReason {
+    Success,
+    VmError(VmError),
 }
 
 /// Pre-execution admission errors.
@@ -103,7 +122,9 @@ impl From<ContextError> for AdmissionError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecuteError {
     Admission(AdmissionError),
-    Host,
+    HostCheckpoint,
+    HostRollback,
+    HostCommit,
 }
 
 impl From<ContextError> for ExecuteError {
@@ -117,10 +138,12 @@ impl From<ContextError> for ExecuteError {
 /// All durable state transitions must flow through this interface so that
 /// checkpoint, rollback, and commit semantics remain explicit and testable.
 pub trait Host {
+    type Error;
+
     fn load_state(&self) -> JournaledState;
-    fn checkpoint(&mut self) -> Result<usize, ()>;
-    fn rollback(&mut self, checkpoint: usize) -> Result<(), ()>;
-    fn commit(&mut self, checkpoint: usize, state: JournaledState) -> Result<(), ()>;
+    fn checkpoint(&mut self) -> Result<usize, Self::Error>;
+    fn rollback(&mut self, checkpoint: usize) -> Result<(), Self::Error>;
+    fn commit(&mut self, checkpoint: usize, state: JournaledState) -> Result<(), Self::Error>;
 }
 
 /// Authentication admission boundary.
@@ -175,7 +198,9 @@ pub fn execute(
         return Err(ExecuteError::Admission(AdmissionError::InvalidObject));
     }
 
-    let checkpoint = host.checkpoint().map_err(|_| ExecuteError::Host)?;
+    let checkpoint = host
+        .checkpoint()
+        .map_err(|_| ExecuteError::HostCheckpoint)?;
     let initial_state = host.load_state();
 
     let envelope = Machine::with_state(
@@ -188,19 +213,28 @@ pub fn execute(
 
     match envelope.error {
         Some(err) => {
-            host.rollback(checkpoint).map_err(|_| ExecuteError::Host)?;
+            host.rollback(checkpoint)
+                .map_err(|_| ExecuteError::HostRollback)?;
             Ok(ExecutionOutcome {
                 receipt: envelope.result.receipt,
                 stack: envelope.result.stack,
+                gas_used: envelope.result.receipt.gas_used,
+                halt_reason: HaltReason::VmError(err.clone()),
+                spec_version: spec.spec_version,
+                journal_committed: false,
                 vm_error: Some(err),
             })
         }
         None => {
             host.commit(checkpoint, envelope.result.final_state)
-                .map_err(|_| ExecuteError::Host)?;
+                .map_err(|_| ExecuteError::HostCommit)?;
             Ok(ExecutionOutcome {
                 receipt: envelope.result.receipt,
                 stack: envelope.result.stack,
+                gas_used: envelope.result.receipt.gas_used,
+                halt_reason: HaltReason::Success,
+                spec_version: spec.spec_version,
+                journal_committed: true,
                 vm_error: None,
             })
         }
@@ -219,6 +253,8 @@ pub struct InMemoryHost {
 }
 
 impl Host for InMemoryHost {
+    type Error = ();
+
     fn load_state(&self) -> JournaledState {
         self.state.clone()
     }
@@ -272,15 +308,19 @@ impl ObjectVerifier for BasicObjectVerifier {
 mod tests {
     use super::{
         AdmissionError, AuthVerifier, BasicAuthVerifier, BasicObjectVerifier, ExecuteError,
-        ExecutionContract, Host, InMemoryHost, ObjectVerifier, VmSpec, execute,
+        ExecutionContract, HaltReason, Host, InMemoryHost, ObjectVerifier, VmSpec, execute,
     };
     use crate::auth::{
         envelope::{AuthEnvelope, SignatureEntry},
         scheme::SignatureAlgorithm,
     };
     use crate::context::{
-        block::BlockContext, call::CallContext, environment::EnvironmentContext,
-        execution::ExecutionContext, origin::OriginContext, tx::TxContext,
+        block::BlockContext,
+        call::CallContext,
+        environment::EnvironmentContext,
+        execution::{ContextError, ExecutionContext},
+        origin::OriginContext,
+        tx::TxContext,
     };
     use crate::receipts::outcome::ReceiptStatus;
     use crate::tx::{envelope::TxEnvelope, fee::FeeBudget, kind::TxKind, payload::TxPayload};
@@ -298,6 +338,8 @@ mod tests {
     }
 
     impl Host for SpyHost {
+        type Error = ();
+
         fn load_state(&self) -> crate::state::JournaledState {
             self.inner.load_state()
         }
@@ -455,6 +497,7 @@ mod tests {
         assert_eq!(a.receipt.state_root, b.receipt.state_root);
         assert_eq!(a.receipt.gas_used, b.receipt.gas_used);
         assert_eq!(a.stack, b.stack);
+        assert_eq!(a.halt_reason, b.halt_reason);
         assert_eq!(a.vm_error, b.vm_error);
     }
 
@@ -477,6 +520,11 @@ mod tests {
         .expect("execute");
 
         assert_eq!(out.vm_error, Some(VmError::DivisionByZero));
+        assert_eq!(
+            out.halt_reason,
+            HaltReason::VmError(VmError::DivisionByZero)
+        );
+        assert!(!out.journal_committed);
         assert_eq!(out.receipt.status, ReceiptStatus::Failed);
     }
 
@@ -501,6 +549,8 @@ mod tests {
         .expect("execute");
 
         assert_eq!(out.vm_error, Some(VmError::OutOfGas));
+        assert_eq!(out.gas_used, out.receipt.gas_used);
+        assert!(!out.journal_committed);
         assert_eq!(out.receipt.status, ReceiptStatus::Failed);
     }
 
@@ -599,6 +649,7 @@ mod tests {
         .expect("execute");
 
         assert_eq!(out.vm_error, Some(VmError::DivisionByZero));
+        assert!(!out.journal_committed);
         assert_eq!(host.checkpoint_calls, 1);
         assert_eq!(host.rollback_calls, 1);
         assert_eq!(host.commit_calls, 0);
@@ -619,9 +670,73 @@ mod tests {
         .expect("execute");
 
         assert_eq!(out.vm_error, None);
+        assert_eq!(out.halt_reason, HaltReason::Success);
+        assert!(out.journal_committed);
+        assert_eq!(out.spec_version, VmSpec::default().spec_version);
         assert_eq!(out.receipt.status, ReceiptStatus::Success);
         assert_eq!(host.checkpoint_calls, 1);
         assert_eq!(host.rollback_calls, 0);
         assert_eq!(host.commit_calls, 1);
+    }
+
+    #[test]
+    fn malformed_input_takes_priority_over_auth_and_object_failures() {
+        let mut contract = valid_contract(vec![Instruction::Halt]);
+        contract.tx.payload = TxPayload::new(vec![]);
+
+        let mut host = SpyHost::default();
+        let auth = CountingAuthVerifier::rejecting();
+        let object = CountingObjectVerifier::rejecting();
+
+        let err = execute(&contract, &mut host, VmSpec::default(), &auth, &object)
+            .expect_err("reject malformed input first");
+
+        assert_eq!(err, ExecuteError::Admission(AdmissionError::MalformedInput));
+        assert_eq!(auth.calls(), 0);
+        assert_eq!(object.calls(), 0);
+        assert_eq!(host.checkpoint_calls, 0);
+    }
+
+    #[test]
+    fn invalid_context_takes_priority_over_auth_failure() {
+        let mut contract = valid_contract(vec![Instruction::Halt]);
+        contract.context.tx.gas_limit = 0;
+
+        let mut host = SpyHost::default();
+        let auth = CountingAuthVerifier::rejecting();
+        let object = CountingObjectVerifier::rejecting();
+
+        let err = execute(&contract, &mut host, VmSpec::default(), &auth, &object)
+            .expect_err("reject context before auth");
+
+        assert!(matches!(
+            err,
+            ExecuteError::Admission(AdmissionError::Context(ContextError::ZeroGasLimit))
+        ));
+        assert_eq!(auth.calls(), 0);
+        assert_eq!(object.calls(), 0);
+        assert_eq!(host.checkpoint_calls, 0);
+    }
+
+    #[test]
+    fn invalid_auth_takes_priority_over_oversize_object() {
+        let mut contract = valid_contract(vec![Instruction::Halt]);
+        contract.object = vec![1, 2, 3];
+
+        let mut host = SpyHost::default();
+        let auth = CountingAuthVerifier::rejecting();
+        let object = CountingObjectVerifier::allowing();
+        let spec = VmSpec {
+            max_object_bytes: 1,
+            ..VmSpec::default()
+        };
+
+        let err = execute(&contract, &mut host, spec, &auth, &object)
+            .expect_err("reject auth before object size check");
+
+        assert_eq!(err, ExecuteError::Admission(AdmissionError::InvalidAuth));
+        assert_eq!(auth.calls(), 1);
+        assert_eq!(object.calls(), 0);
+        assert_eq!(host.checkpoint_calls, 0);
     }
 }
