@@ -48,7 +48,7 @@ impl DeterminismVerifier {
         BytecodeVerifier {
             max_instructions: 4096,
             max_memory: self.max_memory,
-            max_stack_depth: 1024,
+            max_stack_depth: self.max_stack_depth,
         }
         .verify(program)
         .map_err(DeterminismError::InvalidBytecode)

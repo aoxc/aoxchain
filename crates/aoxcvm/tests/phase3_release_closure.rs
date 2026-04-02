@@ -88,7 +88,7 @@ fn call_depth_edge_case_is_bounded() {
     assert!(near_limit.depth < limits.max_call_depth);
 
     let at_limit = CallContext::new(limits.max_call_depth);
-    assert!(!(at_limit.depth < limits.max_call_depth));
+    assert!(at_limit.depth >= limits.max_call_depth);
 }
 
 #[test]
@@ -97,9 +97,10 @@ fn gas_economics_cost_envelope_and_dos_guard() {
     const COST_ADD: u64 = 3;
     const COST_STORAGE_WRITE: u64 = 200;
     const COST_VERIFY_PQ_SIG: u64 = 5_000;
-
-    assert!(COST_ADD < COST_STORAGE_WRITE);
-    assert!(COST_STORAGE_WRITE < COST_VERIFY_PQ_SIG);
+    const _: () = {
+        assert!(COST_ADD < COST_STORAGE_WRITE);
+        assert!(COST_STORAGE_WRITE < COST_VERIFY_PQ_SIG);
+    };
 
     let mut meter = GasMeter::new(10_000);
 
