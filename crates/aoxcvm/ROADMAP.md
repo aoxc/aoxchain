@@ -3,7 +3,7 @@
 ## Three-Phase Architecture and Delivery Specification
 
 ### Status: Draft
-### Scope: Kernel-to-Quantum Execution Roadmap
+### Scope: Kernel-to-Sovereign Runtime Execution Roadmap
 ### Target: AOXChain `crates/aoxcvm`
 
 ---
@@ -19,7 +19,7 @@ The scope of this document includes:
 - the mission of AOXC-VMachine-QX1,
 - the complete architectural boundaries of Phase 1,
 - the expansion objectives of Phase 2,
-- the quantum-hardening and proof-oriented objectives of Phase 3,
+- the sovereign-runtime constitutional objectives of Phase 3,
 - execution invariants,
 - trust boundaries,
 - state transition responsibilities,
@@ -189,7 +189,7 @@ AOXC-VMachine-QX1 is delivered in three phases:
 
 - **Phase 1 — Kernel Completion**
 - **Phase 2 — Runtime Expansion**
-- **Phase 3 — Quantum Hardening and Proof Ecosystem**
+- **Phase 3 — Sovereign Runtime Evolution Layer**
 
 These phases are sequential in trust importance.
 
@@ -762,21 +762,21 @@ The machine must remain a kernel-first architecture even after runtime expansion
 
 ---
 
-# 8. Phase 3 — Quantum Hardening and Proof Ecosystem
+# 8. Phase 3 — Sovereign Runtime Evolution Layer
 
 ## 8.1 Phase 3 Objective
 
-Phase 3 transforms AOXC-VMachine-QX1 from a crypto-agile, post-quantum-ready machine into a quantum-hardened and proof-oriented execution platform.
+Phase 3 transforms AOXC-VMachine-QX1 from execution-law maturity into a constitutional sovereign runtime.
 
-The purpose of Phase 3 is not merely to "support post-quantum cryptography" as a marketing statement.
+The purpose of Phase 3 is not incremental feature growth. The purpose is protocol identity hardening through constitutional runtime law.
 
 The purpose is to establish:
 
-- activation-ready post-quantum authorization policies,
-- controlled hybrid-to-post-quantum migration,
-- cryptographic agility under governance,
-- receipt and trace support for stronger proof systems,
-- long-horizon execution survivability.
+- canonical auth and profile constitution,
+- governance lane and authority constitution,
+- AOXC-native execution direction (foreign VM compatibility as secondary integration scope),
+- constitutional system contracts and runtime capability gate enforcement,
+- package, upgrade, interop/settlement, and witness law for long-horizon continuity.
 
 ---
 
@@ -784,20 +784,34 @@ The purpose is to establish:
 
 Phase 3 focuses on the following areas:
 
-- hybrid authorization activation,
-- post-quantum authorization scheme onboarding,
-- account migration pathways,
-- cryptographic deprecation policies,
-- witness and proof-friendly execution artifacts,
-- stronger trace commitments,
-- optional stateless execution preparation,
-- optional ZK/fraud-proof-aligned execution exports.
+- constitutional identity (auth profiles, signer classes, profile-bound runtime actions),
+- governance constitution (action taxonomy, protected lanes, authority boundaries),
+- sovereign runtime enforcement (syscall/host/registry/upgrade gate binding),
+- package and upgrade constitutional law,
+- interop and settlement constitution with governed coordination,
+- law-aware receipt/proof/witness and constitutional telemetry expansion,
+- long-horizon compatibility and migration governance, including post-quantum evolution where ratified.
 
 ---
 
-## 8.3 Quantum-Hardening Components
+## 8.3 Constitutional reference set
 
-### 8.3.1 Hybrid Authorization Activation
+Phase-3 constitutional reference documents are maintained in:
+
+- `PHASE3_RUNTIME_CONSTITUTION.md`
+- `AUTH_CONSTITUTION.md`
+- `GOVERNANCE_CONSTITUTION.md`
+- `PACKAGE_LAW.md`
+- `UPGRADE_CONSTITUTION.md`
+- `INTEROP_SETTLEMENT_LAW.md`
+
+Quantum-hardening remains in scope as a governed security track inside the broader sovereign-runtime constitution.
+
+---
+
+## 8.4 Quantum-Hardening Components
+
+### 8.4.1 Hybrid Authorization Activation
 
 The machine should support protocol-governed hybrid authorization modes in which a transaction or account policy may require more than one authorization profile.
 
@@ -810,7 +824,7 @@ This may include:
 
 ---
 
-### 8.3.2 Post-Quantum Authorization Profiles
+### 8.4.2 Post-Quantum Authorization Profiles
 
 Phase 3 should activate post-quantum-capable authorization profiles through governed scheme identifiers and verifier implementations.
 
@@ -825,7 +839,7 @@ Instead, it must support:
 
 ---
 
-### 8.3.3 Account Migration Framework
+### 8.4.3 Account Migration Framework
 
 Accounts must be able to evolve from legacy authorization descriptors into hybrid and, eventually, post-quantum-first descriptors.
 
@@ -840,7 +854,7 @@ Migration must include:
 
 ---
 
-### 8.3.4 Cryptographic Policy Governance
+### 8.4.4 Cryptographic Policy Governance
 
 Phase 3 must define the governance rules by which cryptographic primitives are:
 
@@ -860,7 +874,7 @@ This includes policy for:
 
 ---
 
-### 8.3.5 Witness and Proof Exports
+### 8.4.5 Witness and Proof Exports
 
 Phase 3 should support deterministic witness-oriented artifacts suitable for stronger verification systems.
 
@@ -876,7 +890,7 @@ These exports must remain deterministic and version-aware.
 
 ---
 
-### 8.3.6 Proof-Oriented Execution Interfaces
+### 8.4.6 Proof-Oriented Execution Interfaces
 
 Where AOXC pursues fraud proofs, validity proofs, or stateless execution models, Phase 3 should provide interfaces that enable:
 
@@ -889,46 +903,46 @@ These interfaces must not compromise the trusted kernel design.
 
 ---
 
-## 8.4 Phase 3 Security Focus
+## 8.5 Phase 3 Security Focus
 
 The central Phase 3 security concerns are:
 
-- unsafe cryptographic migration,
-- downgrade attacks,
-- policy confusion,
-- malformed hybrid envelopes,
-- incompatible account state migration,
-- verifier ambiguity,
-- proof artifact inconsistency.
+- constitutional authority confusion across governance and operations lanes,
+- unauthorized capability or registry mutation at runtime,
+- upgrade-path incompatibility and migration safety faults,
+- interop/settlement trust-boundary overreach,
+- profile binding drift and signer-class ambiguity,
+- cryptographic downgrade and policy confusion attacks,
+- witness and audit provenance inconsistency.
 
 Therefore, Phase 3 must require:
 
-- explicit policy versioning,
-- explicit migration modes,
-- strong replay and domain separation,
-- deterministic witness schemas,
-- clear scheme activation and deactivation rules.
+- explicit lane, authority, and signer-class versioning,
+- fail-closed capability and upgrade gate enforcement,
+- explicit migration and rollback safety semantics,
+- deterministic witness schemas and audit traces,
+- clear scheme activation/deactivation rules under governance law.
 
 ---
 
-## 8.5 Phase 3 Testing Expectations
+## 8.6 Phase 3 Testing Expectations
 
 Phase 3 must add:
 
-- hybrid authorization tests,
-- post-quantum descriptor parsing tests,
-- migration-path tests,
-- downgrade-resistance tests,
-- verifier compatibility tests,
-- witness determinism tests,
-- trace-commitment consistency tests,
-- proof-input stability tests.
+- constitutional authority and lane transition tests,
+- auth profile and signer-class matrix tests,
+- runtime capability gate enforcement tests (syscall/host/registry/upgrade),
+- package publication and promotion law tests,
+- upgrade compatibility and migration-law tests,
+- interop/settlement constitution tests,
+- witness/provenance and audit-trace determinism tests,
+- hostile scenario, property, and fuzz coverage for fail-closed invariants.
 
 ---
 
-## 8.6 Phase 3 Exit Criteria
+## 8.7 Phase 3 Exit Criteria
 
-Phase 3 is complete when AOXC-VMachine-QX1 can support governed hybrid and post-quantum authorization evolution, deterministic witness and proof artifacts, and long-horizon cryptographic adaptability without undermining the security and determinism established in Phases 1 and 2.
+Phase 3 is complete when AOXC-VMachine-QX1 enforces a sovereign constitutional runtime: canonical auth law, governance constitution, native execution direction, runtime capability-gate binding, constitutional package/upgrade/interop law, and law-aware witness/audit continuity without weakening Phase-1/Phase-2 determinism and safety guarantees.
 
 ---
 
