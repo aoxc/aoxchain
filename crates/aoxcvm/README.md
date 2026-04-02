@@ -20,6 +20,8 @@ AOXCVM is the AOXChain L1-native virtual machine redesign baseline.
 - `docs/PHASE1_COMPLETION_REPORT.md`: implemented Phase 1 coverage and validation evidence matrix.
 - `docs/VM_OVERVIEW.md`: component scope and high-level execution model.
 - `docs/INVARIANTS.md`: deterministic and safety invariants expected at runtime.
+- `docs/PRODUCTION_CLOSURE_MASTER_PLAN.md`: production-grade closure pillars, evidence model, and exit criteria.
+- `docs/QRKF_KERNEL_ARCHITECTURE.md`: kernel-mandatory vs adapter-extensible key-fabric architecture for quantum-resilient identity and authority.
 
 ## Phase sequencing
 - **Phase 1 — Kernel Completion:** deterministic, rollback-safe, gas-safe, versioned, authorization-aware execution kernel.
