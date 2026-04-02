@@ -3,17 +3,16 @@
 pub mod resolver {
     use aoxconfig::contracts::ContractsConfig;
     use aoxcontract::{
-        ContractClass, ContractDescriptor, ContractError, ContractMetadata, Entrypoint,
-        ExecutionProfileRef, LaneBinding, ManifestValidationError, RuntimeBindingDescriptor,
-        VmTarget,
+        ContractClass, ContractDescriptor, ContractError, ExecutionProfileRef, LaneBinding,
+        RuntimeBindingDescriptor, VmTarget,
     };
 
     /// Resolves VM runtime binding from a canonical contract descriptor.
     ///
     /// This resolver is intentionally deterministic and fail-closed:
     /// - the manifest VM target must be allowed by config,
-    /// - the manifest must already be internally valid,
-    /// - the returned execution profile reference must be class-aware.
+    /// - the descriptor is assumed to carry a validated manifest,
+    /// - the returned execution profile reference is class-aware.
     pub fn resolve_runtime_binding(
         descriptor: &ContractDescriptor,
         config: &ContractsConfig,
@@ -67,8 +66,8 @@ pub mod resolver {
     mod tests {
         use super::*;
         use aoxcontract::{
-            ArtifactDigest, ArtifactDigestAlgorithm, ContractDescriptor, ContractReviewStatus,
-            ExecutionProfile, VmTarget,
+            ArtifactDigest, ArtifactDigestAlgorithm, ContractDescriptor, ContractMetadata,
+            Entrypoint, ManifestValidationError, VmTarget,
         };
         use aoxcsdk::contracts::builder::ContractManifestBuilder;
 
@@ -111,10 +110,7 @@ pub mod resolver {
 
             let binding = resolve_runtime_binding(&descriptor, &config).unwrap();
             assert_eq!(binding.execution_profile.0, "phase2-application");
-            assert_eq!(
-                binding.resolved_profile,
-                descriptor.manifest.execution_profile
-            );
+            assert_eq!(binding.resolved_profile, descriptor.manifest.execution_profile);
         }
 
         #[test]
