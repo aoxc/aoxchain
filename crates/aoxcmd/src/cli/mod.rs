@@ -79,6 +79,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "operator-evidence-record" => evidence::cmd_operator_evidence_record(&args[2..]),
         "operator-evidence-list" => evidence::cmd_operator_evidence_list(&args[2..]),
         "key-bootstrap" => bootstrap::cmd_key_bootstrap(&args[2..]),
+        "key-rotate" => bootstrap::cmd_key_rotate(&args[2..]),
         "keys-inspect" => bootstrap::cmd_keys_inspect(&args[2..]),
         "keys-show-fingerprint" => bootstrap::cmd_keys_show_fingerprint(&args[2..]),
         "keys-verify" => bootstrap::cmd_keys_verify(&args[2..]),
@@ -162,7 +163,7 @@ fn route_validator_group(args: &[String]) -> Result<(), AppError> {
     match subcommand.as_str() {
         "create" => bootstrap::cmd_key_bootstrap(tail),
         "inspect" | "status" => bootstrap::cmd_keys_inspect(tail),
-        "rotate-key" => bootstrap::cmd_key_bootstrap(tail),
+        "rotate-key" => bootstrap::cmd_key_rotate(tail),
         _ => invalid_group_usage("validator", "unsupported subcommand"),
     }
 }
