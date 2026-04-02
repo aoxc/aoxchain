@@ -13,8 +13,14 @@ impl RotationPlan {
     /// Returns true when the plan preserves at least one post-quantum key in both generations,
     /// preventing temporary regressions to classical-only authentication.
     pub fn preserves_quantum_continuity(&self) -> bool {
-        let previous_has_pq = self.previous.iter().any(|algorithm| algorithm.is_post_quantum());
-        let next_has_pq = self.next.iter().any(|algorithm| algorithm.is_post_quantum());
+        let previous_has_pq = self
+            .previous
+            .iter()
+            .any(|algorithm| algorithm.is_post_quantum());
+        let next_has_pq = self
+            .next
+            .iter()
+            .any(|algorithm| algorithm.is_post_quantum());
         previous_has_pq && next_has_pq
     }
 
