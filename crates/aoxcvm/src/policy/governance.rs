@@ -80,12 +80,12 @@ impl GovernanceAuthority {
 }
 
 const fn lane_satisfies(active: GovernanceLane, required: GovernanceLane) -> bool {
-    match (active, required) {
-        (GovernanceLane::Constitutional, _) => true,
-        (GovernanceLane::Operations, GovernanceLane::Operations) => true,
-        (GovernanceLane::Emergency, GovernanceLane::Emergency) => true,
-        _ => false,
-    }
+    matches!(
+        (active, required),
+        (GovernanceLane::Constitutional, _)
+            | (GovernanceLane::Operations, GovernanceLane::Operations)
+            | (GovernanceLane::Emergency, GovernanceLane::Emergency)
+    )
 }
 
 #[cfg(test)]
