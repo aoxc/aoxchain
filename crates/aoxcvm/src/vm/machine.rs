@@ -71,6 +71,7 @@ impl From<StateError> for VmError {
 pub struct ExecutionResult {
     pub receipt: ExecutionReceipt,
     pub stack: Vec<u64>,
+    pub final_state: JournaledState,
 }
 
 /// Deterministic single-threaded VM.
@@ -136,6 +137,7 @@ impl Machine {
                 return Ok(ExecutionResult {
                     receipt,
                     stack: self.stack,
+                    final_state: self.state,
                 });
             }
 

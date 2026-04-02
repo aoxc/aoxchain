@@ -1,4 +1,4 @@
-//! governance subsystem for AOXCVM vNext.
+//! governance subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod activation;
 pub mod deprecation;
 pub mod emergency;

@@ -1,4 +1,4 @@
-//! classes subsystem for AOXCVM vNext.
+//! classes subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod asset;
 pub mod capability;
 pub mod contract;

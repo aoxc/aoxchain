@@ -1,6 +1,6 @@
 # PQ AUTH MODEL
 
-This document defines the AOXCVM vNext authentication baseline for quantum-resilient operation.
+This document defines the AOXC-VMachine-QX1 Kernel v1 authentication baseline for quantum-resilient operation.
 
 ## Objectives
 

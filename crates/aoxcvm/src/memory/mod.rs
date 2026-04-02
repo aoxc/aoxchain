@@ -1,4 +1,4 @@
-//! memory subsystem for AOXCVM vNext.
+//! memory subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod borrow;
 pub mod heap;
 pub mod layout;

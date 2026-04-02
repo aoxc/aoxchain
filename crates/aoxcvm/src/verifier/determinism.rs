@@ -1,6 +1,11 @@
 //! Deterministic execution verifier for AOXCVM phase-1.
 
+use crate::receipts::commitment::ReceiptCommitment;
 use crate::receipts::outcome::ReceiptStatus;
+use crate::receipts::proof::ReceiptProof;
+use crate::verifier::bytecode::{BytecodeError, BytecodeVerifier};
+use crate::verifier::invariants::{InvariantError, InvariantVerifier};
+use crate::verifier::state_access::StateSnapshot;
 use crate::vm::machine::{ExecutionResult, Instruction, Machine, Program, VmError};
 
 /// Verification errors for deterministic execution.
@@ -12,6 +17,10 @@ pub enum DeterminismError {
     ExecutionFailed(VmError),
     /// Replay does not match witness output.
     ReceiptMismatch,
+    /// Bytecode does not satisfy deterministic admission rules.
+    InvalidBytecode(BytecodeError),
+    /// Runtime invariants are violated.
+    InvariantViolation(InvariantError),
 }
 
 /// Phase-1 deterministic verifier.
@@ -34,7 +43,12 @@ impl DeterminismVerifier {
                 "program must terminate with HALT",
             ));
         }
-        Ok(())
+
+        BytecodeVerifier {
+            max_instructions: 4096,
+        }
+        .verify(program)
+        .map_err(DeterminismError::InvalidBytecode)
     }
 
     /// Executes once and verifies deterministic replay equivalence.
@@ -54,6 +68,26 @@ impl DeterminismVerifier {
         {
             return Err(DeterminismError::ReceiptMismatch);
         }
+
+        let proof = ReceiptProof::new(&first.receipt, 2);
+        if !proof.verify_receipt(&second.receipt) {
+            return Err(DeterminismError::ReceiptMismatch);
+        }
+
+        let first_commitment = ReceiptCommitment::from_receipt(&first.receipt);
+        let second_commitment = ReceiptCommitment::from_receipt(&second.receipt);
+        if first_commitment != second_commitment {
+            return Err(DeterminismError::ReceiptMismatch);
+        }
+
+        let first_state = StateSnapshot::capture(&first.final_state);
+        let second_state = StateSnapshot::capture(&second.final_state);
+        if !first_state.matches(&second_state) {
+            return Err(DeterminismError::ReceiptMismatch);
+        }
+
+        InvariantVerifier::verify(&first, self.gas_limit)
+            .map_err(DeterminismError::InvariantViolation)?;
 
         Ok(first)
     }

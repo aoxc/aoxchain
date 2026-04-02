@@ -1,4 +1,4 @@
-//! AOXCVM vNext: L1-native, crypto-agile, quantum-resilient VM scaffold.
+//! AOXC-VMachine-QX1 Kernel v1: L1-native, crypto-agile, quantum-resilient VM scaffold.
 pub mod abi;
 pub mod auth;
 pub mod build_info;

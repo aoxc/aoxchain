@@ -1,4 +1,4 @@
-//! abi subsystem for AOXCVM vNext.
+//! abi subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod canonical;
 pub mod compatibility;
 pub mod deserializer;

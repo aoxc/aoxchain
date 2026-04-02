@@ -1,4 +1,4 @@
-//! crypto subsystem for AOXCVM vNext.
+//! crypto subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod classical;
 pub mod commitments;
 pub mod domains;
