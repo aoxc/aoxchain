@@ -112,7 +112,11 @@ mod tests {
     use super::{HybridBundleLimits, HybridSignatureBundle, HybridSignerWitness};
     use crate::auth::scheme::SignatureAlgorithm;
 
-    fn witness(algorithm: SignatureAlgorithm, key_id: &str, signature_len: usize) -> HybridSignerWitness {
+    fn witness(
+        algorithm: SignatureAlgorithm,
+        key_id: &str,
+        signature_len: usize,
+    ) -> HybridSignerWitness {
         HybridSignerWitness {
             algorithm,
             key_id: key_id.to_owned(),

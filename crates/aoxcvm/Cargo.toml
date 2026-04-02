@@ -8,3 +8,4 @@ description = "AOXChain virtual machine vNext scaffold"
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
+sha2.workspace = true

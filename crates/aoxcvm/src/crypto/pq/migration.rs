@@ -46,7 +46,11 @@ impl PqMigrationPolicy {
     }
 
     /// Validates signer counts against active migration constraints.
-    pub fn validate_signer_mix(self, classic_signers: usize, pq_signers: usize) -> AoxcvmResult<()> {
+    pub fn validate_signer_mix(
+        self,
+        classic_signers: usize,
+        pq_signers: usize,
+    ) -> AoxcvmResult<()> {
         let total = classic_signers + pq_signers;
         if total == 0 {
             return Err(AoxcvmError::EmptySignatureSet);
