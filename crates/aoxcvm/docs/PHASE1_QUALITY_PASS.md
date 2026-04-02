@@ -82,16 +82,3 @@ The minimum Phase 1 CI gate should include:
 ## 7. Documentation Parity
 
 `PHASE1_KERNEL_SPEC.md`, implementation, and tests must describe the same behavior. Any invariant enforced in code should appear in spec/test documentation, and unsupported behavior should be listed explicitly.
-
-## 8. Immediate Implementation Queue (Top-10)
-
-1. freeze `ExecutionOutcome`, `Receipt`, and `VmError` API surfaces with explicit compatibility notes;
-2. finalize `Host` and state journal trait-level contracts with cross-crate usage examples;
-3. expand receipt commitment canonicalization tests across reordered but semantically equivalent inputs;
-4. maintain a dedicated replay determinism suite (same input -> same gas, status, roots, and commitment);
-5. add property-based tests for gas accounting, journal rollback equivalence, and memory bounds;
-6. expand fail-closed matrix tests for auth/object/config combinations and disabled targets;
-7. enforce unsupported/invalid version rejection tests on all version selectors;
-8. add fuzz smoke targets for auth envelope/object decoder/receipt proof parser;
-9. maintain an explicit invariant registry mapped to test names;
-10. keep CI gates strict (`fmt`, `clippy`, crate tests, doctests, fuzz smoke) with no silent bypass.
