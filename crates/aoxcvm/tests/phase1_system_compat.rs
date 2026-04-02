@@ -175,5 +175,10 @@ fn phase1_vm_spec_custom_target_allows_exact_match() {
     cfg.artifact_policy.allowed_vm_targets = vec![VmTarget::Custom("qml-v1".to_string())];
 
     let spec = VmSpec::from_config(&cfg, &custom_descriptor("qml-v1")).unwrap();
-    assert_eq!(spec, VmSpec::default());
+    assert_eq!(spec.spec_version, VmSpec::default().spec_version);
+    assert_eq!(
+        spec.max_object_bytes,
+        cfg.artifact_policy.max_artifact_size as usize
+    );
+    assert_eq!(spec.strict_mode, cfg.artifact_policy.review_required);
 }
