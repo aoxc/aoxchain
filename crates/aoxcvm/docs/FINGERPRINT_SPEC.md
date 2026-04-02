@@ -35,8 +35,3 @@ For the same `(namespace, payload)` input tuple, implementations must produce by
 ## Versioning
 
 This specification is bound to digest framing version `AOXCVM/QHASH/V1`. Any future framing or primitive migration must be introduced through a new version tag and compatibility rollout plan.
-
-## Compatibility Note
-
-`execution_fingerprint` remains available as a deprecated wrapper for migration safety.
-New call sites should use `canonical_execution_fingerprint` directly.
