@@ -2,6 +2,7 @@
 
 use crate::context::{deterministic::DeterminismLimits, execution::ExecutionContext};
 use crate::tx::{envelope::TxEnvelope, validation::ValidationPolicy};
+use aoxcontract::RuntimeBindingDescriptor;
 
 /// Admission errors produced before instruction execution begins.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,6 +12,9 @@ pub enum AdmissionError {
     ContextTxChainMismatch,
     ContextTxGasMismatch,
     TxGasExceedsKernelLimit,
+    RestrictedAuthProfileRequired,
+    RestrictedAuthProfileMismatch,
+    GovernanceActivationRequired,
 }
 
 impl From<crate::context::execution::ContextError> for AdmissionError {
@@ -57,6 +61,34 @@ pub fn validate_phase1_admission(
     Ok(())
 }
 
+/// Phase-2 admission checks that must be applied against a resolved runtime
+/// binding before execution begins.
+pub fn validate_phase2_admission(
+    binding: &RuntimeBindingDescriptor,
+    tx: &TxEnvelope,
+    active_auth_profile: Option<&str>,
+) -> Result<(), AdmissionError> {
+    let policy = &binding.resolved_profile.policy_profile;
+
+    if policy.governance_activation_required
+        && !matches!(
+            tx.kind,
+            crate::tx::kind::TxKind::Governance | crate::tx::kind::TxKind::System
+        )
+    {
+        return Err(AdmissionError::GovernanceActivationRequired);
+    }
+
+    if let Some(required_profile) = policy.restricted_to_auth_profile.as_deref() {
+        let active = active_auth_profile.ok_or(AdmissionError::RestrictedAuthProfileRequired)?;
+        if active != required_profile {
+            return Err(AdmissionError::RestrictedAuthProfileMismatch);
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -69,7 +101,11 @@ mod tests {
             envelope::TxEnvelope, fee::FeeBudget, kind::TxKind, payload::TxPayload,
             validation::ValidationError,
         },
+        vm::admission::validate_phase2_admission,
         vm::admission::{AdmissionError, validate_phase1_admission},
+    };
+    use aoxcontract::{
+        ContractId, ExecutionProfileRef, LaneBinding, RuntimeBindingDescriptor, VmTarget,
     };
 
     fn sample_context(gas_limit: u64) -> ExecutionContext {
@@ -90,6 +126,16 @@ mod tests {
             FeeBudget::new(gas_limit, 1),
             TxPayload::new(vec![1, 2, 3]),
         )
+    }
+
+    fn sample_binding() -> RuntimeBindingDescriptor {
+        RuntimeBindingDescriptor {
+            contract_id: ContractId("c_aox_phase2".to_string()),
+            vm_target: VmTarget::Wasm,
+            lane_binding: LaneBinding::Wasm,
+            execution_profile: ExecutionProfileRef("phase2-policy-bound".to_string()),
+            resolved_profile: aoxcontract::ExecutionProfile::phase2_default(&VmTarget::Wasm),
+        }
     }
 
     #[test]
@@ -128,6 +174,57 @@ mod tests {
         assert_eq!(
             validate_phase1_admission(&ctx, &tx, DeterminismLimits::default(), 64 * 1024),
             Err(AdmissionError::TxValidation(ValidationError::EmptyPayload))
+        );
+    }
+
+    #[test]
+    fn phase2_rejects_missing_required_auth_profile() {
+        let mut binding = sample_binding();
+        binding
+            .resolved_profile
+            .policy_profile
+            .restricted_to_auth_profile = Some("ops-v1".to_string());
+
+        let err = validate_phase2_admission(&binding, &sample_tx(500_000), None).unwrap_err();
+        assert_eq!(err, AdmissionError::RestrictedAuthProfileRequired);
+    }
+
+    #[test]
+    fn phase2_rejects_governance_required_for_user_call() {
+        let mut binding = sample_binding();
+        binding
+            .resolved_profile
+            .policy_profile
+            .governance_activation_required = true;
+
+        let err =
+            validate_phase2_admission(&binding, &sample_tx(500_000), Some("ops-v1")).unwrap_err();
+        assert_eq!(err, AdmissionError::GovernanceActivationRequired);
+    }
+
+    #[test]
+    fn phase2_accepts_matching_auth_profile_and_governance_tx() {
+        let mut binding = sample_binding();
+        binding
+            .resolved_profile
+            .policy_profile
+            .restricted_to_auth_profile = Some("ops-v1".to_string());
+        binding
+            .resolved_profile
+            .policy_profile
+            .governance_activation_required = true;
+
+        let governance_tx = TxEnvelope::new(
+            2626,
+            1,
+            TxKind::Governance,
+            FeeBudget::new(500_000, 1),
+            TxPayload::new(vec![1, 2, 3]),
+        );
+
+        assert_eq!(
+            validate_phase2_admission(&binding, &governance_tx, Some("ops-v1")),
+            Ok(())
         );
     }
 }
