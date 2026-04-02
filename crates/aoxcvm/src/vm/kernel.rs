@@ -3,7 +3,7 @@
 use crate::receipts::proof::ReceiptProof;
 use crate::state::JournaledState;
 use crate::verifier::determinism::{DeterminismError, DeterminismVerifier};
-use crate::vm::machine::{ExecutionEnvelope, Program};
+use crate::vm::machine::{ExecutionResult, Program};
 
 /// Configuration for a phase-1 kernel run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,14 +24,14 @@ impl Default for KernelConfig {
 /// Minimal full phase-1 output surface.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KernelOutput {
-    pub envelope: ExecutionEnvelope,
+    pub result: ExecutionResult,
     pub receipt_proof: ReceiptProof,
 }
 
 impl KernelOutput {
     /// Returns final deterministic state snapshot source.
     pub fn final_state(&self) -> &JournaledState {
-        &self.envelope.result.final_state
+        &self.result.final_state
     }
 }
 
@@ -47,17 +47,17 @@ impl AOXCVMachineQX1 {
         Self { config }
     }
 
-    /// Executes and verifies phase-1 program determinism, including failed receipts.
+    /// Executes and verifies a program with deterministic replay.
     pub fn execute_phase1(&self, program: Program) -> Result<KernelOutput, DeterminismError> {
         let verifier = DeterminismVerifier {
             gas_limit: self.config.gas_limit,
             max_memory: self.config.max_memory,
         };
 
-        let envelope = verifier.verify_enveloped(program)?;
-        let receipt_proof = ReceiptProof::new(&envelope.result.receipt, 2);
+        let result = verifier.verify(program)?;
+        let receipt_proof = ReceiptProof::new(&result.receipt, 2);
         Ok(KernelOutput {
-            envelope,
+            result,
             receipt_proof,
         })
     }
@@ -66,8 +66,7 @@ impl AOXCVMachineQX1 {
 #[cfg(test)]
 mod tests {
     use super::{AOXCVMachineQX1, KernelConfig};
-    use crate::receipts::outcome::ReceiptStatus;
-    use crate::vm::machine::{Instruction, Program, VmError};
+    use crate::vm::machine::{Instruction, Program};
 
     #[test]
     fn phase1_kernel_executes_full_minimal_surface() {
@@ -91,44 +90,11 @@ mod tests {
         };
 
         let output = kernel.execute_phase1(program).expect("phase1 success");
-        assert_eq!(output.envelope.error, None);
-        assert_eq!(output.envelope.result.stack, vec![11]);
-        assert!(
-            output
-                .receipt_proof
-                .verify_receipt(&output.envelope.result.receipt)
-        );
+        assert_eq!(output.result.stack, vec![11]);
+        assert!(output.receipt_proof.verify_receipt(&output.result.receipt));
         assert_eq!(
             output.final_state().get(&1_u64.to_le_bytes()),
             Some(&11_u64.to_le_bytes()[..])
-        );
-    }
-
-    #[test]
-    fn phase1_kernel_produces_failed_receipt_deterministically() {
-        let kernel = AOXCVMachineQX1::new(KernelConfig {
-            gas_limit: 1_000,
-            max_memory: 1024,
-        });
-
-        let program = Program {
-            code: vec![
-                Instruction::Push(8),
-                Instruction::Push(0),
-                Instruction::Div,
-                Instruction::Halt,
-            ],
-        };
-
-        let output = kernel
-            .execute_phase1(program)
-            .expect("deterministic failure envelope");
-        assert_eq!(output.envelope.error, Some(VmError::DivisionByZero));
-        assert_eq!(output.envelope.result.receipt.status, ReceiptStatus::Failed);
-        assert!(
-            output
-                .receipt_proof
-                .verify_receipt(&output.envelope.result.receipt)
         );
     }
 }

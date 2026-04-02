@@ -74,13 +74,6 @@ pub struct ExecutionResult {
     pub final_state: JournaledState,
 }
 
-/// Deterministic execution envelope that always returns a receipt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutionEnvelope {
-    pub result: ExecutionResult,
-    pub error: Option<VmError>,
-}
-
 /// Deterministic single-threaded VM.
 #[derive(Debug, Clone)]
 pub struct Machine {
@@ -152,14 +145,11 @@ impl Machine {
                     self.logs,
                     &self.state,
                 );
-                return ExecutionEnvelope {
-                    result: ExecutionResult {
-                        receipt,
-                        stack: self.stack,
-                        final_state: self.state,
-                    },
-                    error: None,
-                };
+                return Ok(ExecutionResult {
+                    receipt,
+                    stack: self.stack,
+                    final_state: self.state,
+                });
             }
 
             if let Err(err) = self.step(instruction) {

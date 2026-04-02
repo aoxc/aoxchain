@@ -43,7 +43,6 @@ mod tests {
                 state_root: [0; 32],
             },
             stack: vec![],
-            final_state: crate::state::JournaledState::default(),
         };
         assert_eq!(
             InvariantVerifier::verify(&result, 100),
