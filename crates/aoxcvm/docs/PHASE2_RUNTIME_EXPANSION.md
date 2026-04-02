@@ -29,7 +29,7 @@ Each `ContractManifest` now carries an `execution_profile`.
 - The profile is initialized via `ExecutionProfile::phase2_default(&vm_target)`.
 - Validation ensures `execution_profile.vm_target == manifest.vm_target`.
 
-### 3) Resolver-level Expansion
+### 3) Resolver-level Expansion + Enforcement
 
 `aoxcvm::contracts::resolver::resolve_runtime_binding(...)` now emits a Phase-2
 class-aware execution profile reference:
@@ -42,6 +42,30 @@ class-aware execution profile reference:
 
 The runtime binding payload now includes `resolved_profile` so consumers can
 inspect class/capability/policy context directly.
+
+Resolver now applies fail-closed checks for:
+
+- `PolicyProfile.review_required` (cannot downgrade global required review),
+- `PolicyProfile.governance_activation_required` (class-constrained),
+- `PolicyProfile.restricted_to_auth_profile` (required for `PolicyBound` only),
+- capability-class mismatches (forbidden feature elevation).
+
+### 4) Contract-class behavior matrix
+
+| Contract class | Allowed features | Forbidden features | Admission expectations |
+|---|---|---|---|
+| `Application` | storage read/write, package dependency access, optional restricted syscalls | registry access, governance hooks, metadata mutation, upgrade authority | user-call compatible, no governance-only hooks |
+| `System` | all capabilities as configured | none at resolver level | system/governance lanes accepted |
+| `Governed` | governance hooks, registry access, metadata mutation, storage read/write | upgrade authority (direct escalation) | governance activation required when governance hooks are enabled |
+| `Package` | storage read, package dependency access | storage write, registry access, governance hooks, metadata mutation, upgrade authority | package publishing and deterministic load only |
+| `PolicyBound` | storage read/write, package dependency access, restricted syscalls | governance hooks, metadata mutation, upgrade authority | must declare non-empty restricted auth profile and restricted syscalls |
+
+### 5) Runtime admission binding
+
+`vm::admission::validate_phase2_admission(...)` enforces that:
+
+- governance-required profiles run on governance/system transaction kinds,
+- restricted auth profiles must be present and match active auth profile id.
 
 ## Non-Goals (still unchanged)
 
