@@ -47,7 +47,7 @@ pub enum AuthProfile {
 
 impl Default for AuthProfile {
     fn default() -> Self {
-        Self::HybridMandatory
+        Self::PostQuantumStrict
     }
 }
 
