@@ -126,7 +126,11 @@ impl ContractRuntimeBindingService {
         desc: &ContractDescriptor,
         conf: &ContractsConfig,
     ) -> Result<(String, u64), String> {
-        if !conf.artifact_policy.allowed_vm_targets.contains(&desc.manifest.vm_target) {
+        if !conf
+            .artifact_policy
+            .allowed_vm_targets
+            .contains(&desc.manifest.vm_target)
+        {
             return Err("vm_target is not allowed by contracts configuration".to_string());
         }
 
