@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ArtifactDigest, Compatibility, ContractArtifactRef, ContractError, ContractMetadata,
-    ContractPolicy, Entrypoint, ManifestValidationError, Validate,
+    ContractPolicy, Entrypoint, ExecutionProfile, ManifestValidationError, Validate,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -34,6 +34,7 @@ pub struct ContractManifest {
     pub metadata: ContractMetadata,
     pub policy: ContractPolicy,
     pub compatibility: Compatibility,
+    pub execution_profile: ExecutionProfile,
     pub integrity: crate::Integrity,
     pub schema_version: u32,
 }
@@ -67,6 +68,7 @@ impl ContractManifest {
             metadata,
             policy,
             compatibility,
+            execution_profile: ExecutionProfile::phase2_default(&vm_target),
             integrity,
             schema_version,
         };
@@ -128,6 +130,9 @@ impl Validate for ContractManifest {
 
         if self.vm_target != self.artifact.declared_vm_target {
             return Err(ManifestValidationError::VmTargetMismatch.into());
+        }
+        if self.execution_profile.vm_target != self.vm_target {
+            return Err(ManifestValidationError::ExecutionProfileVmTargetMismatch.into());
         }
         if self.digest != self.artifact.artifact_digest || self.digest != self.integrity.digest {
             return Err(ManifestValidationError::DigestAlgorithmMismatch.into());
