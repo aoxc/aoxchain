@@ -38,12 +38,3 @@ It does **not** claim unconditional resistance to all present or future quantum 
 ## Upgrade and Agility
 
 Digest framing is version-tagged (`.../V1`) to preserve forward migration capability. Any change to primitives, framing, or output composition requires a version bump and explicit compatibility policy update.
-
-## Compatibility Note
-
-Legacy symbol names are retained as deprecated aliases for migration continuity:
-
-- `QuantumUnaffectedDigest` (type alias),
-- `quantum_unaffected_digest` (function wrapper).
-
-New integrations should use canonical `QuantumHardenedDigest` naming.

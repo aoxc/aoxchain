@@ -17,13 +17,6 @@ pub struct QuantumHardenedDigest {
     pub blake3_256: [u8; BLAKE3_BYTES],
 }
 
-/// Backward-compatible alias kept for migration from pre-audit naming.
-#[deprecated(
-    since = "0.1.1",
-    note = "use QuantumHardenedDigest; avoid absolute security wording in public APIs"
-)]
-pub type QuantumUnaffectedDigest = QuantumHardenedDigest;
-
 impl QuantumHardenedDigest {
     /// Returns canonical byte layout: SHA3-512 || BLAKE3-256.
     pub fn to_bytes(&self) -> [u8; SHA3_512_BYTES + BLAKE3_BYTES] {
@@ -70,17 +63,13 @@ pub fn quantum_hardened_digest(domain: &'static [u8], payload: &[u8]) -> Quantum
     since = "0.1.1",
     note = "use quantum_hardened_digest; avoid absolute security wording in public APIs"
 )]
-pub fn quantum_unaffected_digest(
-    domain: &'static [u8],
-    payload: &[u8],
-) -> QuantumHardenedDigest {
+pub fn quantum_unaffected_digest(domain: &'static [u8], payload: &[u8]) -> QuantumHardenedDigest {
     quantum_hardened_digest(domain, payload)
 }
 
 #[cfg(test)]
 mod tests {
-    #[allow(deprecated)]
-    use super::{quantum_hardened_digest, quantum_unaffected_digest};
+    use super::quantum_hardened_digest;
 
     #[test]
     fn digest_is_deterministic() {
