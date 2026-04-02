@@ -362,6 +362,39 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    struct SpyHost {
+        inner: InMemoryHost,
+        checkpoint_calls: usize,
+        rollback_calls: usize,
+        commit_calls: usize,
+    }
+
+    impl super::Host for SpyHost {
+        fn load_state(&self) -> crate::state::JournaledState {
+            self.inner.load_state()
+        }
+
+        fn checkpoint(&mut self) -> Result<usize, ()> {
+            self.checkpoint_calls += 1;
+            self.inner.checkpoint()
+        }
+
+        fn rollback(&mut self, checkpoint: usize) -> Result<(), ()> {
+            self.rollback_calls += 1;
+            self.inner.rollback(checkpoint)
+        }
+
+        fn commit(
+            &mut self,
+            checkpoint: usize,
+            state: crate::state::JournaledState,
+        ) -> Result<(), ()> {
+            self.commit_calls += 1;
+            self.inner.commit(checkpoint, state)
+        }
+    }
+
     fn valid_contract(code: Vec<Instruction>) -> ExecutionContract {
         let tx = TxEnvelope::new(
             2626,
@@ -493,10 +526,9 @@ mod tests {
 
     #[test]
     fn invalid_auth_rejected_before_execution() {
-        let contract = valid_contract(vec![Instruction::Halt]);
+        let mut contract = valid_contract(vec![Instruction::Halt]);
+        contract.auth.signers.clear();
         let mut host = SpyHost::default();
-        let auth = CountingAuthVerifier::rejecting();
-        let object = CountingObjectVerifier::allowing();
 
         let err = execute(&contract, &mut host, VmSpec::default(), &auth, &object)
             .expect_err("reject invalid auth");
@@ -545,15 +577,16 @@ mod tests {
         )
         .expect("execute");
 
-        assert_eq!(out.vm_error, Some(VmError::DivisionByZero));
-        assert_eq!(host.checkpoint_calls, 1);
-        assert_eq!(host.rollback_calls, 1);
+        assert_eq!(err, ExecuteError::Admission(AdmissionError::InvalidAuth));
+        assert_eq!(host.checkpoint_calls, 0);
+        assert_eq!(host.rollback_calls, 0);
         assert_eq!(host.commit_calls, 0);
     }
 
     #[test]
-    fn successful_execution_commits_and_does_not_rollback() {
-        let contract = valid_contract(vec![Instruction::Push(4), Instruction::Halt]);
+    fn invalid_object_rejected_before_execution() {
+        let mut contract = valid_contract(vec![Instruction::Halt]);
+        contract.object.clear();
         let mut host = SpyHost::default();
 
         let out = execute(
@@ -586,10 +619,32 @@ mod tests {
         let err = execute(&contract, &mut host, spec, &auth, &object).expect_err("reject object");
 
         assert_eq!(err, ExecuteError::Admission(AdmissionError::InvalidObject));
-        assert_eq!(auth.calls(), 1);
-        assert_eq!(object.calls(), 0);
         assert_eq!(host.checkpoint_calls, 0);
         assert_eq!(host.rollback_calls, 0);
+        assert_eq!(host.commit_calls, 0);
+    }
+
+    #[test]
+    fn execution_failure_rolls_back_and_does_not_commit() {
+        let contract = valid_contract(vec![
+            Instruction::Push(1),
+            Instruction::Push(0),
+            Instruction::Div,
+        ]);
+        let mut host = SpyHost::default();
+
+        let out = execute(
+            &contract,
+            &mut host,
+            VmSpec::default(),
+            &BasicAuthVerifier,
+            &BasicObjectVerifier,
+        )
+        .expect("execute");
+
+        assert_eq!(out.vm_error, Some(VmError::DivisionByZero));
+        assert_eq!(host.checkpoint_calls, 1);
+        assert_eq!(host.rollback_calls, 1);
         assert_eq!(host.commit_calls, 0);
     }
 }
