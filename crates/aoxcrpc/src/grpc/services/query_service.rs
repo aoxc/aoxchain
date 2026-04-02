@@ -2,6 +2,8 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
+use crate::admission::{AdmissionContext, evaluate_method_admission};
+use crate::error::RpcError;
 use crate::types::ChainStatus;
 
 #[derive(Debug, Clone)]
@@ -25,5 +27,51 @@ impl QueryService {
             height,
             syncing,
         }
+    }
+
+    pub fn get_chain_status_admitted(
+        &self,
+        height: u64,
+        syncing: bool,
+        context: &AdmissionContext,
+    ) -> Result<ChainStatus, RpcError> {
+        evaluate_method_admission("query_state", context)?;
+        Ok(self.get_chain_status(height, syncing))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::QueryService;
+    use crate::admission::{AdmissionContext, IdentityTier};
+    use aoxcvm::auth::scheme::SignatureAlgorithm;
+    #[test]
+    fn admitted_status_requires_api_key_or_higher() {
+        let service = QueryService::default();
+        let context = AdmissionContext {
+            identity_tier: IdentityTier::Anonymous,
+            signer_algorithms: vec![SignatureAlgorithm::Ed25519, SignatureAlgorithm::MlDsa65],
+            remaining_budget_units: 10,
+        };
+
+        let err = service
+            .get_chain_status_admitted(100, false, &context)
+            .expect_err("anonymous should be denied");
+        assert!(err.to_string().contains("ADMISSION_DENIED"));
+    }
+
+    #[test]
+    fn admitted_status_accepts_api_key_with_hybrid_signers() {
+        let service = QueryService::default();
+        let context = AdmissionContext {
+            identity_tier: IdentityTier::ApiKey,
+            signer_algorithms: vec![SignatureAlgorithm::Ed25519, SignatureAlgorithm::MlDsa65],
+            remaining_budget_units: 10,
+        };
+
+        let status = service
+            .get_chain_status_admitted(42, false, &context)
+            .expect("admission should pass");
+        assert_eq!(status.height, 42);
     }
 }
