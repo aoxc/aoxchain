@@ -282,6 +282,11 @@ pub mod resolver {
             descriptor
                 .manifest
                 .execution_profile
+                .capability_profile
+                .restricted_syscalls = true;
+            descriptor
+                .manifest
+                .execution_profile
                 .policy_profile
                 .restricted_to_auth_profile = Some("ops-signer-v1".into());
             descriptor.manifest.validate().unwrap();

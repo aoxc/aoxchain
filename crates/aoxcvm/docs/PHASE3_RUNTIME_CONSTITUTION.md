@@ -81,6 +81,17 @@ Scope:
 Primary outputs:
 - `INTEROP_SETTLEMENT_LAW.md`
 
+
+## Implementation status snapshot
+
+Current runtime implementation now defines a canonical constitutional telemetry surface in
+`src/vm/constitutional_audit.rs`, including deterministic allowed/denied decision records
+for policy, governance lane, and active auth-profile decisions.
+
+This directly satisfies the requirement that constitutional telemetry and audit logs are
+explicitly defined for policy/governance/profile decisions, while broader Phase-3 delivery
+remains gated by the full done criteria listed below.
+
 ## Final done criteria
 
 Phase-3 is done only when all are true:
