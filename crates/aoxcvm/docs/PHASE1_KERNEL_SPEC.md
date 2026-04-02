@@ -241,55 +241,6 @@ Phase 1 MUST define and stabilize trait-level contracts for:
 - **GasMeter**: charge/dynamic/refund/remaining/consumed/checkpoint/rollback,
 - **KernelMachine**: prepare/verify/execute/finalize/receipt production.
 
-### 5.1 Required trait operations (minimum)
-
-The following operation-level contract is mandatory for Phase 1 completion:
-
-- **Host**
-  - `account_lookup`
-  - `balance_read`
-  - `storage_read`
-  - `storage_write_request`
-  - `code_or_object_lookup`
-  - `policy_query`
-  - `feature_activation_query`
-  - `emit_event_or_log`
-  - `precompile_dispatch`
-- **StateJournal**
-  - `checkpoint`
-  - `record_write`
-  - `record_create`
-  - `record_delete`
-  - `rollback`
-  - `merge`
-  - `finalize`
-- **AuthVerifier**
-  - `verify_envelope`
-  - `verify_domain_binding`
-  - `verify_replay_guard`
-  - `verify_scheme_rules`
-  - `verify_threshold`
-- **ObjectVerifier**
-  - `validate_structure`
-  - `validate_sections`
-  - `validate_entrypoints`
-  - `validate_capability_flags`
-  - `validate_version_compatibility`
-- **GasMeter**
-  - `charge`
-  - `charge_dynamic`
-  - `refund`
-  - `remaining`
-  - `consumed`
-  - `checkpoint`
-  - `rollback`
-- **KernelMachine**
-  - `prepare`
-  - `verify`
-  - `execute`
-  - `finalize`
-  - `produce_receipt`
-
 ## 6. Execution Lifecycle (Canonical)
 
 1. Admission,
@@ -323,17 +274,6 @@ Phase 1 MUST model distinct failure classes, including:
 - `FatalKernelError`.
 
 Consensus behavior and RPC semantics MUST be driven by this explicit classification, not by implicit mapping.
-
-### 7.1 Outcome-to-resolution matrix (mandatory)
-
-Kernel behavior MUST be explicit by outcome class:
-
-- `success` -> commit journal, produce success receipt.
-- `revert` -> rollback state changes according to revert policy, preserve permitted diagnostics.
-- `fatal` -> rollback full checkpoint scope, emit fatal class.
-- `out_of_gas` -> rollback per gas policy, charge consumed gas.
-- `invalid_auth` -> no execution commit, deterministic rejection receipt.
-- `invalid_object` -> no execution commit, deterministic rejection receipt.
 
 ## 8. Quantum-Ready Requirements for Phase 1
 
@@ -388,47 +328,3 @@ Phase 1 is complete only when all below are satisfied:
 > No feature before kernel invariants.
 
 Phase 1 prioritizes invariant closure over feature breadth.
-
-## 12. Canonical module layout baseline
-
-Phase 1 does not require this exact filesystem shape, but it MUST preserve equivalent domain separation:
-
-```text
-crates/aoxcvm/src/
-├─ kernel/      (identity, spec, lifecycle, invariants, fingerprint)
-├─ context/     (block, tx, execution, environment)
-├─ auth/        (scheme, descriptor, envelope, verifier, hybrid, pq_reserved)
-├─ object/      (header, section, capability, entrypoint, validate)
-├─ bytecode/    (opcode, decode, validate, canonicalization)
-├─ engine/      (executor, dispatch, frame/control_flow, traps/halt)
-├─ memory/      (layout, regions, bounds, expansion/zeroing)
-├─ gas/         (meter, table, dynamic/refund, cost model)
-├─ state/       (journal, checkpoint, diff, commit/rollback/apply)
-├─ host/        (traits, policy, precompile, bridge)
-├─ verifier/    (object, bytecode, auth, static rules, report)
-├─ syscall/     (ids, router, permissions, metering, result)
-├─ receipts/    (status, logs/events, trace_root, hash, builder)
-├─ version/     (execution_spec, auth_policy, object_format, feature_set)
-├─ errors/      (kernel/auth/memory/gas/verifier/state classes)
-└─ vm/          (machine, session, entrypoints, outcome)
-```
-
-## 13. Phase 1 minimum deliverable checklist
-
-A release MUST NOT be labelled “Phase 1 complete” unless all items are closed:
-
-- canonical kernel identity and fingerprinting available,
-- immutable deterministic execution context finalized,
-- multi-scheme auth abstraction active (including reserved PQ slots),
-- object admission and bytecode verification gates enforced,
-- deterministic instruction semantics documented and tested,
-- bounded memory semantics documented and enforced,
-- full gas metering and refund ceilings enforced,
-- journaled state transitions with nested rollback/commit proven,
-- explicit host boundary with no hidden I/O surfaces,
-- syscall permission and metering model enforced,
-- canonical receipt builder and hash commitments stabilized,
-- versioned execution rules and activation model active,
-- full failure taxonomy wired into consensus-facing outcomes,
-- determinism replay suite and adversarial malformed-input suite passing,
-- migration-safe auth schema versioning tested.
