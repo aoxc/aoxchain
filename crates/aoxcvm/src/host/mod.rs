@@ -4,6 +4,7 @@ pub mod deterministic;
 pub mod dispatcher;
 pub mod exports;
 pub mod imports;
+pub mod journal;
 pub mod limits;
 pub mod registry;
 pub mod sandbox;

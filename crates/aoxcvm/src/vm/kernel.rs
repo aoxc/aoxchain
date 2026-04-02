@@ -1,8 +1,19 @@
 //! AOXC-VMachine-QX1 phase-1 kernel orchestration.
 
+use crate::context::{
+    block::BlockContext,
+    call::CallContext,
+    deterministic::DeterminismLimits,
+    environment::EnvironmentContext,
+    execution::{ContextError, ExecutionContext},
+    origin::OriginContext,
+    tx::TxContext,
+};
 use crate::receipts::proof::ReceiptProof;
 use crate::state::JournaledState;
+use crate::tx::envelope::TxEnvelope;
 use crate::verifier::determinism::{DeterminismError, DeterminismVerifier};
+use crate::vm::admission::{AdmissionError, validate_phase1_admission};
 use crate::vm::machine::{ExecutionResult, Program};
 
 /// Configuration for a phase-1 kernel run.
@@ -10,6 +21,9 @@ use crate::vm::machine::{ExecutionResult, Program};
 pub struct KernelConfig {
     pub gas_limit: u64,
     pub max_memory: usize,
+    pub max_payload_bytes: usize,
+    pub max_call_depth: u16,
+    pub min_spec_version: u32,
 }
 
 impl Default for KernelConfig {
@@ -17,6 +31,9 @@ impl Default for KernelConfig {
         Self {
             gas_limit: 1_000_000,
             max_memory: 1024 * 1024,
+            max_payload_bytes: 64 * 1024,
+            max_call_depth: 64,
+            min_spec_version: 1,
         }
     }
 }
@@ -24,6 +41,7 @@ impl Default for KernelConfig {
 /// Minimal full phase-1 output surface.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KernelOutput {
+    pub context: ExecutionContext,
     pub result: ExecutionResult,
     pub receipt_proof: ReceiptProof,
 }
@@ -32,6 +50,32 @@ impl KernelOutput {
     /// Returns final deterministic state snapshot source.
     pub fn final_state(&self) -> &JournaledState {
         &self.result.final_state
+    }
+}
+
+/// Phase-1 kernel execution failure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KernelError {
+    Admission(AdmissionError),
+    Context(ContextError),
+    Determinism(DeterminismError),
+}
+
+impl From<AdmissionError> for KernelError {
+    fn from(value: AdmissionError) -> Self {
+        Self::Admission(value)
+    }
+}
+
+impl From<ContextError> for KernelError {
+    fn from(value: ContextError) -> Self {
+        Self::Context(value)
+    }
+}
+
+impl From<DeterminismError> for KernelError {
+    fn from(value: DeterminismError) -> Self {
+        Self::Determinism(value)
     }
 }
 
@@ -47,25 +91,77 @@ impl AOXCVMachineQX1 {
         Self { config }
     }
 
-    /// Executes and verifies a program with deterministic replay.
-    pub fn execute_phase1(&self, program: Program) -> Result<KernelOutput, DeterminismError> {
+    /// Executes and verifies a program with deterministic replay using a default context.
+    pub fn execute_phase1(&self, program: Program) -> Result<KernelOutput, KernelError> {
+        self.execute_phase1_with_context(program, self.default_context())
+    }
+
+    /// Executes with explicit context + transaction admission validation.
+    pub fn execute_phase1_admitted(
+        &self,
+        program: Program,
+        context: ExecutionContext,
+        tx: &TxEnvelope,
+    ) -> Result<KernelOutput, KernelError> {
+        validate_phase1_admission(
+            &context,
+            tx,
+            DeterminismLimits {
+                max_call_depth: self.config.max_call_depth,
+                max_gas_limit: self.config.gas_limit,
+                min_spec_version: self.config.min_spec_version,
+            },
+            self.config.max_payload_bytes,
+        )?;
+
+        self.execute_phase1_with_context(program, context)
+    }
+
+    /// Executes and verifies a program using caller-provided immutable execution context.
+    pub fn execute_phase1_with_context(
+        &self,
+        program: Program,
+        context: ExecutionContext,
+    ) -> Result<KernelOutput, KernelError> {
+        context.validate(DeterminismLimits {
+            max_call_depth: self.config.max_call_depth,
+            max_gas_limit: self.config.gas_limit,
+            min_spec_version: self.config.min_spec_version,
+        })?;
+
         let verifier = DeterminismVerifier {
-            gas_limit: self.config.gas_limit,
+            gas_limit: context.tx.gas_limit,
             max_memory: self.config.max_memory,
         };
 
         let result = verifier.verify(program)?;
         let receipt_proof = ReceiptProof::new(&result.receipt, 2);
         Ok(KernelOutput {
+            context,
             result,
             receipt_proof,
         })
+    }
+
+    fn default_context(&self) -> ExecutionContext {
+        ExecutionContext::new(
+            EnvironmentContext::new(2626, 1),
+            BlockContext::new(0, 0, 0, [0_u8; 32]),
+            TxContext::new([0_u8; 32], 0, self.config.gas_limit, false, 1, 0),
+            CallContext::new(0),
+            OriginContext::new([0_u8; 32], [0_u8; 32], [0_u8; 32], 0),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{AOXCVMachineQX1, KernelConfig};
+    use super::{AOXCVMachineQX1, KernelConfig, KernelError};
+    use crate::context::{
+        block::BlockContext, call::CallContext, environment::EnvironmentContext,
+        execution::ExecutionContext, origin::OriginContext, tx::TxContext,
+    };
+    use crate::tx::{envelope::TxEnvelope, fee::FeeBudget, kind::TxKind, payload::TxPayload};
     use crate::vm::machine::{Instruction, Program};
 
     #[test]
@@ -73,6 +169,9 @@ mod tests {
         let kernel = AOXCVMachineQX1::new(KernelConfig {
             gas_limit: 1_000,
             max_memory: 1024,
+            max_payload_bytes: 1024,
+            max_call_depth: 64,
+            min_spec_version: 1,
         });
 
         let program = Program {
@@ -96,5 +195,80 @@ mod tests {
             output.final_state().get(&1_u64.to_le_bytes()),
             Some(&11_u64.to_le_bytes()[..])
         );
+    }
+
+    #[test]
+    fn admitted_execution_rejects_gas_mismatch() {
+        let kernel = AOXCVMachineQX1::new(KernelConfig {
+            gas_limit: 2_000,
+            max_memory: 1024,
+            max_payload_bytes: 1024,
+            max_call_depth: 64,
+            min_spec_version: 1,
+        });
+
+        let context = ExecutionContext::new(
+            EnvironmentContext::new(2626, 1),
+            BlockContext::new(1, 2, 3, [1_u8; 32]),
+            TxContext::new([2_u8; 32], 0, 1000, false, 1, 0),
+            CallContext::new(0),
+            OriginContext::new([1_u8; 32], [2_u8; 32], [1_u8; 32], 0),
+        );
+
+        let tx = TxEnvelope::new(
+            2626,
+            1,
+            TxKind::UserCall,
+            FeeBudget::new(900, 1),
+            TxPayload::new(vec![1]),
+        );
+
+        let err = kernel
+            .execute_phase1_admitted(
+                Program {
+                    code: vec![Instruction::Halt],
+                },
+                context,
+                &tx,
+            )
+            .expect_err("must fail");
+
+        assert!(matches!(
+            err,
+            KernelError::Admission(crate::vm::admission::AdmissionError::ContextTxGasMismatch)
+        ));
+    }
+
+    #[test]
+    fn rejects_context_depth_over_limit() {
+        let kernel = AOXCVMachineQX1::new(KernelConfig {
+            gas_limit: 1000,
+            max_memory: 1024,
+            max_payload_bytes: 1024,
+            max_call_depth: 4,
+            min_spec_version: 1,
+        });
+
+        let context = ExecutionContext::new(
+            EnvironmentContext::new(2626, 1),
+            BlockContext::new(1, 1, 1, [9_u8; 32]),
+            TxContext::new([7_u8; 32], 0, 500, false, 1, 0),
+            CallContext::new(8),
+            OriginContext::new([1_u8; 32], [2_u8; 32], [1_u8; 32], 0),
+        );
+
+        let err = kernel
+            .execute_phase1_with_context(
+                Program {
+                    code: vec![Instruction::Halt],
+                },
+                context,
+            )
+            .expect_err("must fail");
+
+        assert!(matches!(
+            err,
+            KernelError::Context(crate::context::execution::ContextError::DepthExceedsDeterminism)
+        ));
     }
 }

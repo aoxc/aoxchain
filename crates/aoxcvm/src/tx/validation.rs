@@ -19,7 +19,7 @@ impl ValidationPolicy {
     }
 }
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum ValidationError {
     #[error("chain id mismatch")]
     ChainIdMismatch,
