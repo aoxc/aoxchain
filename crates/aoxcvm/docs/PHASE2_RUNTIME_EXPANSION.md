@@ -2,9 +2,6 @@
 
 > Canonical constitutional law tables for this phase are defined in
 > `PHASE2_EXECUTION_LAW.md`.
->
-> Final acceptance checklist and completion ruling are tracked in
-> `PHASE2_FINAL_STATUS.md`.
 
 ## Objective
 
