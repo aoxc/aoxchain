@@ -47,6 +47,7 @@ AOXChain is a deterministic Layer-1 engineering program focused on three primary
 - `ARCHITECTURE.md` — component boundaries, dependency direction, trust surfaces.
 - `SECURITY.md` — reporting and security handling expectations.
 - `TESTING.md` — validation policy and evidence requirements.
+- `NETWORK_SECURITY_ARCHITECTURE.md` — network/RPC trust segmentation, DDoS controls, and kernel hardening baseline.
 - `ROADMAP.md` — repository execution roadmap.
 - `QUANTUM_ROADMAP.md` — quantum-resilience transformation plan.
 - `QUANTUM_CHECKLIST.md` — release-gating checklist for crypto-profile migration.
