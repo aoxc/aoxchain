@@ -26,6 +26,7 @@ The gate generates deterministic probe outputs in debug and release modes and fa
 Evidence artifact:
 
 - `artifacts/aoxcvm-phase3/determinism-matrix.json`
+- `artifacts/aoxcvm-phase3/evidence-bundle/artifacts-manifest.json`
 
 The artifact includes:
 
@@ -71,4 +72,10 @@ To run the AOXCVM closure package locally:
 
 ```bash
 make aoxcvm-phase3-gate
+```
+
+Optional artifact root override:
+
+```bash
+AOXCVM_ARTIFACT_DIR=/path/to/artifacts make aoxcvm-phase3-gate
 ```
