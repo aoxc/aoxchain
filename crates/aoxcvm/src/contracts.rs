@@ -110,7 +110,10 @@ pub mod resolver {
 
             let binding = resolve_runtime_binding(&descriptor, &config).unwrap();
             assert_eq!(binding.execution_profile.0, "phase2-application");
-            assert_eq!(binding.resolved_profile, descriptor.manifest.execution_profile);
+            assert_eq!(
+                binding.resolved_profile,
+                descriptor.manifest.execution_profile
+            );
         }
 
         #[test]
