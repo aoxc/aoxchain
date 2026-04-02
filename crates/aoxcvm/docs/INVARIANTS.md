@@ -37,3 +37,12 @@ The first failing gate terminates execution. Later gates must not run.
 - `VmSpec::from_config(...)` is fail-closed on disabled VM targets.
 - `max_object_bytes` is derived from contract artifact policy.
 - `strict_mode` is derived from `review_required`.
+
+## Phase-2 execution-law invariants
+
+- Resolver and admission are both **fail-closed** for Phase-2 law; bypassing one layer must still be rejected by the next layer.
+- `resolved_profile.vm_target` and manifest `vm_target` must remain equal.
+- Forbidden class/capability combinations never reach execution.
+- `PolicyBound` contracts must carry a canonical `restricted_to_auth_profile` value.
+- Auth profile mismatch (`restricted_to_auth_profile` vs active runtime profile) never enters execution.
+- Governance-required profiles are restricted to governance/system lanes at admission.
