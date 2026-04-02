@@ -197,3 +197,16 @@ If a change affects any of these properties, the architectural intent should be 
 - emits reproducible readiness artifacts used by release and closure gates.
 
 This alignment must remain consistent with `QUANTUM_ROADMAP.md` and `QUANTUM_CHECKLIST.md`.
+
+---
+
+## Network and RPC Security Addendum
+
+`NETWORK_SECURITY_ARCHITECTURE.md` defines AOXChain's deployment and trust-boundary requirements for:
+
+- validator, sentry, RPC, and control-plane separation,
+- profile-driven network cryptography and downgrade rejection,
+- staged RPC admission and DDoS-resilience controls,
+- kernel/host isolation and resource-confinement baseline.
+
+This addendum is normative for networking and API changes that can affect consensus continuity, availability posture, or key-trust boundaries.
