@@ -20,6 +20,7 @@ use crate::vm::machine::{ExecutionResult, Program};
 pub struct KernelConfig {
     pub gas_limit: u64,
     pub max_memory: usize,
+    pub max_stack_depth: usize,
     pub max_call_depth: u16,
     pub min_spec_version: u32,
 }
@@ -29,6 +30,7 @@ impl Default for KernelConfig {
         Self {
             gas_limit: 1_000_000,
             max_memory: 1024 * 1024,
+            max_stack_depth: 1024,
             max_call_depth: 64,
             min_spec_version: 1,
         }
@@ -113,6 +115,7 @@ impl AOXCVMachineQX1 {
         let verifier = DeterminismVerifier {
             gas_limit: context.tx.gas_limit,
             max_memory: self.config.max_memory,
+            max_stack_depth: self.config.max_stack_depth,
         };
 
         let result = verifier.verify(program)?;
@@ -160,6 +163,7 @@ mod tests {
         let kernel = AOXCVMachineQX1::new(KernelConfig {
             gas_limit: 1_000,
             max_memory: 1024,
+            max_stack_depth: 64,
             max_call_depth: 64,
             min_spec_version: 1,
         });
@@ -185,6 +189,7 @@ mod tests {
         let kernel = AOXCVMachineQX1::new(KernelConfig {
             gas_limit: 1000,
             max_memory: 1024,
+            max_stack_depth: 64,
             max_call_depth: 4,
             min_spec_version: 1,
         });

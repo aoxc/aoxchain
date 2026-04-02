@@ -28,6 +28,7 @@ pub enum DeterminismError {
 pub struct DeterminismVerifier {
     pub gas_limit: u64,
     pub max_memory: usize,
+    pub max_stack_depth: usize,
 }
 
 impl DeterminismVerifier {
@@ -46,6 +47,8 @@ impl DeterminismVerifier {
 
         BytecodeVerifier {
             max_instructions: 4096,
+            max_memory: self.max_memory,
+            max_stack_depth: self.max_stack_depth,
         }
         .verify(program)
         .map_err(DeterminismError::InvalidBytecode)
@@ -109,6 +112,7 @@ mod tests {
         let verifier = DeterminismVerifier {
             gas_limit: 100,
             max_memory: 1024,
+            max_stack_depth: 64,
         };
         let program = Program {
             code: vec![Instruction::Push(1)],
@@ -126,6 +130,7 @@ mod tests {
         let verifier = DeterminismVerifier {
             gas_limit: 100,
             max_memory: 1024,
+            max_stack_depth: 64,
         };
         let program = Program {
             code: vec![
@@ -145,6 +150,7 @@ mod tests {
         let verifier = DeterminismVerifier {
             gas_limit: 100,
             max_memory: 1024,
+            max_stack_depth: 64,
         };
         let program = Program {
             code: vec![
@@ -160,5 +166,33 @@ mod tests {
             .expect("deterministic trap");
         assert_eq!(envelope.error, Some(VmError::DivisionByZero));
         assert_eq!(envelope.result.receipt.status, ReceiptStatus::Failed);
+    }
+
+    #[test]
+    fn rejects_program_exceeding_static_stack_depth() {
+        let verifier = DeterminismVerifier {
+            gas_limit: 100,
+            max_memory: 1024,
+            max_stack_depth: 2,
+        };
+        let program = Program {
+            code: vec![
+                Instruction::Push(1),
+                Instruction::Push(2),
+                Instruction::Push(3),
+                Instruction::Halt,
+            ],
+        };
+
+        assert_eq!(
+            verifier.verify(program),
+            Err(DeterminismError::InvalidBytecode(
+                crate::verifier::bytecode::BytecodeError::StackOverflowRisk {
+                    max: 2,
+                    got: 3,
+                    pc: 2,
+                }
+            ))
+        );
     }
 }
