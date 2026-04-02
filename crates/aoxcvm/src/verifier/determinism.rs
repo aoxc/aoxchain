@@ -1,11 +1,10 @@
 //! Deterministic execution verifier for AOXCVM phase-1.
 
 use crate::receipts::commitment::ReceiptCommitment;
-use crate::receipts::outcome::ReceiptStatus;
 use crate::receipts::proof::ReceiptProof;
 use crate::verifier::bytecode::{BytecodeError, BytecodeVerifier};
 use crate::verifier::invariants::{InvariantError, InvariantVerifier};
-use crate::vm::machine::{ExecutionResult, Instruction, Machine, Program, VmError};
+use crate::vm::machine::{ExecutionEnvelope, ExecutionResult, Instruction, Machine, Program, VmError};
 
 /// Verification errors for deterministic execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,19 +76,21 @@ impl DeterminismVerifier {
             return Err(DeterminismError::ReceiptMismatch);
         }
 
-        let proof = ReceiptProof::new(&first.receipt, 2);
-        if !proof.verify_receipt(&second.receipt) {
+        let proof = ReceiptProof::new(&first.result.receipt, 2);
+        if !proof.verify_receipt(&second.result.receipt) {
             return Err(DeterminismError::ReceiptMismatch);
         }
 
-        let first_commitment = ReceiptCommitment::from_receipt(&first.receipt);
-        let second_commitment = ReceiptCommitment::from_receipt(&second.receipt);
+        let first_commitment = ReceiptCommitment::from_receipt(&first.result.receipt);
+        let second_commitment = ReceiptCommitment::from_receipt(&second.result.receipt);
         if first_commitment != second_commitment {
             return Err(DeterminismError::ReceiptMismatch);
         }
 
-        InvariantVerifier::verify(&first, self.gas_limit)
-            .map_err(DeterminismError::InvariantViolation)?;
+        if first.error.is_none() {
+            InvariantVerifier::verify(&first.result, self.gas_limit)
+                .map_err(DeterminismError::InvariantViolation)?;
+        }
 
         Ok(first)
     }
