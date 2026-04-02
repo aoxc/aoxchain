@@ -81,17 +81,6 @@ pub fn validate_phase2_admission(
     tx: &TxEnvelope,
     active_auth_profile: Option<&str>,
 ) -> Result<(), AdmissionError> {
-    if !tx_kind_allowed_for_class(
-        tx.kind,
-        &binding.resolved_profile.contract_class,
-        binding
-            .resolved_profile
-            .policy_profile
-            .governance_activation_required,
-    ) {
-        return Err(AdmissionError::TxKindForbiddenForClass);
-    }
-
     let policy = &binding.resolved_profile.policy_profile;
 
     if policy.governance_activation_required
@@ -101,6 +90,14 @@ pub fn validate_phase2_admission(
         )
     {
         return Err(AdmissionError::GovernanceActivationRequired);
+    }
+
+    if !tx_kind_allowed_for_class(
+        tx.kind,
+        &binding.resolved_profile.contract_class,
+        policy.governance_activation_required,
+    ) {
+        return Err(AdmissionError::TxKindForbiddenForClass);
     }
 
     if let Some(required_profile) = policy.restricted_to_auth_profile.as_deref() {
