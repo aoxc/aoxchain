@@ -16,7 +16,7 @@ AOXCVM defines three execution-time authentication profiles:
 - `HybridMandatory`: at least one classical signer and one post-quantum signer;
 - `PostQuantumStrict`: post-quantum signers only.
 
-`HybridMandatory` is the default runtime profile. This allows incremental migration while ensuring every signed action already carries post-quantum evidence.
+`PostQuantumStrict` is the default runtime profile. `HybridMandatory` remains available only for controlled migration windows where legacy classical signers are still being decommissioned.
 
 ## Signature Families
 
