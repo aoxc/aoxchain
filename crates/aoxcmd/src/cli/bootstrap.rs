@@ -43,6 +43,10 @@ use std::{
 
 const DEFAULT_VALIDATOR_GENESIS_BALANCE: &str = "50000000";
 
+fn default_consensus_identity_profile() -> String {
+    "hybrid".to_string()
+}
+
 /// Canonical AOXC environment identity description used by bootstrap flows.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct CanonicalIdentity {
@@ -82,6 +86,8 @@ struct BootstrapConsensusConfig {
     genesis_epoch: u64,
     block_time_ms: u64,
     validator_quorum_policy: String,
+    #[serde(default = "default_consensus_identity_profile")]
+    consensus_identity_profile: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -349,6 +355,7 @@ impl EnvironmentProfile {
                 genesis_epoch: 0,
                 block_time_ms: 3_000,
                 validator_quorum_policy: "strict-majority".to_string(),
+                consensus_identity_profile: default_consensus_identity_profile(),
             },
             economics: BootstrapEconomicsConfig {
                 native_symbol: "AOXC".to_string(),

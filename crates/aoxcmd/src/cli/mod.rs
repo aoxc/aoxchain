@@ -136,6 +136,7 @@ fn route_chain_group(args: &[String]) -> Result<(), AppError> {
         "start" => ops::cmd_node_run(tail),
         "status" => ops::cmd_runtime_status(tail),
         "doctor" => audit::cmd_diagnostics_doctor(tail),
+        "consensus-audit" => bootstrap::cmd_consensus_profile_audit(tail),
         "demo" => ops::cmd_real_network(tail),
         _ => invalid_group_usage("chain", "unsupported subcommand"),
     }
