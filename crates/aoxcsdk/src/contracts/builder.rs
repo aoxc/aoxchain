@@ -436,7 +436,8 @@ mod tests {
     use super::{BuilderError, ContractManifestBuilder};
     use aoxcontract::{
         ArtifactDigest, ArtifactDigestAlgorithm, CapabilityProfile, ContractCapability,
-        ContractClass, Entrypoint, NetworkClass, PolicyProfile, RuntimeFamily, VmTarget,
+        ContractClass, Entrypoint, ExecutionProfile, NetworkClass, PolicyProfile, RuntimeFamily,
+        VmTarget,
     };
 
     fn digest(seed: &str) -> ArtifactDigest {
@@ -651,6 +652,55 @@ mod tests {
                 .restricted_to_auth_profile
                 .as_deref(),
             Some("ops-v1")
+        );
+    }
+
+    #[test]
+    fn builder_supports_execution_profile_override() {
+        let manifest = ContractManifestBuilder::wasm()
+            .with_name("profile-override")
+            .with_package("aox.policy.override")
+            .with_artifact_digest(digest(
+                "1212121212121212121212121212121212121212121212121212121212121212",
+            ))
+            .with_artifact_location("ipfs://policy/override.wasm")
+            .add_entrypoint(
+                Entrypoint::new("execute", VmTarget::Wasm, None, vec![])
+                    .expect("entrypoint should build"),
+            )
+            .with_execution_profile(ExecutionProfile {
+                vm_target: VmTarget::Wasm,
+                contract_class: ContractClass::Governed,
+                capability_profile: CapabilityProfile {
+                    storage_read: true,
+                    governance_hooks: true,
+                    ..CapabilityProfile::default()
+                },
+                policy_profile: PolicyProfile {
+                    review_required: true,
+                    governance_activation_required: true,
+                    restricted_to_auth_profile: None,
+                },
+            })
+            .build()
+            .expect("manifest should build");
+
+        manifest.validate().expect("manifest should validate");
+        assert_eq!(
+            manifest.execution_profile.contract_class,
+            ContractClass::Governed
+        );
+        assert!(
+            manifest
+                .execution_profile
+                .capability_profile
+                .governance_hooks
+        );
+        assert!(
+            manifest
+                .execution_profile
+                .policy_profile
+                .governance_activation_required
         );
     }
 }
