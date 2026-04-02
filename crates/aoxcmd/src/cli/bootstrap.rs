@@ -259,6 +259,18 @@ struct GenesisSecurityAuditReport {
     blockers: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct ConsensusProfileAuditReport {
+    genesis_path: String,
+    profile: String,
+    consensus_identity_profile: String,
+    score: u8,
+    verdict: &'static str,
+    passed: Vec<String>,
+    warnings: Vec<String>,
+    blockers: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EnvironmentProfile {
     Mainnet,
@@ -713,6 +725,149 @@ pub fn cmd_genesis_security_audit(args: &[String]) -> Result<(), AppError> {
             ErrorCode::PolicyGateFailed,
             format!(
                 "Genesis security audit enforcement failed with verdict {} (score {})",
+                report.verdict, report.score
+            ),
+        ));
+    }
+
+    emit_serialized(&report, output_format(args))
+}
+
+fn evaluate_consensus_profile_audit(
+    genesis: &BootstrapGenesisDocument,
+    profile: EnvironmentProfile,
+    genesis_path: String,
+) -> ConsensusProfileAuditReport {
+    let mut passed = Vec::new();
+    let mut warnings = Vec::new();
+    let mut blockers = Vec::new();
+
+    let consensus_profile = genesis
+        .consensus
+        .consensus_identity_profile
+        .trim()
+        .to_ascii_lowercase();
+
+    match consensus_profile.as_str() {
+        "hybrid" | "pq-hybrid" => {
+            passed.push("consensus-identity-profile-hybrid".to_string());
+        }
+        "pq" | "pq-only" | "post-quantum" => {
+            passed.push("consensus-identity-profile-pq".to_string());
+        }
+        "classical" => {
+            warnings.push(
+                "classical consensus profile should only be used for controlled migration windows"
+                    .to_string(),
+            );
+        }
+        _ => {
+            blockers.push(format!(
+                "unsupported consensus identity profile `{}`",
+                genesis.consensus.consensus_identity_profile
+            ));
+        }
+    }
+
+    if matches!(
+        profile,
+        EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet
+    ) && consensus_profile == "classical"
+    {
+        blockers.push(
+            "mainnet/testnet profiles must not run with classical-only consensus identity profile"
+                .to_string(),
+        );
+    }
+
+    if genesis.consensus.block_time_ms >= 500 && genesis.consensus.block_time_ms <= 15_000 {
+        passed.push("block-time-envelope".to_string());
+    } else {
+        warnings.push(format!(
+            "block_time_ms={} is outside recommended envelope [500, 15000]",
+            genesis.consensus.block_time_ms
+        ));
+    }
+
+    if genesis.consensus.validator_quorum_policy.trim().is_empty() {
+        blockers.push("validator quorum policy must not be empty".to_string());
+    } else {
+        passed.push("validator-quorum-policy".to_string());
+    }
+
+    if genesis.integrity.deterministic_serialization_required {
+        passed.push("deterministic-serialization".to_string());
+    } else {
+        blockers.push("deterministic serialization must be enabled".to_string());
+    }
+
+    if genesis.environment.eq_ignore_ascii_case(profile.as_str()) {
+        passed.push("profile-environment-alignment".to_string());
+    } else {
+        warnings.push(format!(
+            "requested profile `{}` differs from genesis environment `{}`",
+            profile.as_str(),
+            genesis.environment
+        ));
+    }
+
+    let score = (passed.len() as u8)
+        .saturating_mul(20)
+        .saturating_sub((warnings.len() as u8).saturating_mul(5));
+    let verdict = if blockers.is_empty() {
+        if warnings.is_empty() {
+            "pass"
+        } else {
+            "candidate-with-warnings"
+        }
+    } else {
+        "fail"
+    };
+
+    ConsensusProfileAuditReport {
+        genesis_path,
+        profile: profile.as_str().to_string(),
+        consensus_identity_profile: genesis.consensus.consensus_identity_profile.clone(),
+        score,
+        verdict,
+        passed,
+        warnings,
+        blockers,
+    }
+}
+
+pub fn cmd_consensus_profile_audit(args: &[String]) -> Result<(), AppError> {
+    let profile_input = arg_value(args, "--profile")
+        .or_else(|| load().ok().map(|settings| settings.profile))
+        .unwrap_or_else(|| "validation".to_string());
+    let profile = EnvironmentProfile::parse(&profile_input)?;
+
+    let path = if let Some(path) = arg_value(args, "--genesis") {
+        PathBuf::from(path)
+    } else {
+        genesis_path()?
+    };
+    let path_display = path.display().to_string();
+
+    let raw = read_file(&path)?;
+    let genesis = serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Failed to decode AOXC genesis document for consensus profile audit: {}",
+                path.display()
+            ),
+            error,
+        )
+    })?;
+
+    let report = evaluate_consensus_profile_audit(&genesis, profile, path_display);
+
+    if has_flag(args, "--enforce") && report.verdict != "pass" {
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            format!(
+                "Consensus profile audit enforcement failed with verdict {} (score {})",
                 report.verdict, report.score
             ),
         ));
@@ -1949,8 +2104,9 @@ fn is_non_zero_decimal_string(value: &str) -> bool {
 mod tests {
     use super::{
         BootstrapBootnodeRecord, BootstrapBootnodesDocument, BootstrapValidatorBindingRecord,
-        BootstrapValidatorBindingsDocument, CanonicalIdentity, derive_short_fingerprint,
-        upsert_bootnode_binding, upsert_validator_binding,
+        BootstrapValidatorBindingsDocument, CanonicalIdentity, EnvironmentProfile,
+        derive_short_fingerprint, evaluate_consensus_profile_audit, upsert_bootnode_binding,
+        upsert_validator_binding,
     };
 
     fn canonical_identity() -> CanonicalIdentity {
@@ -2056,5 +2212,39 @@ mod tests {
         assert_eq!(doc.bootnodes.len(), 1);
         assert_eq!(doc.bootnodes[0].display_name, "Boot Updated");
         assert_eq!(doc.bootnodes[0].address, "10.0.0.1:39001");
+    }
+
+    #[test]
+    fn consensus_profile_audit_blocks_classical_mainnet() {
+        let mut genesis = EnvironmentProfile::Mainnet.genesis_document();
+        genesis.consensus.consensus_identity_profile = "classical".to_string();
+
+        let report = evaluate_consensus_profile_audit(
+            &genesis,
+            EnvironmentProfile::Mainnet,
+            "memory://mainnet".to_string(),
+        );
+
+        assert_eq!(report.verdict, "fail");
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|item| item.contains("must not run with classical-only"))
+        );
+    }
+
+    #[test]
+    fn consensus_profile_audit_passes_hybrid_validation_profile() {
+        let genesis = EnvironmentProfile::Validation.genesis_document();
+
+        let report = evaluate_consensus_profile_audit(
+            &genesis,
+            EnvironmentProfile::Validation,
+            "memory://validation".to_string(),
+        );
+
+        assert_eq!(report.verdict, "pass");
+        assert!(report.blockers.is_empty());
     }
 }
