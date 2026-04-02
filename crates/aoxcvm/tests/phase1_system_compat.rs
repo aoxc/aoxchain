@@ -55,6 +55,38 @@ fn descriptor(vm_target: VmTarget) -> ContractDescriptor {
     ContractDescriptor::new(manifest).unwrap()
 }
 
+fn custom_descriptor(custom_id: &str) -> ContractDescriptor {
+    let target = VmTarget::Custom(custom_id.to_string());
+    let manifest = aoxcsdk::contracts::builder::ContractManifestBuilder::new()
+        .with_name("phase1_custom")
+        .with_package("aox.phase1.custom")
+        .with_version("1.0.0")
+        .with_contract_version("1.0.0")
+        .with_vm_target(target.clone())
+        .with_artifact_digest(ArtifactDigest {
+            algorithm: ArtifactDigestAlgorithm::Sha256,
+            value: "7f4dcc3b5aa765d61d8327deb882cf9922222222222222222222222222222222".into(),
+        })
+        .with_artifact_location("ipfs://phase1/custom")
+        .with_metadata(ContractMetadata {
+            display_name: "Phase1 Custom".into(),
+            description: Some("phase1 custom".into()),
+            author: Some("AOX".into()),
+            organization: Some("AOX".into()),
+            source_reference: None,
+            tags: vec!["phase1".into(), "custom".into()],
+            created_at: None,
+            updated_at: None,
+            audit_reference: Some("approved".into()),
+            notes: None,
+        })
+        .add_entrypoint(Entrypoint::new("execute", target, None, vec![]).unwrap())
+        .build()
+        .unwrap();
+
+    ContractDescriptor::new(manifest).unwrap()
+}
+
 fn tx() -> ExecutionContract {
     let tx = TxEnvelope::new(
         2626,
@@ -126,4 +158,22 @@ fn runtime_resolver_is_fail_closed_with_config() {
 
     let err = resolve_runtime_binding(&descriptor(VmTarget::Wasm), &cfg).unwrap_err();
     assert!(err.to_string().contains("disabled"));
+}
+
+#[test]
+fn phase1_vm_spec_custom_target_requires_exact_match() {
+    let mut cfg = ContractsConfig::default();
+    cfg.artifact_policy.allowed_vm_targets = vec![VmTarget::Custom("qml-v2".to_string())];
+
+    let err = VmSpec::from_config(&cfg, &custom_descriptor("qml-v1")).unwrap_err();
+    assert!(matches!(err, SpecError::VmTargetDisabledByConfig));
+}
+
+#[test]
+fn phase1_vm_spec_custom_target_allows_exact_match() {
+    let mut cfg = ContractsConfig::default();
+    cfg.artifact_policy.allowed_vm_targets = vec![VmTarget::Custom("qml-v1".to_string())];
+
+    let spec = VmSpec::from_config(&cfg, &custom_descriptor("qml-v1")).unwrap();
+    assert_eq!(spec, VmSpec::default());
 }
