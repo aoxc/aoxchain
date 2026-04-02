@@ -190,6 +190,64 @@ To support "full advanced" AOXCVM evolution without forcing one monolithic runti
 - Explicit capability declaration for every host-facing action.
 - Versioned upgrade policy with auditable admission/rollback outcomes.
 
+## Phase-3 execution-readiness gate (must pass before Phase-3 claim)
+AOXCVM must be assessed with an execution-readiness gate, not by directory shape or module naming. A Phase-3 claim is valid only when the following three delivery blocks are complete and evidenced.
+
+### Block A — Working execution core (non-negotiable)
+Required implementation surfaces:
+- canonical opcode table with stable numeric assignment and explicit reserved ranges,
+- instruction semantics for arithmetic, memory, control-flow, storage, calls, and system operations,
+- deterministic dispatch loop with strict program-counter and frame transitions,
+- explicit halt/trap/revert model with canonical failure mapping,
+- gas-before-execute charging and deterministic out-of-gas path,
+- canonical receipt materialization (status, gas, logs, return/revert payload policy).
+
+Required evidence:
+- opcode and instruction conformance fixtures,
+- trap taxonomy tests and receipt canonicalization tests,
+- replay-equality tests across repeated execution runs.
+
+### Block B — Admission and verification core (fail-closed)
+Required implementation surfaces:
+- bytecode admission pipeline (magic/version/header/section validation),
+- opcode allowlist and unsupported-opcode rejection,
+- instruction-boundary and jump-target integrity checks,
+- capability and syscall policy verification,
+- profile compatibility checks (crypto/syscall/feature-gate),
+- deterministic verifier outcome contract: `Accepted`, `Accepted(version/profile)`, or `Rejected(reason)`.
+
+Required evidence:
+- malformed bytecode rejection corpus,
+- verifier reason-code fixtures,
+- admission cache-key reproducibility by package hash.
+
+### Block C — Adversarial evidence and benchmark governance
+Required implementation surfaces:
+- fuzzing for decoder, section parser, verifier, and syscall argument boundaries,
+- adversarial suites (gas griefing, recursion bombs, oversized proof/sig payloads),
+- cross-platform deterministic replay checks,
+- benchmarked gas schedule revision path (including PQ-oriented verification costs),
+- release artifact retention for trace, verifier, gas profile, and replay evidence bundles.
+
+Required evidence:
+- CI-gated deterministic replay matrix,
+- retained benchmark and fuzz regression artifacts,
+- signed release evidence summary for each candidate.
+
+## Strategic differentiation rules (to outperform generic VMs)
+1. Do not optimize for broad EVM mimicry at the cost of deterministic semantics.
+2. Keep instruction surface small, explicit, and auditable.
+3. Enforce static verification before execution.
+4. Keep host authority minimal and capability-gated.
+5. Gate cryptographic syscalls by on-chain profile governance.
+6. Enforce deterministic bounded memory ceilings and allocation failure semantics.
+7. Maintain exact, versioned trap semantics and canonical receipt mapping.
+8. Version every compatibility-sensitive surface (opcode/syscall/bytecode/receipt/profile).
+9. Treat receipts as protocol artifacts, not logging byproducts.
+10. Produce execution fingerprints for replay identity.
+11. Keep conformance fixtures co-evolving with spec changes.
+12. Require benchmark evidence before gas schedule changes are ratified.
+
 ## Recommended immediate next task
 Implement **Phase 1** with an in-memory `HostJournal` prototype and deterministic tests covering:
 - nested checkpoints,
