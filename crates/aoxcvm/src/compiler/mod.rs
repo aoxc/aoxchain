@@ -1,4 +1,4 @@
-//! compiler subsystem for AOXCVM vNext.
+//! compiler subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod abi_emit;
 pub mod diagnostics;
 pub mod frontend;

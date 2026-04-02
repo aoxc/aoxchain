@@ -1,4 +1,4 @@
-//! gas subsystem for AOXCVM vNext.
+//! gas subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod authority;
 pub mod budget;
 pub mod limits;

@@ -1,4 +1,4 @@
-//! tx subsystem for AOXCVM vNext.
+//! tx subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod admission;
 pub mod builder;
 pub mod dry_run;

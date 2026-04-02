@@ -1,4 +1,4 @@
-//! verifier subsystem for AOXCVM vNext.
+//! verifier subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod auth;
 pub mod bytecode;
 pub mod capability;

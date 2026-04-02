@@ -1,4 +1,4 @@
-//! auth subsystem for AOXCVM vNext.
+//! auth subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod domains;
 pub mod envelope;
 pub mod hybrid;

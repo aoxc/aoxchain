@@ -1,4 +1,4 @@
-//! instructions subsystem for AOXCVM vNext.
+//! instructions subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod arithmetic;
 pub mod bitwise;
 pub mod calls;
