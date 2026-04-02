@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "genesis_kind": "aoxc-genesis-config",
+  "environment": "testnet",
+  "family_name": "AOXC",
+  "family_code": "aoxc",
+  "identity": {
+    "family_id": 2626,
+    "chain_name": "AOXC CONSTITUTIONAL PROTOCOL TESTNET ADVANCED",
+    "network_class": "public_testnet",
+    "network_serial": "2626-201",
+    "chain_id": 2626201001,
+    "network_id": "aoxc-testnet-2626-201"
+  },
+  "consensus": {
+    "engine": "aoxcunity",
+    "mode": "bft",
+    "genesis_epoch": 0,
+    "block_time_ms": 2500,
+    "validator_quorum_policy": "pq-hybrid-threshold-2of3"
+  },
+  "economics": {
+    "native_symbol": "AOXC",
+    "native_decimals": 18,
+    "initial_treasury": {
+      "account_id": "AOXC_TREASURY_GENESIS",
+      "amount": "1500000000"
+    }
+  },
+  "state": {
+    "accounts": [
+      {
+        "account_id": "AOXC_TREASURY_GENESIS",
+        "balance": "1500000000",
+        "role": "treasury"
+      },
+      {
+        "account_id": "AOXC_GOVERNANCE_TREASURY",
+        "balance": "250000000",
+        "role": "governance"
+      },
+      {
+        "account_id": "AOXC_VALIDATOR_ATLAS",
+        "balance": "50000000",
+        "role": "validator"
+      },
+      {
+        "account_id": "AOXC_VALIDATOR_BOREAL",
+        "balance": "50000000",
+        "role": "validator"
+      },
+      {
+        "account_id": "AOXC_VALIDATOR_CYPHER",
+        "balance": "50000000",
+        "role": "validator"
+      }
+    ]
+  },
+  "bindings": {
+    "accounts_file": "accounts.json",
+    "validators_file": "validators.json",
+    "bootnodes_file": "bootnodes.json",
+    "certificate_file": "certificate.json"
+  },
+  "integrity": {
+    "hash_algorithm": "sha256",
+    "deterministic_serialization_required": true
+  },
+  "metadata": {
+    "description": "Advanced AOXC testnet genesis example for constitutional protocol deployments.",
+    "status": "advanced-example"
+  }
+}

@@ -43,6 +43,10 @@ use std::{
 
 const DEFAULT_VALIDATOR_GENESIS_BALANCE: &str = "50000000";
 
+fn default_consensus_identity_profile() -> String {
+    "hybrid".to_string()
+}
+
 /// Canonical AOXC environment identity description used by bootstrap flows.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct CanonicalIdentity {
@@ -82,6 +86,8 @@ struct BootstrapConsensusConfig {
     genesis_epoch: u64,
     block_time_ms: u64,
     validator_quorum_policy: String,
+    #[serde(default = "default_consensus_identity_profile")]
+    consensus_identity_profile: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -231,6 +237,28 @@ struct AddressCreateOutput {
     transport_public_key: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct GenesisTemplateOutput {
+    profile: String,
+    output_path: String,
+    chain_name: String,
+    network_id: String,
+    validator_quorum_policy: String,
+    deterministic_serialization_required: bool,
+    notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct GenesisSecurityAuditReport {
+    genesis_path: String,
+    profile: String,
+    score: u8,
+    verdict: &'static str,
+    passed: Vec<String>,
+    warnings: Vec<String>,
+    blockers: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EnvironmentProfile {
     Mainnet,
@@ -327,6 +355,7 @@ impl EnvironmentProfile {
                 genesis_epoch: 0,
                 block_time_ms: 3_000,
                 validator_quorum_policy: "strict-majority".to_string(),
+                consensus_identity_profile: default_consensus_identity_profile(),
             },
             economics: BootstrapEconomicsConfig {
                 native_symbol: "AOXC".to_string(),
@@ -513,6 +542,183 @@ pub fn cmd_address_create(args: &[String]) -> Result<(), AppError> {
         },
         output_format(args),
     )
+}
+
+pub fn cmd_genesis_template_advanced(args: &[String]) -> Result<(), AppError> {
+    let profile_input = arg_value(args, "--profile").unwrap_or_else(|| "testnet".to_string());
+    let profile = EnvironmentProfile::parse(&profile_input)?;
+
+    let mut genesis = profile.genesis_document();
+    genesis.metadata.status = "template-advanced".to_string();
+    genesis.metadata.description =
+        "AOXC advanced genesis template with strict bindings and deterministic integrity controls"
+            .to_string();
+    genesis.consensus.validator_quorum_policy = "pq-hybrid-threshold-2of3".to_string();
+    genesis.state.accounts.push(BootstrapAccountRecord {
+        account_id: "AOXC_GOVERNANCE_TREASURY".to_string(),
+        balance: "250000000".to_string(),
+        role: "governance".to_string(),
+    });
+
+    let output_path = arg_value(args, "--out")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            resolve_home()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join("support")
+                .join(format!(
+                    "genesis.{}.advanced.example.json",
+                    profile.as_str()
+                ))
+        });
+
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to create genesis template directory {}",
+                    parent.display()
+                ),
+                error,
+            )
+        })?;
+    }
+
+    write_json_pretty(
+        &output_path,
+        &genesis,
+        "Failed to encode advanced AOXC genesis template",
+    )?;
+
+    emit_serialized(
+        &GenesisTemplateOutput {
+            profile: profile.as_str().to_string(),
+            output_path: output_path.display().to_string(),
+            chain_name: genesis.identity.chain_name,
+            network_id: genesis.identity.network_id,
+            validator_quorum_policy: genesis.consensus.validator_quorum_policy,
+            deterministic_serialization_required: genesis
+                .integrity
+                .deterministic_serialization_required,
+            notes: vec![
+                "Customize validator set, bootnodes, and certificate bindings before use"
+                    .to_string(),
+                "Run `aoxc genesis-security-audit --profile <profile> --enforce` before promotion"
+                    .to_string(),
+            ],
+        },
+        output_format(args),
+    )
+}
+
+pub fn cmd_genesis_security_audit(args: &[String]) -> Result<(), AppError> {
+    let profile_input = arg_value(args, "--profile")
+        .or_else(|| load().ok().map(|settings| settings.profile))
+        .unwrap_or_else(|| "validation".to_string());
+    let profile = EnvironmentProfile::parse(&profile_input)?;
+
+    let path = arg_value(args, "--genesis")
+        .map(PathBuf::from)
+        .unwrap_or(genesis_path()?);
+
+    let raw = read_file(&path)?;
+    let genesis = serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Failed to decode AOXC genesis document for security audit: {}",
+                path.display()
+            ),
+            error,
+        )
+    })?;
+
+    let mut passed = Vec::new();
+    let mut warnings = Vec::new();
+    let mut blockers = Vec::new();
+
+    if genesis.integrity.deterministic_serialization_required {
+        passed.push("deterministic-serialization".to_string());
+    } else {
+        blockers.push("deterministic serialization must be enabled".to_string());
+    }
+
+    if !genesis.consensus.validator_quorum_policy.trim().is_empty() {
+        passed.push("validator-quorum-policy".to_string());
+    } else {
+        blockers.push("validator quorum policy must not be empty".to_string());
+    }
+
+    let validator_accounts = genesis
+        .state
+        .accounts
+        .iter()
+        .filter(|entry| entry.role.eq_ignore_ascii_case("validator"))
+        .count();
+
+    if validator_accounts >= 3 {
+        passed.push("validator-account-threshold".to_string());
+    } else {
+        warnings.push(format!(
+            "validator account count is {}; testnet recommendation is >= 3",
+            validator_accounts
+        ));
+    }
+
+    if genesis.bindings.validators_file.trim().is_empty()
+        || genesis.bindings.bootnodes_file.trim().is_empty()
+        || genesis.bindings.certificate_file.trim().is_empty()
+    {
+        blockers.push("binding file references must be populated".to_string());
+    } else {
+        passed.push("binding-references".to_string());
+    }
+
+    if genesis.environment.eq_ignore_ascii_case(profile.as_str()) {
+        passed.push("profile-environment-alignment".to_string());
+    } else {
+        warnings.push(format!(
+            "requested profile `{}` differs from genesis environment `{}`",
+            profile.as_str(),
+            genesis.environment
+        ));
+    }
+
+    let score = (passed.len() as u8)
+        .saturating_mul(20)
+        .saturating_sub((warnings.len() as u8).saturating_mul(5));
+    let verdict = if blockers.is_empty() {
+        if warnings.is_empty() {
+            "pass"
+        } else {
+            "candidate-with-warnings"
+        }
+    } else {
+        "fail"
+    };
+
+    let report = GenesisSecurityAuditReport {
+        genesis_path: path.display().to_string(),
+        profile: profile.as_str().to_string(),
+        score,
+        verdict,
+        passed,
+        warnings,
+        blockers,
+    };
+
+    if has_flag(args, "--enforce") && report.verdict != "pass" {
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            format!(
+                "Genesis security audit enforcement failed with verdict {} (score {})",
+                report.verdict, report.score
+            ),
+        ));
+    }
+
+    emit_serialized(&report, output_format(args))
 }
 
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
