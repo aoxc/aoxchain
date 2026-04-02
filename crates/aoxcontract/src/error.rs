@@ -40,6 +40,16 @@ pub enum ManifestValidationError {
     VmTargetMismatch,
     #[error("execution profile vm target does not match manifest vm target")]
     ExecutionProfileVmTargetMismatch,
+    #[error("policy-bound contracts require a non-empty restricted auth profile id")]
+    InvalidPolicyBoundProfile,
+    #[error("restricted auth profile is only valid for policy-bound class")]
+    RestrictedAuthProfileOnlyForPolicyBound,
+    #[error("governance activation policy is invalid for this contract class")]
+    InvalidGovernanceActivationClass,
+    #[error("governance hooks capability requires governance activation policy")]
+    GovernanceHooksRequireActivation,
+    #[error("execution profile class forbids capability: {0}")]
+    CapabilityForbiddenForClass(&'static str),
     #[error("manifest integrity digest does not match artifact digest")]
     DigestAlgorithmMismatch,
     #[error("manifest integrity does not match artifact metadata")]

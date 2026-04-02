@@ -5,8 +5,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactDigest, Compatibility, ContractArtifactRef, ContractError, ContractMetadata,
-    ContractPolicy, Entrypoint, ExecutionProfile, ManifestValidationError, Validate,
+    ArtifactDigest, CapabilityProfile, Compatibility, ContractArtifactRef, ContractClass,
+    ContractError, ContractMetadata, ContractPolicy, Entrypoint, ExecutionProfile,
+    ManifestValidationError, PolicyProfile, Validate,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -109,6 +110,99 @@ fn is_semantic_like_version(value: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-'))
 }
 
+fn is_valid_auth_profile_id(value: &str) -> bool {
+    !value.trim().is_empty()
+        && value == value.trim()
+        && value
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '_' | '-' | '.'))
+}
+
+fn validate_execution_profile_law(profile: &ExecutionProfile) -> Result<(), ContractError> {
+    let class = &profile.contract_class;
+    let capability = &profile.capability_profile;
+    let policy = &profile.policy_profile;
+
+    if policy.governance_activation_required
+        && !matches!(
+            class,
+            ContractClass::Governed | ContractClass::PolicyBound | ContractClass::System
+        )
+    {
+        return Err(ManifestValidationError::InvalidGovernanceActivationClass.into());
+    }
+
+    if capability.governance_hooks && !policy.governance_activation_required {
+        return Err(ManifestValidationError::GovernanceHooksRequireActivation.into());
+    }
+
+    match class {
+        ContractClass::PolicyBound => validate_policy_bound_profile(policy)?,
+        _ => {
+            if policy.restricted_to_auth_profile.is_some() {
+                return Err(
+                    ManifestValidationError::RestrictedAuthProfileOnlyForPolicyBound.into(),
+                );
+            }
+        }
+    }
+
+    validate_class_capability_matrix(class, capability)?;
+    Ok(())
+}
+
+fn validate_policy_bound_profile(policy: &PolicyProfile) -> Result<(), ContractError> {
+    let Some(profile_id) = policy.restricted_to_auth_profile.as_deref() else {
+        return Err(ManifestValidationError::InvalidPolicyBoundProfile.into());
+    };
+    if !is_valid_auth_profile_id(profile_id) {
+        return Err(ManifestValidationError::InvalidPolicyBoundProfile.into());
+    }
+    Ok(())
+}
+
+fn validate_class_capability_matrix(
+    class: &ContractClass,
+    capability: &CapabilityProfile,
+) -> Result<(), ContractError> {
+    let forbidden = match class {
+        ContractClass::Application => [
+            (capability.registry_access, "registry_access"),
+            (capability.governance_hooks, "governance_hooks"),
+            (capability.metadata_mutation, "metadata_mutation"),
+            (capability.upgrade_authority, "upgrade_authority"),
+        ]
+        .into_iter()
+        .find_map(|(enabled, cap)| enabled.then_some(cap)),
+        ContractClass::System => None,
+        ContractClass::Governed => capability.upgrade_authority.then_some("upgrade_authority"),
+        ContractClass::Package => [
+            (capability.storage_write, "storage_write"),
+            (capability.registry_access, "registry_access"),
+            (capability.governance_hooks, "governance_hooks"),
+            (capability.metadata_mutation, "metadata_mutation"),
+            (capability.upgrade_authority, "upgrade_authority"),
+        ]
+        .into_iter()
+        .find_map(|(enabled, cap)| enabled.then_some(cap)),
+        ContractClass::PolicyBound => [
+            (capability.governance_hooks, "governance_hooks"),
+            (capability.metadata_mutation, "metadata_mutation"),
+            (capability.upgrade_authority, "upgrade_authority"),
+        ]
+        .into_iter()
+        .find_map(|(enabled, cap)| enabled.then_some(cap)),
+    };
+
+    if let Some(forbidden_capability) = forbidden {
+        return Err(
+            ManifestValidationError::CapabilityForbiddenForClass(forbidden_capability).into(),
+        );
+    }
+
+    Ok(())
+}
+
 impl Validate for ContractManifest {
     fn validate(&self) -> Result<(), ContractError> {
         if !is_valid_symbolic_name(&self.name) {
@@ -146,6 +240,7 @@ impl Validate for ContractManifest {
         if self.execution_profile.vm_target != self.vm_target {
             return Err(ManifestValidationError::ExecutionProfileVmTargetMismatch.into());
         }
+        validate_execution_profile_law(&self.execution_profile)?;
 
         if self.digest != self.artifact.artifact_digest || self.digest != self.integrity.digest {
             return Err(ManifestValidationError::DigestAlgorithmMismatch.into());
