@@ -29,6 +29,11 @@ impl LinearMemory {
         self.bytes.len()
     }
 
+    /// Returns true if memory has zero length.
+    pub fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+
     /// Ensures `[offset, offset + len)` is available and zero-fills grown region.
     pub fn ensure(&mut self, offset: usize, len: usize) -> Result<(), MemoryError> {
         let end = offset.checked_add(len).ok_or(MemoryError::OutOfBounds)?;

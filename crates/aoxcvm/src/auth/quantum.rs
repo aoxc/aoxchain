@@ -5,18 +5,10 @@ use crate::auth::scheme::AuthProfile;
 use crate::errors::AoxcvmResult;
 
 /// Runtime baseline for post-quantum-only auth deployments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct QuantumPolicy {
     /// Hard limits applied before signature verification.
     pub limits: AuthEnvelopeLimits,
-}
-
-impl Default for QuantumPolicy {
-    fn default() -> Self {
-        Self {
-            limits: AuthEnvelopeLimits::default(),
-        }
-    }
 }
 
 impl QuantumPolicy {
