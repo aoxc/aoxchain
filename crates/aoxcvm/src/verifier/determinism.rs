@@ -52,18 +52,27 @@ impl DeterminismVerifier {
 
     /// Executes once and verifies deterministic replay equivalence.
     pub fn verify(&self, program: Program) -> Result<ExecutionResult, DeterminismError> {
+        let envelope = self.verify_enveloped(program)?;
+        match envelope.error {
+            Some(err) => Err(DeterminismError::ExecutionFailed(err)),
+            None => Ok(envelope.result),
+        }
+    }
+
+    /// Executes twice and returns deterministic envelope (including failure receipts).
+    pub fn verify_enveloped(
+        &self,
+        program: Program,
+    ) -> Result<ExecutionEnvelope, DeterminismError> {
         self.validate_program(&program)?;
 
-        let first = Machine::new(program.clone(), self.gas_limit, self.max_memory)
-            .execute()
-            .map_err(DeterminismError::ExecutionFailed)?;
-        let second = Machine::new(program, self.gas_limit, self.max_memory)
-            .execute()
-            .map_err(DeterminismError::ExecutionFailed)?;
+        let first =
+            Machine::new(program.clone(), self.gas_limit, self.max_memory).execute_enveloped();
+        let second = Machine::new(program, self.gas_limit, self.max_memory).execute_enveloped();
 
-        if first.receipt.status != ReceiptStatus::Success
-            || first.receipt != second.receipt
-            || first.stack != second.stack
+        if first.error != second.error
+            || first.result.receipt != second.result.receipt
+            || first.result.stack != second.result.stack
         {
             return Err(DeterminismError::ReceiptMismatch);
         }
@@ -89,7 +98,8 @@ impl DeterminismVerifier {
 #[cfg(test)]
 mod tests {
     use super::{DeterminismError, DeterminismVerifier};
-    use crate::vm::machine::{Instruction, Program};
+    use crate::receipts::outcome::ReceiptStatus;
+    use crate::vm::machine::{Instruction, Program, VmError};
 
     #[test]
     fn rejects_program_without_halt() {
@@ -125,5 +135,27 @@ mod tests {
 
         let result = verifier.verify(program).expect("must verify");
         assert_eq!(result.stack, vec![6]);
+    }
+
+    #[test]
+    fn deterministic_failure_returns_failed_receipt() {
+        let verifier = DeterminismVerifier {
+            gas_limit: 100,
+            max_memory: 1024,
+        };
+        let program = Program {
+            code: vec![
+                Instruction::Push(1),
+                Instruction::Push(0),
+                Instruction::Div,
+                Instruction::Halt,
+            ],
+        };
+
+        let envelope = verifier
+            .verify_enveloped(program)
+            .expect("deterministic trap");
+        assert_eq!(envelope.error, Some(VmError::DivisionByZero));
+        assert_eq!(envelope.result.receipt.status, ReceiptStatus::Failed);
     }
 }
