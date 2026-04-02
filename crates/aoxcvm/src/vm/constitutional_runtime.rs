@@ -12,6 +12,7 @@ use crate::{
         governance::{GovernanceAction, GovernanceAuthority},
     },
     vm::admission::ActiveAuthProfile,
+    vm::constitutional_audit::ConstitutionalDecision,
 };
 
 /// Runtime surfaces that are constitutionally governed at execution time.
@@ -150,6 +151,108 @@ impl ConstitutionalRuntime {
             active_profile,
         ))
     }
+
+    /// Executes governance authorization and always returns an auditable decision.
+    pub fn audit_governance_action(
+        self,
+        authority: GovernanceAuthority,
+        action: GovernanceAction,
+        active_profile: Option<&ActiveAuthProfile>,
+    ) -> ConstitutionalDecision {
+        match self.authorize_governance_action(authority, action, active_profile) {
+            Ok(provenance) => {
+                ConstitutionalDecision::allowed(&provenance, "governance_action_authorized")
+            }
+            Err(err) => ConstitutionalDecision::denied(
+                RuntimeSurface::GovernanceAction(action),
+                authority.signer_class,
+                authority.lane,
+                active_profile,
+                ConstitutionalDecision::reason_code_for_error(&err),
+            ),
+        }
+    }
+
+    /// Executes registry authorization and always returns an auditable decision.
+    pub fn audit_registry_mutation(
+        self,
+        authority: GovernanceAuthority,
+        active_profile: Option<&ActiveAuthProfile>,
+    ) -> ConstitutionalDecision {
+        match self.authorize_registry_mutation(authority, active_profile) {
+            Ok(provenance) => {
+                ConstitutionalDecision::allowed(&provenance, "registry_mutation_authorized")
+            }
+            Err(err) => ConstitutionalDecision::denied(
+                RuntimeSurface::RegistryMutation,
+                authority.signer_class,
+                authority.lane,
+                active_profile,
+                ConstitutionalDecision::reason_code_for_error(&err),
+            ),
+        }
+    }
+
+    /// Executes metadata authorization and always returns an auditable decision.
+    pub fn audit_metadata_mutation(
+        self,
+        authority: GovernanceAuthority,
+        active_profile: Option<&ActiveAuthProfile>,
+    ) -> ConstitutionalDecision {
+        match self.authorize_metadata_mutation(authority, active_profile) {
+            Ok(provenance) => {
+                ConstitutionalDecision::allowed(&provenance, "metadata_mutation_authorized")
+            }
+            Err(err) => ConstitutionalDecision::denied(
+                RuntimeSurface::MetadataMutation,
+                authority.signer_class,
+                authority.lane,
+                active_profile,
+                ConstitutionalDecision::reason_code_for_error(&err),
+            ),
+        }
+    }
+
+    /// Executes upgrade authorization and always returns an auditable decision.
+    pub fn audit_upgrade_trigger(
+        self,
+        authority: GovernanceAuthority,
+        active_profile: Option<&ActiveAuthProfile>,
+    ) -> ConstitutionalDecision {
+        match self.authorize_upgrade_trigger(authority, active_profile) {
+            Ok(provenance) => {
+                ConstitutionalDecision::allowed(&provenance, "upgrade_trigger_authorized")
+            }
+            Err(err) => ConstitutionalDecision::denied(
+                RuntimeSurface::UpgradeTrigger,
+                authority.signer_class,
+                authority.lane,
+                active_profile,
+                ConstitutionalDecision::reason_code_for_error(&err),
+            ),
+        }
+    }
+
+    /// Executes host-operation authorization and always returns an auditable decision.
+    pub fn audit_host_operation(
+        self,
+        authority: GovernanceAuthority,
+        op: HostOperation,
+        active_profile: Option<&ActiveAuthProfile>,
+    ) -> ConstitutionalDecision {
+        match self.authorize_host_operation(authority, op, active_profile) {
+            Ok(provenance) => {
+                ConstitutionalDecision::allowed(&provenance, "host_operation_authorized")
+            }
+            Err(err) => ConstitutionalDecision::denied(
+                RuntimeSurface::HostOperation(op),
+                authority.signer_class,
+                authority.lane,
+                active_profile,
+                ConstitutionalDecision::reason_code_for_error(&err),
+            ),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -160,6 +263,7 @@ mod tests {
         policy::governance::{GovernanceAction, GovernanceAuthority, GovernanceLane},
         vm::{
             admission::ActiveAuthProfile,
+            constitutional_audit::AuditDecisionOutcome,
             constitutional_runtime::{ConstitutionalRuntime, RuntimeSurface},
         },
     };
@@ -227,5 +331,31 @@ mod tests {
                 .authorize_host_operation(authority, HostOperation::RegistryWrite, None)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn audited_upgrade_denial_produces_governance_lane_reason_code() {
+        let runtime = ConstitutionalRuntime::default();
+        let authority = GovernanceAuthority {
+            signer_class: SignerClass::Operations,
+            lane: GovernanceLane::Operations,
+        };
+        let decision = runtime.audit_upgrade_trigger(authority, Some(&profile()));
+
+        assert_eq!(decision.outcome, AuditDecisionOutcome::Denied);
+        assert_eq!(decision.reason_code, "governance_lane_violation");
+    }
+
+    #[test]
+    fn audited_governance_success_records_allowed_outcome() {
+        let runtime = ConstitutionalRuntime::default();
+        let decision = runtime.audit_governance_action(
+            governance_auth(),
+            GovernanceAction::UpgradeProtocol,
+            Some(&profile()),
+        );
+
+        assert_eq!(decision.outcome, AuditDecisionOutcome::Allowed);
+        assert_eq!(decision.reason_code, "governance_action_authorized");
     }
 }
