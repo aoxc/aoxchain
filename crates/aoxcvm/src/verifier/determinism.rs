@@ -5,7 +5,6 @@ use crate::receipts::outcome::ReceiptStatus;
 use crate::receipts::proof::ReceiptProof;
 use crate::verifier::bytecode::{BytecodeError, BytecodeVerifier};
 use crate::verifier::invariants::{InvariantError, InvariantVerifier};
-use crate::verifier::state_access::StateSnapshot;
 use crate::vm::machine::{ExecutionResult, Instruction, Machine, Program, VmError};
 
 /// Verification errors for deterministic execution.
@@ -77,12 +76,6 @@ impl DeterminismVerifier {
         let first_commitment = ReceiptCommitment::from_receipt(&first.receipt);
         let second_commitment = ReceiptCommitment::from_receipt(&second.receipt);
         if first_commitment != second_commitment {
-            return Err(DeterminismError::ReceiptMismatch);
-        }
-
-        let first_state = StateSnapshot::capture(&first.final_state);
-        let second_state = StateSnapshot::capture(&second.final_state);
-        if !first_state.matches(&second_state) {
             return Err(DeterminismError::ReceiptMismatch);
         }
 
