@@ -41,6 +41,12 @@ pub struct TxSubmissionRequest {
     pub actor_id: String,
     pub tx_payload: Vec<u8>,
     pub zkp_proof: Vec<u8>,
+    #[serde(default)]
+    pub identity_tier: Option<String>,
+    #[serde(default)]
+    pub signer_algorithms: Vec<String>,
+    #[serde(default)]
+    pub remaining_budget_units: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
