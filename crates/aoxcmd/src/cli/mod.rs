@@ -75,6 +75,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "mainnet-readiness" => ops::cmd_mainnet_readiness(&args[2..]),
         "testnet-readiness" => ops::cmd_testnet_readiness(&args[2..]),
         "full-surface-readiness" => ops::cmd_full_surface_readiness(&args[2..]),
+        "full-surface-gate" => ops::cmd_full_surface_gate(&args[2..]),
         "level-score" => ops::cmd_level_score(&args[2..]),
         "operator-evidence-record" => evidence::cmd_operator_evidence_record(&args[2..]),
         "operator-evidence-list" => evidence::cmd_operator_evidence_list(&args[2..]),

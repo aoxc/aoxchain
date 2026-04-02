@@ -86,6 +86,25 @@ struct FullSurfaceReadiness {
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
+struct SurfaceGateFailure {
+    surface: String,
+    check: String,
+    code: String,
+    detail: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct FullSurfaceGateReport {
+    profile: String,
+    enforced: bool,
+    passed: bool,
+    overall_status: String,
+    overall_score: u8,
+    failure_count: usize,
+    failures: Vec<SurfaceGateFailure>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
 struct PlatformLevelScore {
     profile: String,
     mainnet_readiness_score: u8,
@@ -264,6 +283,54 @@ pub fn cmd_full_surface_readiness(args: &[String]) -> Result<(), AppError> {
     }
 
     emit_serialized(&full, output_format(args))
+}
+
+pub fn cmd_full_surface_gate(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_ops()?;
+    let key_summary = crate::keys::manager::inspect_operator_key().ok();
+    let genesis_ok = crate::cli::bootstrap::genesis_ready();
+    let node_ok = lifecycle::load_state().is_ok();
+
+    let mainnet = evaluate_profile_readiness(
+        "mainnet",
+        &settings,
+        settings.validate().err(),
+        key_summary
+            .as_ref()
+            .map(|summary| summary.operational_state.as_str()),
+        genesis_ok,
+        node_ok,
+    );
+    let full = evaluate_full_surface_readiness(&settings, &mainnet);
+    let failures = collect_surface_gate_failures(&full);
+
+    let report = FullSurfaceGateReport {
+        profile: settings.profile.clone(),
+        enforced: has_flag(args, "--enforce"),
+        passed: failures.is_empty(),
+        overall_status: full.overall_status.to_string(),
+        overall_score: full.overall_score,
+        failure_count: failures.len(),
+        failures,
+    };
+
+    if report.enforced && !report.passed {
+        let codes = report
+            .failures
+            .iter()
+            .map(|failure| failure.code.clone())
+            .collect::<Vec<_>>()
+            .join(",");
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            format!(
+                "Full-surface gate enforcement failed with {} failing checks [{}]",
+                report.failure_count, codes
+            ),
+        ));
+    }
+
+    emit_serialized(&report, output_format(args))
 }
 
 pub fn cmd_level_score(args: &[String]) -> Result<(), AppError> {
@@ -734,6 +801,7 @@ fn evaluate_full_surface_readiness(
         .join("docs")
         .join("src")
         .join("MAINNET_READINESS_CHECKLIST.md");
+    let consensus_gate = crate::cli::bootstrap::consensus_profile_gate_status(None, None);
 
     let surfaces = vec![
         build_surface(
@@ -758,10 +826,84 @@ fn evaluate_full_surface_readiness(
                     has_release_evidence(&release_dir),
                     format!("release evidence bundle under {}", release_dir.display()),
                 ),
+                surface_check(
+                    "release-provenance-bundle",
+                    has_release_provenance_bundle(&release_dir),
+                    format!(
+                        "release provenance artifacts must exist under {}",
+                        release_dir.display()
+                    ),
+                ),
+                surface_check(
+                    "api-admission-controls",
+                    repo_root
+                        .join("crates")
+                        .join("aoxcrpc")
+                        .join("src")
+                        .join("middleware")
+                        .join("rate_limiter.rs")
+                        .exists()
+                        && repo_root
+                            .join("crates")
+                            .join("aoxcrpc")
+                            .join("src")
+                            .join("middleware")
+                            .join("mtls_auth.rs")
+                            .exists()
+                        && repo_root.join("NETWORK_SECURITY_ARCHITECTURE.md").exists(),
+                    "RPC admission controls require rate-limiter, mTLS middleware, and network security architecture baseline".to_string(),
+                ),
             ],
             vec![
                 mainnet_checklist.display().to_string(),
                 release_dir.display().to_string(),
+            ],
+        ),
+        build_surface(
+            "quantum-consensus",
+            "protocol-security",
+            vec![
+                surface_check(
+                    "consensus-profile-gate",
+                    consensus_gate
+                        .as_ref()
+                        .map(|status| status.passed)
+                        .unwrap_or(false),
+                    consensus_gate
+                        .as_ref()
+                        .map(|status| {
+                            if status.passed {
+                                status.detail.clone()
+                            } else if status.blockers.is_empty() {
+                                format!("{}; verdict={}", status.detail, status.verdict)
+                            } else {
+                                format!(
+                                    "{}; blockers={}",
+                                    status.detail,
+                                    status.blockers.join(" | ")
+                                )
+                            }
+                        })
+                        .unwrap_or_else(|error| {
+                            format!("consensus profile gate unavailable: {}", error)
+                        }),
+                ),
+                surface_check(
+                    "consensus-hybrid-or-pq-policy",
+                    consensus_gate
+                        .as_ref()
+                        .map(|status| !status.detail.contains("consensus_profile=classical"))
+                        .unwrap_or(false),
+                    "mainnet candidate path must avoid classical-only consensus profile"
+                        .to_string(),
+                ),
+            ],
+            vec![
+                repo_root
+                    .join("identity")
+                    .join("genesis.json")
+                    .display()
+                    .to_string(),
             ],
         ),
         build_surface(
@@ -1078,6 +1220,40 @@ fn build_surface(
         evidence,
         checks,
     }
+}
+
+fn collect_surface_gate_failures(readiness: &FullSurfaceReadiness) -> Vec<SurfaceGateFailure> {
+    let mut failures = Vec::new();
+
+    for surface in &readiness.surfaces {
+        for check in &surface.checks {
+            if check.passed {
+                continue;
+            }
+            failures.push(SurfaceGateFailure {
+                surface: surface.surface.to_string(),
+                check: check.name.to_string(),
+                code: gate_failure_code(surface.surface, check.name),
+                detail: check.detail.clone(),
+            });
+        }
+    }
+
+    failures
+}
+
+fn gate_failure_code(surface: &str, check: &str) -> String {
+    let surface_token = surface
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect::<String>()
+        .to_ascii_uppercase();
+    let check_token = check
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect::<String>()
+        .to_ascii_uppercase();
+    format!("AOXC_GATE_{}_{}", surface_token, check_token)
 }
 
 fn readiness_check(
@@ -1659,6 +1835,14 @@ fn has_release_evidence(dir: &Path) -> bool {
         && has_matching_artifact(dir, "sbom-", ".json")
         && (has_matching_artifact(dir, "aoxc-", ".sig")
             || has_matching_artifact(dir, "aoxc-", ".sig.status"))
+}
+
+fn has_release_provenance_bundle(dir: &Path) -> bool {
+    has_matching_artifact(dir, "provenance-", ".json")
+        && has_matching_artifact(dir, "release-provenance-", ".json")
+        && has_matching_artifact(dir, "release-sbom-", ".json")
+        && has_matching_artifact(dir, "release-build-manifest-", ".json")
+        && has_matching_artifact(dir, "release-signature-status-", ".txt")
 }
 
 fn has_production_closure_artifacts(dir: &Path) -> bool {
@@ -2248,13 +2432,15 @@ fn normalize_text(value: &str, lowercase: bool) -> Option<String> {
 #[allow(clippy::items_after_test_module)]
 mod tests {
     use super::{
-        build_surface, compare_aoxhub_network_profiles, compare_embedded_network_profiles,
-        evaluate_full_surface_readiness, evaluate_profile_readiness, full_surface_markdown_report,
+        build_surface, collect_surface_gate_failures, compare_aoxhub_network_profiles,
+        compare_embedded_network_profiles, evaluate_full_surface_readiness,
+        evaluate_profile_readiness, full_surface_markdown_report, gate_failure_code,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
-        has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
-        locate_repo_artifact_dir, open_checklist_items, parse_network_profile,
-        parse_positive_u64_arg, parse_required_or_default_text_arg, ports_are_shifted_consistently,
-        readiness_markdown_report, surface_check, write_readiness_markdown_report,
+        has_production_closure_artifacts, has_release_evidence, has_release_provenance_bundle,
+        has_security_drill_artifact, locate_repo_artifact_dir, open_checklist_items,
+        parse_network_profile, parse_positive_u64_arg, parse_required_or_default_text_arg,
+        ports_are_shifted_consistently, readiness_markdown_report, surface_check,
+        write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -2310,6 +2496,26 @@ mod tests {
         assert!(has_release_evidence(&dir));
 
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn release_provenance_bundle_requires_expected_artifacts() {
+        let dir = unique_dir("release-provenance");
+        touch(&dir.join("provenance-20260323T000000Z.json"));
+        touch(&dir.join("release-provenance-20260323T000000Z.json"));
+        touch(&dir.join("release-sbom-20260323T000000Z.json"));
+        touch(&dir.join("release-build-manifest-20260323T000000Z.json"));
+        touch(&dir.join("release-signature-status-20260323T000000Z.txt"));
+
+        assert!(has_release_provenance_bundle(&dir));
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn gate_failure_code_normalizes_surface_and_check_names() {
+        let code = gate_failure_code("quantum-consensus", "consensus-profile-gate");
+        assert_eq!(code, "AOXC_GATE_QUANTUM_CONSENSUS_CONSENSUS_PROFILE_GATE");
     }
 
     #[test]
@@ -2543,18 +2749,23 @@ mod tests {
             full.matrix_release_line.as_deref(),
             Some("aoxc.v.0.1.1-akdeniz")
         );
-        assert_eq!(full.matrix_surface_count, 6);
+        assert_eq!(full.matrix_surface_count, 7);
         assert!(
             full.matrix_warnings.is_empty(),
             "{:?}",
             full.matrix_warnings
         );
-        assert_eq!(full.total_surfaces, 6);
-        assert_eq!(full.surfaces.len(), 6);
+        assert_eq!(full.total_surfaces, 7);
+        assert_eq!(full.surfaces.len(), 7);
         assert!(
             full.surfaces
                 .iter()
                 .any(|surface| surface.surface == "mainnet")
+        );
+        assert!(
+            full.surfaces
+                .iter()
+                .any(|surface| surface.surface == "quantum-consensus")
         );
         assert!(
             full.surfaces
@@ -2581,6 +2792,15 @@ mod tests {
                 .iter()
                 .any(|surface| surface.surface == "telemetry")
         );
+
+        let failures = collect_surface_gate_failures(&full);
+        for failure in failures {
+            assert!(
+                failure.code.starts_with("AOXC_GATE_"),
+                "unexpected gate code: {}",
+                failure.code
+            );
+        }
     }
 
     #[test]
