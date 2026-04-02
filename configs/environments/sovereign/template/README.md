@@ -16,7 +16,6 @@ For custom genesis authoring and enforcement:
 ```bash
 aoxc genesis-template-advanced --profile testnet --out ./genesis.testnet.advanced.example.json
 aoxc genesis-security-audit --profile testnet --genesis ./genesis.testnet.advanced.example.json --enforce
-aoxc consensus-profile-audit --profile testnet --genesis ./genesis.testnet.advanced.example.json --strict
 ```
 
 ## Change Discipline

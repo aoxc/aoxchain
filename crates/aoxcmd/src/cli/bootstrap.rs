@@ -244,7 +244,6 @@ struct GenesisTemplateOutput {
     chain_name: String,
     network_id: String,
     validator_quorum_policy: String,
-    consensus_identity_profile: String,
     deterministic_serialization_required: bool,
     notes: Vec<String>,
 }
@@ -555,7 +554,6 @@ pub fn cmd_genesis_template_advanced(args: &[String]) -> Result<(), AppError> {
         "AOXC advanced genesis template with strict bindings and deterministic integrity controls"
             .to_string();
     genesis.consensus.validator_quorum_policy = "pq-hybrid-threshold-2of3".to_string();
-    genesis.consensus.consensus_identity_profile = "post_quantum".to_string();
     genesis.state.accounts.push(BootstrapAccountRecord {
         account_id: "AOXC_GOVERNANCE_TREASURY".to_string(),
         balance: "250000000".to_string(),
@@ -600,7 +598,6 @@ pub fn cmd_genesis_template_advanced(args: &[String]) -> Result<(), AppError> {
             chain_name: genesis.identity.chain_name,
             network_id: genesis.identity.network_id,
             validator_quorum_policy: genesis.consensus.validator_quorum_policy,
-            consensus_identity_profile: genesis.consensus.consensus_identity_profile,
             deterministic_serialization_required: genesis
                 .integrity
                 .deterministic_serialization_required,
@@ -651,32 +648,6 @@ pub fn cmd_genesis_security_audit(args: &[String]) -> Result<(), AppError> {
         passed.push("validator-quorum-policy".to_string());
     } else {
         blockers.push("validator quorum policy must not be empty".to_string());
-    }
-
-    let identity_profile = genesis
-        .consensus
-        .consensus_identity_profile
-        .trim()
-        .to_ascii_lowercase();
-    match identity_profile.as_str() {
-        "classical" | "hybrid" | "post_quantum" => {
-            passed.push("consensus-identity-profile".to_string());
-            if matches!(identity_profile.as_str(), "hybrid" | "post_quantum")
-                && !genesis
-                    .consensus
-                    .validator_quorum_policy
-                    .to_ascii_lowercase()
-                    .contains("pq")
-            {
-                warnings.push(
-                    "hybrid/post_quantum profile should use a PQ-aware quorum policy label"
-                        .to_string(),
-                );
-            }
-        }
-        _ => blockers.push(
-            "consensus_identity_profile must be one of classical/hybrid/post_quantum".to_string(),
-        ),
     }
 
     let validator_accounts = genesis
@@ -748,14 +719,6 @@ pub fn cmd_genesis_security_audit(args: &[String]) -> Result<(), AppError> {
     }
 
     emit_serialized(&report, output_format(args))
-}
-
-pub fn cmd_consensus_profile_audit(args: &[String]) -> Result<(), AppError> {
-    let mut mapped = args.to_vec();
-    if has_flag(args, "--strict") && !mapped.iter().any(|arg| arg == "--enforce") {
-        mapped.push("--enforce".to_string());
-    }
-    cmd_genesis_security_audit(&mapped)
 }
 
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {

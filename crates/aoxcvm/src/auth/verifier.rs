@@ -90,7 +90,7 @@ mod tests {
         scheme::{AuthProfile, SignatureAlgorithm},
         signer::SignerClass,
         threshold::ThresholdPolicy,
-        verifier::{verify_envelope, verify_envelope_with_qrkf, QrkfVerification},
+        verifier::{QrkfVerification, verify_envelope, verify_envelope_with_qrkf},
     };
 
     #[test]

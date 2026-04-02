@@ -17,8 +17,7 @@
     "mode": "bft",
     "genesis_epoch": 0,
     "block_time_ms": 2500,
-    "validator_quorum_policy": "pq-hybrid-threshold-2of3",
-    "consensus_identity_profile": "post_quantum"
+    "validator_quorum_policy": "pq-hybrid-threshold-2of3"
   },
   "economics": {
     "native_symbol": "AOXC",
