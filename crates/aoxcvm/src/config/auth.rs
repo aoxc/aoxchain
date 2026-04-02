@@ -16,7 +16,7 @@ pub struct AuthConfig {
 impl Default for AuthConfig {
     fn default() -> Self {
         Self {
-            profile: AuthProfile::HybridMandatory,
+            profile: AuthProfile::PostQuantumStrict,
             primary_algorithm: SignatureAlgorithm::MlDsa65,
             require_pq_for_rotation: true,
         }
