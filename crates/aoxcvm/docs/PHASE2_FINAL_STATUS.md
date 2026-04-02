@@ -25,3 +25,15 @@ Phase-2 is complete when all of the following are true:
 **Phase-2 is considered complete** once contract class, capability, and policy law are canonically defined, enforced across manifest, resolver, and admission boundaries, documented as execution law, and validated through builder-to-runtime integration tests.
 
 That threshold has been reached.
+
+## Phase-3 constitutional handoff
+
+Phase-2 completion hands off to Phase-3 as the sovereign constitutional runtime track.
+The canonical Phase-3 baseline is documented in:
+
+- `PHASE3_RUNTIME_CONSTITUTION.md`
+- `AUTH_CONSTITUTION.md`
+- `GOVERNANCE_CONSTITUTION.md`
+- `PACKAGE_LAW.md`
+- `UPGRADE_CONSTITUTION.md`
+- `INTEROP_SETTLEMENT_LAW.md`
