@@ -113,6 +113,8 @@ If you are asking whether the system is aligned to `m/44'/2626'`: AOXChain follo
 - `ARCHITECTURE.md`: component boundaries and data/control flow.
 - `SECURITY.md`: reporting and security coordination expectations.
 - `TESTING.md`: required validation layers and commands.
+- `QUANTUM_ROADMAP.md`: phased post-quantum transformation program (block structure, VM, network, governance, AI-assisted operations).
+- `QUANTUM_CHECKLIST.md`: release-gating checklist for quantum-resilience execution and evidence.
 
 mdBook entry points:
 - `docs/src/README.md`
