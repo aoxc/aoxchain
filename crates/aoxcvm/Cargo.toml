@@ -6,6 +6,11 @@ license = "MIT"
 description = "AOXChain virtual machine kernel v1"
 
 [dependencies]
+aoxcontract = { path = "../aoxcontract" }
+aoxconfig = { path = "../aoxconfig" }
 serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 sha2.workspace = true
+
+[dev-dependencies]
+aoxcsdk = { path = "../aoxcsdk" }
