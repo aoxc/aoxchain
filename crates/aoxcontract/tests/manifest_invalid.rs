@@ -5,8 +5,9 @@
 mod common;
 
 use aoxcontract::{
-    ArtifactValidationError, CompatibilityError, ContractError, ContractManifest, ContractVersion,
-    Entrypoint, ManifestValidationError, Validate, VmTarget,
+    ArtifactValidationError, CapabilityProfile, CompatibilityError, ContractClass, ContractError,
+    ContractManifest, ContractVersion, Entrypoint, ManifestValidationError, PolicyProfile,
+    Validate, VmTarget,
 };
 
 #[test]
@@ -124,5 +125,102 @@ fn execution_profile_vm_target_mismatch_is_rejected() {
     assert!(matches!(
         err,
         ContractError::Manifest(ManifestValidationError::ExecutionProfileVmTargetMismatch)
+    ));
+}
+
+#[test]
+fn restricted_profile_is_rejected_for_non_policy_bound_class() {
+    let mut manifest = common::sample_manifest();
+    manifest.execution_profile.contract_class = ContractClass::Application;
+    manifest.execution_profile.policy_profile = PolicyProfile {
+        review_required: true,
+        governance_activation_required: false,
+        restricted_to_auth_profile: Some("ops-v1".into()),
+    };
+
+    let err = manifest.validate().unwrap_err();
+    assert!(matches!(
+        err,
+        ContractError::Manifest(ManifestValidationError::RestrictedAuthProfileOnlyForPolicyBound)
+    ));
+}
+
+#[test]
+fn policy_bound_requires_canonical_auth_profile() {
+    let mut manifest = common::sample_manifest();
+    manifest.execution_profile.contract_class = ContractClass::PolicyBound;
+    manifest.execution_profile.capability_profile = CapabilityProfile {
+        storage_read: true,
+        restricted_syscalls: true,
+        ..CapabilityProfile::default()
+    };
+    manifest.execution_profile.policy_profile = PolicyProfile {
+        review_required: true,
+        governance_activation_required: false,
+        restricted_to_auth_profile: Some(" OPS-V1 ".into()),
+    };
+
+    let err = manifest.validate().unwrap_err();
+    assert!(matches!(
+        err,
+        ContractError::Manifest(ManifestValidationError::InvalidPolicyBoundProfile)
+    ));
+}
+
+#[test]
+fn governance_activation_is_rejected_for_application_class() {
+    let mut manifest = common::sample_manifest();
+    manifest.execution_profile.contract_class = ContractClass::Application;
+    manifest.execution_profile.policy_profile = PolicyProfile {
+        review_required: true,
+        governance_activation_required: true,
+        restricted_to_auth_profile: None,
+    };
+
+    let err = manifest.validate().unwrap_err();
+    assert!(matches!(
+        err,
+        ContractError::Manifest(ManifestValidationError::InvalidGovernanceActivationClass)
+    ));
+}
+
+#[test]
+fn governance_hooks_without_activation_is_rejected() {
+    let mut manifest = common::sample_manifest();
+    manifest.execution_profile.contract_class = ContractClass::Governed;
+    manifest.execution_profile.capability_profile = CapabilityProfile {
+        storage_read: true,
+        governance_hooks: true,
+        ..CapabilityProfile::default()
+    };
+    manifest.execution_profile.policy_profile = PolicyProfile {
+        review_required: true,
+        governance_activation_required: false,
+        restricted_to_auth_profile: None,
+    };
+
+    let err = manifest.validate().unwrap_err();
+    assert!(matches!(
+        err,
+        ContractError::Manifest(ManifestValidationError::GovernanceHooksRequireActivation)
+    ));
+}
+
+#[test]
+fn package_class_rejects_storage_write_capability() {
+    let mut manifest = common::sample_manifest();
+    manifest.execution_profile.contract_class = ContractClass::Package;
+    manifest.execution_profile.capability_profile = CapabilityProfile {
+        storage_read: true,
+        storage_write: true,
+        ..CapabilityProfile::default()
+    };
+
+    let err = manifest.validate().unwrap_err();
+    assert!(matches!(
+        err,
+        ContractError::Manifest(ManifestValidationError::CapabilityForbiddenForClass(
+            "storage_write"
+        ))
     ));
 }
