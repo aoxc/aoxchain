@@ -3,7 +3,7 @@ name = "aoxcvm"
 version.workspace = true
 edition.workspace = true
 license = "MIT"
-description = "AOXChain virtual machine vNext scaffold"
+description = "AOXChain virtual machine kernel v1"
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }

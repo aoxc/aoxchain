@@ -1,4 +1,4 @@
-//! policy subsystem for AOXCVM vNext.
+//! policy subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod authorization;
 pub mod execution;
 pub mod features;

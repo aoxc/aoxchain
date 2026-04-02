@@ -1,4 +1,4 @@
-//! config subsystem for AOXCVM vNext.
+//! config subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod auth;
 pub mod features;
 pub mod genesis;

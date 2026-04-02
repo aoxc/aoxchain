@@ -1,4 +1,4 @@
-//! bytecode subsystem for AOXCVM vNext.
+//! bytecode subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod canonicalizer;
 pub mod debug;
 pub mod feature_gates;

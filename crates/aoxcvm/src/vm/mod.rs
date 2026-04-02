@@ -1,4 +1,4 @@
-//! vm subsystem for AOXCVM vNext.
+//! vm subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod call_stack;
 pub mod frame;
 pub mod halt;

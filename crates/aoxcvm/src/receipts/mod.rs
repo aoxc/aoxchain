@@ -1,4 +1,4 @@
-//! receipts subsystem for AOXCVM vNext.
+//! receipts subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod codes;
 pub mod commitment;
 pub mod event;

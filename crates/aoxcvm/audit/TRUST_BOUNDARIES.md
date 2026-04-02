@@ -1,3 +1,3 @@
 # TRUST BOUNDARIES
 
-This document defines the AOXCVM vNext scaffold baseline for quantum-resilient, L1-native architecture evolution.
+This document defines the AOXC-VMachine-QX1 Kernel v1 baseline for quantum-resilient, L1-native architecture evolution.

@@ -1,4 +1,4 @@
-//! package subsystem for AOXCVM vNext.
+//! package subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod attestations;
 pub mod compatibility;
 pub mod dependencies;
