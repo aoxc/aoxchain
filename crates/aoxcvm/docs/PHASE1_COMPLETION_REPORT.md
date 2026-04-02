@@ -35,6 +35,18 @@ The following automated checks are implemented as part of the crate:
 - deterministic verifier and execution path checks in `src/verifier/*` and `src/vm/*` tests,
 - workspace-level crate test execution via `cargo test -p aoxcvm`.
 
+
+## Phase-1 Lockpoints (Canonical Freeze)
+
+The following Phase-1 lockpoints are now explicitly frozen:
+
+1. **Canonical kernel entry**: `execute(contract, host, spec, auth_verifier, object_verifier) -> ExecutionOutcome` in `src/vm/phase1.rs`.
+2. **Execution contracts**: `ExecutionContractContext`, `ExecutionOutcome`, `VmError`, and `Receipt` are defined as stable execution surfaces in `src/vm/phase1.rs`.
+3. **Host + state journal boundary**: `Host` trait requires `checkpoint`, `rollback`, and `commit`; VM persistence flows only through host commit.
+4. **Gas + memory semantics**: Out-of-gas, failure rollback, memory expansion, and deterministic bounds are enforced by `src/vm/machine.rs`, `src/gas/meter.rs`, and `src/memory/heap.rs`.
+5. **Auth + object admission split**: auth and object admission are isolated pre-execution layers via `AuthVerifier` and `ObjectVerifier`.
+6. **Determinism gate tests**: replay, rollback, OOG, malformed input, invalid auth, and invalid object tests are mandatory in `src/vm/phase1.rs` test suite.
+
 ## Phase 2 Entry Constraint
 
 Phase 2 runtime expansion work MUST preserve all Phase 1 invariants:

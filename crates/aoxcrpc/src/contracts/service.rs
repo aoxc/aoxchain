@@ -123,10 +123,20 @@ impl ContractRuntimeBindingService {
     }
 
     fn internal_resolver_logic(
-        _desc: &ContractDescriptor,
-        _conf: &ContractsConfig,
+        desc: &ContractDescriptor,
+        conf: &ContractsConfig,
     ) -> Result<(String, u64), String> {
-        // Core logic placeholder to satisfy compilation
-        Ok(("default_lane".into(), 0))
+        if !conf.artifact_policy.allowed_vm_targets.contains(&desc.manifest.vm_target) {
+            return Err("vm_target is not allowed by contracts configuration".to_string());
+        }
+
+        let lane = match desc.manifest.vm_target {
+            aoxcontract::VmTarget::Wasm => "wasm",
+            aoxcontract::VmTarget::Evm => "evm",
+            aoxcontract::VmTarget::SuiLike => "sui",
+            aoxcontract::VmTarget::Custom(_) => "custom",
+        };
+
+        Ok((lane.to_string(), 0))
     }
 }
