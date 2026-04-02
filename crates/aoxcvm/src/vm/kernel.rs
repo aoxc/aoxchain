@@ -11,7 +11,9 @@ use crate::context::{
 };
 use crate::receipts::proof::ReceiptProof;
 use crate::state::JournaledState;
+use crate::tx::envelope::TxEnvelope;
 use crate::verifier::determinism::{DeterminismError, DeterminismVerifier};
+use crate::vm::admission::{AdmissionError, validate_phase1_admission};
 use crate::vm::machine::{ExecutionResult, Program};
 
 /// Configuration for a phase-1 kernel run.

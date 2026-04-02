@@ -1,4 +1,5 @@
 //! vm subsystem for AOXC-VMachine-QX1 Kernel v1.
+pub mod admission;
 pub mod call_stack;
 pub mod frame;
 pub mod halt;
