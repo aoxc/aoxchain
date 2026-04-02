@@ -254,3 +254,15 @@ Implement **Phase 1** with an in-memory `HostJournal` prototype and deterministi
 - rollback behavior,
 - cross-lane merge conflicts,
 - atomic commit success/failure boundaries.
+
+## Full-readiness closure priorities
+
+To classify AOXCVM as full in production terms, development focus must shift from capability expansion to release-hardening evidence.
+
+### Priority order
+- **P0:** CI/readiness green, cross-platform determinism artifacts, continuous fuzzing, gas/DoS calibration, chain-level integration rehearsal.
+- **P1:** call-model spec closure, verifier coverage matrix, syscall ABI/versioning closure, state stress evidence, standardized release evidence bundle.
+- **P2:** independent external review, published limitations/residual-risk pack, migration/rollback operational guarantees.
+
+### Delivery principle
+AOXCVM full-readiness should optimize for **more proof, not more ambition**: every compatibility-sensitive claim must be backed by reproducible gates and retained artifacts.
