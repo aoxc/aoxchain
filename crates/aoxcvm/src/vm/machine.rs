@@ -71,6 +71,14 @@ impl From<StateError> for VmError {
 pub struct ExecutionResult {
     pub receipt: ExecutionReceipt,
     pub stack: Vec<u64>,
+    pub final_state: JournaledState,
+}
+
+/// Deterministic execution envelope that always returns a receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionEnvelope {
+    pub result: ExecutionResult,
+    pub error: Option<VmError>,
 }
 
 /// Deterministic single-threaded VM.
@@ -112,37 +120,69 @@ impl Machine {
     }
 
     /// Executes until `Halt` or error. State writes are reverted on failure.
-    pub fn execute(mut self) -> Result<ExecutionResult, VmError> {
+    pub fn execute(self) -> Result<ExecutionResult, VmError> {
+        let envelope = self.execute_enveloped();
+        match envelope.error {
+            Some(err) => Err(err),
+            None => Ok(envelope.result),
+        }
+    }
+
+    /// Executes and always returns a receipt envelope, including deterministic failures.
+    pub fn execute_enveloped(mut self) -> ExecutionEnvelope {
         let checkpoint = self.state.checkpoint();
 
         loop {
-            let instruction = self
-                .program
-                .code
-                .get(self.pc)
-                .ok_or(VmError::InvalidProgramCounter)?
-                .clone();
+            let Some(instruction) = self.program.code.get(self.pc).cloned() else {
+                return self.fail_envelope(VmError::InvalidProgramCounter, checkpoint);
+            };
             self.pc += 1;
 
             if let Instruction::Halt = instruction {
-                self.gas.charge(Self::gas_cost(&instruction))?;
-                self.state.commit(checkpoint)?;
+                if let Err(err) = self.gas.charge(Self::gas_cost(&instruction)) {
+                    return self.fail_envelope(err.into(), checkpoint);
+                }
+                if let Err(err) = self.state.commit(checkpoint) {
+                    return self.fail_envelope(err.into(), checkpoint);
+                }
+
                 let receipt = ExecutionReceipt::from_state(
                     ReceiptStatus::Success,
                     self.gas.used(),
                     self.logs,
                     &self.state,
                 );
-                return Ok(ExecutionResult {
-                    receipt,
-                    stack: self.stack,
-                });
+                return ExecutionEnvelope {
+                    result: ExecutionResult {
+                        receipt,
+                        stack: self.stack,
+                        final_state: self.state,
+                    },
+                    error: None,
+                };
             }
 
             if let Err(err) = self.step(instruction) {
-                self.state.rollback(checkpoint)?;
-                return Err(err);
+                return self.fail_envelope(err, checkpoint);
             }
+        }
+    }
+
+    fn fail_envelope(&mut self, err: VmError, checkpoint: usize) -> ExecutionEnvelope {
+        let _ = self.state.rollback(checkpoint);
+        let receipt = ExecutionReceipt::from_state(
+            ReceiptStatus::Failed,
+            self.gas.used(),
+            self.logs.clone(),
+            &self.state,
+        );
+        ExecutionEnvelope {
+            result: ExecutionResult {
+                receipt,
+                stack: self.stack.clone(),
+                final_state: self.state.clone(),
+            },
+            error: Some(err),
         }
     }
 
@@ -235,6 +275,7 @@ impl Machine {
 #[cfg(test)]
 mod tests {
     use super::{Instruction, Machine, Program, VmError};
+    use crate::receipts::outcome::ReceiptStatus;
 
     #[test]
     fn deterministic_execution_matches_between_runs() {
@@ -279,5 +320,15 @@ mod tests {
             .execute()
             .expect_err("must fail");
         assert_eq!(err, VmError::DivisionByZero);
+    }
+
+    #[test]
+    fn execute_enveloped_reports_failed_receipt() {
+        let program = Program {
+            code: vec![Instruction::Push(1), Instruction::Push(0), Instruction::Div],
+        };
+        let envelope = Machine::new(program, 50, 128).execute_enveloped();
+        assert_eq!(envelope.error, Some(VmError::DivisionByZero));
+        assert_eq!(envelope.result.receipt.status, ReceiptStatus::Failed);
     }
 }

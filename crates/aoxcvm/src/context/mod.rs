@@ -1,4 +1,4 @@
-//! context subsystem for AOXCVM vNext.
+//! context subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod block;
 pub mod call;
 pub mod deterministic;

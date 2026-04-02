@@ -1,4 +1,4 @@
-//! host subsystem for AOXCVM vNext.
+//! host subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod capability_check;
 pub mod deterministic;
 pub mod dispatcher;

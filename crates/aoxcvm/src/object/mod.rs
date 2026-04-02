@@ -1,4 +1,4 @@
-//! object subsystem for AOXCVM vNext.
+//! object subsystem for AOXC-VMachine-QX1 Kernel v1.
 pub mod access;
 pub mod classes;
 pub mod header;
