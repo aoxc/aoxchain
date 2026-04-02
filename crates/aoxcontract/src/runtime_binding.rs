@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ContractDescriptor, ContractError, ContractId, VmTarget};
+use crate::{ContractDescriptor, ContractError, ContractId, ExecutionProfile, VmTarget};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -24,6 +24,7 @@ pub struct RuntimeBindingDescriptor {
     pub vm_target: VmTarget,
     pub lane_binding: LaneBinding,
     pub execution_profile: ExecutionProfileRef,
+    pub resolved_profile: ExecutionProfile,
 }
 
 impl RuntimeBindingDescriptor {
@@ -37,6 +38,7 @@ impl RuntimeBindingDescriptor {
             vm_target: descriptor.manifest.vm_target.clone(),
             lane_binding,
             execution_profile,
+            resolved_profile: descriptor.manifest.execution_profile.clone(),
         })
     }
 }
