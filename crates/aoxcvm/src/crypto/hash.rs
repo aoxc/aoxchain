@@ -63,10 +63,7 @@ pub fn quantum_hardened_digest(domain: &'static [u8], payload: &[u8]) -> Quantum
     since = "0.1.1",
     note = "use quantum_hardened_digest; avoid absolute security wording in public APIs"
 )]
-pub fn quantum_unaffected_digest(
-    domain: &'static [u8],
-    payload: &[u8],
-) -> QuantumHardenedDigest {
+pub fn quantum_unaffected_digest(domain: &'static [u8], payload: &[u8]) -> QuantumHardenedDigest {
     quantum_hardened_digest(domain, payload)
 }
 
