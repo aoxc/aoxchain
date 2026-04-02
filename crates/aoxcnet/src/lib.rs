@@ -10,5 +10,6 @@ pub mod metrics;
 pub mod p2p;
 pub mod ports;
 pub mod resilience;
+pub mod secure_session;
 pub mod sync;
 pub mod transport;
