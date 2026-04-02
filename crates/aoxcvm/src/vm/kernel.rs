@@ -55,6 +55,7 @@ impl KernelOutput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KernelError {
     Context(ContextError),
+    Admission(AdmissionError),
     Determinism(DeterminismError),
 }
 
@@ -70,6 +71,12 @@ impl From<DeterminismError> for KernelError {
     }
 }
 
+impl From<AdmissionError> for KernelError {
+    fn from(value: AdmissionError) -> Self {
+        Self::Admission(value)
+    }
+}
+
 /// AOXC-VMachine-QX1 phase-1 kernel entrypoint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AOXCVMachineQX1 {
@@ -82,22 +89,32 @@ impl AOXCVMachineQX1 {
         Self { config }
     }
 
-    /// Executes and verifies a program with deterministic replay using a default context.
-    pub fn execute_phase1(&self, program: Program) -> Result<KernelOutput, KernelError> {
-        self.execute_phase1_with_context(program, self.default_context())
+    /// Executes and verifies a program with deterministic replay using
+    /// kernel-constructed context derived from the provided transaction envelope.
+    pub fn execute_phase1(
+        &self,
+        program: Program,
+        tx: TxEnvelope,
+    ) -> Result<KernelOutput, KernelError> {
+        let context = self.default_context_for_tx(&tx);
+        self.execute_phase1_with_context(program, context, tx)
     }
 
-    /// Executes and verifies a program using caller-provided immutable execution context.
+    /// Executes and verifies a program using caller-provided immutable execution context
+    /// and explicit transaction-envelope admission.
     pub fn execute_phase1_with_context(
         &self,
         program: Program,
         context: ExecutionContext,
+        tx: TxEnvelope,
     ) -> Result<KernelOutput, KernelError> {
-        context.validate(DeterminismLimits {
+        let limits = DeterminismLimits {
             max_call_depth: self.config.max_call_depth,
             max_gas_limit: self.config.gas_limit,
             min_spec_version: self.config.min_spec_version,
-        })?;
+        };
+
+        validate_phase1_admission(&context, &tx, limits, 64 * 1024)?;
 
         let verifier = DeterminismVerifier {
             gas_limit: context.tx.gas_limit,
@@ -113,11 +130,11 @@ impl AOXCVMachineQX1 {
         })
     }
 
-    fn default_context(&self) -> ExecutionContext {
+    fn default_context_for_tx(&self, tx: &TxEnvelope) -> ExecutionContext {
         ExecutionContext::new(
-            EnvironmentContext::new(2626, 1),
+            EnvironmentContext::new(tx.chain_id, 1),
             BlockContext::new(0, 0, 0, [0_u8; 32]),
-            TxContext::new([0_u8; 32], 0, self.config.gas_limit, false, 1, 0),
+            TxContext::new([0_u8; 32], 0, tx.fee_budget.gas_limit, false, 1, 0),
             CallContext::new(0),
             OriginContext::new([0_u8; 32], [0_u8; 32], [0_u8; 32], 0),
         )
@@ -131,6 +148,7 @@ mod tests {
         block::BlockContext, call::CallContext, environment::EnvironmentContext,
         execution::ExecutionContext, origin::OriginContext, tx::TxContext,
     };
+    use crate::tx::{envelope::TxEnvelope, fee::FeeBudget, kind::TxKind, payload::TxPayload};
     use crate::vm::machine::{Instruction, Program};
 
     #[test]
@@ -156,7 +174,15 @@ mod tests {
             ],
         };
 
-        let output = kernel.execute_phase1(program).expect("phase1 success");
+        let tx = TxEnvelope::new(
+            2626,
+            1,
+            TxKind::UserCall,
+            FeeBudget::new(1_000, 1),
+            TxPayload::new(vec![1, 2, 3]),
+        );
+
+        let output = kernel.execute_phase1(program, tx).expect("phase1 success");
         assert_eq!(output.result.stack, vec![11]);
         assert!(output.receipt_proof.verify_receipt(&output.result.receipt));
         assert_eq!(
@@ -182,18 +208,101 @@ mod tests {
             OriginContext::new([1_u8; 32], [2_u8; 32], [1_u8; 32], 0),
         );
 
+        let tx = TxEnvelope::new(
+            2626,
+            1,
+            TxKind::UserCall,
+            FeeBudget::new(500, 1),
+            TxPayload::new(vec![1_u8]),
+        );
+
         let err = kernel
             .execute_phase1_with_context(
                 Program {
                     code: vec![Instruction::Halt],
                 },
                 context,
+                tx,
             )
             .expect_err("must fail");
 
         assert!(matches!(
             err,
-            KernelError::Context(crate::context::execution::ContextError::DepthExceedsDeterminism)
+            KernelError::Admission(crate::vm::admission::AdmissionError::Context(
+                crate::context::execution::ContextError::DepthExceedsDeterminism
+            ))
+        ));
+    }
+
+    #[test]
+    fn rejects_admission_when_context_and_tx_chain_id_do_not_match() {
+        let kernel = AOXCVMachineQX1::new(KernelConfig::default());
+        let context = ExecutionContext::new(
+            EnvironmentContext::new(2626, 1),
+            BlockContext::new(1, 1, 1, [9_u8; 32]),
+            TxContext::new([7_u8; 32], 0, 500, false, 1, 0),
+            CallContext::new(0),
+            OriginContext::new([1_u8; 32], [2_u8; 32], [1_u8; 32], 0),
+        );
+
+        let tx = TxEnvelope::new(
+            2627,
+            1,
+            TxKind::UserCall,
+            FeeBudget::new(500, 1),
+            TxPayload::new(vec![1_u8]),
+        );
+
+        let err = kernel
+            .execute_phase1_with_context(
+                Program {
+                    code: vec![Instruction::Halt],
+                },
+                context,
+                tx,
+            )
+            .expect_err("must fail");
+
+        assert!(matches!(
+            err,
+            KernelError::Admission(crate::vm::admission::AdmissionError::TxValidation(
+                crate::tx::validation::ValidationError::ChainIdMismatch
+            ))
+        ));
+    }
+
+    #[test]
+    fn rejects_admission_when_context_tx_gas_do_not_match() {
+        let kernel = AOXCVMachineQX1::new(KernelConfig::default());
+        let context = ExecutionContext::new(
+            EnvironmentContext::new(2626, 1),
+            BlockContext::new(1, 1, 1, [9_u8; 32]),
+            TxContext::new([7_u8; 32], 0, 500, false, 1, 0),
+            CallContext::new(0),
+            OriginContext::new([1_u8; 32], [2_u8; 32], [1_u8; 32], 0),
+        );
+
+        let tx = TxEnvelope::new(
+            2626,
+            1,
+            TxKind::UserCall,
+            FeeBudget::new(700, 1),
+            TxPayload::new(vec![1_u8]),
+        );
+
+        let err = kernel
+            .execute_phase1_with_context(
+                Program {
+                    code: vec![Instruction::Halt],
+                },
+                context,
+                tx,
+            )
+            .expect_err("must fail");
+
+        assert!(matches!(
+            err,
+            KernelError::Admission(crate::vm::admission::AdmissionError::ContextTxGasMismatch)
         ));
     }
 }
