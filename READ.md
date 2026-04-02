@@ -134,18 +134,3 @@ aoxc genesis-security-audit --profile testnet --genesis ./genesis.testnet.advanc
 ```
 
 These commands provide a secure starting template and an enforceable security-audit gate for custom genesis workflows.
-
-## 11) Consensus Identity Quantum Profile
-
-Consensus identity is now treated as an explicit profile surface:
-
-- `Classical` (`ed25519`),
-- `Hybrid` (`ed25519 + dilithium3`),
-- `PostQuantum` (`dilithium3`).
-
-Operational policy:
-- unknown signature schemes are rejected fail-closed,
-- hybrid/post-quantum vote contexts require a non-zero PQ attestation root,
-- post-quantum cutover epochs require a PQ-hardened scheme.
-
-This profile model allows staged migration while preserving deterministic consensus validation.
