@@ -26,7 +26,7 @@ use crate::{
     error::{AppError, ErrorCode},
     keys::manager::{
         bootstrap_operator_key, consensus_public_key_hex, inspect_operator_key,
-        operator_fingerprint, verify_operator_key,
+        operator_fingerprint, rotate_operator_key, verify_operator_key,
     },
     node::lifecycle::bootstrap_state,
 };
@@ -417,6 +417,13 @@ pub fn cmd_key_bootstrap(args: &[String]) -> Result<(), AppError> {
     let home = resolve_home()?;
     ensure_layout(&home)?;
 
+    if inspect_operator_key().is_ok() && !has_flag(args, "--force") {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Operator key material already exists. Use `aoxc key-rotate --profile <profile> --password <value>` for controlled rotation, or pass --force to overwrite during non-production bootstrap.",
+        ));
+    }
+
     let profile_input = arg_value(args, "--profile").unwrap_or_else(|| "validation".to_string());
     let profile = EnvironmentProfile::parse(&profile_input)?;
     let name = parse_required_or_default_text_arg(args, "--name", "validator-01")?;
@@ -424,6 +431,21 @@ pub fn cmd_key_bootstrap(args: &[String]) -> Result<(), AppError> {
 
     let material = bootstrap_operator_key(&name, profile.as_str(), &password)?;
     emit_serialized(&material, output_format(args))
+}
+
+pub fn cmd_key_rotate(args: &[String]) -> Result<(), AppError> {
+    let home = resolve_home()?;
+    ensure_layout(&home)?;
+
+    let profile_input = arg_value(args, "--profile")
+        .or_else(|| load().ok().map(|settings| settings.profile))
+        .unwrap_or_else(|| "validation".to_string());
+    let profile = EnvironmentProfile::parse(&profile_input)?;
+    let name = parse_required_or_default_text_arg(args, "--name", "validator-rotated")?;
+    let password = parse_required_text_arg(args, "--password", false, "key rotate")?;
+
+    let summary = rotate_operator_key(&name, profile.as_str(), &password)?;
+    emit_serialized(&summary, output_format(args))
 }
 
 pub fn cmd_keys_show_fingerprint(args: &[String]) -> Result<(), AppError> {
