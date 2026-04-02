@@ -1,11 +1,20 @@
-//! Deterministic fingerprint helpers built on quantum-impact-hardened hashes.
+//! Deterministic fingerprint helpers built on quantum-hardened hashes.
 
-use crate::crypto::hash::quantum_unaffected_digest;
+use crate::crypto::hash::quantum_hardened_digest;
 
 /// Produces a canonical execution fingerprint encoded as uppercase hex.
-pub fn execution_fingerprint(namespace: &'static [u8], payload: &[u8]) -> String {
-    let digest = quantum_unaffected_digest(namespace, payload);
+pub fn canonical_execution_fingerprint(namespace: &'static [u8], payload: &[u8]) -> String {
+    let digest = quantum_hardened_digest(namespace, payload);
     encode_hex_upper(&digest.to_bytes())
+}
+
+/// Backward-compatible wrapper kept for migration from pre-audit naming.
+#[deprecated(
+    since = "0.1.1",
+    note = "use canonical_execution_fingerprint for explicit canonical semantics"
+)]
+pub fn execution_fingerprint(namespace: &'static [u8], payload: &[u8]) -> String {
+    canonical_execution_fingerprint(namespace, payload)
 }
 
 fn encode_hex_upper(bytes: &[u8]) -> String {
@@ -20,11 +29,12 @@ fn encode_hex_upper(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::execution_fingerprint;
+    #[allow(deprecated)]
+    use super::{canonical_execution_fingerprint, execution_fingerprint};
 
     #[test]
     fn fingerprint_is_stable_and_uppercase_hex() {
-        let fp = execution_fingerprint(b"receipt", b"payload");
+        let fp = canonical_execution_fingerprint(b"receipt", b"payload");
         assert_eq!(fp.len(), 192);
         assert!(fp.chars().all(|c| c.is_ascii_hexdigit()));
         assert_eq!(fp, fp.to_ascii_uppercase());
@@ -32,8 +42,16 @@ mod tests {
 
     #[test]
     fn fingerprint_is_domain_separated() {
-        let a = execution_fingerprint(b"receipt", b"payload");
-        let b = execution_fingerprint(b"state", b"payload");
+        let a = canonical_execution_fingerprint(b"receipt", b"payload");
+        let b = canonical_execution_fingerprint(b"state", b"payload");
         assert_ne!(a, b);
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn legacy_helper_matches_canonical_output() {
+        let legacy = execution_fingerprint(b"receipt", b"payload");
+        let canonical = canonical_execution_fingerprint(b"receipt", b"payload");
+        assert_eq!(legacy, canonical);
     }
 }
