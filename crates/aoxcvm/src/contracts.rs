@@ -12,6 +12,8 @@ pub mod resolver {
         descriptor: &ContractDescriptor,
         config: &ContractsConfig,
     ) -> Result<RuntimeBindingDescriptor, ContractError> {
+        enforce_phase2_runtime_law(descriptor, config)?;
+
         if !config
             .artifact_policy
             .allowed_vm_targets
@@ -53,5 +55,54 @@ pub mod resolver {
             lane,
             ExecutionProfileRef(format!("phase2-{class_segment}")),
         )
+        .unwrap();
+
+        ContractDescriptor::new(manifest).unwrap()
+    }
+
+    #[test]
+    fn resolver_maps_application_profile_ref() {
+        let descriptor = sample_descriptor();
+        let config = ContractsConfig::default();
+        let binding = resolve_runtime_binding(&descriptor, &config).unwrap();
+        assert_eq!(binding.execution_profile.0, "phase2-application");
+    }
+
+    #[test]
+    fn resolver_maps_system_profile_ref() {
+        let mut descriptor = sample_descriptor();
+        descriptor.manifest.execution_profile.contract_class = ContractClass::System;
+        descriptor.manifest.validate().unwrap();
+        let config = ContractsConfig::default();
+        let binding = resolve_runtime_binding(&descriptor, &config).unwrap();
+        assert_eq!(binding.execution_profile.0, "phase2-system");
+    }
+
+    #[test]
+    fn resolver_maps_policy_bound_profile_ref() {
+        let mut descriptor = sample_descriptor();
+        descriptor.manifest.execution_profile.contract_class = ContractClass::PolicyBound;
+        descriptor
+            .manifest
+            .execution_profile
+            .policy_profile
+            .restricted_to_auth_profile = Some("ops-signer-v1".into());
+        descriptor.manifest.validate().unwrap();
+        let config = ContractsConfig::default();
+        let binding = resolve_runtime_binding(&descriptor, &config).unwrap();
+        assert_eq!(binding.execution_profile.0, "phase2-policy-bound");
+    }
+
+    #[test]
+    fn resolver_rejects_profile_vm_mismatch_fail_closed() {
+        let mut descriptor = sample_descriptor();
+        descriptor.manifest.execution_profile.vm_target = VmTarget::Evm;
+        let err = descriptor.manifest.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            aoxcontract::ContractError::Manifest(
+                ManifestValidationError::ExecutionProfileVmTargetMismatch
+            )
+        ));
     }
 }

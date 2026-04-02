@@ -5,10 +5,11 @@
 use thiserror::Error;
 
 use aoxcontract::{
-    ArtifactDigest, ArtifactFormat, ArtifactLocationKind, Compatibility, ContractArtifactRef,
-    ContractCapability, ContractDescriptor, ContractError, ContractManifest, ContractMetadata,
-    ContractPolicy, ContractVersion, Entrypoint, Integrity, NetworkClass, RuntimeFamily,
-    SourceTrustLevel, VmTarget,
+    ArtifactDigest, ArtifactFormat, ArtifactLocationKind, CapabilityProfile, Compatibility,
+    ContractArtifactRef, ContractCapability, ContractClass, ContractDescriptor, ContractError,
+    ContractManifest, ContractMetadata, ContractPolicy, ContractVersion, Entrypoint,
+    ExecutionProfile, Integrity, NetworkClass, PolicyProfile, RuntimeFamily, SourceTrustLevel,
+    Validate, VmTarget,
 };
 
 /// Builder-level failure surface for AOXC contract manifest construction.
@@ -58,6 +59,10 @@ pub struct ContractManifestBuilder {
     pub supported_schema_versions: Vec<u32>,
     pub supported_runtime_families: Vec<RuntimeFamily>,
     pub supported_network_classes: Vec<NetworkClass>,
+    pub execution_profile: Option<ExecutionProfile>,
+    pub contract_class: Option<ContractClass>,
+    pub capability_profile: Option<CapabilityProfile>,
+    pub policy_profile: Option<PolicyProfile>,
 }
 
 impl Default for ContractManifestBuilder {
@@ -86,6 +91,10 @@ impl Default for ContractManifestBuilder {
             supported_schema_versions: vec![1],
             supported_runtime_families: Vec::new(),
             supported_network_classes: default_supported_network_classes(),
+            execution_profile: None,
+            contract_class: None,
+            capability_profile: None,
+            policy_profile: None,
         }
     }
 }
@@ -221,6 +230,26 @@ impl ContractManifestBuilder {
         self
     }
 
+    pub fn with_execution_profile(mut self, execution_profile: ExecutionProfile) -> Self {
+        self.execution_profile = Some(execution_profile);
+        self
+    }
+
+    pub fn with_contract_class(mut self, contract_class: ContractClass) -> Self {
+        self.contract_class = Some(contract_class);
+        self
+    }
+
+    pub fn with_capability_profile(mut self, capability_profile: CapabilityProfile) -> Self {
+        self.capability_profile = Some(capability_profile);
+        self
+    }
+
+    pub fn with_policy_profile(mut self, policy_profile: PolicyProfile) -> Self {
+        self.policy_profile = Some(policy_profile);
+        self
+    }
+
     /// Builds a validated contract manifest.
     ///
     /// Validation discipline:
@@ -291,7 +320,7 @@ impl ContractManifestBuilder {
             source_trust_level: self.source_trust_level,
         };
 
-        Ok(ContractManifest::new(
+        let mut manifest = ContractManifest::new(
             name,
             package,
             version,
@@ -305,7 +334,23 @@ impl ContractManifestBuilder {
             compatibility,
             integrity,
             self.schema_version,
-        )?)
+        )?;
+
+        if let Some(execution_profile) = self.execution_profile {
+            manifest.execution_profile = execution_profile;
+        }
+        if let Some(contract_class) = self.contract_class {
+            manifest.execution_profile.contract_class = contract_class;
+        }
+        if let Some(capability_profile) = self.capability_profile {
+            manifest.execution_profile.capability_profile = capability_profile;
+        }
+        if let Some(policy_profile) = self.policy_profile {
+            manifest.execution_profile.policy_profile = policy_profile;
+        }
+        manifest.validate()?;
+
+        Ok(manifest)
     }
 
     /// Builds a validated descriptor by wrapping the built manifest.
@@ -390,8 +435,8 @@ fn default_metadata_for_name(name: &str) -> ContractMetadata {
 mod tests {
     use super::{BuilderError, ContractManifestBuilder};
     use aoxcontract::{
-        ArtifactDigest, ArtifactDigestAlgorithm, ContractCapability, Entrypoint, NetworkClass,
-        RuntimeFamily, VmTarget,
+        ArtifactDigest, ArtifactDigestAlgorithm, CapabilityProfile, ContractCapability,
+        ContractClass, Entrypoint, NetworkClass, PolicyProfile, RuntimeFamily, VmTarget,
     };
 
     fn digest(seed: &str) -> ArtifactDigest {
@@ -565,6 +610,47 @@ mod tests {
                 NetworkClass::Testnet,
                 NetworkClass::Devnet
             ]
+        );
+    }
+
+    #[test]
+    fn builder_supports_contract_class_and_profile_overrides() {
+        let manifest = ContractManifestBuilder::wasm()
+            .with_name("policy-contract")
+            .with_package("aox.policy")
+            .with_artifact_digest(digest(
+                "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            ))
+            .with_artifact_location("ipfs://policy/contract.wasm")
+            .add_entrypoint(
+                Entrypoint::new("execute", VmTarget::Wasm, None, vec![])
+                    .expect("entrypoint should build"),
+            )
+            .allow_capability(ContractCapability::StorageRead)
+            .with_contract_class(ContractClass::PolicyBound)
+            .with_capability_profile(CapabilityProfile {
+                storage_read: true,
+                ..CapabilityProfile::default()
+            })
+            .with_policy_profile(PolicyProfile {
+                review_required: true,
+                governance_activation_required: false,
+                restricted_to_auth_profile: Some("ops-v1".into()),
+            })
+            .build()
+            .expect("manifest should build");
+
+        assert_eq!(
+            manifest.execution_profile.contract_class,
+            ContractClass::PolicyBound
+        );
+        assert_eq!(
+            manifest
+                .execution_profile
+                .policy_profile
+                .restricted_to_auth_profile
+                .as_deref(),
+            Some("ops-v1")
         );
     }
 }
