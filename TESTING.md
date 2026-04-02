@@ -110,3 +110,22 @@ Recommended operator declaration format for release notes or PRs:
 
 - `Status: TESTNET_READY` only after all gate commands pass;
 - otherwise `Status: NOT_READY` with explicit failing gate and remediation owner.
+
+
+## Quantum-Profile Validation Addendum
+
+For roadmap phases affecting cryptographic profiles, the following additional validation is mandatory:
+
+- mixed-profile deterministic consensus simulations (valid + malformed vectors);
+- replay-domain separation regression tests for each active profile;
+- VM (`aoxcvm`) deterministic syscall and metering regression under profile-gated execution;
+- downgrade-attempt rejection tests for network/session negotiation paths;
+- artifact publication for profile compatibility, performance budget, and rollback rehearsal results.
+
+Recommended command set for profile-impacting changes:
+
+- `make test`
+- `make quality`
+- `make audit`
+
+If these checks cannot run in the current environment, the limitation must be stated explicitly with remediation plan and rerun owner.
