@@ -7,7 +7,7 @@ use crate::state::JournaledState;
 use crate::tx::envelope::TxEnvelope;
 use crate::vm::machine::{Machine, Program, VmError};
 use aoxconfig::contracts::ContractsConfig;
-use aoxcontract::{ContractDescriptor, VmTarget};
+use aoxcontract::ContractDescriptor;
 
 /// Stable execution context contract.
 pub type ExecutionContractContext = ExecutionContext;
@@ -38,15 +38,7 @@ impl VmSpec {
             .artifact_policy
             .allowed_vm_targets
             .iter()
-            .any(|target| {
-                matches!(
-                    (target, &descriptor.manifest.vm_target),
-                    (VmTarget::Wasm, VmTarget::Wasm)
-                        | (VmTarget::Evm, VmTarget::Evm)
-                        | (VmTarget::SuiLike, VmTarget::SuiLike)
-                        | (VmTarget::Custom(_), VmTarget::Custom(_))
-                )
-            });
+            .any(|target| target == &descriptor.manifest.vm_target);
 
         if !target_enabled {
             return Err(SpecError::VmTargetDisabledByConfig);
