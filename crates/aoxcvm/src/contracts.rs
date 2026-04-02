@@ -67,7 +67,7 @@ pub mod resolver {
         use super::*;
         use aoxcontract::{
             ArtifactDigest, ArtifactDigestAlgorithm, ContractDescriptor, ContractMetadata,
-            Entrypoint, ManifestValidationError, VmTarget,
+            Entrypoint, ManifestValidationError, Validate, VmTarget,
         };
         use aoxcsdk::contracts::builder::ContractManifestBuilder;
 
