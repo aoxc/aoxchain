@@ -271,14 +271,6 @@ struct ConsensusProfileAuditReport {
     blockers: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct ConsensusProfileGateStatus {
-    pub passed: bool,
-    pub verdict: String,
-    pub detail: String,
-    pub blockers: Vec<String>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EnvironmentProfile {
     Mainnet,
@@ -857,7 +849,19 @@ pub fn cmd_consensus_profile_audit(args: &[String]) -> Result<(), AppError> {
     };
     let path_display = path.display().to_string();
 
-    let report = consensus_profile_audit_report_for_path(profile, &path, path_display)?;
+    let raw = read_file(&path)?;
+    let genesis = serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Failed to decode AOXC genesis document for consensus profile audit: {}",
+                path.display()
+            ),
+            error,
+        )
+    })?;
+
+    let report = evaluate_consensus_profile_audit(&genesis, profile, path_display);
 
     if has_flag(args, "--enforce") && report.verdict != "pass" {
         return Err(AppError::new(
@@ -870,58 +874,6 @@ pub fn cmd_consensus_profile_audit(args: &[String]) -> Result<(), AppError> {
     }
 
     emit_serialized(&report, output_format(args))
-}
-
-fn consensus_profile_audit_report_for_path(
-    profile: EnvironmentProfile,
-    path: &Path,
-    path_display: String,
-) -> Result<ConsensusProfileAuditReport, AppError> {
-    let raw = read_file(path)?;
-    let genesis = serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::ConfigInvalid,
-            format!(
-                "Failed to decode AOXC genesis document for consensus profile audit: {}",
-                path.display()
-            ),
-            error,
-        )
-    })?;
-
-    Ok(evaluate_consensus_profile_audit(
-        &genesis,
-        profile,
-        path_display,
-    ))
-}
-
-pub(crate) fn consensus_profile_gate_status(
-    profile_input: Option<&str>,
-    genesis_override: Option<&Path>,
-) -> Result<ConsensusProfileGateStatus, AppError> {
-    let resolved_profile = profile_input
-        .map(ToOwned::to_owned)
-        .or_else(|| load().ok().map(|settings| settings.profile))
-        .unwrap_or_else(|| "validation".to_string());
-    let profile = EnvironmentProfile::parse(&resolved_profile)?;
-
-    let path = genesis_override
-        .map(Path::to_path_buf)
-        .map(Ok)
-        .unwrap_or_else(genesis_path)?;
-    let report =
-        consensus_profile_audit_report_for_path(profile, &path, path.display().to_string())?;
-
-    Ok(ConsensusProfileGateStatus {
-        passed: report.verdict == "pass",
-        verdict: report.verdict.to_string(),
-        detail: format!(
-            "consensus_profile={} score={} path={}",
-            report.consensus_identity_profile, report.score, report.genesis_path
-        ),
-        blockers: report.blockers,
-    })
 }
 
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
