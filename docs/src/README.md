@@ -1,8 +1,15 @@
 # AOXChain Documentation Index
 
-This mdBook set provides a structured, audit-oriented view of system purpose, architecture boundaries, readiness posture, and AI training guidance.
+This mdBook is the canonical reader path for system posture, architecture discipline, and AI/audit operations.
 
-Start with:
-1. `SYSTEM_STATUS.md`
-2. `AI_TRAINING_AND_AUDIT_GUIDE.md`
-3. `chapter_1.md` (legacy quick-intro retained for continuity)
+## Reading Order
+
+1. `SYSTEM_STATUS.md` — current posture and readiness framing.
+2. `AI_TRAINING_AND_AUDIT_GUIDE.md` — model/audit governance and evidence expectations.
+
+For repository-wide program direction, use root documents:
+- `README.md`
+- `READ.md`
+- `ROADMAP.md`
+- `QUANTUM_ROADMAP.md`
+- `QUANTUM_CHECKLIST.md`
