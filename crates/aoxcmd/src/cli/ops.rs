@@ -759,6 +759,33 @@ fn evaluate_full_surface_readiness(
                     has_release_evidence(&release_dir),
                     format!("release evidence bundle under {}", release_dir.display()),
                 ),
+                surface_check(
+                    "release-provenance-bundle",
+                    has_release_provenance_bundle(&release_dir),
+                    format!(
+                        "release provenance artifacts must exist under {}",
+                        release_dir.display()
+                    ),
+                ),
+                surface_check(
+                    "api-admission-controls",
+                    repo_root
+                        .join("crates")
+                        .join("aoxcrpc")
+                        .join("src")
+                        .join("middleware")
+                        .join("rate_limiter.rs")
+                        .exists()
+                        && repo_root
+                            .join("crates")
+                            .join("aoxcrpc")
+                            .join("src")
+                            .join("middleware")
+                            .join("mtls_auth.rs")
+                            .exists()
+                        && repo_root.join("NETWORK_SECURITY_ARCHITECTURE.md").exists(),
+                    "RPC admission controls require rate-limiter, mTLS middleware, and network security architecture baseline".to_string(),
+                ),
             ],
             vec![
                 mainnet_checklist.display().to_string(),
@@ -1709,6 +1736,14 @@ fn has_release_evidence(dir: &Path) -> bool {
             || has_matching_artifact(dir, "aoxc-", ".sig.status"))
 }
 
+fn has_release_provenance_bundle(dir: &Path) -> bool {
+    has_matching_artifact(dir, "provenance-", ".json")
+        && has_matching_artifact(dir, "release-provenance-", ".json")
+        && has_matching_artifact(dir, "release-sbom-", ".json")
+        && has_matching_artifact(dir, "release-build-manifest-", ".json")
+        && has_matching_artifact(dir, "release-signature-status-", ".txt")
+}
+
 fn has_production_closure_artifacts(dir: &Path) -> bool {
     [
         "production-audit.json",
@@ -2299,10 +2334,11 @@ mod tests {
         build_surface, compare_aoxhub_network_profiles, compare_embedded_network_profiles,
         evaluate_full_surface_readiness, evaluate_profile_readiness, full_surface_markdown_report,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
-        has_production_closure_artifacts, has_release_evidence, has_security_drill_artifact,
-        locate_repo_artifact_dir, open_checklist_items, parse_network_profile,
-        parse_positive_u64_arg, parse_required_or_default_text_arg, ports_are_shifted_consistently,
-        readiness_markdown_report, surface_check, write_readiness_markdown_report,
+        has_production_closure_artifacts, has_release_evidence, has_release_provenance_bundle,
+        has_security_drill_artifact, locate_repo_artifact_dir, open_checklist_items,
+        parse_network_profile, parse_positive_u64_arg, parse_required_or_default_text_arg,
+        ports_are_shifted_consistently, readiness_markdown_report, surface_check,
+        write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use std::{
@@ -2356,6 +2392,20 @@ mod tests {
         touch(&dir.join("aoxc-20260323T000000Z.sig.status"));
 
         assert!(has_release_evidence(&dir));
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn release_provenance_bundle_requires_expected_artifacts() {
+        let dir = unique_dir("release-provenance");
+        touch(&dir.join("provenance-20260323T000000Z.json"));
+        touch(&dir.join("release-provenance-20260323T000000Z.json"));
+        touch(&dir.join("release-sbom-20260323T000000Z.json"));
+        touch(&dir.join("release-build-manifest-20260323T000000Z.json"));
+        touch(&dir.join("release-signature-status-20260323T000000Z.txt"));
+
+        assert!(has_release_provenance_bundle(&dir));
 
         let _ = fs::remove_dir_all(dir);
     }
