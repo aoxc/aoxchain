@@ -359,8 +359,10 @@ dependencies = [
  "aoxconfig",
  "aoxcontract",
  "aoxcsdk",
+ "blake3",
  "serde",
  "sha2 0.11.0",
+ "sha3",
  "thiserror 2.0.18",
 ]
 
