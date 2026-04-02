@@ -4,7 +4,9 @@ use crate::receipts::commitment::ReceiptCommitment;
 use crate::receipts::proof::ReceiptProof;
 use crate::verifier::bytecode::{BytecodeError, BytecodeVerifier};
 use crate::verifier::invariants::{InvariantError, InvariantVerifier};
-use crate::vm::machine::{ExecutionEnvelope, ExecutionResult, Instruction, Machine, Program, VmError};
+use crate::vm::machine::{
+    ExecutionEnvelope, ExecutionResult, Instruction, Machine, Program, VmError,
+};
 
 /// Verification errors for deterministic execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
