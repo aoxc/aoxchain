@@ -268,7 +268,107 @@ mod tests {
     };
     use crate::receipts::outcome::ReceiptStatus;
     use crate::tx::{envelope::TxEnvelope, fee::FeeBudget, kind::TxKind, payload::TxPayload};
-    use crate::vm::machine::{Instruction, VmError};
+    use crate::vm::machine::{Instruction, Program, VmError};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    struct SpyHost {
+        inner: InMemoryHost,
+        checkpoint_calls: usize,
+        rollback_calls: usize,
+        commit_calls: usize,
+    }
+
+    #[derive(Debug, Default)]
+    struct CountingAuthVerifier {
+        calls: AtomicUsize,
+        allow: bool,
+    }
+
+    impl CountingAuthVerifier {
+        fn allowing() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+                allow: true,
+            }
+        }
+
+        fn rejecting() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+                allow: false,
+            }
+        }
+
+        fn calls(&self) -> usize {
+            self.calls.load(Ordering::SeqCst)
+        }
+    }
+
+    impl super::AuthVerifier for CountingAuthVerifier {
+        fn verify(&self, _tx: &TxEnvelope, _auth: &AuthEnvelope) -> bool {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.allow
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct CountingObjectVerifier {
+        calls: AtomicUsize,
+        allow: bool,
+    }
+
+    impl CountingObjectVerifier {
+        fn allowing() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+                allow: true,
+            }
+        }
+
+        fn rejecting() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+                allow: false,
+            }
+        }
+
+        fn calls(&self) -> usize {
+            self.calls.load(Ordering::SeqCst)
+        }
+    }
+
+    impl super::ObjectVerifier for CountingObjectVerifier {
+        fn verify(&self, _object: &[u8], _program: &Program, _spec: VmSpec) -> bool {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.allow
+        }
+    }
+
+    impl super::Host for SpyHost {
+        fn load_state(&self) -> crate::state::JournaledState {
+            self.inner.load_state()
+        }
+
+        fn checkpoint(&mut self) -> Result<usize, ()> {
+            self.checkpoint_calls += 1;
+            self.inner.checkpoint()
+        }
+
+        fn rollback(&mut self, checkpoint: usize) -> Result<(), ()> {
+            self.rollback_calls += 1;
+            self.inner.rollback(checkpoint)
+        }
+
+        fn commit(
+            &mut self,
+            checkpoint: usize,
+            state: crate::state::JournaledState,
+        ) -> Result<(), ()> {
+            self.commit_calls += 1;
+            self.inner.commit(checkpoint, state)
+        }
+    }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     struct SpyHost {
@@ -365,6 +465,8 @@ mod tests {
 
         assert_eq!(a.receipt.state_root, b.receipt.state_root);
         assert_eq!(a.receipt.gas_used, b.receipt.gas_used);
+        assert_eq!(a.stack, b.stack);
+        assert_eq!(a.vm_error, b.vm_error);
     }
 
     #[test]
@@ -436,14 +538,52 @@ mod tests {
         contract.auth.signers.clear();
         let mut host = SpyHost::default();
 
-        let err = execute(
+        let err = execute(&contract, &mut host, VmSpec::default(), &auth, &object)
+            .expect_err("reject invalid auth");
+
+        assert_eq!(err, ExecuteError::Admission(AdmissionError::InvalidAuth));
+        assert_eq!(auth.calls(), 1);
+        assert_eq!(object.calls(), 0);
+        assert_eq!(host.checkpoint_calls, 0);
+        assert_eq!(host.rollback_calls, 0);
+        assert_eq!(host.commit_calls, 0);
+    }
+
+    #[test]
+    fn invalid_object_rejected_before_execution() {
+        let contract = valid_contract(vec![Instruction::Halt]);
+        let mut host = SpyHost::default();
+        let auth = CountingAuthVerifier::allowing();
+        let object = CountingObjectVerifier::rejecting();
+
+        let err = execute(&contract, &mut host, VmSpec::default(), &auth, &object)
+            .expect_err("reject invalid object");
+
+        assert_eq!(err, ExecuteError::Admission(AdmissionError::InvalidObject));
+        assert_eq!(auth.calls(), 1);
+        assert_eq!(object.calls(), 1);
+        assert_eq!(host.checkpoint_calls, 0);
+        assert_eq!(host.rollback_calls, 0);
+        assert_eq!(host.commit_calls, 0);
+    }
+
+    #[test]
+    fn execution_failure_rolls_back_and_does_not_commit() {
+        let contract = valid_contract(vec![
+            Instruction::Push(1),
+            Instruction::Push(0),
+            Instruction::Div,
+        ]);
+        let mut host = SpyHost::default();
+
+        let out = execute(
             &contract,
             &mut host,
             VmSpec::default(),
             &BasicAuthVerifier,
             &BasicObjectVerifier,
         )
-        .expect_err("reject invalid auth");
+        .expect("execute");
 
         assert_eq!(err, ExecuteError::Admission(AdmissionError::InvalidAuth));
         assert_eq!(host.checkpoint_calls, 0);
@@ -457,14 +597,34 @@ mod tests {
         contract.object.clear();
         let mut host = SpyHost::default();
 
-        let err = execute(
+        let out = execute(
             &contract,
             &mut host,
             VmSpec::default(),
             &BasicAuthVerifier,
             &BasicObjectVerifier,
         )
-        .expect_err("reject invalid object");
+        .expect("execute");
+
+        assert_eq!(out.vm_error, None);
+        assert_eq!(host.checkpoint_calls, 1);
+        assert_eq!(host.rollback_calls, 0);
+        assert_eq!(host.commit_calls, 1);
+    }
+
+    #[test]
+    fn oversize_object_is_fail_closed_before_object_verifier() {
+        let mut contract = valid_contract(vec![Instruction::Halt]);
+        let mut host = SpyHost::default();
+        let auth = CountingAuthVerifier::allowing();
+        let object = CountingObjectVerifier::allowing();
+        let spec = VmSpec {
+            max_object_bytes: 2,
+            ..VmSpec::default()
+        };
+        contract.object = vec![1, 2, 3];
+
+        let err = execute(&contract, &mut host, spec, &auth, &object).expect_err("reject object");
 
         assert_eq!(err, ExecuteError::Admission(AdmissionError::InvalidObject));
         assert_eq!(host.checkpoint_calls, 0);
