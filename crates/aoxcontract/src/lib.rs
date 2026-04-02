@@ -70,6 +70,7 @@ pub mod compatibility;
 pub mod descriptor;
 pub mod entrypoint;
 pub mod error;
+pub mod execution_profile;
 pub mod id;
 pub mod manifest;
 pub mod metadata;
@@ -91,6 +92,7 @@ pub use error::{
     ArtifactValidationError, CanonicalizationError, CompatibilityError, ContractError,
     IdentityDerivationError, ManifestValidationError, PolicyValidationError,
 };
+pub use execution_profile::{CapabilityProfile, ContractClass, ExecutionProfile, PolicyProfile};
 pub use id::{CONTRACT_ID_DOMAIN_SEPARATOR, ContractId};
 pub use manifest::{ContractManifest, ContractVersion, VmTarget};
 pub use metadata::ContractMetadata;

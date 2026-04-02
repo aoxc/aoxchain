@@ -3,7 +3,7 @@
 pub mod resolver {
     use aoxconfig::contracts::ContractsConfig;
     use aoxcontract::{
-        ContractDescriptor, ContractError, ExecutionProfileRef, LaneBinding,
+        ContractClass, ContractDescriptor, ContractError, ExecutionProfileRef, LaneBinding,
         RuntimeBindingDescriptor, VmTarget,
     };
 
@@ -40,10 +40,18 @@ pub mod resolver {
             VmTarget::Custom(ref lane) => LaneBinding::Custom(lane.clone()),
         };
 
+        let class_segment = match descriptor.manifest.execution_profile.contract_class {
+            ContractClass::Application => "application",
+            ContractClass::System => "system",
+            ContractClass::Governed => "governed",
+            ContractClass::Package => "package",
+            ContractClass::PolicyBound => "policy-bound",
+        };
+
         RuntimeBindingDescriptor::from_descriptor(
             descriptor,
             lane,
-            ExecutionProfileRef("phase1-default".to_string()),
+            ExecutionProfileRef(format!("phase2-{class_segment}")),
         )
     }
 }

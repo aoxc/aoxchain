@@ -115,3 +115,14 @@ fn integrity_metadata_mismatch_is_rejected() {
         ContractError::Manifest(ManifestValidationError::IntegrityMetadataMismatch)
     ));
 }
+
+#[test]
+fn execution_profile_vm_target_mismatch_is_rejected() {
+    let mut manifest = common::sample_manifest();
+    manifest.execution_profile.vm_target = VmTarget::Evm;
+    let err = manifest.validate().unwrap_err();
+    assert!(matches!(
+        err,
+        ContractError::Manifest(ManifestValidationError::ExecutionProfileVmTargetMismatch)
+    ));
+}

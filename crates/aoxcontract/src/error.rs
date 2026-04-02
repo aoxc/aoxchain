@@ -38,6 +38,8 @@ pub enum ManifestValidationError {
     EmptyEntrypoints,
     #[error("declared vm target does not match artifact vm target")]
     VmTargetMismatch,
+    #[error("execution profile vm target does not match manifest vm target")]
+    ExecutionProfileVmTargetMismatch,
     #[error("manifest integrity digest does not match artifact digest")]
     DigestAlgorithmMismatch,
     #[error("manifest integrity does not match artifact metadata")]
