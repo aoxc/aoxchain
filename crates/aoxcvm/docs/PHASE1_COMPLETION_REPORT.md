@@ -58,3 +58,13 @@ Phase 2 runtime expansion work MUST preserve all Phase 1 invariants:
 - canonical receipt commitment stability.
 
 Any runtime expansion that weakens these guarantees is out of policy.
+
+## Quality Pass Checklist
+
+The operational quality gate for the frozen Phase 1 surface is documented in `PHASE1_QUALITY_PASS.md`. That checklist defines:
+
+- compatibility-sensitive public contracts,
+- fail-closed requirements,
+- determinism requirements,
+- mandatory test classes,
+- and CI gating expectations required before Phase 2 expansion.
