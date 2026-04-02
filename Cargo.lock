@@ -356,6 +356,9 @@ dependencies = [
 name = "aoxcvm"
 version = "0.1.1-akdeniz"
 dependencies = [
+ "aoxconfig",
+ "aoxcontract",
+ "aoxcsdk",
  "serde",
  "sha2 0.11.0",
  "thiserror 2.0.18",

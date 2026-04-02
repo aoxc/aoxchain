@@ -5,6 +5,7 @@ pub mod frame;
 pub mod halt;
 pub mod kernel;
 pub mod machine;
+pub mod phase1;
 pub mod program_counter;
 pub mod registers;
 pub mod signals;

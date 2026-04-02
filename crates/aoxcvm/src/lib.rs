@@ -7,6 +7,7 @@ pub mod compiler;
 pub mod config;
 pub mod constants;
 pub mod context;
+pub mod contracts;
 pub mod crypto;
 pub mod decode;
 pub mod domains;
