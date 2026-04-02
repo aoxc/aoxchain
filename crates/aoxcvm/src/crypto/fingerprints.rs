@@ -8,6 +8,15 @@ pub fn canonical_execution_fingerprint(namespace: &'static [u8], payload: &[u8])
     encode_hex_upper(&digest.to_bytes())
 }
 
+/// Backward-compatible wrapper kept for migration from pre-audit naming.
+#[deprecated(
+    since = "0.1.1",
+    note = "use canonical_execution_fingerprint for explicit canonical semantics"
+)]
+pub fn execution_fingerprint(namespace: &'static [u8], payload: &[u8]) -> String {
+    canonical_execution_fingerprint(namespace, payload)
+}
+
 fn encode_hex_upper(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789ABCDEF";
     let mut out = String::with_capacity(bytes.len() * 2);
@@ -35,5 +44,13 @@ mod tests {
         let a = canonical_execution_fingerprint(b"receipt", b"payload");
         let b = canonical_execution_fingerprint(b"state", b"payload");
         assert_ne!(a, b);
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn legacy_helper_matches_canonical_output() {
+        let legacy = execution_fingerprint(b"receipt", b"payload");
+        let canonical = canonical_execution_fingerprint(b"receipt", b"payload");
+        assert_eq!(legacy, canonical);
     }
 }

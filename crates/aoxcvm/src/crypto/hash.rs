@@ -58,6 +58,18 @@ pub fn quantum_hardened_digest(domain: &'static [u8], payload: &[u8]) -> Quantum
     }
 }
 
+/// Backward-compatible wrapper kept for migration from pre-audit naming.
+#[deprecated(
+    since = "0.1.1",
+    note = "use quantum_hardened_digest; avoid absolute security wording in public APIs"
+)]
+pub fn quantum_unaffected_digest(
+    domain: &'static [u8],
+    payload: &[u8],
+) -> QuantumHardenedDigest {
+    quantum_hardened_digest(domain, payload)
+}
+
 #[cfg(test)]
 mod tests {
     use super::quantum_hardened_digest;
@@ -75,5 +87,13 @@ mod tests {
         let receipt = quantum_hardened_digest(b"receipt", b"payload-1");
         let state = quantum_hardened_digest(b"state", b"payload-1");
         assert_ne!(receipt, state);
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn legacy_helper_matches_canonical_output() {
+        let legacy = quantum_unaffected_digest(b"receipt", b"payload-1");
+        let canonical = quantum_hardened_digest(b"receipt", b"payload-1");
+        assert_eq!(legacy, canonical);
     }
 }
