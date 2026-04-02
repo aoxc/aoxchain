@@ -56,6 +56,12 @@ impl ContractManifest {
         integrity: crate::Integrity,
         schema_version: u32,
     ) -> Result<Self, ContractError> {
+        // Phase-2 execution profile derivation must happen before `vm_target`
+        // is moved into the manifest instance. This preserves ownership clarity
+        // and avoids unnecessary cloning while keeping manifest/profile VM target
+        // coupling deterministic and explicit.
+        let execution_profile = ExecutionProfile::phase2_default(&vm_target);
+
         let manifest = Self {
             name: name.into(),
             package: package.into(),
@@ -68,10 +74,11 @@ impl ContractManifest {
             metadata,
             policy,
             compatibility,
-            execution_profile: ExecutionProfile::phase2_default(&vm_target),
+            execution_profile,
             integrity,
             schema_version,
         };
+
         manifest.validate()?;
         Ok(manifest)
     }
@@ -94,6 +101,7 @@ fn is_semantic_like_version(value: &str) -> bool {
     let major = parts.next();
     let minor = parts.next();
     let patch = parts.next();
+
     major.zip(minor).zip(patch).is_some()
         && parts.next().is_none()
         && value
@@ -111,14 +119,17 @@ impl Validate for ContractManifest {
             }
             .into());
         }
+
         if self.package.trim().is_empty() {
             return Err(ManifestValidationError::EmptyPackage.into());
         }
+
         if !is_semantic_like_version(&self.version)
             || !is_semantic_like_version(&self.contract_version.0)
         {
             return Err(ManifestValidationError::InvalidVersionFormat.into());
         }
+
         if self.schema_version == 0 {
             return Err(ManifestValidationError::MissingSchemaVersion.into());
         }
@@ -131,26 +142,32 @@ impl Validate for ContractManifest {
         if self.vm_target != self.artifact.declared_vm_target {
             return Err(ManifestValidationError::VmTargetMismatch.into());
         }
+
         if self.execution_profile.vm_target != self.vm_target {
             return Err(ManifestValidationError::ExecutionProfileVmTargetMismatch.into());
         }
+
         if self.digest != self.artifact.artifact_digest || self.digest != self.integrity.digest {
             return Err(ManifestValidationError::DigestAlgorithmMismatch.into());
         }
+
         if !self
             .compatibility
             .supports_schema_version(self.schema_version)
         {
             return Err(crate::CompatibilityError::CompatibilityMismatch.into());
         }
+
         if self.entrypoints.is_empty() {
             return Err(ManifestValidationError::EmptyEntrypoints.into());
         }
+
         self.policy.enforces(
             &self.vm_target,
             &self.artifact.artifact_format,
             self.artifact.artifact_size,
         )?;
+
         if self.integrity.artifact_size != self.artifact.artifact_size
             || self.integrity.artifact_format != self.artifact.artifact_format
             || self.integrity.media_type != self.artifact.media_type
@@ -161,15 +178,18 @@ impl Validate for ContractManifest {
         let mut names = std::collections::BTreeSet::new();
         for entrypoint in &self.entrypoints {
             entrypoint.validate()?;
+
             if entrypoint.vm_target != self.vm_target {
                 return Err(ManifestValidationError::VmTargetMismatch.into());
             }
+
             if !names.insert(entrypoint.name.clone()) {
                 return Err(
                     ManifestValidationError::DuplicateEntrypoint(entrypoint.name.clone()).into(),
                 );
             }
         }
+
         Ok(())
     }
 }
