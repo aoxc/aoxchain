@@ -1,5 +1,6 @@
 //! Phase-1 kernel admission checks that bind transaction envelope + execution context.
 
+use crate::auth::{registry::AuthProfileId, signer::SignerClass};
 use crate::context::{deterministic::DeterminismLimits, execution::ExecutionContext};
 use crate::tx::{envelope::TxEnvelope, validation::ValidationPolicy};
 use aoxcontract::{ContractClass, RuntimeBindingDescriptor};
@@ -14,8 +15,19 @@ pub enum AdmissionError {
     TxGasExceedsKernelLimit,
     RestrictedAuthProfileRequired,
     RestrictedAuthProfileMismatch,
+    RestrictedAuthProfileRegistryMismatch,
     GovernanceActivationRequired,
+    GovernanceSignerClassRequired,
     TxKindForbiddenForClass,
+}
+
+/// Registry-backed auth context resolved before execution-time policy checks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActiveAuthProfile {
+    pub profile_id: AuthProfileId,
+    pub profile_version: u16,
+    pub profile_name: String,
+    pub signer_class: SignerClass,
 }
 
 impl From<crate::context::execution::ContextError> for AdmissionError {
@@ -101,6 +113,40 @@ pub fn validate_phase2_admission(
     Ok(())
 }
 
+/// Phase-3 admission checks that wire registry-backed auth identity into
+/// runtime admission and governance signer-class enforcement.
+pub fn validate_phase3_admission(
+    binding: &RuntimeBindingDescriptor,
+    tx: &TxEnvelope,
+    active_profile: Option<&ActiveAuthProfile>,
+) -> Result<(), AdmissionError> {
+    let policy = &binding.resolved_profile.policy_profile;
+    let phase2_profile = policy
+        .restricted_to_auth_profile
+        .as_deref()
+        .or(active_profile.map(|p| p.profile_name.as_str()));
+    validate_phase2_admission(binding, tx, phase2_profile)?;
+
+    if let Some(required_profile) = policy.restricted_to_auth_profile.as_deref() {
+        let active = active_profile.ok_or(AdmissionError::RestrictedAuthProfileRequired)?;
+        if active.profile_name != required_profile {
+            return Err(AdmissionError::RestrictedAuthProfileRegistryMismatch);
+        }
+    }
+
+    if matches!(
+        tx.kind,
+        crate::tx::kind::TxKind::Governance | crate::tx::kind::TxKind::System
+    ) {
+        let active = active_profile.ok_or(AdmissionError::GovernanceSignerClassRequired)?;
+        if matches!(active.signer_class, SignerClass::Application) {
+            return Err(AdmissionError::GovernanceSignerClassRequired);
+        }
+    }
+
+    Ok(())
+}
+
 fn normalize_auth_profile(value: &str) -> Option<&str> {
     let trimmed = value.trim();
     let valid = !trimmed.is_empty()
@@ -152,8 +198,10 @@ mod tests {
             envelope::TxEnvelope, fee::FeeBudget, kind::TxKind, payload::TxPayload,
             validation::ValidationError,
         },
-        vm::admission::validate_phase2_admission,
-        vm::admission::{AdmissionError, validate_phase1_admission},
+        vm::admission::{
+            ActiveAuthProfile, AdmissionError, validate_phase1_admission,
+            validate_phase2_admission, validate_phase3_admission,
+        },
     };
     use aoxcontract::{
         ContractClass, ContractId, ExecutionProfileRef, LaneBinding, RuntimeBindingDescriptor,
@@ -187,6 +235,15 @@ mod tests {
             lane_binding: LaneBinding::Wasm,
             execution_profile: ExecutionProfileRef("phase2-policy-bound".to_string()),
             resolved_profile: aoxcontract::ExecutionProfile::phase2_default(&VmTarget::Wasm),
+        }
+    }
+
+    fn sample_active_profile() -> ActiveAuthProfile {
+        ActiveAuthProfile {
+            profile_id: crate::auth::registry::AuthProfileId::new(7),
+            profile_version: 3,
+            profile_name: "ops-v1".to_string(),
+            signer_class: crate::auth::signer::SignerClass::Governance,
         }
     }
 
@@ -289,5 +346,42 @@ mod tests {
 
         let err = validate_phase2_admission(&binding, &sample_tx(500_000), None).unwrap_err();
         assert_eq!(err, AdmissionError::TxKindForbiddenForClass);
+    }
+
+    #[test]
+    fn phase3_rejects_registry_profile_name_mismatch() {
+        let mut binding = sample_binding();
+        binding
+            .resolved_profile
+            .policy_profile
+            .restricted_to_auth_profile = Some("ops-v1".to_string());
+
+        let mut active = sample_active_profile();
+        active.profile_name = "ops-v2".to_string();
+
+        let err = validate_phase3_admission(&binding, &sample_tx(500_000), Some(&active))
+            .expect_err("profile mismatch should fail");
+        assert_eq!(err, AdmissionError::RestrictedAuthProfileRegistryMismatch);
+    }
+
+    #[test]
+    fn phase3_rejects_governance_tx_from_application_signer() {
+        let mut binding = sample_binding();
+        binding.resolved_profile.contract_class = ContractClass::Governed;
+
+        let governance_tx = TxEnvelope::new(
+            2626,
+            1,
+            TxKind::Governance,
+            FeeBudget::new(500_000, 1),
+            TxPayload::new(vec![1, 2, 3]),
+        );
+
+        let mut active = sample_active_profile();
+        active.signer_class = crate::auth::signer::SignerClass::Application;
+
+        let err = validate_phase3_admission(&binding, &governance_tx, Some(&active))
+            .expect_err("application signer should fail");
+        assert_eq!(err, AdmissionError::GovernanceSignerClassRequired);
     }
 }
