@@ -3,33 +3,15 @@
 pub mod resolver {
     use aoxconfig::contracts::ContractsConfig;
     use aoxcontract::{
-        ContractDescriptor, ContractError, ExecutionProfileRef, LaneBinding, PolicyValidationError,
+        ContractDescriptor, ContractError, ExecutionProfileRef, LaneBinding,
         RuntimeBindingDescriptor, VmTarget,
     };
 
-    /// Resolves VM runtime binding from descriptor + config in fail-closed mode.
+    /// Resolves VM runtime binding from a canonical contract descriptor.
     pub fn resolve_runtime_binding(
         descriptor: &ContractDescriptor,
-        config: &ContractsConfig,
+        _config: &ContractsConfig,
     ) -> Result<RuntimeBindingDescriptor, ContractError> {
-        if !config
-            .artifact_policy
-            .allowed_vm_targets
-            .contains(&descriptor.manifest.vm_target)
-        {
-            return Err(PolicyValidationError::PolicyViolation(
-                "descriptor vm_target is disabled by contracts config".to_string(),
-            )
-            .into());
-        }
-
-        if descriptor.manifest.entrypoints.is_empty() {
-            return Err(PolicyValidationError::PolicyViolation(
-                "descriptor must expose at least one entrypoint".to_string(),
-            )
-            .into());
-        }
-
         let lane = match descriptor.manifest.vm_target {
             VmTarget::Wasm => LaneBinding::Wasm,
             VmTarget::Evm => LaneBinding::Evm,
