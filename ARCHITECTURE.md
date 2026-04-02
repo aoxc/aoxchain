@@ -175,3 +175,25 @@ When modifying AOXChain architecture-sensitive code, contributors should evaluat
 - and improves, rather than weakens, auditability.
 
 If a change affects any of these properties, the architectural intent should be documented clearly in the associated pull request and, where appropriate, in repository documentation.
+
+
+## Quantum-Profile Architecture Alignment (v2)
+
+### Kernel (`aoxcore`, `aoxcunity`)
+- owns cryptographic profile truth, activation state, and deprecation policy boundaries;
+- validates profile identifiers and rejects unknown or invalid profile payloads before settlement.
+
+### VM (`aoxcvm`, `aoxcexec`, `aoxcenergy`)
+- executes profile-gated cryptographic verification paths under deterministic metering;
+- cannot locally override kernel-selected profile policy;
+- must preserve deterministic behavior for identical inputs across supported hardware classes.
+
+### Network (`aoxcnet`, `aoxcrpc`)
+- enforces handshake/profile negotiation constraints and downgrade protections;
+- exports operator-visible telemetry for profile mismatches and rejected downgrade attempts.
+
+### Operations (`aoxcmd`, `aoxckit`, `aoxchub`, `scripts/`)
+- orchestrates staged rollout and rollback drills for profile transitions;
+- emits reproducible readiness artifacts used by release and closure gates.
+
+This alignment must remain consistent with `QUANTUM_ROADMAP.md` and `QUANTUM_CHECKLIST.md`.

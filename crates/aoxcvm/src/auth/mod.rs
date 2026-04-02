@@ -1,0 +1,16 @@
+//! auth subsystem for AOXC-VMachine-QX1 Kernel v1.
+pub mod domains;
+pub mod envelope;
+pub mod hybrid;
+pub mod nonce;
+pub mod policy;
+pub mod quantum;
+pub mod recovery;
+pub mod registry;
+pub mod replay;
+pub mod rotation;
+pub mod scheme;
+pub mod session;
+pub mod signer;
+pub mod threshold;
+pub mod verifier;

@@ -58,3 +58,28 @@ pub struct RpcErrorResponse {
     pub request_id: Option<String>,
     pub user_hint: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QuantumHashLevel {
+    pub algorithm: String,
+    pub security_bits_classical: u16,
+    pub security_bits_quantum_estimated: u16,
+    pub purpose: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QuantumKeyLevel {
+    pub primitive: String,
+    pub security_bits_classical: u16,
+    pub security_bits_quantum_estimated: u16,
+    pub purpose: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QuantumCryptoProfile {
+    pub profile_version: String,
+    pub assurance_target_percent: f64,
+    pub hash_levels: Vec<QuantumHashLevel>,
+    pub key_levels: Vec<QuantumKeyLevel>,
+    pub notes: Vec<String>,
+}

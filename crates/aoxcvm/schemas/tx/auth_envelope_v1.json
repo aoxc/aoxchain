@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "auth_envelope_v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["domain", "nonce", "signers"],
+  "properties": {
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Deterministic auth domain separator."
+    },
+    "nonce": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonic replay-protection nonce."
+    },
+    "signers": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["algorithm", "key_id", "signature"],
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "enum": ["ed25519", "ecdsa-p256", "ml-dsa-65", "ml-dsa-87"]
+          },
+          "key_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "signature": {
+            "type": "string",
+            "contentEncoding": "base64",
+            "minLength": 1,
+            "description": "Encoded detached signature bytes."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,11 +1,10 @@
-// AOXC MIT License
-// Experimental software under active construction.
-// This file is part of the AOXC pre-release codebase.
-
-//! Host runtime abstraction shared by all execution lanes.
-
-pub mod block;
-pub mod receipt;
-pub mod state;
-pub mod storage;
-pub mod tx;
+//! host subsystem for AOXC-VMachine-QX1 Kernel v1.
+pub mod capability_check;
+pub mod deterministic;
+pub mod dispatcher;
+pub mod exports;
+pub mod imports;
+pub mod limits;
+pub mod registry;
+pub mod sandbox;
+pub mod syscall;

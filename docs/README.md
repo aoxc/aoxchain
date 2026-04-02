@@ -1,28 +1,22 @@
-# AOXChain Documentation Hub
+# AOXChain Docs Surface
 
-This directory contains the mdBook source and supporting documentation for institutional engineering, audit preparation, and AI-training-compatible corpus generation.
+This directory contains the authoritative documentation system for AOXChain engineering, operations, and audit readiness.
 
-## Contents
+## Documentation Model
 
-- `book.toml`: mdBook configuration.
-- `src/`: chapters included in the published documentation.
-- `AOXCHUB_FULL_SPEC.md`: full AOXCHub product specification (modules, flows, security constraints).
-- `testing/`: measurable test inventory, coverage policy, and critical invariant map for audit-ready validation.
+- `src/` — mdBook chapters used as the canonical reading path.
+- `testing/` — testing matrix, coverage posture, and critical invariants.
+- `AOXCHUB_FULL_SPEC.md` — AOXCHub product-level specification.
 
-## Usage
+## Documentation Rules
 
-Build locally with mdBook:
+- Keep documents implementation-aware and reviewable.
+- Prefer explicit constraints and operational guidance over narrative prose.
+- Update docs in the same change stream when behavior, architecture, or policy changes.
+
+## Build Commands
 
 ```bash
 mdbook build docs
-```
-
-Serve locally:
-
-```bash
 mdbook serve docs -n 0.0.0.0 -p 3000
 ```
-
-## Notes
-
-Documentation in this directory should remain concise, version-aware, and aligned with repository governance files at the root.

@@ -53,3 +53,22 @@ Claims that cannot be substantiated by retained evidence, reproducible procedure
 ## License and Liability Context
 
 AOXChain is provided under the MIT License. All repository materials are provided on an **"as is"** basis, without warranties, guarantees, or liability assumptions by maintainers or contributors, except where such limitations are prohibited by applicable law.
+
+
+## Quantum-Resilience Scope Addendum
+
+The following items are explicitly in scope for the current roadmap cycle:
+
+- cryptographic profile versioning across consensus-visible structures;
+- hybrid migration controls (classical + PQ) with explicit deprecation windows;
+- deterministic rollback and operator evidence requirements for profile transitions;
+- VM (`aoxcvm`) cryptographic syscall governance and deterministic metering implications.
+
+Out of scope for this cycle unless separately approved:
+
+- unverifiable claims of absolute security (for example, "unbreakable");
+- hidden fallback paths that bypass profile policy and downgrade protections.
+
+Reference documents:
+- `QUANTUM_ROADMAP.md`
+- `QUANTUM_CHECKLIST.md`
