@@ -2,6 +2,7 @@
 
 use crate::{
     receipts::outcome::ExecutionReceipt,
+    vm::constitutional_audit::{AuditDecisionOutcome, ConstitutionalDecision},
     vm::constitutional_runtime::{ConstitutionalProvenance, RuntimeSurface},
 };
 
@@ -20,6 +21,7 @@ pub enum ConstitutionalEventKind {
 pub struct ConstitutionalEvent {
     pub kind: ConstitutionalEventKind,
     pub surface: RuntimeSurface,
+    pub outcome: AuditDecisionOutcome,
     pub message: String,
     pub signer_class: &'static str,
     pub governance_lane: &'static str,
@@ -36,6 +38,7 @@ impl ConstitutionalEvent {
         Self {
             kind,
             surface: provenance.surface,
+            outcome: AuditDecisionOutcome::Allowed,
             message: message.into(),
             signer_class: provenance.signer_class.wire_id(),
             governance_lane: match provenance.governance_lane {
@@ -45,6 +48,19 @@ impl ConstitutionalEvent {
             },
             auth_profile_id: provenance.auth_profile_id,
             auth_profile_version: provenance.auth_profile_version,
+        }
+    }
+
+    pub fn from_decision(kind: ConstitutionalEventKind, decision: &ConstitutionalDecision) -> Self {
+        Self {
+            kind,
+            surface: decision.surface,
+            outcome: decision.outcome,
+            message: decision.reason_code.to_string(),
+            signer_class: decision.signer_class,
+            governance_lane: decision.governance_lane,
+            auth_profile_id: decision.auth_profile_id,
+            auth_profile_version: decision.auth_profile_version,
         }
     }
 }
@@ -79,7 +95,10 @@ mod tests {
             outcome::{ExecutionReceipt, ReceiptStatus},
         },
         state::JournaledState,
-        vm::constitutional_runtime::{ConstitutionalProvenance, RuntimeSurface},
+        vm::{
+            constitutional_audit::{AuditDecisionOutcome, ConstitutionalDecision},
+            constitutional_runtime::{ConstitutionalProvenance, RuntimeSurface},
+        },
     };
 
     #[test]
@@ -100,6 +119,7 @@ mod tests {
 
         assert_eq!(event.signer_class, "governance");
         assert_eq!(event.governance_lane, "constitutional");
+        assert_eq!(event.outcome, AuditDecisionOutcome::Allowed);
         assert_eq!(event.auth_profile_id, Some(11));
     }
 
@@ -113,6 +133,7 @@ mod tests {
         constitutional.push_event(ConstitutionalEvent {
             kind: ConstitutionalEventKind::CapabilityAuthorized,
             surface: RuntimeSurface::UpgradeTrigger,
+            outcome: AuditDecisionOutcome::Allowed,
             message: "upgrade trigger authorized".to_string(),
             signer_class: "governance",
             governance_lane: "constitutional",
@@ -121,5 +142,26 @@ mod tests {
         });
 
         assert_eq!(constitutional.events.len(), 1);
+    }
+
+    #[test]
+    fn event_from_decision_preserves_denied_outcome_and_reason() {
+        let decision = ConstitutionalDecision {
+            surface: RuntimeSurface::UpgradeTrigger,
+            outcome: AuditDecisionOutcome::Denied,
+            reason_code: "governance_lane_violation",
+            signer_class: "operations",
+            governance_lane: "operations",
+            auth_profile_id: Some(3),
+            auth_profile_version: Some(1),
+        };
+
+        let event = ConstitutionalEvent::from_decision(
+            ConstitutionalEventKind::CapabilityDenied,
+            &decision,
+        );
+
+        assert_eq!(event.outcome, AuditDecisionOutcome::Denied);
+        assert_eq!(event.message, "governance_lane_violation");
     }
 }
