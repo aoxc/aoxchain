@@ -23,7 +23,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs,
-    net::{TcpStream, ToSocketAddrs},
+    net::TcpStream,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -2448,7 +2448,6 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct BlockView {
         requested_height: String,
-        requested_hash: Option<String>,
         available: bool,
         height: u64,
         block_hash: String,
@@ -2461,31 +2460,16 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
     }
 
     let requested_height = arg_value(args, "--height").unwrap_or_else(|| "latest".to_string());
-    let requested_hash = arg_value(args, "--hash");
     let state = lifecycle::load_state()?;
     let canonical_height = state.current_height;
-    let state_root = derive_state_root(&state)?;
 
-    if requested_height != "latest" && requested_height.parse::<u64>().is_err() {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Flag --height must be 'latest' or an unsigned integer",
-        ));
-    }
-
-    let height_matches = match requested_height.as_str() {
+    let available = match requested_height.as_str() {
         "latest" => true,
         value => value.parse::<u64>().ok() == Some(canonical_height),
     };
-    let hash_matches = match requested_hash.as_ref() {
-        Some(hash) => hash == &state.consensus.last_block_hash_hex,
-        None => true,
-    };
-    let available = height_matches && hash_matches;
 
     let view = BlockView {
         requested_height,
-        requested_hash,
         available,
         height: canonical_height,
         block_hash: state.consensus.last_block_hash_hex,
@@ -2494,7 +2478,7 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
         consensus_round: state.consensus.last_round,
         timestamp_unix: state.consensus.last_timestamp_unix,
         section_count: state.consensus.last_section_count,
-        state_root,
+        state_root: derive_state_root(&state)?,
     };
 
     emit_serialized(&view, output_format(args))
@@ -2609,370 +2593,6 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&response, output_format(args))
 }
 
-pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct NetworkStatus {
-        bind_host: String,
-        p2p_port: u16,
-        rpc_port: u16,
-        prometheus_port: u16,
-        enforce_official_peers: bool,
-        rpc_listener_active: bool,
-        mode: &'static str,
-    }
-
-    let settings = effective_settings_for_ops()?;
-    let probe_target = format!(
-        "{}:{}",
-        settings.network.bind_host, settings.network.rpc_port
-    );
-    let response = NetworkStatus {
-        bind_host: settings.network.bind_host,
-        p2p_port: settings.network.p2p_port,
-        rpc_port: settings.network.rpc_port,
-        prometheus_port: settings.network.prometheus_port,
-        enforce_official_peers: settings.network.enforce_official_peers,
-        rpc_listener_active: rpc_listener_active(&probe_target),
-        mode: "single-node",
-    };
-
-    emit_serialized(&response, output_format(args))
-}
-
-pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct TxView {
-        requested_hash: String,
-        found: bool,
-        latest_tx_marker: String,
-        height: u64,
-        updated_at: String,
-        source: &'static str,
-    }
-
-    let requested_hash = arg_value(args, "--hash")
-        .and_then(|value| normalize_text(&value, false))
-        .ok_or_else(|| {
-            AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                "Flag --hash must not be blank",
-            )
-        })?;
-    let state = lifecycle::load_state()?;
-    let found = state.last_tx == requested_hash;
-
-    let response = TxView {
-        requested_hash,
-        found,
-        latest_tx_marker: state.last_tx,
-        height: state.current_height,
-        updated_at: state.updated_at,
-        source: "runtime-node-state",
-    };
-
-    emit_serialized(&response, output_format(args))
-}
-
-pub fn cmd_api_curl(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct ApiCurlSurface {
-        base_url: String,
-        health: String,
-        status: String,
-        metrics: String,
-        latest_block: String,
-        consensus_status: String,
-        rpc_status: String,
-    }
-
-    let settings = effective_settings_for_ops()?;
-    let host = parse_optional_text_arg(args, "--host", false).unwrap_or(settings.network.bind_host);
-    let port = match parse_optional_text_arg(args, "--port", false) {
-        Some(value) => value.parse::<u16>().map_err(|_| {
-            AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                "Flag --port must be a valid u16 number",
-            )
-        })?,
-        None => settings.network.rpc_port,
-    };
-
-    let base_url = format!("http://{host}:{port}");
-    let surface = ApiCurlSurface {
-        health: format!("curl -fsS {base_url}/health"),
-        status: format!("curl -fsS {base_url}/status"),
-        metrics: format!("curl -fsS {base_url}/metrics"),
-        latest_block: format!("curl -fsS {base_url}/block/latest"),
-        consensus_status: format!("curl -fsS {base_url}/consensus/status"),
-        rpc_status: format!("curl -fsS {base_url}/rpc/status"),
-        base_url,
-    };
-
-    emit_serialized(&surface, output_format(args))
-}
-
-pub fn cmd_faucet_status(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct FaucetStatus {
-        enabled: bool,
-        max_claim_amount: u64,
-        cooldown_secs: u64,
-        daily_limit_per_account: u64,
-        claim_count: usize,
-        treasury_balance: u64,
-        funded_accounts: usize,
-    }
-
-    let state = load_faucet_state().unwrap_or_default();
-    let ledger = ledger::load().unwrap_or_default();
-    let response = FaucetStatus {
-        enabled: state.enabled,
-        max_claim_amount: state.max_claim_amount,
-        cooldown_secs: state.cooldown_secs,
-        daily_limit_per_account: state.daily_limit_per_account,
-        claim_count: state.claims.len(),
-        treasury_balance: ledger.treasury_balance,
-        funded_accounts: ledger.delegations.len(),
-    };
-
-    emit_serialized(&response, output_format(args))
-}
-
-pub fn cmd_faucet_claim(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct FaucetClaimResult {
-        account_id: String,
-        amount: u64,
-        tx_id: String,
-        claim_timestamp_unix: u64,
-        treasury_balance: u64,
-        account_balance: u64,
-        cooldown_secs: u64,
-        daily_limit_per_account: u64,
-        claim_count: usize,
-    }
-
-    let account_id = parse_optional_text_arg(args, "--account", false).ok_or_else(|| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Flag --account must not be blank",
-        )
-    })?;
-    let amount = parse_positive_u64_arg(args, "--amount", 0, "faucet claim")?;
-
-    let mut faucet = load_faucet_state().unwrap_or_default();
-    if !faucet.enabled {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Faucet is disabled for this runtime",
-        ));
-    }
-
-    if amount > faucet.max_claim_amount {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            format!(
-                "Requested amount exceeds faucet max_claim_amount ({})",
-                faucet.max_claim_amount
-            ),
-        ));
-    }
-
-    let now = chrono::Utc::now().timestamp() as u64;
-    enforce_faucet_cooldown(&faucet, &account_id, now)?;
-    enforce_faucet_daily_limit(&faucet, &account_id, amount, now)?;
-
-    let mut ledger = ledger::load().unwrap_or_default();
-    if ledger.treasury_balance < amount {
-        return Err(AppError::new(
-            ErrorCode::LedgerInvalid,
-            "Faucet treasury balance is insufficient for this claim",
-        ));
-    }
-
-    ledger.treasury_balance -= amount;
-    ledger.transfers = ledger.transfers.saturating_add(1);
-    let account_balance = {
-        let entry = ledger.delegations.entry(account_id.clone()).or_insert(0);
-        *entry = entry.saturating_add(amount);
-        *entry
-    };
-    ledger.updated_at = chrono::Utc::now().to_rfc3339();
-    ledger::persist(&ledger)?;
-
-    let tx_id = format!("faucet-{}-{now}", short_hash(&account_id));
-    faucet.claims.push(FaucetClaimRecord {
-        account_id: account_id.clone(),
-        amount,
-        timestamp_unix: now,
-        tx_id: tx_id.clone(),
-    });
-    persist_faucet_state(&faucet)?;
-
-    let _ = refresh_runtime_metrics().ok();
-
-    let response = FaucetClaimResult {
-        account_id,
-        amount,
-        tx_id,
-        claim_timestamp_unix: now,
-        treasury_balance: ledger.treasury_balance,
-        account_balance,
-        cooldown_secs: faucet.cooldown_secs,
-        daily_limit_per_account: faucet.daily_limit_per_account,
-        claim_count: faucet.claims.len(),
-    };
-
-    emit_serialized(&response, output_format(args))
-}
-
-pub fn cmd_faucet_history(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct FaucetHistory {
-        total_claims: usize,
-        filtered_claims: usize,
-        claims: Vec<FaucetClaimRecord>,
-    }
-
-    let state = load_faucet_state().unwrap_or_default();
-    let account_filter = parse_optional_text_arg(args, "--account", false);
-    let limit = parse_positive_u64_arg(args, "--limit", 20, "faucet history")? as usize;
-
-    let total_claims = state.claims.len();
-    let mut claims: Vec<FaucetClaimRecord> = state
-        .claims
-        .into_iter()
-        .filter(|claim| match account_filter.as_ref() {
-            Some(account) => &claim.account_id == account,
-            None => true,
-        })
-        .collect();
-    claims.sort_by_key(|claim| claim.timestamp_unix);
-    claims.reverse();
-    claims.truncate(limit);
-
-    let response = FaucetHistory {
-        total_claims,
-        filtered_claims: claims.len(),
-        claims,
-    };
-    emit_serialized(&response, output_format(args))
-}
-
-fn faucet_state_path() -> Result<PathBuf, AppError> {
-    Ok(resolve_home()?.join("faucet").join("state.json"))
-}
-
-fn load_faucet_state() -> Result<FaucetState, AppError> {
-    let path = faucet_state_path()?;
-    let raw = match fs::read_to_string(&path) {
-        Ok(raw) => raw,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(FaucetState::default());
-        }
-        Err(error) => {
-            return Err(AppError::with_source(
-                ErrorCode::FilesystemIoFailed,
-                format!("Failed to read faucet state from {}", path.display()),
-                error,
-            ));
-        }
-    };
-
-    serde_json::from_str::<FaucetState>(&raw).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!("Failed to parse faucet state at {}", path.display()),
-            error,
-        )
-    })
-}
-
-fn persist_faucet_state(state: &FaucetState) -> Result<(), AppError> {
-    let path = faucet_state_path()?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| {
-            AppError::with_source(
-                ErrorCode::FilesystemIoFailed,
-                format!(
-                    "Failed to create faucet state directory {}",
-                    parent.display()
-                ),
-                error,
-            )
-        })?;
-    }
-
-    let encoded = serde_json::to_string_pretty(state).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            "Failed to encode faucet state",
-            error,
-        )
-    })?;
-
-    fs::write(&path, encoded).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!("Failed to persist faucet state {}", path.display()),
-            error,
-        )
-    })
-}
-
-fn enforce_faucet_cooldown(
-    faucet: &FaucetState,
-    account_id: &str,
-    now: u64,
-) -> Result<(), AppError> {
-    let last_claim = faucet
-        .claims
-        .iter()
-        .filter(|claim| claim.account_id == account_id)
-        .max_by_key(|claim| claim.timestamp_unix);
-
-    if let Some(last) = last_claim {
-        let elapsed = now.saturating_sub(last.timestamp_unix);
-        if elapsed < faucet.cooldown_secs {
-            return Err(AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                format!(
-                    "Faucet cooldown active: wait {} seconds",
-                    faucet.cooldown_secs.saturating_sub(elapsed)
-                ),
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-fn enforce_faucet_daily_limit(
-    faucet: &FaucetState,
-    account_id: &str,
-    requested_amount: u64,
-    now: u64,
-) -> Result<(), AppError> {
-    let window_start = now.saturating_sub(86_400);
-    let claimed_in_window: u64 = faucet
-        .claims
-        .iter()
-        .filter(|claim| claim.account_id == account_id && claim.timestamp_unix >= window_start)
-        .map(|claim| claim.amount)
-        .sum();
-    let projected_total = claimed_in_window.saturating_add(requested_amount);
-    if projected_total > faucet.daily_limit_per_account {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            format!(
-                "Daily faucet limit exceeded: requested total {} > {}",
-                projected_total, faucet.daily_limit_per_account
-            ),
-        ));
-    }
-    Ok(())
-}
-
 /// Resolves effective settings for read-oriented ops surfaces without creating
 /// configuration files on disk.
 fn effective_settings_for_ops() -> Result<Settings, AppError> {
@@ -3067,10 +2687,8 @@ fn derive_state_root(state: &crate::node::state::NodeState) -> Result<String, Ap
 }
 
 fn rpc_listener_active(probe_target: &str) -> bool {
-    match probe_target.to_socket_addrs() {
-        Ok(addrs) => addrs
-            .into_iter()
-            .any(|addr| TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok()),
+    match probe_target.parse() {
+        Ok(addr) => TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok(),
         Err(_) => false,
     }
 }
