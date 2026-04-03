@@ -257,7 +257,7 @@ endef
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
 	runtime-bundle-compat-check docker-check production-full \
-	phase1-full \
+	phase1-full os-compat-gate quantum-readiness-gate quantum-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
 	demo localnet devnet testnet testnet-gate testnet-readiness-gate aoxcvm-phase3-gate reset doctor audit-chain logs down restart \
@@ -291,6 +291,9 @@ help:
 	@printf "  make quality\n\n"
 	@printf "  make production-full\n\n"
 	@printf "  make phase1-full\n\n"
+	@printf "  make os-compat-gate\n"
+	@printf "  make quantum-readiness-gate\n"
+	@printf "  make quantum-full\n\n"
 
 	@printf "Quick operator workflows\n"
 	@printf "  make demo\n"
@@ -883,6 +886,22 @@ phase1-full:
 	@$(CARGO) test -p aoxcmd consensus_profile_gate_status_reports_pass_for_hybrid_testnet
 	@$(CARGO) test -p aoxcunity
 	@echo "Phase-1 determinism validation flow completed."
+
+quantum-readiness-gate:
+	$(call print_banner,Running AOXC quantum readiness structural gate)
+	@./scripts/validation/quantum_readiness_gate.sh
+
+os-compat-gate:
+	$(call print_banner,Running AOXC host/container OS compatibility gate)
+	@./scripts/validation/os_compatibility_gate.sh
+
+quantum-full:
+	$(call print_banner,Running AOXC full quantum validation flow)
+	@$(MAKE) --no-print-directory os-compat-gate
+	@$(MAKE) --no-print-directory phase1-full
+	@$(MAKE) --no-print-directory aoxcvm-phase3-gate
+	@$(MAKE) --no-print-directory quantum-readiness-gate
+	@echo "Quantum validation flow completed."
 
 # --------------------------------------------------------------------
 # Operations
