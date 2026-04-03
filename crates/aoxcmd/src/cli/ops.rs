@@ -16,6 +16,7 @@ use crate::{
         core::runtime_context, handles::default_handles, node::health_status, unity::unity_status,
     },
 };
+use crate::data_home::resolve_home;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
