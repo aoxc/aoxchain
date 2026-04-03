@@ -75,8 +75,6 @@ Wrapper scripts (`chain_create.sh`, `wallet_seed.sh`, `validator_bootstrap.sh`,
 `finality_smoke.sh`, `transfer_smoke.sh`, and `chain_demo.sh`) depend on this
 surface to keep argument validation and runtime invocation behavior consistent.
 
-All dependent wrappers now provide common operational flags: `--dry-run`, `--verbose`, and `--help`; scripts that consume runtime variables also expose `--print-env` for deterministic operator review before execution.
-
 ### `scripts/run_runtime.sh`
 Thin smoke-flow entrypoint.
 

@@ -1,20 +1,12 @@
 #!/usr/bin/env bash
 # Shared helpers for AOXC script wrappers.
-set -Eeuo pipefail
-IFS=$'\n\t'
+set -euo pipefail
 
 readonly AOXC_SCRIPT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly AOXC_REPO_ROOT="$(cd "${AOXC_SCRIPT_LIB_DIR}/../.." && pwd)"
 
-AOXC_SCRIPT_DRY_RUN="${AOXC_SCRIPT_DRY_RUN:-0}"
-AOXC_SCRIPT_VERBOSE="${AOXC_SCRIPT_VERBOSE:-0}"
-
 log_info() {
   printf '[aoxc-script][info] %s\n' "$*"
-}
-
-log_warn() {
-  printf '[aoxc-script][warn] %s\n' "$*"
 }
 
 log_error() {
@@ -49,13 +41,6 @@ require_uint() {
   [[ "${value}" =~ ^[0-9]+$ ]] || die "${field} must be an unsigned integer: '${value}'" 2
 }
 
-require_positive_uint() {
-  local value="$1"
-  local field="$2"
-  require_uint "${value}" "${field}"
-  (( value > 0 )) || die "${field} must be greater than zero" 2
-}
-
 require_non_placeholder_key() {
   local value="$1"
   local field="$2"
@@ -65,74 +50,15 @@ require_non_placeholder_key() {
   [[ "${value}" =~ ^[0-9a-fA-F]{64,}$ ]] || die "${field} must be a hex public key" 2
 }
 
-run_cmd() {
-  local -a cmd=("$@")
-
-  if [[ "${AOXC_SCRIPT_DRY_RUN}" == "1" ]]; then
-    printf '[aoxc-script][dry-run]'
-    for arg in "${cmd[@]}"; do
-      printf ' %q' "${arg}"
-    done
-    printf '\n'
-    return 0
-  fi
-
-  if [[ "${AOXC_SCRIPT_VERBOSE}" == "1" ]]; then
-    printf '[aoxc-script][exec]'
-    for arg in "${cmd[@]}"; do
-      printf ' %q' "${arg}"
-    done
-    printf '\n'
-  fi
-
-  "${cmd[@]}"
-}
-
 run_make_target() {
   local target="$1"
   shift
   enter_repo_root
   log_info "Running make target: ${target}"
-  if [[ "${AOXC_SCRIPT_DRY_RUN}" == "1" ]]; then
-    run_cmd make --no-print-directory "${target}" "$@"
-  else
-    make --no-print-directory "${target}" "$@"
-  fi
+  make --no-print-directory "${target}" "$@"
 }
 
 require_executable() {
   local path="$1"
   [[ -x "${path}" ]] || die "Missing executable: ${path}" 2
-}
-
-print_common_flag_help() {
-  cat <<'OUT'
-Common flags:
-  --dry-run     Print commands without executing
-  --verbose     Print additional execution details
-  --print-env   Print resolved variables before execution
-  --help        Show script usage
-OUT
-}
-
-parse_common_flags() {
-  local -n _args_ref=$1
-  local -a remaining=()
-  local arg=""
-
-  for arg in "${_args_ref[@]}"; do
-    case "${arg}" in
-      --dry-run)
-        AOXC_SCRIPT_DRY_RUN=1
-        ;;
-      --verbose)
-        AOXC_SCRIPT_VERBOSE=1
-        ;;
-      *)
-        remaining+=("${arg}")
-        ;;
-    esac
-  done
-
-  _args_ref=("${remaining[@]}")
 }
