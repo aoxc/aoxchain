@@ -39,6 +39,7 @@ fn args(items: &[&str]) -> Vec<String> {
     items.iter().map(|item| (*item).to_string()).collect()
 }
 
+#[test]
 mod core;
 mod network;
 mod readiness;

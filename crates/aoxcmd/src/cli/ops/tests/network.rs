@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn shifted_ports_require_same_delta_across_profiles() {
-    let mainnet_profile = super::super::types::NetworkProfileConfig {
+    let mainnet_profile = super::NetworkProfileConfig {
         chain_id: "aox-mainnet-1".to_string(),
         listen_addr: "0.0.0.0:26656".to_string(),
         rpc_addr: "0.0.0.0:8545".to_string(),
         peers: vec!["seed-1".to_string(), "seed-2".to_string()],
         security_mode: "audit_strict".to_string(),
     };
-    let testnet_profile = super::super::types::NetworkProfileConfig {
+    let testnet_profile = super::NetworkProfileConfig {
         chain_id: "aox-testnet-1".to_string(),
         listen_addr: "0.0.0.0:36656".to_string(),
         rpc_addr: "0.0.0.0:18545".to_string(),
