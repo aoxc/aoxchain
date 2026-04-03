@@ -2856,7 +2856,11 @@ pub fn cmd_vm_status(args: &[String]) -> Result<(), AppError> {
         latest_height: state.current_height,
         last_executed_block: state.current_height,
         latest_tx_marker: state.last_tx,
-        last_execution_status: if has_last_tx { "ok" } else { "idle" },
+        last_execution_status: if has_last_tx {
+            "ok"
+        } else {
+            "idle"
+        },
         total_tx_in_last_block: u64::from(has_last_tx),
         executed_tx_count: state.produced_blocks,
         failed_tx_count: 0,
