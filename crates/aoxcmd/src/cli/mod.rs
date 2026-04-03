@@ -124,8 +124,6 @@ pub fn run_cli() -> Result<(), AppError> {
         "peer-list" => ops::cmd_peer_list(&args[2..]),
         "state-root" => ops::cmd_state_root(&args[2..]),
         "rpc-status" => ops::cmd_rpc_status(&args[2..]),
-        "network-status" => ops::cmd_network_status(&args[2..]),
-        "tx-get" => ops::cmd_tx_get(&args[2..]),
         "diagnostics-doctor" => audit::cmd_diagnostics_doctor(&args[2..]),
         "diagnostics-bundle" => audit::cmd_diagnostics_bundle(&args[2..]),
         "interop-readiness" => audit::cmd_interop_readiness(&args[2..]),

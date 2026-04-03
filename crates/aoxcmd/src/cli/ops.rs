@@ -22,7 +22,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs,
-    net::{TcpStream, ToSocketAddrs},
+    net::TcpStream,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -2414,7 +2414,6 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct BlockView {
         requested_height: String,
-        requested_hash: Option<String>,
         available: bool,
         height: u64,
         block_hash: String,
@@ -2427,31 +2426,16 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
     }
 
     let requested_height = arg_value(args, "--height").unwrap_or_else(|| "latest".to_string());
-    let requested_hash = arg_value(args, "--hash");
     let state = lifecycle::load_state()?;
     let canonical_height = state.current_height;
-    let state_root = derive_state_root(&state)?;
 
-    if requested_height != "latest" && requested_height.parse::<u64>().is_err() {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Flag --height must be 'latest' or an unsigned integer",
-        ));
-    }
-
-    let height_matches = match requested_height.as_str() {
+    let available = match requested_height.as_str() {
         "latest" => true,
         value => value.parse::<u64>().ok() == Some(canonical_height),
     };
-    let hash_matches = match requested_hash.as_ref() {
-        Some(hash) => hash == &state.consensus.last_block_hash_hex,
-        None => true,
-    };
-    let available = height_matches && hash_matches;
 
     let view = BlockView {
         requested_height,
-        requested_hash,
         available,
         height: canonical_height,
         block_hash: state.consensus.last_block_hash_hex,
@@ -2460,7 +2444,7 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
         consensus_round: state.consensus.last_round,
         timestamp_unix: state.consensus.last_timestamp_unix,
         section_count: state.consensus.last_section_count,
-        state_root,
+        state_root: derive_state_root(&state)?,
     };
 
     emit_serialized(&view, output_format(args))
@@ -2575,70 +2559,6 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&response, output_format(args))
 }
 
-pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct NetworkStatus {
-        bind_host: String,
-        p2p_port: u16,
-        rpc_port: u16,
-        prometheus_port: u16,
-        enforce_official_peers: bool,
-        rpc_listener_active: bool,
-        mode: &'static str,
-    }
-
-    let settings = effective_settings_for_ops()?;
-    let probe_target = format!(
-        "{}:{}",
-        settings.network.bind_host, settings.network.rpc_port
-    );
-    let response = NetworkStatus {
-        bind_host: settings.network.bind_host,
-        p2p_port: settings.network.p2p_port,
-        rpc_port: settings.network.rpc_port,
-        prometheus_port: settings.network.prometheus_port,
-        enforce_official_peers: settings.network.enforce_official_peers,
-        rpc_listener_active: rpc_listener_active(&probe_target),
-        mode: "single-node",
-    };
-
-    emit_serialized(&response, output_format(args))
-}
-
-pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct TxView {
-        requested_hash: String,
-        found: bool,
-        latest_tx_marker: String,
-        height: u64,
-        updated_at: String,
-        source: &'static str,
-    }
-
-    let requested_hash = arg_value(args, "--hash")
-        .and_then(|value| normalize_text(&value, false))
-        .ok_or_else(|| {
-            AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                "Flag --hash must not be blank",
-            )
-        })?;
-    let state = lifecycle::load_state()?;
-    let found = state.last_tx == requested_hash;
-
-    let response = TxView {
-        requested_hash,
-        found,
-        latest_tx_marker: state.last_tx,
-        height: state.current_height,
-        updated_at: state.updated_at,
-        source: "runtime-node-state",
-    };
-
-    emit_serialized(&response, output_format(args))
-}
-
 /// Resolves effective settings for read-oriented ops surfaces without creating
 /// configuration files on disk.
 fn effective_settings_for_ops() -> Result<Settings, AppError> {
@@ -2733,10 +2653,8 @@ fn derive_state_root(state: &crate::node::state::NodeState) -> Result<String, Ap
 }
 
 fn rpc_listener_active(probe_target: &str) -> bool {
-    match probe_target.to_socket_addrs() {
-        Ok(addrs) => addrs
-            .into_iter()
-            .any(|addr| TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok()),
+    match probe_target.parse() {
+        Ok(addr) => TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok(),
         Err(_) => false,
     }
 }

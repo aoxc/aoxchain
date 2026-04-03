@@ -134,10 +134,8 @@ NODE AND ECONOMY
   block-get --height <latest|n>
   account-get --id <account-id>
   peer-list
-  network-status
   state-root
   rpc-status
-  tx-get --hash <tx-hash>
 
 VALIDATION AND AUDIT
   load-benchmark
