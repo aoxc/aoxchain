@@ -11,12 +11,12 @@ use aoxcnet::{
 use aoxcore::{
     block::{Capability, TargetOutpost},
     identity::{
-        actor_id::{ActorIdError, generate_actor_id, parse_actor_id, validate_actor_id},
+        actor_id::{generate_actor_id, parse_actor_id, validate_actor_id, ActorIdError},
         hd_path::{HdPath, HdPathError, MAX_HD_INDEX},
     },
     transaction::{
-        MAX_TRANSACTION_PAYLOAD_BYTES, Transaction, TransactionError, calculate_transaction_root,
-        hash_transaction, hash_transaction_intent,
+        calculate_transaction_root, hash_transaction, hash_transaction_intent, Transaction,
+        TransactionError, MAX_TRANSACTION_PAYLOAD_BYTES,
     },
 };
 use aoxcunity::{
@@ -26,7 +26,7 @@ use aoxcunity::{
     Vote, VoteKind,
 };
 use ed25519_dalek::SigningKey;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 #[test]
 fn transaction_root_and_hashes_remain_stable_under_signature_rotation() {
