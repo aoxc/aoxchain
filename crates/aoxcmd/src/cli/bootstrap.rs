@@ -793,7 +793,10 @@ fn evaluate_consensus_profile_audit(
                 .to_string(),
         );
     }
-    if matches!(profile, EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet) {
+    if matches!(
+        profile,
+        EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet
+    ) {
         let normalized_quorum = genesis
             .consensus
             .validator_quorum_policy
@@ -965,8 +968,8 @@ fn evaluate_consensus_profile_audit(
         ));
     }
 
-    let block_time_in_envelope = genesis.consensus.block_time_ms >= 500
-        && genesis.consensus.block_time_ms <= 15_000;
+    let block_time_in_envelope =
+        genesis.consensus.block_time_ms >= 500 && genesis.consensus.block_time_ms <= 15_000;
     if block_time_in_envelope {
         passed.push("block-time-envelope".to_string());
     } else {
@@ -974,7 +977,10 @@ fn evaluate_consensus_profile_audit(
             "block_time_ms={} is outside recommended envelope [500, 15000]",
             genesis.consensus.block_time_ms
         );
-        if matches!(profile, EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet) {
+        if matches!(
+            profile,
+            EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet
+        ) {
             blockers.push(format!(
                 "mainnet/testnet profiles require block_time_ms in [500, 15000]: {message}"
             ));
@@ -1003,7 +1009,10 @@ fn evaluate_consensus_profile_audit(
             profile.as_str(),
             genesis.environment
         );
-        if matches!(profile, EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet) {
+        if matches!(
+            profile,
+            EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet
+        ) {
             blockers.push(format!(
                 "mainnet/testnet profiles require strict profile-environment alignment: {message}"
             ));
@@ -1101,8 +1110,10 @@ pub fn consensus_profile_gate_status(
         .map_err(|error| format!("failed to decode genesis `{path_display}`: {error}"))?;
 
     let report = evaluate_consensus_profile_audit(&genesis, profile, path_display.clone());
-    let strict_warning_free = !matches!(profile, EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet)
-        || report.warnings.is_empty();
+    let strict_warning_free = !matches!(
+        profile,
+        EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet
+    ) || report.warnings.is_empty();
     let passed = report.blockers.is_empty() && strict_warning_free;
     let detail = format!(
         "profile={}, consensus_profile={}, score={}, verdict={}",
