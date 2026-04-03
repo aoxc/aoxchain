@@ -76,6 +76,8 @@ make build
 make test
 make quality
 make audit
+make os-compat-gate
+make quantum-readiness-gate
 ```
 
 Runtime lifecycle example:

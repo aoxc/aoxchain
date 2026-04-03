@@ -22,6 +22,7 @@ Unless a stricter control is explicitly required by change scope, the following 
 - `cargo fmt --all --check`
 - `make test`
 - `make quality`
+- `make os-compat-gate` (required when changes affect cross-platform runtime, Docker, or host-tooling contract)
 - `make testnet-gate` (required when changes affect `configs/environments/testnet` or testnet operator flow)
 - `make testnet-readiness-gate` (single-command gate for PR-ready testnet validation)
 

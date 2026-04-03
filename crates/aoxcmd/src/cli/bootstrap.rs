@@ -790,6 +790,77 @@ fn evaluate_consensus_profile_audit(
         );
     }
 
+    let expected_identity = profile.identity();
+    if genesis.identity.network_class == expected_identity.network_class {
+        passed.push("identity-network-class-alignment".to_string());
+    } else {
+        blockers.push(format!(
+            "identity network_class `{}` does not match expected `{}` for profile `{}`",
+            genesis.identity.network_class,
+            expected_identity.network_class,
+            profile.as_str()
+        ));
+    }
+
+    if genesis.identity.network_id == expected_identity.network_id {
+        passed.push("identity-network-id-alignment".to_string());
+    } else {
+        blockers.push(format!(
+            "identity network_id `{}` does not match expected `{}` for profile `{}`",
+            genesis.identity.network_id,
+            expected_identity.network_id,
+            profile.as_str()
+        ));
+    }
+
+    if genesis.identity.chain_id == expected_identity.chain_id {
+        passed.push("identity-chain-id-alignment".to_string());
+    } else {
+        blockers.push(format!(
+            "identity chain_id `{}` does not match expected `{}` for profile `{}`",
+            genesis.identity.chain_id,
+            expected_identity.chain_id,
+            profile.as_str()
+        ));
+    }
+
+    if genesis
+        .consensus
+        .engine
+        .trim()
+        .eq_ignore_ascii_case("aoxcunity")
+    {
+        passed.push("consensus-engine".to_string());
+    } else {
+        blockers.push(format!(
+            "unsupported consensus engine `{}`; expected `aoxcunity`",
+            genesis.consensus.engine
+        ));
+    }
+
+    if genesis.consensus.mode.trim().eq_ignore_ascii_case("bft") {
+        passed.push("consensus-mode".to_string());
+    } else {
+        blockers.push(format!(
+            "unsupported consensus mode `{}`; expected `bft`",
+            genesis.consensus.mode
+        ));
+    }
+
+    if genesis
+        .integrity
+        .hash_algorithm
+        .trim()
+        .eq_ignore_ascii_case("sha256")
+    {
+        passed.push("integrity-hash-algorithm".to_string());
+    } else {
+        blockers.push(format!(
+            "unsupported integrity hash algorithm `{}`; expected `sha256`",
+            genesis.integrity.hash_algorithm
+        ));
+    }
+
     if genesis.consensus.block_time_ms >= 500 && genesis.consensus.block_time_ms <= 15_000 {
         passed.push("block-time-envelope".to_string());
     } else {
@@ -2300,6 +2371,46 @@ mod tests {
 
         assert_eq!(report.verdict, "pass");
         assert!(report.blockers.is_empty());
+    }
+
+    #[test]
+    fn consensus_profile_audit_blocks_identity_mismatch() {
+        let mut genesis = EnvironmentProfile::Mainnet.genesis_document();
+        genesis.identity.network_id = "aoxc-mainnet-invalid".to_string();
+
+        let report = evaluate_consensus_profile_audit(
+            &genesis,
+            EnvironmentProfile::Mainnet,
+            "memory://mainnet".to_string(),
+        );
+
+        assert_eq!(report.verdict, "fail");
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|item| item.contains("identity network_id"))
+        );
+    }
+
+    #[test]
+    fn consensus_profile_audit_blocks_invalid_consensus_engine() {
+        let mut genesis = EnvironmentProfile::Testnet.genesis_document();
+        genesis.consensus.engine = "other-engine".to_string();
+
+        let report = evaluate_consensus_profile_audit(
+            &genesis,
+            EnvironmentProfile::Testnet,
+            "memory://testnet".to_string(),
+        );
+
+        assert_eq!(report.verdict, "fail");
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|item| item.contains("unsupported consensus engine"))
+        );
     }
 
     #[test]

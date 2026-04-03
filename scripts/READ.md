@@ -95,6 +95,17 @@ This gate validates:
 - testnet runtime-source integrity through the Make runtime surface,
 - `network-metadata.json` identity alignment with `manifest.v1.json`.
 
+### `scripts/validation/os_compatibility_gate.sh`
+Cross-platform compatibility gate used by `make os-compat-gate`.
+
+This gate validates:
+
+- required host/container compatibility surfaces (`Dockerfile`, `docker-compose.yaml`, `Makefile`, docs),
+- platform contract markers for Linux/macOS/Windows in the Makefile,
+- explicit documentation coverage for Linux/NixOS/macOS/Windows/Docker.
+
+The gate also emits `artifacts/os-compat/summary.json` for review traceability.
+
 ### `scripts/release/generate_release_evidence.sh`
 Release evidence generation workflow.
 
