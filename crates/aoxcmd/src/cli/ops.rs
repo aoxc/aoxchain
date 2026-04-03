@@ -18,6 +18,7 @@ use crate::{
     },
 };
 use chrono::{Duration as ChronoDuration, Utc};
+use aoxcdata::{BlockEnvelope, DataError, HybridDataStore, IndexBackend};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -36,6 +37,7 @@ const FAUCET_DAILY_LIMIT_PER_ACCOUNT: u64 = 50_000;
 const FAUCET_DAILY_GLOBAL_LIMIT: u64 = 1_000_000;
 const FAUCET_MIN_RESERVE_BALANCE: u64 = 100_000;
 const FAUCET_AUDIT_RETENTION_HOURS: i64 = 168;
+const TX_INDEX_FILE: &str = "tx-index.v1.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct FaucetClaimRecord {
@@ -81,6 +83,23 @@ struct FaucetClaimDecision {
     global_remaining: u64,
     next_eligible_claim_at: Option<u64>,
     denied_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TxIndex {
+    entries: BTreeMap<String, TxIndexEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TxIndexEntry {
+    tx_payload: String,
+    block_height: u64,
+    block_hash_hex: String,
+    execution_status: String,
+    gas_used: u64,
+    fee_paid: u64,
+    events: Vec<String>,
+    state_change_summary: String,
 }
 
 impl Default for FaucetState {
@@ -3276,26 +3295,45 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
         .as_deref()
         .unwrap_or(default_height.as_str());
 
-    let available = match requested_height_value {
-        "latest" => true,
-        value => value.parse::<u64>().ok() == Some(canonical_height),
-    } && match requested_hash.as_ref() {
-        Some(hash) => hash.eq_ignore_ascii_case(&state.consensus.last_block_hash_hex),
-        None => true,
-    };
-    let tx_hashes = if state.last_tx == "none" {
-        Vec::new()
+    let historical = load_historical_block(requested_height_value, requested_hash.as_deref())?;
+    let (available, height, block_hash, parent_hash, tx_hashes) = if let Some(envelope) = historical {
+        let tx_hashes = historical_tx_hashes(&envelope);
+        (
+            true,
+            envelope.height,
+            envelope.block_hash_hex,
+            envelope.parent_hash_hex,
+            tx_hashes,
+        )
     } else {
-        vec![state.last_tx.clone()]
+        let available = match requested_height_value {
+            "latest" => true,
+            value => value.parse::<u64>().ok() == Some(canonical_height),
+        } && match requested_hash.as_ref() {
+            Some(hash) => hash.eq_ignore_ascii_case(&state.consensus.last_block_hash_hex),
+            None => true,
+        };
+        let tx_hashes = if state.last_tx == "none" {
+            Vec::new()
+        } else {
+            vec![state.last_tx.clone()]
+        };
+        (
+            available,
+            canonical_height,
+            state.consensus.last_block_hash_hex.clone(),
+            state.consensus.last_parent_hash_hex.clone(),
+            tx_hashes,
+        )
     };
 
     let view = BlockView {
         requested_height: Some(requested_height_value.to_string()),
         requested_hash,
         available,
-        height: canonical_height,
-        block_hash: state.consensus.last_block_hash_hex,
-        parent_hash: state.consensus.last_parent_hash_hex,
+        height,
+        block_hash,
+        parent_hash,
         proposer: state.consensus.last_proposer_hex,
         consensus_round: state.consensus.last_round,
         timestamp_unix: state.consensus.last_timestamp_unix,
@@ -3314,8 +3352,8 @@ pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
         tx_hash: String,
         known: bool,
         block_height: u64,
-        execution_status: &'static str,
-        source: &'static str,
+        execution_status: String,
+        source: String,
     }
 
     let tx_hash = arg_value(args, "--hash")
@@ -3327,14 +3365,35 @@ pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
             )
         })?;
     let state = lifecycle::load_state()?;
-    let known = state.last_tx != "none" && tx_hash == state.last_tx;
+    let indexed = load_tx_index_entry(&tx_hash)?;
+    let known = indexed.is_some()
+        || (state.last_tx != "none" && tx_hash == state.last_tx)
+        || (state.last_tx != "none" && tx_hash == tx_hash_hex(&state.last_tx));
+
+    let (block_height, execution_status, source) = if let Some(entry) = indexed {
+        (
+            entry.block_height,
+            entry.execution_status,
+            "tx-index".to_string(),
+        )
+    } else {
+        (
+            state.current_height,
+            if known {
+                "applied".to_string()
+            } else {
+                "unknown".to_string()
+            },
+            "runtime-last-tx".to_string(),
+        )
+    };
 
     let tx = TxView {
         tx_hash,
         known,
-        block_height: state.current_height,
-        execution_status: if known { "applied" } else { "unknown" },
-        source: "runtime-last-tx",
+        block_height,
+        execution_status,
+        source,
     };
 
     emit_serialized(&tx, output_format(args))
@@ -3362,20 +3421,23 @@ pub fn cmd_tx_receipt(args: &[String]) -> Result<(), AppError> {
             )
         })?;
     let state = lifecycle::load_state()?;
-    let found = state.last_tx != "none" && tx_hash == state.last_tx;
+    let indexed = load_tx_index_entry(&tx_hash)?;
+    let found = indexed.is_some()
+        || (state.last_tx != "none" && tx_hash == state.last_tx)
+        || (state.last_tx != "none" && tx_hash == tx_hash_hex(&state.last_tx));
     let receipt = TxReceiptView {
         tx_hash,
         found,
         success: found,
-        gas_used: 0,
-        fee_paid: 0,
-        events: if found {
-            vec!["runtime_tx_applied".to_string()]
-        } else {
-            Vec::new()
-        },
+        gas_used: indexed.as_ref().map_or(0, |entry| entry.gas_used),
+        fee_paid: indexed.as_ref().map_or(0, |entry| entry.fee_paid),
+        events: indexed
+            .as_ref()
+            .map_or_else(|| if found { vec!["runtime_tx_applied".to_string()] } else { Vec::new() }, |entry| entry.events.clone()),
         logs: Vec::new(),
-        state_change_summary: if found {
+        state_change_summary: if let Some(entry) = indexed {
+            entry.state_change_summary
+        } else if found {
             "local runtime marker updated".to_string()
         } else {
             "receipt not found".to_string()
@@ -3455,26 +3517,69 @@ pub fn cmd_balance_get(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct PeerView {
-        peer_id: String,
-        address: String,
-        direction: &'static str,
-        connected_since: String,
-        sync_state: &'static str,
-    }
-
-    #[derive(serde::Serialize)]
-    struct PeerList {
-        mode: &'static str,
-        bind_host: String,
-        p2p_port: u16,
-        rpc_port: u16,
-        peers: Vec<PeerView>,
-        peer_count: usize,
-    }
-
     let settings = effective_settings_for_ops()?;
+    let response = build_network_snapshot(&settings);
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_ops()?;
+    let snapshot = build_network_snapshot(&settings);
+    let status = NetworkStatus {
+        mode: snapshot.mode,
+        bind_host: snapshot.bind_host,
+        p2p_port: snapshot.p2p_port,
+        rpc_port: snapshot.rpc_port,
+        peer_count: snapshot.peer_count,
+        listener_active: snapshot.listener_active,
+        sync_state: snapshot.sync_state,
+    };
+
+    emit_serialized(&status, output_format(args))
+}
+
+pub fn cmd_network_full(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_ops()?;
+    let response = build_network_snapshot(&settings);
+
+    emit_serialized(&response, output_format(args))
+}
+
+#[derive(serde::Serialize)]
+struct PeerView {
+    peer_id: String,
+    address: String,
+    direction: &'static str,
+    connected_since: String,
+    sync_state: &'static str,
+}
+
+#[derive(serde::Serialize)]
+struct NetworkSnapshot {
+    mode: &'static str,
+    bind_host: String,
+    p2p_port: u16,
+    rpc_port: u16,
+    peer_count: usize,
+    listener_active: bool,
+    sync_state: &'static str,
+    enforce_official_peers: bool,
+    peers: Vec<PeerView>,
+}
+
+#[derive(serde::Serialize)]
+struct NetworkStatus {
+    mode: &'static str,
+    bind_host: String,
+    p2p_port: u16,
+    rpc_port: u16,
+    peer_count: usize,
+    listener_active: bool,
+    sync_state: &'static str,
+}
+
+fn build_network_snapshot(settings: &Settings) -> NetworkSnapshot {
     let now = Utc::now().to_rfc3339();
     let peers = vec![PeerView {
         peer_id: "self".to_string(),
@@ -3487,47 +3592,22 @@ pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
         sync_state: "in-sync",
     }];
 
-    let response = PeerList {
-        mode: "single-node",
-        bind_host: settings.network.bind_host,
-        p2p_port: settings.network.p2p_port,
-        rpc_port: settings.network.rpc_port,
-        peer_count: peers.len(),
-        peers,
-    };
-
-    emit_serialized(&response, output_format(args))
-}
-
-pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct NetworkStatus {
-        mode: &'static str,
-        bind_host: String,
-        p2p_port: u16,
-        rpc_port: u16,
-        peer_count: usize,
-        listener_active: bool,
-        sync_state: &'static str,
-    }
-
-    let settings = effective_settings_for_ops()?;
     let probe_target = format!(
         "{}:{}",
         settings.network.bind_host, settings.network.rpc_port
     );
     let listener_active = rpc_listener_active(&probe_target);
-    let status = NetworkStatus {
+    NetworkSnapshot {
         mode: "single-node",
-        bind_host: settings.network.bind_host,
+        bind_host: settings.network.bind_host.clone(),
         p2p_port: settings.network.p2p_port,
         rpc_port: settings.network.rpc_port,
-        peer_count: 1,
+        peer_count: peers.len(),
         listener_active,
         sync_state: "in-sync",
-    };
-
-    emit_serialized(&status, output_format(args))
+        enforce_official_peers: settings.network.enforce_official_peers,
+        peers,
+    }
 }
 
 pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {
@@ -3536,13 +3616,31 @@ pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {
         state_root: String,
         height: u64,
         updated_at: String,
+        source: String,
     }
 
     let state = lifecycle::load_state()?;
+    let requested_height = arg_value(args, "--height")
+        .and_then(|value| normalize_text(&value, false))
+        .and_then(|value| value.parse::<u64>().ok());
+    let indexed = if let Some(height) = requested_height {
+        load_state_root_for_height(height)?
+    } else {
+        None
+    };
+    let source = if indexed.is_some() {
+        "state-root-index".to_string()
+    } else {
+        "runtime-snapshot".to_string()
+    };
     let response = StateRoot {
-        state_root: derive_state_root(&state)?,
-        height: state.current_height,
+        state_root: indexed
+            .as_ref()
+            .map(|(_, root)| root.clone())
+            .unwrap_or(derive_state_root(&state)?),
+        height: indexed.map(|(height, _)| height).unwrap_or(state.current_height),
         updated_at: state.updated_at,
+        source,
     };
 
     emit_serialized(&response, output_format(args))
@@ -3756,6 +3854,80 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&response, output_format(args))
 }
 
+pub fn cmd_rpc_curl_smoke(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct ProbeResult {
+        target: String,
+        ok: bool,
+    }
+
+    #[derive(serde::Serialize)]
+    struct RpcCurlSmokeReport {
+        listener_active: bool,
+        probe_target: String,
+        http_base_url: String,
+        probes: Vec<ProbeResult>,
+        all_passed: bool,
+    }
+
+    let settings = effective_settings_for_ops()?;
+    let probe_target = format!(
+        "{}:{}",
+        settings.network.bind_host, settings.network.rpc_port
+    );
+    let listener_active = rpc_listener_active(&probe_target);
+    let curl_host = if settings.network.bind_host == "0.0.0.0" {
+        "127.0.0.1".to_string()
+    } else {
+        settings.network.bind_host.clone()
+    };
+    let http_base_url = format!("http://{}:{}", curl_host, settings.network.rpc_port);
+
+    let mut probes = vec![
+        ProbeResult {
+            target: format!("GET {http_base_url}/health"),
+            ok: listener_active
+                && rpc_http_get_probe(&curl_host, settings.network.rpc_port, "/health"),
+        },
+        ProbeResult {
+            target: format!("GET {http_base_url}/status"),
+            ok: listener_active
+                && rpc_http_get_probe(&curl_host, settings.network.rpc_port, "/status"),
+        },
+        ProbeResult {
+            target: format!("GET {http_base_url}/chain/status"),
+            ok: listener_active
+                && rpc_http_get_probe(&curl_host, settings.network.rpc_port, "/chain/status"),
+        },
+        ProbeResult {
+            target: format!("GET {http_base_url}/consensus/status"),
+            ok: listener_active
+                && rpc_http_get_probe(&curl_host, settings.network.rpc_port, "/consensus/status"),
+        },
+        ProbeResult {
+            target: format!("GET {http_base_url}/vm/status"),
+            ok: listener_active
+                && rpc_http_get_probe(&curl_host, settings.network.rpc_port, "/vm/status"),
+        },
+    ];
+
+    probes.push(ProbeResult {
+        target: format!(
+            "POST {http_base_url} {{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"status\",\"params\":[]}}"
+        ),
+        ok: listener_active && rpc_jsonrpc_status_probe(&curl_host, settings.network.rpc_port),
+    });
+
+    let report = RpcCurlSmokeReport {
+        listener_active,
+        probe_target,
+        http_base_url,
+        all_passed: probes.iter().all(|probe| probe.ok),
+        probes,
+    };
+    emit_serialized(&report, output_format(args))
+}
+
 /// Resolves effective settings for read-oriented ops surfaces without creating
 /// configuration files on disk.
 fn effective_settings_for_ops() -> Result<Settings, AppError> {
@@ -3872,6 +4044,174 @@ fn derive_state_root(state: &crate::node::state::NodeState) -> Result<String, Ap
     let mut hasher = Sha256::new();
     hasher.update(encoded);
     Ok(hex::encode(hasher.finalize()))
+}
+
+fn runtime_db_root() -> Result<PathBuf, AppError> {
+    Ok(resolve_home()?.join("runtime").join("db"))
+}
+
+fn open_runtime_store() -> Result<HybridDataStore, AppError> {
+    let db_root = runtime_db_root()?;
+    HybridDataStore::new(&db_root, IndexBackend::Redb).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to open runtime data store at {}", db_root.display()),
+            error,
+        )
+    })
+}
+
+fn load_historical_block(
+    requested_height: &str,
+    requested_hash: Option<&str>,
+) -> Result<Option<BlockEnvelope>, AppError> {
+    let store = open_runtime_store()?;
+    let target_hash = requested_hash.and_then(|value| normalize_text(value, true));
+
+    let requested = normalize_text(requested_height, true).unwrap_or_else(|| "latest".to_string());
+    let target_height = if requested == "latest" {
+        Some(lifecycle::load_state()?.current_height)
+    } else {
+        Some(requested.parse::<u64>().map_err(|_| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --height must be a positive integer or 'latest'",
+            )
+        })?)
+    };
+
+    let candidate = if let Some(hash) = target_hash.as_deref() {
+        match store.get_block_by_hash(hash) {
+            Ok(block) => Some(block),
+            Err(DataError::NotFound) => None,
+            Err(error) => {
+                return Err(AppError::with_source(
+                    ErrorCode::LedgerInvalid,
+                    format!("Failed to load historical block by hash {hash}"),
+                    error,
+                ));
+            }
+        }
+    } else if let Some(height) = target_height {
+        match store.get_block_by_height(height) {
+            Ok(block) => Some(block),
+            Err(DataError::NotFound) => None,
+            Err(error) => {
+                return Err(AppError::with_source(
+                    ErrorCode::LedgerInvalid,
+                    format!("Failed to load historical block at height {height}"),
+                    error,
+                ));
+            }
+        }
+    } else {
+        None
+    };
+
+    Ok(candidate.filter(|block| {
+        target_height.map(|height| block.height == height).unwrap_or(true)
+            && target_hash
+                .as_ref()
+                .map(|hash| block.block_hash_hex.eq_ignore_ascii_case(hash))
+                .unwrap_or(true)
+    }))
+}
+
+fn historical_tx_hashes(envelope: &BlockEnvelope) -> Vec<String> {
+    let payload = match serde_json::from_slice::<Value>(&envelope.payload) {
+        Ok(value) => value,
+        Err(_) => return Vec::new(),
+    };
+
+    payload
+        .get("body")
+        .and_then(|body| body.get("sections"))
+        .and_then(Value::as_array)
+        .map(|sections| {
+            sections
+                .iter()
+                .filter_map(|section| section.get("payload").and_then(Value::as_str))
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn tx_index_path() -> Result<PathBuf, AppError> {
+    Ok(resolve_home()?.join("runtime").join(TX_INDEX_FILE))
+}
+
+fn load_tx_index() -> Result<TxIndex, AppError> {
+    let path = tx_index_path()?;
+    if !path.exists() {
+        return Ok(TxIndex {
+            entries: BTreeMap::new(),
+        });
+    }
+
+    let raw = fs::read_to_string(&path).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to read transaction index from {}", path.display()),
+            error,
+        )
+    })?;
+
+    serde_json::from_str::<TxIndex>(&raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::LedgerInvalid,
+            format!("Failed to parse transaction index from {}", path.display()),
+            error,
+        )
+    })
+}
+
+fn load_tx_index_entry(tx_hash: &str) -> Result<Option<TxIndexEntry>, AppError> {
+    let normalized_hash = tx_hash.to_ascii_lowercase();
+    let tx_index = load_tx_index()?;
+    Ok(tx_index
+        .entries
+        .get(&normalized_hash)
+        .cloned()
+        .or_else(|| tx_index.entries.get(tx_hash).cloned()))
+}
+
+fn tx_hash_hex(tx_payload: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(tx_payload.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+fn load_state_root_for_height(height: u64) -> Result<Option<(u64, String)>, AppError> {
+    let Some(block) = load_historical_block(&height.to_string(), None)? else {
+        return Ok(None);
+    };
+
+    let payload = serde_json::from_slice::<Value>(&block.payload).ok();
+    let indexed_root = payload
+        .as_ref()
+        .and_then(|value| value.get("state_root"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            payload
+                .as_ref()
+                .and_then(|value| value.get("stateRoot"))
+                .and_then(Value::as_str)
+        })
+        .or_else(|| {
+            payload
+                .as_ref()
+                .and_then(|value| value.get("state_root_hex"))
+                .and_then(Value::as_str)
+        })
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            let mut hasher = Sha256::new();
+            hasher.update(&block.payload);
+            hex::encode(hasher.finalize())
+        });
+
+    Ok(Some((block.height, indexed_root)))
 }
 
 fn uptime_secs_from_rfc3339(value: &str) -> u64 {
@@ -4265,14 +4605,16 @@ mod tests {
         FaucetClaimRecord, FaucetState, build_surface, collect_surface_gate_failures,
         compare_aoxhub_network_profiles, compare_embedded_network_profiles, evaluate_faucet_claim,
         evaluate_full_surface_readiness, evaluate_profile_readiness, full_surface_markdown_report,
+        historical_tx_hashes,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_release_provenance_bundle,
         has_security_drill_artifact, locate_repo_artifact_dir, open_checklist_items,
         parse_network_profile, parse_positive_u64_arg, parse_required_or_default_text_arg,
         ports_are_shifted_consistently, readiness_markdown_report, rpc_http_get_probe,
-        rpc_jsonrpc_status_probe, surface_check, write_readiness_markdown_report,
+        rpc_jsonrpc_status_probe, surface_check, tx_hash_hex, write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
+    use aoxcdata::BlockEnvelope;
     use std::{
         fs,
         io::{Read, Write},
@@ -4314,6 +4656,21 @@ mod tests {
             parse_required_or_default_text_arg(&args(&["--to", "   "]), "--to", "ops", false)
                 .expect_err("blank target must fail");
         assert_eq!(error.code(), "AOXC-USG-002");
+    }
+
+    #[test]
+    fn historical_tx_hashes_extracts_payload_from_block_envelope() {
+        let envelope = BlockEnvelope {
+            height: 7,
+            block_hash_hex: "e3c0fdbff6f570f0449557cb9a9d8bc95eeb5d1f7e5bc8f2a580f7f7f6f7a9a7"
+                .to_string(),
+            parent_hash_hex: "7f6f7a9ae3c0fdbff6f570f0449557cb9a9d8bc95eeb5d1f7e5bc8f2a580f7f7"
+                .to_string(),
+            payload: br#"{"body":{"sections":[{"payload":"tx-demo-7"}]}}"#.to_vec(),
+        };
+
+        let tx_hashes = historical_tx_hashes(&envelope);
+        assert_eq!(tx_hashes, vec!["tx-demo-7".to_string()]);
     }
 
     #[test]

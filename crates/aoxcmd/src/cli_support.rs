@@ -159,6 +159,7 @@ NODE AND ECONOMY
   query vm status
   query network status
   query network peers
+  query network full
   query state-root
   query rpc
   block-get --height <latest|n>
@@ -168,9 +169,10 @@ NODE AND ECONOMY
   balance-get --id <account-id>
   peer-list
   network-status
-  state-root
+  state-root [--height <n>]
   metrics
   rpc-status
+  rpc-curl-smoke
 
 VALIDATION AND AUDIT
   load-benchmark
