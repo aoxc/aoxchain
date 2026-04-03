@@ -3597,13 +3597,31 @@ pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {
         state_root: String,
         height: u64,
         updated_at: String,
+        source: String,
     }
 
     let state = lifecycle::load_state()?;
+    let requested_height = arg_value(args, "--height")
+        .and_then(|value| normalize_text(&value, false))
+        .and_then(|value| value.parse::<u64>().ok());
+    let indexed = if let Some(height) = requested_height {
+        load_state_root_for_height(height)?
+    } else {
+        None
+    };
+    let source = if indexed.is_some() {
+        "state-root-index".to_string()
+    } else {
+        "runtime-snapshot".to_string()
+    };
     let response = StateRoot {
-        state_root: derive_state_root(&state)?,
-        height: state.current_height,
+        state_root: indexed
+            .as_ref()
+            .map(|(_, root)| root.clone())
+            .unwrap_or(derive_state_root(&state)?),
+        height: indexed.map(|(height, _)| height).unwrap_or(state.current_height),
         updated_at: state.updated_at,
+        source,
     };
 
     emit_serialized(&response, output_format(args))

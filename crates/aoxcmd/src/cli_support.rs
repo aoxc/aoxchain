@@ -168,7 +168,7 @@ NODE AND ECONOMY
   balance-get --id <account-id>
   peer-list
   network-status
-  state-root
+  state-root [--height <n>]
   metrics
   rpc-status
   rpc-curl-smoke
