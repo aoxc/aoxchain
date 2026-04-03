@@ -43,6 +43,7 @@ AOXChain is a deterministic Layer-1 engineering program focused on three primary
 ## 3) Canonical Governance and Technical Documents
 
 - `READ.md` — canonical technical reference and execution contract.
+- `WHITEPAPER.md` — end-to-end protocol architecture, trust model, and production closure narrative.
 - `SCOPE.md` — in-scope/out-of-scope and compatibility posture.
 - `ARCHITECTURE.md` — component boundaries, dependency direction, trust surfaces.
 - `SECURITY.md` — reporting and security handling expectations.
