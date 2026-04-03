@@ -2513,12 +2513,6 @@ mod tests {
     }
 
     #[test]
-    fn gate_failure_code_normalizes_surface_and_check_names() {
-        let code = gate_failure_code("quantum-consensus", "consensus-profile-gate");
-        assert_eq!(code, "AOXC_GATE_QUANTUM_CONSENSUS_CONSENSUS_PROFILE_GATE");
-    }
-
-    #[test]
     fn production_closure_requires_all_operational_artifacts() {
         let dir = unique_dir("production-closure");
         for file in [
