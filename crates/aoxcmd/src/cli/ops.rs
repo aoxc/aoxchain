@@ -2462,6 +2462,7 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
     let requested_height = arg_value(args, "--height").unwrap_or_else(|| "latest".to_string());
     let state = lifecycle::load_state()?;
     let canonical_height = state.current_height;
+    let state_root = derive_state_root(&state)?;
 
     let available = match requested_height.as_str() {
         "latest" => true,
@@ -2478,7 +2479,7 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
         consensus_round: state.consensus.last_round,
         timestamp_unix: state.consensus.last_timestamp_unix,
         section_count: state.consensus.last_section_count,
-        state_root: derive_state_root(&state)?,
+        state_root,
     };
 
     emit_serialized(&view, output_format(args))
@@ -2573,8 +2574,13 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
         bind_host: String,
         rpc_port: u16,
         listener_active: bool,
+        curl_compatible: bool,
         probe_target: String,
+        http_base_url: String,
         probe_mode: &'static str,
+        rest_endpoints: Vec<&'static str>,
+        json_rpc_methods: Vec<&'static str>,
+        curl_examples: BTreeMap<&'static str, String>,
     }
 
     let settings = effective_settings_for_ops()?;
@@ -2582,12 +2588,72 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
         "{}:{}",
         settings.network.bind_host, settings.network.rpc_port
     );
+    let listener_active = rpc_listener_active(&probe_target);
+    let curl_host = if settings.network.bind_host == "0.0.0.0" {
+        "127.0.0.1".to_string()
+    } else {
+        settings.network.bind_host.clone()
+    };
+    let http_base_url = format!("http://{}:{}", curl_host, settings.network.rpc_port);
+    let mut curl_examples = BTreeMap::new();
+    curl_examples.insert("health", format!("curl -fsS {http_base_url}/health"));
+    curl_examples.insert("status", format!("curl -fsS {http_base_url}/status"));
+    curl_examples.insert(
+        "latest-block",
+        format!("curl -fsS {http_base_url}/block/latest"),
+    );
+    curl_examples.insert(
+        "consensus-status",
+        format!("curl -fsS {http_base_url}/consensus/status"),
+    );
+    curl_examples.insert(
+        "vm-status",
+        format!("curl -fsS {http_base_url}/vm/status"),
+    );
+    curl_examples.insert(
+        "json-rpc-status",
+        format!(
+            "curl -fsS -H 'content-type: application/json' -d '{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"status\",\"params\":[]}}' {http_base_url}"
+        ),
+    );
     let response = RpcStatus {
         bind_host: settings.network.bind_host.clone(),
         rpc_port: settings.network.rpc_port,
-        listener_active: rpc_listener_active(&probe_target),
+        listener_active,
+        curl_compatible: listener_active,
         probe_target,
+        http_base_url,
         probe_mode: "tcp-connect",
+        rest_endpoints: vec![
+            "/health",
+            "/status",
+            "/metrics",
+            "/chain/status",
+            "/block/latest",
+            "/block/{height}",
+            "/tx/{hash}",
+            "/account/{id}",
+            "/consensus/status",
+            "/network/peers",
+            "/vm/status",
+            "/state/root",
+        ],
+        json_rpc_methods: vec![
+            "status",
+            "getLatestBlock",
+            "getBlockByHeight",
+            "getBlockByHash",
+            "getTxByHash",
+            "getReceiptByHash",
+            "getAccount",
+            "getBalance",
+            "getStateRoot",
+            "getConsensusStatus",
+            "getNetworkStatus",
+            "getPeers",
+            "getVmStatus",
+        ],
+        curl_examples,
     };
 
     emit_serialized(&response, output_format(args))
@@ -2599,7 +2665,7 @@ fn effective_settings_for_ops() -> Result<Settings, AppError> {
     match load() {
         Ok(settings) => Ok(settings),
         Err(error) if error.code() == ErrorCode::ConfigMissing.as_str() => {
-            let home = crate::data_home::resolve_home()?;
+            let home = resolve_home()?;
             Ok(Settings::default_for(home.display().to_string()))
         }
         Err(error) => Err(error),
