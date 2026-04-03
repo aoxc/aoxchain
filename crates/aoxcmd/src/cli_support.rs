@@ -129,6 +129,13 @@ NODE AND ECONOMY
   stake-undelegate
   economy-status
   runtime-status
+  consensus-status
+  vm-status
+  block-get --height <latest|n>
+  account-get --id <account-id>
+  peer-list
+  state-root
+  rpc-status
 
 VALIDATION AND AUDIT
   load-benchmark
