@@ -33,7 +33,7 @@ license = "MIT"
 # Core serialization and async runtime
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.50.0", features = ["full"] }
+tokio = { version = "1.51.0", features = ["full"] }
 async-trait = "0.1.89"
 
 # Error handling and observability
