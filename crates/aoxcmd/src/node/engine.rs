@@ -3,6 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 use crate::{
+    data_home::{ensure_layout, resolve_home},
     error::{AppError, ErrorCode},
     keys::material::KeyMaterial,
     node::{
@@ -10,15 +11,38 @@ use crate::{
         state::{ConsensusSnapshot, KeyMaterialSnapshot, NodeState},
     },
 };
+use aoxcdata::{BlockEnvelope, HybridDataStore, IndexBackend};
 use aoxcunity::{
     Block, BlockBody, BlockSection, ConsensusMessage, LaneCommitment, LaneCommitmentSection,
     LaneType, Proposer,
 };
+use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const BLOCK_PROPOSAL_MESSAGE_KIND: &str = "block_proposal";
 const MINIMUM_RUNTIME_TIMESTAMP_UNIX: u64 = 1;
+const TX_INDEX_FILE: &str = "tx-index.v1.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct TxIndex {
+    entries: BTreeMap<String, TxIndexEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TxIndexEntry {
+    tx_payload: String,
+    block_height: u64,
+    block_hash_hex: String,
+    execution_status: String,
+    gas_used: u64,
+    fee_paid: u64,
+    events: Vec<String>,
+    state_change_summary: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct RoundTelemetry {
@@ -46,6 +70,7 @@ pub fn produce_once(tx: &str) -> Result<NodeState, AppError> {
     let key_material = crate::keys::loader::load_operator_key()?;
     let block = build_block_for_tx(&state, tx, &key_material)?;
     apply_block_proposal(&mut state, tx, &block, &key_material)?;
+    persist_block_envelope(&block, tx)?;
 
     persist_state(&state)?;
     Ok(state)
@@ -84,6 +109,7 @@ where
         let tx = format!("{tx_prefix}-{index}");
         let block = build_block_for_tx(&state, &tx, &key_material)?;
         apply_block_proposal(&mut state, &tx, &block, &key_material)?;
+        persist_block_envelope(&block, &tx)?;
 
         let telemetry = RoundTelemetry {
             round_index: index + 1,
@@ -101,6 +127,125 @@ where
 
     persist_state(&state)?;
     Ok(state)
+}
+
+fn persist_block_envelope(block: &Block, tx_payload: &str) -> Result<(), AppError> {
+    let db_root = runtime_db_root()?;
+    let store = HybridDataStore::new(&db_root, IndexBackend::Redb).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!(
+                "Failed to open block index store at {}",
+                db_root.display()
+            ),
+            error,
+        )
+    })?;
+
+    let envelope = BlockEnvelope {
+        height: block.header.height,
+        block_hash_hex: hex::encode(block.hash),
+        parent_hash_hex: hex::encode(block.header.parent_hash),
+        payload: serde_json::to_vec(block).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::OutputEncodingFailed,
+                "Failed to serialize block payload for historical storage",
+                error,
+            )
+        })?,
+    };
+
+    store.put_block(&envelope).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::LedgerInvalid,
+            format!(
+                "Failed to persist historical block at height {}",
+                envelope.height
+            ),
+            error,
+        )
+    })?;
+    upsert_tx_index_entry(tx_payload, block)?;
+
+    Ok(())
+}
+
+fn runtime_db_root() -> Result<PathBuf, AppError> {
+    let home = resolve_home()?;
+    ensure_layout(&home)?;
+    Ok(home.join("runtime").join("db"))
+}
+
+fn tx_index_path() -> Result<PathBuf, AppError> {
+    Ok(runtime_db_root()?.join("query").join(TX_INDEX_FILE))
+}
+
+fn upsert_tx_index_entry(tx_payload: &str, block: &Block) -> Result<(), AppError> {
+    let path = tx_index_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!("Failed to create tx index directory {}", parent.display()),
+                error,
+            )
+        })?;
+    }
+
+    let mut index = load_tx_index().unwrap_or_default();
+    let tx_hash_hex = tx_hash_hex(tx_payload);
+    index.entries.insert(
+        tx_hash_hex,
+        TxIndexEntry {
+            tx_payload: tx_payload.to_string(),
+            block_height: block.header.height,
+            block_hash_hex: hex::encode(block.hash),
+            execution_status: "applied".to_string(),
+            gas_used: 21_000,
+            fee_paid: 1,
+            events: vec!["runtime_tx_applied".to_string()],
+            state_change_summary: "deterministic block applied".to_string(),
+        },
+    );
+
+    let encoded = serde_json::to_vec_pretty(&index).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode tx index state",
+            error,
+        )
+    })?;
+    fs::write(&path, encoded).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to write tx index file {}", path.display()),
+            error,
+        )
+    })?;
+    Ok(())
+}
+
+fn load_tx_index() -> Result<TxIndex, AppError> {
+    let path = tx_index_path()?;
+    let encoded = fs::read(&path).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to read tx index file {}", path.display()),
+            error,
+        )
+    })?;
+    serde_json::from_slice::<TxIndex>(&encoded).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            format!("Failed to parse tx index file {}", path.display()),
+            error,
+        )
+    })
+}
+
+fn tx_hash_hex(tx_payload: &str) -> String {
+    let digest = Sha3_256::digest(format!("AOXC-TX-V1:{tx_payload}").as_bytes());
+    hex::encode(digest)
 }
 
 /// Constructs a deterministic block proposal.
