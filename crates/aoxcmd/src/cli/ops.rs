@@ -2840,6 +2840,37 @@ pub fn cmd_vm_status(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&status, output_format(args))
 }
 
+pub fn cmd_chain_status(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct ChainStatus {
+        network_id: u32,
+        current_height: u64,
+        latest_block_hash: String,
+        latest_parent_hash: String,
+        latest_timestamp_unix: u64,
+        produced_blocks: u64,
+        running: bool,
+        profile: String,
+        consensus_mode: &'static str,
+    }
+
+    let settings = effective_settings_for_ops()?;
+    let state = lifecycle::load_state()?;
+    let status = ChainStatus {
+        network_id: state.consensus.network_id,
+        current_height: state.current_height,
+        latest_block_hash: state.consensus.last_block_hash_hex,
+        latest_parent_hash: state.consensus.last_parent_hash_hex,
+        latest_timestamp_unix: state.consensus.last_timestamp_unix,
+        produced_blocks: state.produced_blocks,
+        running: state.running,
+        profile: settings.profile,
+        consensus_mode: "aoxcunity",
+    };
+
+    emit_serialized(&status, output_format(args))
+}
+
 pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct BlockView {
@@ -2881,6 +2912,83 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&view, output_format(args))
 }
 
+pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct TxView {
+        tx_hash: String,
+        known: bool,
+        block_height: u64,
+        execution_status: &'static str,
+        source: &'static str,
+    }
+
+    let tx_hash = arg_value(args, "--hash")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --hash must not be blank",
+            )
+        })?;
+    let state = lifecycle::load_state()?;
+    let known = state.last_tx != "none" && tx_hash == state.last_tx;
+
+    let tx = TxView {
+        tx_hash,
+        known,
+        block_height: state.current_height,
+        execution_status: if known { "applied" } else { "unknown" },
+        source: "runtime-last-tx",
+    };
+
+    emit_serialized(&tx, output_format(args))
+}
+
+pub fn cmd_tx_receipt(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct TxReceiptView {
+        tx_hash: String,
+        found: bool,
+        success: bool,
+        gas_used: u64,
+        fee_paid: u64,
+        events: Vec<String>,
+        logs: Vec<String>,
+        state_change_summary: String,
+    }
+
+    let tx_hash = arg_value(args, "--hash")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --hash must not be blank",
+            )
+        })?;
+    let state = lifecycle::load_state()?;
+    let found = state.last_tx != "none" && tx_hash == state.last_tx;
+    let receipt = TxReceiptView {
+        tx_hash,
+        found,
+        success: found,
+        gas_used: 0,
+        fee_paid: 0,
+        events: if found {
+            vec!["runtime_tx_applied".to_string()]
+        } else {
+            Vec::new()
+        },
+        logs: Vec::new(),
+        state_change_summary: if found {
+            "local runtime marker updated".to_string()
+        } else {
+            "receipt not found".to_string()
+        },
+    };
+
+    emit_serialized(&receipt, output_format(args))
+}
+
 pub fn cmd_account_get(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct AccountView {
@@ -2917,6 +3025,39 @@ pub fn cmd_account_get(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&account, output_format(args))
 }
 
+pub fn cmd_balance_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct BalanceView {
+        account_id: String,
+        balance: u64,
+        known: bool,
+        source: &'static str,
+    }
+
+    let account_id = arg_value(args, "--id")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --id must not be blank",
+            )
+        })?;
+    let ledger = ledger::load().unwrap_or_default();
+    let balance = if account_id == "treasury" {
+        ledger.treasury_balance
+    } else {
+        ledger.delegations.get(&account_id).copied().unwrap_or(0)
+    };
+    let response = BalanceView {
+        known: account_id == "treasury" || ledger.delegations.contains_key(&account_id),
+        account_id,
+        balance,
+        source: "local-ledger",
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
 pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct PeerList {
@@ -2946,6 +3087,37 @@ pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&response, output_format(args))
 }
 
+pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct NetworkStatus {
+        mode: &'static str,
+        bind_host: String,
+        p2p_port: u16,
+        rpc_port: u16,
+        peer_count: usize,
+        listener_active: bool,
+        sync_state: &'static str,
+    }
+
+    let settings = effective_settings_for_ops()?;
+    let probe_target = format!(
+        "{}:{}",
+        settings.network.bind_host, settings.network.rpc_port
+    );
+    let listener_active = rpc_listener_active(&probe_target);
+    let status = NetworkStatus {
+        mode: "single-node",
+        bind_host: settings.network.bind_host,
+        p2p_port: settings.network.p2p_port,
+        rpc_port: settings.network.rpc_port,
+        peer_count: 1,
+        listener_active,
+        sync_state: "in-sync",
+    };
+
+    emit_serialized(&status, output_format(args))
+}
+
 pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct StateRoot {
@@ -2961,6 +3133,61 @@ pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {
         updated_at: state.updated_at,
     };
 
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_metrics(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct MetricsView {
+        node_height: u64,
+        produced_blocks: u64,
+        treasury_balance: u64,
+        recorded_at: String,
+        source: &'static str,
+    }
+
+    let state = lifecycle::load_state()?;
+    let ledger = ledger::load().unwrap_or_default();
+    let metrics_path = crate::telemetry::prometheus::metrics_path()?;
+    if metrics_path.exists() {
+        let raw = fs::read_to_string(&metrics_path).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to read metrics snapshot from {}",
+                    metrics_path.display()
+                ),
+                error,
+            )
+        })?;
+        let snapshot: crate::telemetry::prometheus::MetricsSnapshot = serde_json::from_str(&raw)
+            .map_err(|error| {
+                AppError::with_source(
+                    ErrorCode::OutputEncodingFailed,
+                    format!(
+                        "Failed to parse metrics snapshot from {}",
+                        metrics_path.display()
+                    ),
+                    error,
+                )
+            })?;
+        let response = MetricsView {
+            node_height: snapshot.node_height,
+            produced_blocks: snapshot.produced_blocks,
+            treasury_balance: snapshot.treasury_balance,
+            recorded_at: snapshot.recorded_at,
+            source: "telemetry-snapshot",
+        };
+        return emit_serialized(&response, output_format(args));
+    }
+
+    let response = MetricsView {
+        node_height: state.current_height,
+        produced_blocks: state.produced_blocks,
+        treasury_balance: ledger.treasury_balance,
+        recorded_at: Utc::now().to_rfc3339(),
+        source: "derived-live",
+    };
     emit_serialized(&response, output_format(args))
 }
 
