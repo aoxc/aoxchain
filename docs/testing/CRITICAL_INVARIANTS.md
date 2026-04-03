@@ -43,3 +43,4 @@ This document records validation-critical invariants that must remain true as th
 - Signature verification rejects invalid or replayed signed objects.
 - Key derivation and role/path semantics remain canonical.
 - Certificate and identity validation must fail closed on malformed structures.
+- Phase-2 closure requires signature-admission verification, key-rotation continuity checks, hybrid PQ policy enforcement, and domain-separated PQ signature verification to remain deterministic and fail-closed.
