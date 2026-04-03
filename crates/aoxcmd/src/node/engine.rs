@@ -113,10 +113,7 @@ fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
     let store = HybridDataStore::new(&db_root, IndexBackend::Redb).map_err(|error| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
-            format!(
-                "Failed to open block index store at {}",
-                db_root.display()
-            ),
+            format!("Failed to open block index store at {}", db_root.display()),
             error,
         )
     })?;

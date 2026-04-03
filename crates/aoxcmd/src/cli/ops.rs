@@ -17,8 +17,8 @@ use crate::{
         core::runtime_context, handles::default_handles, node::health_status, unity::unity_status,
     },
 };
-use chrono::{Duration as ChronoDuration, Utc};
 use aoxcdata::{BlockEnvelope, DataError, HybridDataStore, IndexBackend};
+use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -3022,11 +3022,7 @@ pub fn cmd_vm_status(args: &[String]) -> Result<(), AppError> {
         latest_height: state.current_height,
         last_executed_block: state.current_height,
         latest_tx_marker: state.last_tx,
-        last_execution_status: if has_last_tx {
-            "ok"
-        } else {
-            "idle"
-        },
+        last_execution_status: if has_last_tx { "ok" } else { "idle" },
         total_tx_in_last_block: u64::from(has_last_tx),
         executed_tx_count: state.produced_blocks,
         failed_tx_count: 0,
@@ -3053,7 +3049,10 @@ pub fn cmd_vm_call(args: &[String]) -> Result<(), AppError> {
     let to = arg_value(args, "--to")
         .and_then(|value| normalize_text(&value, false))
         .ok_or_else(|| {
-            AppError::new(ErrorCode::UsageInvalidArguments, "Flag --to must not be blank")
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --to must not be blank",
+            )
         })?;
     let from = arg_value(args, "--from").and_then(|value| normalize_text(&value, false));
     let data = arg_value(args, "--data").and_then(|value| normalize_text(&value, false));
@@ -3116,7 +3115,10 @@ pub fn cmd_vm_storage_get(args: &[String]) -> Result<(), AppError> {
     let key = arg_value(args, "--key")
         .and_then(|value| normalize_text(&value, false))
         .ok_or_else(|| {
-            AppError::new(ErrorCode::UsageInvalidArguments, "Flag --key must not be blank")
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --key must not be blank",
+            )
         })?;
     let response = VmStorageView {
         address,
@@ -3296,7 +3298,8 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
         .unwrap_or(default_height.as_str());
 
     let historical = load_historical_block(requested_height_value, requested_hash.as_deref())?;
-    let (available, height, block_hash, parent_hash, tx_hashes) = if let Some(envelope) = historical {
+    let (available, height, block_hash, parent_hash, tx_hashes) = if let Some(envelope) = historical
+    {
         let tx_hashes = historical_tx_hashes(&envelope);
         (
             true,
@@ -3431,9 +3434,16 @@ pub fn cmd_tx_receipt(args: &[String]) -> Result<(), AppError> {
         success: found,
         gas_used: indexed.as_ref().map_or(0, |entry| entry.gas_used),
         fee_paid: indexed.as_ref().map_or(0, |entry| entry.fee_paid),
-        events: indexed
-            .as_ref()
-            .map_or_else(|| if found { vec!["runtime_tx_applied".to_string()] } else { Vec::new() }, |entry| entry.events.clone()),
+        events: indexed.as_ref().map_or_else(
+            || {
+                if found {
+                    vec!["runtime_tx_applied".to_string()]
+                } else {
+                    Vec::new()
+                }
+            },
+            |entry| entry.events.clone(),
+        ),
         logs: Vec::new(),
         state_change_summary: if let Some(entry) = indexed {
             entry.state_change_summary
@@ -3638,7 +3648,9 @@ pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {
             .as_ref()
             .map(|(_, root)| root.clone())
             .unwrap_or(derive_state_root(&state)?),
-        height: indexed.map(|(height, _)| height).unwrap_or(state.current_height),
+        height: indexed
+            .map(|(height, _)| height)
+            .unwrap_or(state.current_height),
         updated_at: state.updated_at,
         source,
     };
@@ -4109,7 +4121,9 @@ fn load_historical_block(
     };
 
     Ok(candidate.filter(|block| {
-        target_height.map(|height| block.height == height).unwrap_or(true)
+        target_height
+            .map(|height| block.height == height)
+            .unwrap_or(true)
             && target_hash
                 .as_ref()
                 .map(|hash| block.block_hash_hex.eq_ignore_ascii_case(hash))
@@ -4605,13 +4619,13 @@ mod tests {
         FaucetClaimRecord, FaucetState, build_surface, collect_surface_gate_failures,
         compare_aoxhub_network_profiles, compare_embedded_network_profiles, evaluate_faucet_claim,
         evaluate_full_surface_readiness, evaluate_profile_readiness, full_surface_markdown_report,
-        historical_tx_hashes,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_release_provenance_bundle,
-        has_security_drill_artifact, locate_repo_artifact_dir, open_checklist_items,
-        parse_network_profile, parse_positive_u64_arg, parse_required_or_default_text_arg,
-        ports_are_shifted_consistently, readiness_markdown_report, rpc_http_get_probe,
-        rpc_jsonrpc_status_probe, surface_check, tx_hash_hex, write_readiness_markdown_report,
+        has_security_drill_artifact, historical_tx_hashes, locate_repo_artifact_dir,
+        open_checklist_items, parse_network_profile, parse_positive_u64_arg,
+        parse_required_or_default_text_arg, ports_are_shifted_consistently,
+        readiness_markdown_report, rpc_http_get_probe, rpc_jsonrpc_status_probe, surface_check,
+        tx_hash_hex, write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use aoxcdata::BlockEnvelope;
