@@ -161,6 +161,51 @@ run_and_tee() {
   return "${cmd_exit}"
 }
 
+extract_status_field() {
+  local payload="$1"
+  local field="$2"
+  local value=''
+
+  value="$(printf '%s\n' "${payload}" \
+    | awk -F': ' -v key="${field}" '$1 ~ "^[[:space:]]*" key "$" {print $2}' \
+    | tail -n 1 \
+    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
+  if [[ -z "${value}" ]]; then
+    printf '%s\n' "-"
+    return 0
+  fi
+
+  printf '%s\n' "${value}"
+}
+
+emit_compact_cycle_log() {
+  local tx_id="$1"
+  local produce_payload="$2"
+  local smoke_payload="$3"
+  local log_file="$4"
+
+  local produced_blocks=''
+  local current_height=''
+  local last_round=''
+  local smoke_status=''
+  local smoke_probe=''
+
+  produced_blocks="$(extract_status_field "${produce_payload}" "produced_blocks")"
+  current_height="$(extract_status_field "${produce_payload}" "current_height")"
+  last_round="$(extract_status_field "${produce_payload}" "last_round")"
+  smoke_status="$(extract_status_field "${smoke_payload}" "status")"
+  smoke_probe="$(extract_status_field "${smoke_payload}" "probe")"
+
+  printf '[✅ node] tx=%-30s blk=%-6s h=%-6s rnd=%-6s smoke=%-6s probe=%s\n' \
+    "${tx_id}" \
+    "${produced_blocks}" \
+    "${current_height}" \
+    "${last_round}" \
+    "${smoke_status}" \
+    "${smoke_probe}" >> "${log_file}"
+}
+
 copy_runtime_source_if_present() {
   if [[ ! -d "${AOXC_RUNTIME_SOURCE_ROOT}" ]]; then
     log_warn "Runtime source root is absent: ${AOXC_RUNTIME_SOURCE_ROOT}. Source materialization will be skipped."
@@ -276,23 +321,29 @@ start_daemon() {
     local sleep_secs="${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
     local timeout_ms="${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}"
     local tx_suffix=''
+    local tx_id=''
     local produce_rc=0
     local smoke_rc=0
+    local produce_output=''
+    local smoke_output=''
 
     validate_non_negative_integer "${backoff_secs}" "DAEMON_FAILURE_BACKOFF_SECS"
 
     while true; do
       tx_suffix="$(date +%s)"
+      tx_id="AOXC_RUNTIME_DAEMON_${tx_suffix}"
 
       set +e
-      "${bin_path}" produce-once --tx "AOXC_RUNTIME_DAEMON_${tx_suffix}" >> "${RUNTIME_LOG}" 2>&1
+      produce_output="$("${bin_path}" produce-once --tx "${tx_id}" 2>&1)"
       produce_rc=$?
-      "${bin_path}" network-smoke \
+      printf '%s\n' "${produce_output}" >> "${RUNTIME_LOG}"
+      smoke_output="$("${bin_path}" network-smoke \
         --timeout-ms "${timeout_ms}" \
         --bind-host 127.0.0.1 \
         --port 0 \
-        --payload "HEALTH_RUNTIME" >> "${RUNTIME_LOG}" 2>&1
+        --payload "HEALTH_RUNTIME" 2>&1)"
       smoke_rc=$?
+      printf '%s\n' "${smoke_output}" >> "${RUNTIME_LOG}"
       set -e
 
       if (( produce_rc != 0 || smoke_rc != 0 )); then
@@ -301,6 +352,7 @@ start_daemon() {
         continue
       fi
 
+      emit_compact_cycle_log "${tx_id}" "${produce_output}" "${smoke_output}" "${RUNTIME_LOG}"
       sleep "${sleep_secs}"
     done
   ) &
@@ -324,8 +376,11 @@ run_foreground() {
   local sleep_secs="${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
   local timeout_ms="${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}"
   local tx_suffix=''
+  local tx_id=''
   local produce_rc=0
   local smoke_rc=0
+  local produce_output=''
+  local smoke_output=''
 
   validate_non_negative_integer "${backoff_secs}" "DAEMON_FAILURE_BACKOFF_SECS"
   validate_non_negative_integer "${sleep_secs}" "DAEMON_SLEEP_SECS"
@@ -337,16 +392,19 @@ run_foreground() {
   log_info "Running foreground runtime loop for persistent service mode."
   while true; do
     tx_suffix="$(date +%s)"
+    tx_id="AOXC_RUNTIME_FOREGROUND_${tx_suffix}"
 
     set +e
-    "${bin_path}" produce-once --tx "AOXC_RUNTIME_FOREGROUND_${tx_suffix}" >> "${RUNTIME_LOG}" 2>&1
+    produce_output="$("${bin_path}" produce-once --tx "${tx_id}" 2>&1)"
     produce_rc=$?
-    "${bin_path}" network-smoke \
+    printf '%s\n' "${produce_output}" >> "${RUNTIME_LOG}"
+    smoke_output="$("${bin_path}" network-smoke \
       --timeout-ms "${timeout_ms}" \
       --bind-host 127.0.0.1 \
       --port 0 \
-      --payload "HEALTH_RUNTIME" >> "${RUNTIME_LOG}" 2>&1
+      --payload "HEALTH_RUNTIME" 2>&1)"
     smoke_rc=$?
+    printf '%s\n' "${smoke_output}" >> "${RUNTIME_LOG}"
     set -e
 
     if (( produce_rc != 0 || smoke_rc != 0 )); then
@@ -355,6 +413,7 @@ run_foreground() {
       continue
     fi
 
+    emit_compact_cycle_log "${tx_id}" "${produce_output}" "${smoke_output}" "${RUNTIME_LOG}"
     sleep "${sleep_secs}"
   done
 }
