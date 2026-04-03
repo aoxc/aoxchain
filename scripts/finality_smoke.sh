@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "${ROOT_DIR}"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/runtime_common.sh"
 
-make --no-print-directory package-bin >/dev/null
-AOXC_HOME="${AOXC_RUNTIME_ROOT:-${HOME}/.aoxc/runtime}" "${ROOT_DIR}/target/release/aoxc" network-smoke
+enter_repo_root
+run_make_target package-bin >/dev/null
+require_executable "${AOXC_REPO_ROOT}/target/release/aoxc"
+
+AOXC_HOME="${AOXC_RUNTIME_ROOT:-${HOME}/.aoxc/runtime}" "${AOXC_REPO_ROOT}/target/release/aoxc" network-smoke

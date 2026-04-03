@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "${ROOT_DIR}"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/runtime_common.sh"
 
 : "${AOXC_BOOTSTRAP_PROFILE:=localnet}"
 : "${AOXC_VALIDATOR_NAME:=validator-01}"
@@ -12,12 +11,15 @@ cd "${ROOT_DIR}"
 : "${AOXC_TRANSFER_TO:=bob}"
 : "${AOXC_TRANSFER_AMOUNT:=100}"
 
-./scripts/preflight_check.sh
-./scripts/chain_create.sh
-./scripts/wallet_seed.sh
-./scripts/network_start.sh
-./scripts/finality_smoke.sh
-./scripts/transfer_smoke.sh
+require_uint "${AOXC_NEW_ACCOUNT_BALANCE}" "AOXC_NEW_ACCOUNT_BALANCE"
+require_uint "${AOXC_TRANSFER_AMOUNT}" "AOXC_TRANSFER_AMOUNT"
+
+"${AOXC_REPO_ROOT}/scripts/preflight_check.sh"
+"${AOXC_REPO_ROOT}/scripts/chain_create.sh"
+"${AOXC_REPO_ROOT}/scripts/wallet_seed.sh"
+"${AOXC_REPO_ROOT}/scripts/network_start.sh"
+"${AOXC_REPO_ROOT}/scripts/finality_smoke.sh"
+"${AOXC_REPO_ROOT}/scripts/transfer_smoke.sh"
 
 cat <<OUT
 AOXChain demo flow completed.
