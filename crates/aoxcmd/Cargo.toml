@@ -1,10 +1,12 @@
 [package]
 name = "aoxcmd"
-version = "0.1.1-akdeniz"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
 default-run = "aoxc"
 build = "build.rs"
-license = "MIT"
 description = "AOXC operator command plane with audit-oriented diagnostics and bootstrap workflows."
 
 [dependencies]
