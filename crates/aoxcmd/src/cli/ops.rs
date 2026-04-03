@@ -32,16 +32,11 @@ use std::{
 };
 
 mod faucet;
-mod node_ops;
 
 pub use faucet::{
     cmd_faucet_audit, cmd_faucet_balance, cmd_faucet_claim, cmd_faucet_config,
     cmd_faucet_config_show, cmd_faucet_disable, cmd_faucet_enable, cmd_faucet_history,
     cmd_faucet_reset, cmd_faucet_status,
-};
-pub use node_ops::{
-    cmd_network_smoke, cmd_node_bootstrap, cmd_node_health, cmd_node_run, cmd_produce_once,
-    cmd_real_network, cmd_storage_smoke,
 };
 
 const FAUCET_MAX_CLAIM_AMOUNT: u64 = 10_000;
