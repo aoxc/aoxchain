@@ -106,6 +106,19 @@ This gate validates:
 
 The gate also emits `artifacts/os-compat/summary.json` for review traceability.
 
+### `scripts/validation/aoxcvm_production_closure_gate.sh`
+AOXCVM full production closure gate used by `make aoxcvm-production-closure-gate`.
+
+This gate enforces all closure classes together:
+
+- test (`scripts/validation/aoxcvm_phase3_gate.sh`),
+- audit (`cargo audit`),
+- rehearsal (`scripts/validation/os_compatibility_gate.sh`),
+- evidence (`artifacts/aoxcvm-phase3/evidence-bundle/artifacts-manifest.json` presence).
+
+The gate is fail-closed: overall PASS is reported only when every class passes.
+It emits `artifacts/aoxcvm-phase3/production-closure-summary.json` for traceable review evidence.
+
 ### `scripts/release/generate_release_evidence.sh`
 Release evidence generation workflow.
 
