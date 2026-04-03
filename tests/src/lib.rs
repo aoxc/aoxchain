@@ -20,3 +20,7 @@ mod external_surface_fuzz;
 
 #[cfg(test)]
 mod testnet_readiness_external;
+#[cfg(test)]
+mod version_governance;
+#[cfg(test)]
+mod vm_production_closure_governance;
