@@ -49,7 +49,7 @@ mod tests {
     #[allow(deprecated)]
     #[test]
     fn legacy_helper_matches_canonical_output() {
-        let legacy = execution_fingerprint(b"receipt", b"payload");
+        let legacy = super::execution_fingerprint(b"receipt", b"payload");
         let canonical = canonical_execution_fingerprint(b"receipt", b"payload");
         assert_eq!(legacy, canonical);
     }

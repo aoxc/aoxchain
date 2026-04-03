@@ -193,3 +193,51 @@ pub struct DecisionReport {
     pub manifest_id: String,
     pub backend_type: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decision_action_from_action_name_preserves_semantics() {
+        assert_eq!(
+            DecisionAction::from(ActionName::Allow),
+            DecisionAction::Allow
+        );
+        assert_eq!(
+            DecisionAction::from(ActionName::Review),
+            DecisionAction::Review
+        );
+        assert_eq!(DecisionAction::from(ActionName::Deny), DecisionAction::Deny);
+    }
+
+    #[test]
+    fn constructor_helpers_initialize_empty_maps() {
+        let signal = InferenceSignal::new("latency", "120", 900, "net");
+        assert_eq!(signal.name, "latency");
+        assert!(signal.attributes.is_empty());
+
+        let finding =
+            InferenceFinding::new("policy.missing", "missing policy", FindingSeverity::High);
+        assert_eq!(finding.code, "policy.missing");
+        assert!(finding.attributes.is_empty());
+
+        let context = InferenceContext::new("node-7", "validator");
+        assert_eq!(context.subject_id, "node-7");
+        assert!(context.metadata.is_empty());
+    }
+
+    #[test]
+    fn subject_id_accessor_returns_context_subject_id() {
+        let request = InferenceRequest {
+            task: AiTask::PeerScreening,
+            mode: AiMode::Advisory,
+            context: InferenceContext::new("peer-42", "peer"),
+            signals: vec![],
+            findings: vec![],
+            narrative: None,
+        };
+
+        assert_eq!(request.subject_id(), "peer-42");
+    }
+}
