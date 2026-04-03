@@ -1,54 +1,88 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# AOXCVM production closure evidence gate.
-# Default mode reports gaps but does not fail.
-# Set AOXCVM_PRODUCTION_CLOSURE_STRICT=1 to fail on any missing item.
+# AOXCVM production closure gate.
+# Full closure requires all gate classes to pass together:
+#   1) test gate
+#   2) audit gate
+#   3) rehearsal gate
+#   4) evidence gate
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-STRICT="${AOXCVM_PRODUCTION_CLOSURE_STRICT:-0}"
+ARTIFACT_DIR="${AOXCVM_ARTIFACT_DIR:-${ROOT_DIR}/artifacts/aoxcvm-phase3}"
+SUMMARY_FILE="${ARTIFACT_DIR}/production-closure-summary.json"
+TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+GIT_SHA="$(git -C "${ROOT_DIR}" rev-parse HEAD)"
 
-required_files=(
-  "crates/aoxcvm/docs/CRYPTO_HASH_POSTURE.md"
-  "crates/aoxcvm/docs/FINGERPRINT_SPEC.md"
-  "crates/aoxcvm/docs/PRODUCTION_CLOSURE_MASTER_PLAN.md"
-  "crates/aoxcvm/docs/PHASE3_RELEASE_CLOSURE.md"
-)
+log() {
+  echo "[aoxcvm-production-closure] $*"
+}
 
-required_paths=(
-  "artifacts/aoxcvm-phase3"
-  "artifacts/release-evidence"
-)
-
-missing=0
-
-echo "[aoxcvm-production-closure] scanning required files..."
-for path in "${required_files[@]}"; do
-  if [[ -f "${ROOT_DIR}/${path}" ]]; then
-    echo "  [ok] ${path}"
-  else
-    echo "  [missing] ${path}"
-    missing=1
+run_gate() {
+  local gate_name="$1"
+  shift
+  log "running ${gate_name} gate: $*"
+  if "$@"; then
+    log "PASS ${gate_name}"
+    return 0
   fi
-done
+  log "FAIL ${gate_name}"
+  return 1
+}
 
-echo "[aoxcvm-production-closure] scanning required paths..."
-for path in "${required_paths[@]}"; do
-  if [[ -e "${ROOT_DIR}/${path}" ]]; then
-    echo "  [ok] ${path}"
-  else
-    echo "  [missing] ${path}"
-    missing=1
-  fi
-done
+mkdir -p "${ARTIFACT_DIR}"
+cd "${ROOT_DIR}"
 
-if [[ "${missing}" -ne 0 ]]; then
-  if [[ "${STRICT}" == "1" ]]; then
-    echo "[aoxcvm-production-closure] FAILED (strict mode): evidence gaps detected."
-    exit 1
-  fi
-  echo "[aoxcvm-production-closure] WARNING: evidence gaps detected (non-strict mode)."
-  exit 0
+test_status="failed"
+audit_status="failed"
+rehearsal_status="failed"
+evidence_status="failed"
+overall_status="failed"
+
+if run_gate "test" ./scripts/validation/aoxcvm_phase3_gate.sh; then
+  test_status="passed"
 fi
 
-echo "[aoxcvm-production-closure] PASS: baseline evidence surfaces are present."
+if run_gate "audit" cargo audit; then
+  audit_status="passed"
+fi
+
+if run_gate "rehearsal" ./scripts/validation/os_compatibility_gate.sh; then
+  rehearsal_status="passed"
+fi
+
+if run_gate "evidence" test -f "${ARTIFACT_DIR}/evidence-bundle/artifacts-manifest.json"; then
+  evidence_status="passed"
+fi
+
+if [[ "${test_status}" == "passed" \
+  && "${audit_status}" == "passed" \
+  && "${rehearsal_status}" == "passed" \
+  && "${evidence_status}" == "passed" ]]; then
+  overall_status="passed"
+  log "PASS: full production closure achieved (test/audit/rehearsal/evidence)."
+else
+  log "FAILED: full production closure requires all four gate classes to pass."
+fi
+
+cat > "${SUMMARY_FILE}" <<JSON
+{
+  "generated_at_utc": "${TIMESTAMP}",
+  "git_sha": "${GIT_SHA}",
+  "suite": "aoxcvm-production-closure-gate",
+  "gates": {
+    "test": "${test_status}",
+    "audit": "${audit_status}",
+    "rehearsal": "${rehearsal_status}",
+    "evidence": "${evidence_status}"
+  },
+  "overall": "${overall_status}",
+  "policy": "full closure requires test/audit/rehearsal/evidence to all be PASS"
+}
+JSON
+
+log "wrote summary: ${SUMMARY_FILE}"
+
+if [[ "${overall_status}" != "passed" ]]; then
+  exit 1
+fi

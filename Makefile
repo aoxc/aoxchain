@@ -260,7 +260,7 @@ endef
 	phase1-full quantum-readiness-gate quantum-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
-	demo localnet devnet testnet testnet-gate testnet-readiness-gate aoxcvm-phase3-gate reset doctor audit-chain logs down restart \
+	demo localnet devnet testnet testnet-gate testnet-readiness-gate aoxcvm-phase3-gate aoxcvm-production-closure-gate reset doctor audit-chain logs down restart \
 	network-create network-start network-stop network-status genesis-build chain-status \
 	chain-help chain-init chain-add-account chain-add-validator chain-start-persistent \
 	ui alpha
@@ -292,6 +292,7 @@ help:
 	@printf "  make production-full\n\n"
 	@printf "  make phase1-full\n\n"
 	@printf "  make quantum-readiness-gate\n"
+	@printf "  make aoxcvm-production-closure-gate\n"
 	@printf "  make quantum-full\n\n"
 
 	@printf "Quick operator workflows\n"
@@ -893,7 +894,7 @@ quantum-readiness-gate:
 quantum-full:
 	$(call print_banner,Running AOXC full quantum validation flow)
 	@$(MAKE) --no-print-directory phase1-full
-	@$(MAKE) --no-print-directory aoxcvm-phase3-gate
+	@$(MAKE) --no-print-directory aoxcvm-production-closure-gate
 	@$(MAKE) --no-print-directory quantum-readiness-gate
 	@echo "Quantum validation flow completed."
 
@@ -1022,6 +1023,10 @@ testnet-readiness-gate:
 aoxcvm-phase3-gate:
 	$(call print_banner,Running AOXCVM phase-3 release-grade gate)
 	@./scripts/validation/aoxcvm_phase3_gate.sh
+
+aoxcvm-production-closure-gate:
+	$(call print_banner,Running AOXCVM full production closure gate)
+	@./scripts/validation/aoxcvm_production_closure_gate.sh
 
 reset:
 	$(call print_banner,Resetting AOXC operator runtime)
