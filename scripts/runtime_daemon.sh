@@ -350,12 +350,12 @@ print_cycle_entry_banner() {
   local mode="$1"
   local timestamp="$2"
 
-  print_full_width_bar "═"
   printf '  🚀 %-27s  🕒 %s\n' "AOXC RUNTIME ${mode^^} CYCLE" "${timestamp}"
-  print_full_width_bar "═"
+  print_full_width_bar "─"
 }
 
 print_cycle_exit_banner() {
+  print_full_width_bar "─"
   printf '  ✅ %-27s  📄 %s\n' "AOXC CYCLE COMPLETE" "${RUNTIME_LOG}"
   print_full_width_bar "═"
 }
