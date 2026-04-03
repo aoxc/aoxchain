@@ -159,6 +159,7 @@ NODE AND ECONOMY
   query vm status
   query network status
   query network peers
+  query network full
   query state-root
   query rpc
   block-get --height <latest|n>

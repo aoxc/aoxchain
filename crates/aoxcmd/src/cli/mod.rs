@@ -332,12 +332,13 @@ fn route_query_vm_group(args: &[String]) -> Result<(), AppError> {
 
 fn route_query_network_group(args: &[String]) -> Result<(), AppError> {
     let Some((subcommand, tail)) = args.split_first() else {
-        return ops::cmd_network_status(args);
+        return ops::cmd_network_full(args);
     };
 
     match subcommand.as_str() {
         "status" => ops::cmd_network_status(tail),
         "peers" => ops::cmd_peer_list(tail),
+        "full" => ops::cmd_network_full(tail),
         _ => invalid_group_usage("query network", "unsupported subcommand"),
     }
 }
