@@ -142,6 +142,12 @@ NODE AND ECONOMY
   runtime-status
   chain-status
   consensus-status
+  consensus-validators
+  consensus-proposer
+  consensus-round
+  consensus-finality
+  consensus-commits
+  consensus-evidence
   vm-status
   query chain status
   query block --height <latest|n>
