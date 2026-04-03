@@ -128,7 +128,18 @@ NODE AND ECONOMY
   stake-delegate
   stake-undelegate
   economy-status
+  faucet-status
+  faucet-config [--enable|--disable] [--max-claim-amount <n>] [--cooldown-secs <n>] [--daily-limit-per-account <n>]
+  faucet-claim --account-id <id> [--amount <n>] [--auto-init] [--force]
+  faucet-reset [--keep-config]
   runtime-status
+  consensus-status
+  vm-status
+  block-get --height <latest|n>
+  account-get --id <account-id>
+  peer-list
+  state-root
+  rpc-status
 
 VALIDATION AND AUDIT
   load-benchmark
