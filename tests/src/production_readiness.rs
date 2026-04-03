@@ -10,6 +10,7 @@ use aoxcnet::{
 };
 use aoxcore::{
     block::{Capability, TargetOutpost},
+    identity::pq_keys,
     identity::{
         actor_id::{ActorIdError, generate_actor_id, parse_actor_id, validate_actor_id},
         hd_path::{HdPath, HdPathError, MAX_HD_INDEX},
