@@ -2973,10 +2973,6 @@ pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
         tx_hash: String,
         known: bool,
         block_height: u64,
-        sender: String,
-        receiver: String,
-        amount: u64,
-        payload: String,
         execution_status: &'static str,
         source: &'static str,
     }
@@ -2996,10 +2992,6 @@ pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
         tx_hash,
         known,
         block_height: state.current_height,
-        sender: "treasury".to_string(),
-        receiver: "unknown".to_string(),
-        amount: 0,
-        payload: "unavailable".to_string(),
         execution_status: if known { "applied" } else { "unknown" },
         source: "runtime-last-tx",
     };
@@ -3170,7 +3162,6 @@ pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct NetworkStatus {
         mode: &'static str,
-        profile: String,
         bind_host: String,
         p2p_port: u16,
         rpc_port: u16,
@@ -3187,7 +3178,6 @@ pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
     let listener_active = rpc_listener_active(&probe_target);
     let status = NetworkStatus {
         mode: "single-node",
-        profile: settings.profile,
         bind_host: settings.network.bind_host,
         p2p_port: settings.network.p2p_port,
         rpc_port: settings.network.rpc_port,

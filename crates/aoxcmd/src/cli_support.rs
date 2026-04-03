@@ -142,7 +142,7 @@ NODE AND ECONOMY
   chain-status
   consensus-status
   vm-status
-  block-get [--height <latest|n>] [--hash <hex>]
+  block-get --height <latest|n>
   tx-get --hash <tx-hash>
   tx-receipt --hash <tx-hash>
   account-get --id <account-id>
