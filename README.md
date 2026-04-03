@@ -61,6 +61,8 @@ make build
 make test
 make quality
 make audit
+make quantum-readiness-gate
+make quantum-full
 ```
 
 For environment lifecycle operations:
