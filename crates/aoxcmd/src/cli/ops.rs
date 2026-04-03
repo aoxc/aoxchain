@@ -3517,26 +3517,69 @@ pub fn cmd_balance_get(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct PeerView {
-        peer_id: String,
-        address: String,
-        direction: &'static str,
-        connected_since: String,
-        sync_state: &'static str,
-    }
-
-    #[derive(serde::Serialize)]
-    struct PeerList {
-        mode: &'static str,
-        bind_host: String,
-        p2p_port: u16,
-        rpc_port: u16,
-        peers: Vec<PeerView>,
-        peer_count: usize,
-    }
-
     let settings = effective_settings_for_ops()?;
+    let response = build_network_snapshot(&settings);
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_ops()?;
+    let snapshot = build_network_snapshot(&settings);
+    let status = NetworkStatus {
+        mode: snapshot.mode,
+        bind_host: snapshot.bind_host,
+        p2p_port: snapshot.p2p_port,
+        rpc_port: snapshot.rpc_port,
+        peer_count: snapshot.peer_count,
+        listener_active: snapshot.listener_active,
+        sync_state: snapshot.sync_state,
+    };
+
+    emit_serialized(&status, output_format(args))
+}
+
+pub fn cmd_network_full(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_ops()?;
+    let response = build_network_snapshot(&settings);
+
+    emit_serialized(&response, output_format(args))
+}
+
+#[derive(serde::Serialize)]
+struct PeerView {
+    peer_id: String,
+    address: String,
+    direction: &'static str,
+    connected_since: String,
+    sync_state: &'static str,
+}
+
+#[derive(serde::Serialize)]
+struct NetworkSnapshot {
+    mode: &'static str,
+    bind_host: String,
+    p2p_port: u16,
+    rpc_port: u16,
+    peer_count: usize,
+    listener_active: bool,
+    sync_state: &'static str,
+    enforce_official_peers: bool,
+    peers: Vec<PeerView>,
+}
+
+#[derive(serde::Serialize)]
+struct NetworkStatus {
+    mode: &'static str,
+    bind_host: String,
+    p2p_port: u16,
+    rpc_port: u16,
+    peer_count: usize,
+    listener_active: bool,
+    sync_state: &'static str,
+}
+
+fn build_network_snapshot(settings: &Settings) -> NetworkSnapshot {
     let now = Utc::now().to_rfc3339();
     let peers = vec![PeerView {
         peer_id: "self".to_string(),
@@ -3549,47 +3592,22 @@ pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
         sync_state: "in-sync",
     }];
 
-    let response = PeerList {
-        mode: "single-node",
-        bind_host: settings.network.bind_host,
-        p2p_port: settings.network.p2p_port,
-        rpc_port: settings.network.rpc_port,
-        peer_count: peers.len(),
-        peers,
-    };
-
-    emit_serialized(&response, output_format(args))
-}
-
-pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
-    #[derive(serde::Serialize)]
-    struct NetworkStatus {
-        mode: &'static str,
-        bind_host: String,
-        p2p_port: u16,
-        rpc_port: u16,
-        peer_count: usize,
-        listener_active: bool,
-        sync_state: &'static str,
-    }
-
-    let settings = effective_settings_for_ops()?;
     let probe_target = format!(
         "{}:{}",
         settings.network.bind_host, settings.network.rpc_port
     );
     let listener_active = rpc_listener_active(&probe_target);
-    let status = NetworkStatus {
+    NetworkSnapshot {
         mode: "single-node",
-        bind_host: settings.network.bind_host,
+        bind_host: settings.network.bind_host.clone(),
         p2p_port: settings.network.p2p_port,
         rpc_port: settings.network.rpc_port,
-        peer_count: 1,
+        peer_count: peers.len(),
         listener_active,
         sync_state: "in-sync",
-    };
-
-    emit_serialized(&status, output_format(args))
+        enforce_official_peers: settings.network.enforce_official_peers,
+        peers,
+    }
 }
 
 pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {
