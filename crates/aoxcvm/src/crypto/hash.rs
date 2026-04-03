@@ -89,7 +89,7 @@ mod tests {
     #[allow(deprecated)]
     #[test]
     fn legacy_helper_matches_canonical_output() {
-        let legacy = quantum_unaffected_digest(b"receipt", b"payload-1");
+        let legacy = super::quantum_unaffected_digest(b"receipt", b"payload-1");
         let canonical = quantum_hardened_digest(b"receipt", b"payload-1");
         assert_eq!(legacy, canonical);
     }
