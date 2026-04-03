@@ -60,6 +60,23 @@ Optional environment variables:
 - `AOXC_SYSTEMD_SCOPE=user|system` (default: `user`)
 - `AOXC_SYSTEMD_SERVICE_NAME=<service-name>` (default: `aoxc-runtime`)
 
+### `scripts/lib/runtime_common.sh`
+Shared hardening library used by wrapper scripts.
+
+Provides:
+
+- canonical repository root resolution,
+- fail-closed input validation helpers for numeric/string/key fields,
+- standardized make-target execution with consistent logging,
+- reusable executable/runtime contract checks.
+
+Wrapper scripts (`chain_create.sh`, `wallet_seed.sh`, `validator_bootstrap.sh`,
+`network_start.sh`, `network_stop.sh`, `preflight_check.sh`, `runtime_recover.sh`,
+`finality_smoke.sh`, `transfer_smoke.sh`, and `chain_demo.sh`) depend on this
+surface to keep argument validation and runtime invocation behavior consistent.
+
+All dependent wrappers now provide common operational flags: `--dry-run`, `--verbose`, and `--help`; scripts that consume runtime variables also expose `--print-env` for deterministic operator review before execution.
+
 ### `scripts/run_runtime.sh`
 Thin smoke-flow entrypoint.
 
