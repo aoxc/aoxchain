@@ -5,6 +5,7 @@
 use crate::config::RpcConfig;
 use crate::error::RpcError;
 use crate::grpc::services::{query_service::QueryService, tx_submission::TxSubmissionService};
+use crate::types::{ChainStatus, TxSubmissionRequest, TxSubmissionResult};
 
 /// gRPC server entry point.
 #[derive(Debug, Clone)]
@@ -50,6 +51,21 @@ impl GrpcServer {
 
         Ok(())
     }
+
+    #[must_use]
+    pub fn method_catalog(&self) -> Vec<&'static str> {
+        vec!["query.GetChainStatus", "tx.Submit"]
+    }
+
+    pub fn query_chain_status(&self, height: u64, syncing: bool) -> Result<ChainStatus, RpcError> {
+        self.startup_checks()?;
+        Ok(self.query_service.get_chain_status(height, syncing))
+    }
+
+    pub fn submit_tx(&self, request: TxSubmissionRequest) -> Result<TxSubmissionResult, RpcError> {
+        self.startup_checks()?;
+        self.tx_submission_service.submit(request)
+    }
 }
 
 #[cfg(test)]
@@ -81,5 +97,21 @@ mod tests {
         let result = server.startup_checks();
 
         assert!(matches!(result, Err(RpcError::InternalError)));
+    }
+
+    #[test]
+    fn method_catalog_contains_core_surface() {
+        let config = RpcConfig {
+            genesis_hash: Some(format!("0x{}", "ab".repeat(32))),
+            tls_cert_path: "Cargo.toml".to_string(),
+            tls_key_path: "README.md".to_string(),
+            mtls_ca_cert_path: Some("Cargo.toml".to_string()),
+            ..RpcConfig::default()
+        };
+
+        let server = GrpcServer::new(config);
+        let methods = server.method_catalog();
+        assert!(methods.contains(&"query.GetChainStatus"));
+        assert!(methods.contains(&"tx.Submit"));
     }
 }
