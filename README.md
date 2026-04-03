@@ -70,9 +70,11 @@ Primary references:
 - `SECURITY.md` — private disclosure and security handling model.
 - `TESTING.md` — mandatory validation policy and gate criteria.
 - `NETWORK_SECURITY_ARCHITECTURE.md` — validator/sentry/RPC trust segmentation baseline.
+- `docs/ADVANCED_NODE_ROLE_BLUEPRINT.md` — full multi-role, multi-plane topology and staged activation model.
 - `ROADMAP.md` — program roadmap.
 - `QUANTUM_ROADMAP.md` + `QUANTUM_CHECKLIST.md` — cryptographic migration execution/gates.
 - `docs/PRODUCTION_IMPLEMENTATION_BLUEPRINT.md` — production implementation and closure matrix.
+- `docs/PRODUCTION_READINESS_CHECKLIST.md` — auditable production go/no-go checklist and required evidence map.
 - `docs/OS_COMPATIBILITY.md` — cross-OS and Docker compatibility contract.
 
 ---

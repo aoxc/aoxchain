@@ -1,0 +1,94 @@
+# AOXChain full role topology (definition-first, policy-gated activation).
+# This file defines all supported roles and their security domain placement.
+
+version = 1
+profile = "full-role-topology"
+default_deny = true
+
+[activation]
+mode = "policy_gated"
+require_validator_governance = true
+
+[roles.core_val]
+name = "Consensus Validator"
+layer = "L5"
+trust_zone = "kernel"
+enabled = true
+planes = ["consensus", "data", "control"]
+
+[roles.core_prop]
+name = "Block Proposer Scheduler"
+layer = "L5"
+trust_zone = "kernel"
+enabled = false
+planes = ["consensus", "control"]
+
+[roles.core_guard]
+name = "Consensus Rule Guard"
+layer = "L5"
+trust_zone = "kernel"
+enabled = false
+planes = ["consensus", "control", "data"]
+
+[roles.net_relay]
+name = "Relay Mesh Node"
+layer = "L3"
+trust_zone = "network"
+enabled = true
+planes = ["data", "control"]
+
+[roles.net_gate]
+name = "Ingress Gateway"
+layer = "L3"
+trust_zone = "edge"
+enabled = true
+planes = ["data", "service", "control"]
+
+[roles.data_arch]
+name = "Archive Node"
+layer = "L6"
+trust_zone = "data"
+enabled = false
+planes = ["data", "service", "control"]
+
+[roles.data_da]
+name = "Data Availability Node"
+layer = "L3"
+trust_zone = "data"
+enabled = false
+planes = ["data", "control"]
+
+[roles.serv_rpc]
+name = "RPC Service Node"
+layer = "L6"
+trust_zone = "edge"
+enabled = true
+planes = ["service", "control"]
+
+[roles.serv_idx]
+name = "Index Service Node"
+layer = "L6"
+trust_zone = "service"
+enabled = false
+planes = ["service", "data", "control"]
+
+[roles.sec_sent]
+name = "Sentinel Security Node"
+layer = "L2"
+trust_zone = "security"
+enabled = false
+planes = ["control", "data", "service"]
+
+[roles.x_orcl]
+name = "Oracle Attestation Node"
+layer = "L6"
+trust_zone = "interop"
+enabled = false
+planes = ["service", "control"]
+
+[roles.x_bridge]
+name = "Cross-Chain Bridge Node"
+layer = "L6"
+trust_zone = "interop"
+enabled = false
+planes = ["service", "data", "control"]

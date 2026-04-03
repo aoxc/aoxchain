@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "${ROOT_DIR}"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/runtime_common.sh"
 
-make --no-print-directory ops-stop || true
-make --no-print-directory runtime-reinstall
-make --no-print-directory ops-start
+run_make_target ops-stop || true
+run_make_target runtime-reinstall
+run_make_target ops-start

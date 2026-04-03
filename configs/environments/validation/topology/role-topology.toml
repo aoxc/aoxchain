@@ -1,0 +1,56 @@
+# AOXChain topology activation profile for validation.
+version = 1
+environment = "validation"
+default_deny = true
+
+[activation]
+mode = "policy_gated"
+require_validator_governance = true
+
+[roles.core_val]
+enabled = true
+
+[roles.core_prop]
+enabled = false
+
+[roles.core_guard]
+enabled = true
+
+[roles.net_relay]
+enabled = true
+
+[roles.net_gate]
+enabled = true
+
+[roles.data_arch]
+enabled = false
+
+[roles.data_da]
+enabled = false
+
+[roles.serv_rpc]
+enabled = true
+
+[roles.serv_idx]
+enabled = false
+
+[roles.sec_sent]
+enabled = false
+
+[roles.x_orcl]
+enabled = false
+
+[roles.x_bridge]
+enabled = false
+
+[roles.core_qc]
+enabled = false
+
+[roles.core_qv]
+enabled = false
+
+[roles.sec_evd]
+enabled = true
+
+[roles.net_pacer]
+enabled = false
