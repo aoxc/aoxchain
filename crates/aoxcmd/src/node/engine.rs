@@ -16,31 +16,12 @@ use aoxcunity::{
     Block, BlockBody, BlockSection, ConsensusMessage, LaneCommitment, LaneCommitmentSection,
     LaneType, Proposer,
 };
-use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const BLOCK_PROPOSAL_MESSAGE_KIND: &str = "block_proposal";
 const MINIMUM_RUNTIME_TIMESTAMP_UNIX: u64 = 1;
-const TX_INDEX_FILE: &str = "tx-index.v1.json";
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-struct TxIndex {
-    entries: BTreeMap<String, TxIndexEntry>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct TxIndexEntry {
-    tx_payload: String,
-    block_height: u64,
-    block_hash_hex: String,
-    execution_status: String,
-    gas_used: u64,
-    fee_paid: u64,
-    events: Vec<String>,
-    state_change_summary: String,
-}
 
 #[derive(Debug, Clone)]
 pub struct RoundTelemetry {
