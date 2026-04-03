@@ -37,6 +37,7 @@ This document records validation-critical invariants that must remain true as th
 - Transaction ingress continues to fail closed for empty payloads, oversized payloads, malformed sender keys, and structurally invalid signatures.
 - Protocol-envelope verification rejects framing corruption, chain/protocol identity mismatches, and payload/frame hash tampering.
 - Peer/session ingress denies duplicate peer admission, unknown-session broadcast attempts, and banned-peer traffic.
+- Phase-3 closure requires deterministic discovery ordering, spam-resistant mempool admission, and consistent snapshot persistence/restore for synchronization paths.
 
 ## Key and Trust Boundaries
 

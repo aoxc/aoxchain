@@ -4,6 +4,7 @@
 
 use aoxcnet::{
     config::NetworkConfig,
+    discovery::{DiscoveryTable, PeerCandidate},
     gossip::peer::{NodeCertificate, Peer, PeerRole},
     p2p::P2PNetwork,
     resilience::{ChaosProfile, ResilienceHarness},
@@ -15,6 +16,7 @@ use aoxcore::{
         actor_id::{ActorIdError, generate_actor_id, parse_actor_id, validate_actor_id},
         hd_path::{HdPath, HdPathError, MAX_HD_INDEX},
     },
+    mempool::pool::{Mempool, MempoolConfig},
     transaction::{
         MAX_TRANSACTION_PAYLOAD_BYTES, Transaction, TransactionError, calculate_transaction_root,
         hash_transaction, hash_transaction_intent,
@@ -46,6 +48,10 @@ use aoxcvm::{
 };
 use ed25519_dalek::SigningKey;
 use rand::{Rng, SeedableRng, rngs::StdRng};
+use std::{
+    fs,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 #[test]
 fn transaction_root_and_hashes_remain_stable_under_signature_rotation() {
