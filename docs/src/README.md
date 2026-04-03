@@ -1,15 +1,22 @@
 # AOXChain Documentation Index
 
-This mdBook is the canonical reader path for system posture, architecture discipline, and AI/audit operations.
+This mdBook is the operator-facing documentation path for runtime posture, readiness, and audit-oriented workflows.
 
-## Reading Order
+## Recommended Reading Order
 
-1. `SYSTEM_STATUS.md` — current posture and readiness framing.
-2. `AI_TRAINING_AND_AUDIT_GUIDE.md` — model/audit governance and evidence expectations.
+1. `SYSTEM_STATUS.md` — current program posture and active constraints.
+2. `AI_TRAINING_AND_AUDIT_GUIDE.md` — evidence discipline for AI-assisted operations and review.
 
-For repository-wide program direction, use root documents:
-- `README.md`
-- `READ.md`
-- `ROADMAP.md`
-- `QUANTUM_ROADMAP.md`
-- `QUANTUM_CHECKLIST.md`
+## Canonical Root Documents
+
+Use the following root-level documents for authoritative repository policy and architecture:
+
+- `README.md` — repository purpose and command entry points.
+- `READ.md` — canonical technical contract and boundary rules.
+- `WHITEPAPER.md` — full protocol architecture and production-closure narrative.
+- `SCOPE.md` — scope boundaries and compatibility posture.
+- `ARCHITECTURE.md` — component responsibilities and dependency direction.
+- `SECURITY.md` — private disclosure and security handling model.
+- `TESTING.md` — mandatory validation policy and testnet go/no-go criteria.
+- `ROADMAP.md` — execution roadmap.
+- `QUANTUM_ROADMAP.md` and `QUANTUM_CHECKLIST.md` — profile migration execution controls.
