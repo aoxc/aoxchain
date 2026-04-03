@@ -60,7 +60,6 @@ pub struct VoteAuthenticationContext {
     pub signature_scheme: u16,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConsensusIdentityProfile {
     Classical,
@@ -124,7 +123,9 @@ pub enum VoteAuthenticationError {
     #[error("vote requires an explicit post-quantum signature")]
     MissingPostQuantumSignature,
 
-    #[error("vote requires a non-zero post-quantum attestation root for hybrid/post-quantum identity profiles")]
+    #[error(
+        "vote requires a non-zero post-quantum attestation root for hybrid/post-quantum identity profiles"
+    )]
     MissingPostQuantumAttestationRoot,
 }
 
@@ -651,5 +652,4 @@ mod tests {
             VoteAuthenticationError::MissingPostQuantumAttestationRoot
         );
     }
-
 }

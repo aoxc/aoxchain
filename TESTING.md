@@ -129,3 +129,100 @@ Recommended command set for profile-impacting changes:
 - `make audit`
 
 If these checks cannot run in the current environment, the limitation must be stated explicitly with remediation plan and rerun owner.
+
+## Phase-1 Full Determinism Closure Gate
+
+For Phase-1 completion claims, the following integrated readiness checks are mandatory:
+
+- `make phase1-full`
+- `cargo test -p tests phase1_full_readiness_surface_is_consistent`
+- `cargo test -p tests vm_phase1_execution_is_deterministic_across_replays`
+- `cargo test -p tests block_production_is_deterministic_for_permuted_body_sections`
+- `cargo test -p tests fork_choice_accepts_equal_height_siblings_with_deterministic_tiebreak`
+
+`phase1_full_readiness_surface_is_consistent` is the umbrella regression proving that
+deterministic block construction, deterministic equal-height fork-choice selection,
+and deterministic AOXCVM phase-1 replay behavior hold together in one control flow.
+
+## Phase-2 Full Crypto/Key Closure Gate
+
+For Phase-2 completion claims, the following integrated crypto/key checks are mandatory:
+
+- `make phase2-full`
+- `cargo test -p tests phase2_full_crypto_key_surface_is_consistent`
+
+`phase2_full_crypto_key_surface_is_consistent` must verify, in one control flow:
+
+- signature verification admission behavior,
+- key rotation continuity constraints,
+- hybrid post-quantum policy enforcement,
+- domain-separated PQ signing and verification.
+
+## Phase-3 Full Network/Sync Closure Gate
+
+For Phase-3 completion claims, the following networking/synchronization checks are mandatory:
+
+- `make phase3-full`
+- `cargo test -p tests phase3_full_network_sync_surface_is_consistent`
+
+`phase3_full_network_sync_surface_is_consistent` must verify, in one control flow:
+
+- deterministic P2P discovery peer selection under observation/denylist updates,
+- mempool admission policy behavior (duplicate/spam rejection),
+- state sync snapshot persistence and restore consistency.
+
+## Phase-4 Full Data/State Security Closure Gate
+
+For Phase-4 completion claims, the following checks are mandatory:
+
+- `make phase4-full`
+- `cargo test -p tests phase4_data_state_security_surface_is_consistent`
+
+This phase must demonstrate:
+
+- state-root/body-commitment integrity rejection for tampered inputs,
+- reorg/finality stale-branch rejection behavior,
+- fail-closed snapshot corruption handling.
+
+## Phase-5 Full Operational Production Readiness Closure Gate
+
+For Phase-5 completion claims, the following checks are mandatory:
+
+- `make phase5-full`
+- `cargo test -p tests phase5_operational_readiness_surface_is_consistent`
+
+This phase must demonstrate:
+
+- metrics surface activity under network traffic,
+- health/readiness endpoint presence,
+- alert-rule artifact availability for operators.
+
+## Phase-6 Full Test and Attack Simulation Closure Gate
+
+For Phase-6 completion claims, the following checks are mandatory:
+
+- `make phase6-full`
+- `cargo test -p aoxcunity --test adversarial_consensus`
+- `cargo test -p aoxcunity --test kernel_fuzz_matrix`
+- `cargo test -p aoxcunity --test block_fuzz_latency`
+
+This phase must demonstrate:
+
+- byzantine and conflict-path resilience,
+- fuzz/property-style consensus and kernel hardening,
+- load/latency stability under sustained scenarios.
+
+## Phase-7 Full Testnet Launch Closure Gate
+
+For Phase-7 completion claims, the following checks are mandatory:
+
+- `make phase7-full`
+- `cargo test -p tests testnet_bundle_identity_is_cross_file_consistent`
+- `cargo test -p tests testnet_genesis_hash_and_policy_flags_match_release_gates`
+- `cargo test -p tests testnet_public_endpoints_and_topology_remain_transport_hardened`
+
+This phase must demonstrate:
+
+- genesis lock/hash integrity,
+- seed/validator/bootnode topology consistency,
+- canary-to-full rollout readiness on hardened public endpoints.

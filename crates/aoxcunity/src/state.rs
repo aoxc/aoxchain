@@ -112,7 +112,7 @@ impl ConsensusState {
 
         if let Some(head) = self.fork_choice.get_head()
             && let Some(head_meta) = self.fork_choice.get(head)
-            && block.header.height <= head_meta.height
+            && block.header.height < head_meta.height
             && block.header.parent_hash == head_meta.parent
         {
             return Err(ConsensusError::HeightRegression);
@@ -754,6 +754,29 @@ mod tests {
         assert_eq!(
             err.to_string(),
             ConsensusError::EquivocatingVote.to_string()
+        );
+    }
+
+    #[test]
+    fn admits_equal_height_sibling_and_keeps_deterministic_head() {
+        let mut state =
+            state_with_validators(vec![validator(1, 10, ValidatorRole::Validator, true)]);
+        let genesis = admit_genesis(&mut state, [1u8; 32]);
+
+        let child_low =
+            BlockBuilder::build(1, genesis.hash, 1, 0, 1, 2, [1u8; 32], BlockBody::default())
+                .unwrap();
+        let child_high =
+            BlockBuilder::build(1, genesis.hash, 1, 0, 2, 3, [1u8; 32], BlockBody::default())
+                .unwrap();
+
+        state.admit_block(child_low.clone()).unwrap();
+        state.admit_block(child_high.clone()).unwrap();
+
+        assert_eq!(
+            state.fork_choice.get_head(),
+            Some(child_low.hash.max(child_high.hash)),
+            "fork-choice head must remain deterministic for equal-height siblings",
         );
     }
 
