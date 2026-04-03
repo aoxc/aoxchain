@@ -108,3 +108,22 @@ To align with this roadmap, the repository now provides orchestration helpers un
 
 These wrappers are intentionally thin and defer operational logic to `make` targets
 and `aoxc` subcommands.
+
+## API and Control-Surface Completeness Matrix (Current Repository State)
+
+This section records the implemented status of user-facing control surfaces so operators
+can distinguish production-ready behavior from scaffolded or partial capabilities.
+
+| Surface | Current status | What is implemented now | Gaps / non-final areas |
+| --- | --- | --- | --- |
+| HTTP RPC (curl-consumable) | **Partial** | Health, metrics snapshot, quantum profile payload builders, and contract HTTP-style request/response handlers with validation and mapping logic. | No end-to-end HTTP router/listener wiring is defined in this document set; operators should treat this as API-domain implementation, not confirmed full deployment surface. |
+| gRPC | **Partial** | Server object and startup checks, query/tx service structs, admission checks, and deterministic response modeling. | Transport serving loop, full method catalog exposure, and network deployment hardening are not yet represented as complete runtime wiring here. |
+| WebSocket RPC | **Partial** | Event struct and deterministic JSON event formatting for confirmed-block notifications. | Subscription lifecycle, connection/session management, and streaming orchestration are not represented as complete production flow. |
+| AOXC CLI | **Broad but evolving** | Command routing spans chain/genesis/validator/wallet/account/node/network/tx/stake/doctor/audit and many compatibility aliases. | Command breadth is high, but not every command implies finalized mainnet-grade semantics; compatibility and behavior should be validated per command path. |
+| Chain query ergonomics | **Defined but not exhaustive** | CLI query-style commands (`chain-status`, `block-get`, `tx-get`, `balance-get`, `peer-list`, `rpc-status`) and typed query service responses exist. | Unified query contract/versioning and external RPC query parity still require explicit operator validation in each target environment. |
+
+### Operator interpretation rule
+
+Until full endpoint wiring and environment-level readiness evidence are published for each
+transport surface, treat HTTP/gRPC/WebSocket as **implemented modules with partial
+end-to-end closure**, not as an unconditional “fully complete” public API guarantee.
