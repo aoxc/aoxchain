@@ -139,12 +139,18 @@ NODE AND ECONOMY
   faucet-claim --account-id <id> [--amount <n>] [--auto-init] [--force]
   faucet-reset [--keep-config]
   runtime-status
+  chain-status
   consensus-status
   vm-status
-  block-get --height <latest|n>
+  block-get [--height <latest|n>] [--hash <hex>]
+  tx-get --hash <tx-hash>
+  tx-receipt --hash <tx-hash>
   account-get --id <account-id>
+  balance-get --id <account-id>
   peer-list
+  network-status
   state-root
+  metrics
   rpc-status
 
 VALIDATION AND AUDIT
