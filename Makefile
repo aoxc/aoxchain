@@ -257,6 +257,9 @@ endef
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
 	runtime-bundle-compat-check docker-check production-full \
+	phase1-full \
+	phase2-full \
+	phase3-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
 	demo localnet devnet testnet testnet-gate testnet-readiness-gate aoxcvm-phase3-gate reset doctor audit-chain logs down restart \
@@ -289,6 +292,9 @@ help:
 	@printf "  make audit\n"
 	@printf "  make quality\n\n"
 	@printf "  make production-full\n\n"
+	@printf "  make phase1-full\n\n"
+	@printf "  make phase2-full\n\n"
+	@printf "  make phase3-full\n\n"
 
 	@printf "Quick operator workflows\n"
 	@printf "  make demo\n"
@@ -871,6 +877,30 @@ production-full:
 	@$(MAKE) --no-print-directory aoxc-full-4nodes-docker
 	@$(MAKE) --no-print-directory db-health
 	@echo "Production-grade validation flow completed."
+
+phase1-full:
+	$(call print_banner,Running full phase-1 determinism validation flow)
+	@$(CARGO) test -p tests phase1_full_readiness_surface_is_consistent
+	@$(CARGO) test -p tests vm_phase1_execution_is_deterministic_across_replays
+	@$(CARGO) test -p tests block_production_is_deterministic_for_permuted_body_sections
+	@$(CARGO) test -p tests fork_choice_accepts_equal_height_siblings_with_deterministic_tiebreak
+	@$(CARGO) test -p aoxcmd consensus_profile_gate_status_reports_pass_for_hybrid_testnet
+	@$(CARGO) test -p aoxcunity
+	@echo "Phase-1 determinism validation flow completed."
+
+phase2-full:
+	$(call print_banner,Running full phase-2 crypto/key validation flow)
+	@$(CARGO) test -p tests phase2_full_crypto_key_surface_is_consistent
+	@$(CARGO) test -p aoxcunity add_signed_vote_accepts_valid_signature_end_to_end
+	@$(CARGO) test -p aoxcunity add_signed_vote_rejects_invalid_signature_end_to_end
+	@echo "Phase-2 crypto/key validation flow completed."
+
+phase3-full:
+	$(call print_banner,Running full phase-3 networking/sync validation flow)
+	@$(CARGO) test -p tests phase3_full_network_sync_surface_is_consistent
+	@$(CARGO) test -p tests resilience_harness_preserves_integrity_metadata_under_chaos
+	@$(CARGO) test -p tests testnet_bundle_identity_is_cross_file_consistent
+	@echo "Phase-3 networking/sync validation flow completed."
 
 # --------------------------------------------------------------------
 # Operations
