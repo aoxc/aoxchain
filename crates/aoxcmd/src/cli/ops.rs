@@ -37,6 +37,7 @@ const FAUCET_DAILY_LIMIT_PER_ACCOUNT: u64 = 50_000;
 const FAUCET_DAILY_GLOBAL_LIMIT: u64 = 1_000_000;
 const FAUCET_MIN_RESERVE_BALANCE: u64 = 100_000;
 const FAUCET_AUDIT_RETENTION_HOURS: i64 = 168;
+const TX_INDEX_FILE: &str = "tx-index.v1.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct FaucetClaimRecord {
@@ -82,6 +83,23 @@ struct FaucetClaimDecision {
     global_remaining: u64,
     next_eligible_claim_at: Option<u64>,
     denied_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TxIndex {
+    entries: BTreeMap<String, TxIndexEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TxIndexEntry {
+    tx_payload: String,
+    block_height: u64,
+    block_hash_hex: String,
+    execution_status: String,
+    gas_used: u64,
+    fee_paid: u64,
+    events: Vec<String>,
+    state_change_summary: String,
 }
 
 impl Default for FaucetState {
@@ -3333,8 +3351,8 @@ pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
         tx_hash: String,
         known: bool,
         block_height: u64,
-        execution_status: &'static str,
-        source: &'static str,
+        execution_status: String,
+        source: String,
     }
 
     let tx_hash = arg_value(args, "--hash")
@@ -3346,14 +3364,35 @@ pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
             )
         })?;
     let state = lifecycle::load_state()?;
-    let known = state.last_tx != "none" && tx_hash == state.last_tx;
+    let indexed = load_tx_index_entry(&tx_hash)?;
+    let known = indexed.is_some()
+        || (state.last_tx != "none" && tx_hash == state.last_tx)
+        || (state.last_tx != "none" && tx_hash == tx_hash_hex(&state.last_tx));
+
+    let (block_height, execution_status, source) = if let Some(entry) = indexed {
+        (
+            entry.block_height,
+            entry.execution_status,
+            "tx-index".to_string(),
+        )
+    } else {
+        (
+            state.current_height,
+            if known {
+                "applied".to_string()
+            } else {
+                "unknown".to_string()
+            },
+            "runtime-last-tx".to_string(),
+        )
+    };
 
     let tx = TxView {
         tx_hash,
         known,
-        block_height: state.current_height,
-        execution_status: if known { "applied" } else { "unknown" },
-        source: "runtime-last-tx",
+        block_height,
+        execution_status,
+        source,
     };
 
     emit_serialized(&tx, output_format(args))
@@ -3381,20 +3420,23 @@ pub fn cmd_tx_receipt(args: &[String]) -> Result<(), AppError> {
             )
         })?;
     let state = lifecycle::load_state()?;
-    let found = state.last_tx != "none" && tx_hash == state.last_tx;
+    let indexed = load_tx_index_entry(&tx_hash)?;
+    let found = indexed.is_some()
+        || (state.last_tx != "none" && tx_hash == state.last_tx)
+        || (state.last_tx != "none" && tx_hash == tx_hash_hex(&state.last_tx));
     let receipt = TxReceiptView {
         tx_hash,
         found,
         success: found,
-        gas_used: 0,
-        fee_paid: 0,
-        events: if found {
-            vec!["runtime_tx_applied".to_string()]
-        } else {
-            Vec::new()
-        },
+        gas_used: indexed.as_ref().map_or(0, |entry| entry.gas_used),
+        fee_paid: indexed.as_ref().map_or(0, |entry| entry.fee_paid),
+        events: indexed
+            .as_ref()
+            .map_or_else(|| if found { vec!["runtime_tx_applied".to_string()] } else { Vec::new() }, |entry| entry.events.clone()),
         logs: Vec::new(),
-        state_change_summary: if found {
+        state_change_summary: if let Some(entry) = indexed {
+            entry.state_change_summary
+        } else if found {
             "local runtime marker updated".to_string()
         } else {
             "receipt not found".to_string()
@@ -4364,7 +4406,7 @@ mod tests {
         has_security_drill_artifact, locate_repo_artifact_dir, open_checklist_items,
         parse_network_profile, parse_positive_u64_arg, parse_required_or_default_text_arg,
         ports_are_shifted_consistently, readiness_markdown_report, rpc_http_get_probe,
-        rpc_jsonrpc_status_probe, surface_check, write_readiness_markdown_report,
+        rpc_jsonrpc_status_probe, surface_check, tx_hash_hex, write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use aoxcdata::BlockEnvelope;
