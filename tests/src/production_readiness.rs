@@ -20,9 +20,28 @@ use aoxcore::{
     },
 };
 use aoxcunity::{
-    BlockBody, ConsensusError, ConsensusState, LaneCommitment, LaneCommitmentSection, LaneType,
+    BlockBody, BlockSection, ConsensusError, ConsensusState, ExternalNetwork, ExternalProofRecord,
+    ExternalProofSection, ExternalProofType, LaneCommitment, LaneCommitmentSection, LaneType,
     Proposer, QuorumCertificate, QuorumThreshold, Validator, ValidatorRole, ValidatorRotation,
     Vote, VoteKind,
+};
+use aoxcvm::{
+    auth::{
+        envelope::{AuthEnvelope, SignatureEntry},
+        scheme::SignatureAlgorithm,
+    },
+    context::{
+        block::BlockContext, call::CallContext, environment::EnvironmentContext,
+        execution::ExecutionContext, origin::OriginContext, tx::TxContext,
+    },
+    tx::{envelope::TxEnvelope, fee::FeeBudget, kind::TxKind, payload::TxPayload},
+    vm::{
+        machine::{Instruction, Program},
+        phase1::{
+            BasicAuthVerifier, BasicObjectVerifier, ExecutionContract, InMemoryHost, VmSpec,
+            execute,
+        },
+    },
 };
 use ed25519_dalek::SigningKey;
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -147,6 +166,93 @@ fn finalized_consensus_rejects_votes_from_conflicting_branch() {
         .add_vote(stale_vote)
         .expect_err("vote on conflicting branch must be rejected after finality");
     assert!(matches!(error, ConsensusError::StaleVote));
+}
+
+#[test]
+fn block_production_is_deterministic_for_permuted_body_sections() {
+    let proposer = Proposer::new(2626, [7u8; 32]);
+
+    let lane = BlockSection::LaneCommitment(LaneCommitmentSection {
+        lanes: vec![LaneCommitment {
+            lane_id: 7,
+            lane_type: LaneType::Native,
+            tx_count: 2,
+            input_root: [1u8; 32],
+            output_root: [2u8; 32],
+            receipt_root: [3u8; 32],
+            state_commitment: [4u8; 32],
+            proof_commitment: [5u8; 32],
+        }],
+    });
+    let proof = BlockSection::ExternalProof(ExternalProofSection {
+        proofs: vec![ExternalProofRecord {
+            source_network: ExternalNetwork::Bitcoin,
+            proof_type: ExternalProofType::Finality,
+            subject_hash: [6u8; 32],
+            proof_commitment: [8u8; 32],
+            finalized_at: 1_800_000_010,
+        }],
+    });
+
+    let a = proposer
+        .propose(
+            [0u8; 32],
+            1,
+            0,
+            1,
+            1_800_000_000,
+            BlockBody {
+                sections: vec![lane.clone(), proof.clone()],
+            },
+        )
+        .expect("first block should build");
+    let b = proposer
+        .propose(
+            [0u8; 32],
+            1,
+            0,
+            1,
+            1_800_000_000,
+            BlockBody {
+                sections: vec![proof, lane],
+            },
+        )
+        .expect("second block should build");
+
+    assert_eq!(a.hash, b.hash);
+    assert_eq!(a.header.body_root, b.header.body_root);
+}
+
+#[test]
+fn fork_choice_accepts_equal_height_siblings_with_deterministic_tiebreak() {
+    let validators = [[1u8; 32], [2u8; 32], [3u8; 32]]
+        .into_iter()
+        .map(|secret| {
+            let key = SigningKey::from_bytes(&secret);
+            Validator::new(key.verifying_key().to_bytes(), 1, ValidatorRole::Validator)
+        })
+        .collect::<Vec<_>>();
+    let rotation = ValidatorRotation::new(validators).expect("validator rotation");
+    let mut consensus = ConsensusState::new(rotation, QuorumThreshold::two_thirds());
+
+    let genesis = build_block([0u8; 32], 1, 1, [9u8; 32]);
+    consensus
+        .admit_block(genesis.clone())
+        .expect("genesis should admit");
+
+    let sibling_a = build_block(genesis.hash, 2, 2, [9u8; 32]);
+    let sibling_b = build_block(genesis.hash, 2, 3, [9u8; 32]);
+    consensus
+        .admit_block(sibling_a.clone())
+        .expect("first sibling should admit");
+    consensus
+        .admit_block(sibling_b.clone())
+        .expect("second sibling should admit");
+
+    assert_eq!(
+        consensus.fork_choice.get_head(),
+        Some(sibling_a.hash.max(sibling_b.hash))
+    );
 }
 
 #[test]

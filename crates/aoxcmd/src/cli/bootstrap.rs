@@ -271,6 +271,16 @@ struct ConsensusProfileAuditReport {
     blockers: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ConsensusProfileGateStatus {
+    pub passed: bool,
+    pub detail: String,
+    pub verdict: String,
+    pub blockers: Vec<String>,
+    pub profile: String,
+    pub genesis_path: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EnvironmentProfile {
     Mainnet,
@@ -874,6 +884,46 @@ pub fn cmd_consensus_profile_audit(args: &[String]) -> Result<(), AppError> {
     }
 
     emit_serialized(&report, output_format(args))
+}
+
+pub fn consensus_profile_gate_status(
+    genesis_override: Option<&Path>,
+    profile_override: Option<&str>,
+) -> Result<ConsensusProfileGateStatus, String> {
+    let profile_input = profile_override
+        .map(str::to_string)
+        .or_else(|| load().ok().map(|settings| settings.profile))
+        .unwrap_or_else(|| "validation".to_string());
+    let profile = EnvironmentProfile::parse(&profile_input)
+        .map_err(|error| format!("invalid profile `{profile_input}`: {error}"))?;
+
+    let path = if let Some(path) = genesis_override {
+        path.to_path_buf()
+    } else {
+        genesis_path().map_err(|error| format!("failed to resolve genesis path: {error}"))?
+    };
+    let path_display = path.display().to_string();
+
+    let raw = read_file(&path)
+        .map_err(|error| format!("failed to read genesis `{path_display}`: {error}"))?;
+    let genesis = serde_json::from_str::<BootstrapGenesisDocument>(&raw)
+        .map_err(|error| format!("failed to decode genesis `{path_display}`: {error}"))?;
+
+    let report = evaluate_consensus_profile_audit(&genesis, profile, path_display.clone());
+    let passed = report.blockers.is_empty();
+    let detail = format!(
+        "profile={}, consensus_profile={}, score={}, verdict={}",
+        report.profile, report.consensus_identity_profile, report.score, report.verdict
+    );
+
+    Ok(ConsensusProfileGateStatus {
+        passed,
+        detail,
+        verdict: report.verdict.to_string(),
+        blockers: report.blockers,
+        profile: report.profile,
+        genesis_path: path_display,
+    })
 }
 
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
@@ -2105,8 +2155,12 @@ mod tests {
     use super::{
         BootstrapBootnodeRecord, BootstrapBootnodesDocument, BootstrapValidatorBindingRecord,
         BootstrapValidatorBindingsDocument, CanonicalIdentity, EnvironmentProfile,
-        derive_short_fingerprint, evaluate_consensus_profile_audit, upsert_bootnode_binding,
-        upsert_validator_binding,
+        consensus_profile_gate_status, derive_short_fingerprint, evaluate_consensus_profile_audit,
+        upsert_bootnode_binding, upsert_validator_binding,
+    };
+    use std::{
+        env, fs,
+        time::{SystemTime, UNIX_EPOCH},
     };
 
     fn canonical_identity() -> CanonicalIdentity {
@@ -2246,5 +2300,29 @@ mod tests {
 
         assert_eq!(report.verdict, "pass");
         assert!(report.blockers.is_empty());
+    }
+
+    #[test]
+    fn consensus_profile_gate_status_reports_pass_for_hybrid_testnet() {
+        let genesis = EnvironmentProfile::Testnet.genesis_document();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time should be monotonic")
+            .as_nanos();
+        let path = env::temp_dir().join(format!("aoxc-bootstrap-gate-{unique}.json"));
+        fs::write(
+            &path,
+            serde_json::to_string(&genesis).expect("genesis should encode"),
+        )
+        .expect("genesis file should write");
+
+        let status = consensus_profile_gate_status(Some(&path), Some("testnet"))
+            .expect("gate status should evaluate");
+
+        assert!(status.passed);
+        assert_eq!(status.verdict, "pass");
+        assert!(status.detail.contains("consensus_profile=hybrid"));
+
+        let _ = fs::remove_file(path);
     }
 }
