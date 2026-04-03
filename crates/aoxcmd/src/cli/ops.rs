@@ -86,6 +86,25 @@ struct FullSurfaceReadiness {
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
+struct SurfaceGateFailure {
+    surface: String,
+    check: String,
+    code: String,
+    detail: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct FullSurfaceGateReport {
+    profile: String,
+    enforced: bool,
+    passed: bool,
+    overall_status: String,
+    overall_score: u8,
+    failure_count: usize,
+    failures: Vec<SurfaceGateFailure>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
 struct PlatformLevelScore {
     profile: String,
     mainnet_readiness_score: u8,
@@ -264,6 +283,54 @@ pub fn cmd_full_surface_readiness(args: &[String]) -> Result<(), AppError> {
     }
 
     emit_serialized(&full, output_format(args))
+}
+
+pub fn cmd_full_surface_gate(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_ops()?;
+    let key_summary = crate::keys::manager::inspect_operator_key().ok();
+    let genesis_ok = crate::cli::bootstrap::genesis_ready();
+    let node_ok = lifecycle::load_state().is_ok();
+
+    let mainnet = evaluate_profile_readiness(
+        "mainnet",
+        &settings,
+        settings.validate().err(),
+        key_summary
+            .as_ref()
+            .map(|summary| summary.operational_state.as_str()),
+        genesis_ok,
+        node_ok,
+    );
+    let full = evaluate_full_surface_readiness(&settings, &mainnet);
+    let failures = collect_surface_gate_failures(&full);
+
+    let report = FullSurfaceGateReport {
+        profile: settings.profile.clone(),
+        enforced: has_flag(args, "--enforce"),
+        passed: failures.is_empty(),
+        overall_status: full.overall_status.to_string(),
+        overall_score: full.overall_score,
+        failure_count: failures.len(),
+        failures,
+    };
+
+    if report.enforced && !report.passed {
+        let codes = report
+            .failures
+            .iter()
+            .map(|failure| failure.code.clone())
+            .collect::<Vec<_>>()
+            .join(",");
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            format!(
+                "Full-surface gate enforcement failed with {} failing checks [{}]",
+                report.failure_count, codes
+            ),
+        ));
+    }
+
+    emit_serialized(&report, output_format(args))
 }
 
 pub fn cmd_level_score(args: &[String]) -> Result<(), AppError> {
@@ -1153,6 +1220,40 @@ fn build_surface(
         evidence,
         checks,
     }
+}
+
+fn collect_surface_gate_failures(readiness: &FullSurfaceReadiness) -> Vec<SurfaceGateFailure> {
+    let mut failures = Vec::new();
+
+    for surface in &readiness.surfaces {
+        for check in &surface.checks {
+            if check.passed {
+                continue;
+            }
+            failures.push(SurfaceGateFailure {
+                surface: surface.surface.to_string(),
+                check: check.name.to_string(),
+                code: gate_failure_code(surface.surface, check.name),
+                detail: check.detail.clone(),
+            });
+        }
+    }
+
+    failures
+}
+
+fn gate_failure_code(surface: &str, check: &str) -> String {
+    let surface_token = surface
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect::<String>()
+        .to_ascii_uppercase();
+    let check_token = check
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect::<String>()
+        .to_ascii_uppercase();
+    format!("AOXC_GATE_{}_{}", surface_token, check_token)
 }
 
 fn readiness_check(
@@ -2331,8 +2432,9 @@ fn normalize_text(value: &str, lowercase: bool) -> Option<String> {
 #[allow(clippy::items_after_test_module)]
 mod tests {
     use super::{
-        build_surface, compare_aoxhub_network_profiles, compare_embedded_network_profiles,
-        evaluate_full_surface_readiness, evaluate_profile_readiness, full_surface_markdown_report,
+        build_surface, collect_surface_gate_failures, compare_aoxhub_network_profiles,
+        compare_embedded_network_profiles, evaluate_full_surface_readiness,
+        evaluate_profile_readiness, full_surface_markdown_report, gate_failure_code,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_release_provenance_bundle,
         has_security_drill_artifact, locate_repo_artifact_dir, open_checklist_items,
@@ -2684,6 +2786,15 @@ mod tests {
                 .iter()
                 .any(|surface| surface.surface == "telemetry")
         );
+
+        let failures = collect_surface_gate_failures(&full);
+        for failure in failures {
+            assert!(
+                failure.code.starts_with("AOXC_GATE_"),
+                "unexpected gate code: {}",
+                failure.code
+            );
+        }
     }
 
     #[test]
