@@ -1139,19 +1139,25 @@ mod tests {
     }
 
     #[test]
-    fn height_regression_marks_stale_branch_reactivation_invariant() {
+    fn equal_height_sibling_admission_preserves_live_fork_tracking() {
         let mut engine = engine();
         let genesis = make_block([0u8; 32], 0, [1u8; 32], 0);
         let canonical = make_block(genesis.hash, 1, [2u8; 32], 1);
         let conflicting = make_block(genesis.hash, 1, [3u8; 32], 1);
+        let canonical_hash = canonical.hash;
+        let conflicting_hash = conflicting.hash;
 
         let _ = engine.apply_event(ConsensusEvent::AdmitBlock(genesis));
         let _ = engine.apply_event(ConsensusEvent::AdmitBlock(canonical));
 
         let result = engine.apply_event(ConsensusEvent::AdmitBlock(conflicting));
 
-        assert_eq!(result.rejected_reason, Some(KernelRejection::StaleArtifact));
-        assert!(result.invariant_status.stale_branch_reactivated);
+        assert_eq!(result.rejected_reason, None);
+        assert!(!result.invariant_status.stale_branch_reactivated);
+        assert_eq!(
+            engine.state.fork_choice.get_head(),
+            Some(canonical_hash.max(conflicting_hash))
+        );
     }
 
     #[test]
