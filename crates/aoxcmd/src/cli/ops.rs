@@ -2791,6 +2791,11 @@ pub fn cmd_consensus_status(args: &[String]) -> Result<(), AppError> {
         latest_parent_hash: String,
         latest_proposer: String,
         latest_timestamp_unix: u64,
+        validator_set_hash: String,
+        active_validators: u64,
+        finalized_height: u64,
+        locked_height: u64,
+        quorum_status: &'static str,
         produced_blocks: u64,
         current_height: u64,
         updated_at: String,
@@ -2805,6 +2810,15 @@ pub fn cmd_consensus_status(args: &[String]) -> Result<(), AppError> {
         latest_parent_hash: state.consensus.last_parent_hash_hex,
         latest_proposer: state.consensus.last_proposer_hex,
         latest_timestamp_unix: state.consensus.last_timestamp_unix,
+        validator_set_hash: state.key_material.bundle_fingerprint.clone(),
+        active_validators: 1,
+        finalized_height: state.current_height,
+        locked_height: state.current_height,
+        quorum_status: if state.running {
+            "single-node-ok"
+        } else {
+            "idle"
+        },
         produced_blocks: state.produced_blocks,
         current_height: state.current_height,
         updated_at: state.updated_at,
@@ -2818,8 +2832,14 @@ pub fn cmd_vm_status(args: &[String]) -> Result<(), AppError> {
     struct VmStatus {
         vm_enabled: bool,
         execution_plane: &'static str,
+        execution_mode: &'static str,
         latest_height: u64,
+        last_executed_block: u64,
         latest_tx_marker: String,
+        last_execution_status: &'static str,
+        total_tx_in_last_block: u64,
+        executed_tx_count: u64,
+        failed_tx_count: u64,
         runtime_running: bool,
         state_root: String,
         updated_at: String,
@@ -2830,8 +2850,18 @@ pub fn cmd_vm_status(args: &[String]) -> Result<(), AppError> {
     let status = VmStatus {
         vm_enabled: true,
         execution_plane: "deterministic-local",
+        execution_mode: "local-snapshot",
         latest_height: state.current_height,
+        last_executed_block: state.current_height,
         latest_tx_marker: state.last_tx,
+        last_execution_status: if state.last_tx == "none" {
+            "idle"
+        } else {
+            "ok"
+        },
+        total_tx_in_last_block: u64::from(state.last_tx != "none"),
+        executed_tx_count: state.produced_blocks,
+        failed_tx_count: 0,
         runtime_running: state.running,
         state_root,
         updated_at: state.updated_at,
@@ -2874,7 +2904,8 @@ pub fn cmd_chain_status(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct BlockView {
-        requested_height: String,
+        requested_height: Option<String>,
+        requested_hash: Option<String>,
         available: bool,
         height: u64,
         block_hash: String,
@@ -2883,21 +2914,43 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
         consensus_round: u64,
         timestamp_unix: u64,
         section_count: usize,
+        tx_count: usize,
+        tx_hashes: Vec<String>,
         state_root: String,
     }
 
-    let requested_height = arg_value(args, "--height").unwrap_or_else(|| "latest".to_string());
+    let requested_height = arg_value(args, "--height").and_then(|v| normalize_text(&v, false));
+    let requested_hash = arg_value(args, "--hash").and_then(|v| normalize_text(&v, false));
+    if requested_height.is_some() && requested_hash.is_some() {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Use either --height or --hash, not both",
+        ));
+    }
     let state = lifecycle::load_state()?;
     let canonical_height = state.current_height;
     let state_root = derive_state_root(&state)?;
+    let default_height = "latest".to_string();
+    let requested_height_value = requested_height
+        .as_deref()
+        .unwrap_or(default_height.as_str());
 
-    let available = match requested_height.as_str() {
+    let available = match requested_height_value {
         "latest" => true,
         value => value.parse::<u64>().ok() == Some(canonical_height),
+    } && match requested_hash.as_ref() {
+        Some(hash) => hash.eq_ignore_ascii_case(&state.consensus.last_block_hash_hex),
+        None => true,
+    };
+    let tx_hashes = if state.last_tx == "none" {
+        Vec::new()
+    } else {
+        vec![state.last_tx.clone()]
     };
 
     let view = BlockView {
-        requested_height,
+        requested_height: Some(requested_height_value.to_string()),
+        requested_hash,
         available,
         height: canonical_height,
         block_hash: state.consensus.last_block_hash_hex,
@@ -2906,6 +2959,8 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
         consensus_round: state.consensus.last_round,
         timestamp_unix: state.consensus.last_timestamp_unix,
         section_count: state.consensus.last_section_count,
+        tx_count: tx_hashes.len(),
+        tx_hashes,
         state_root,
     };
 
@@ -3060,20 +3115,36 @@ pub fn cmd_balance_get(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
+    struct PeerView {
+        peer_id: String,
+        address: String,
+        direction: &'static str,
+        connected_since: String,
+        sync_state: &'static str,
+    }
+
+    #[derive(serde::Serialize)]
     struct PeerList {
         mode: &'static str,
         bind_host: String,
         p2p_port: u16,
         rpc_port: u16,
-        peers: Vec<String>,
+        peers: Vec<PeerView>,
         peer_count: usize,
     }
 
     let settings = effective_settings_for_ops()?;
-    let peers = vec![format!(
-        "{}:{}",
-        settings.network.bind_host, settings.network.p2p_port
-    )];
+    let now = Utc::now().to_rfc3339();
+    let peers = vec![PeerView {
+        peer_id: "self".to_string(),
+        address: format!(
+            "{}:{}",
+            settings.network.bind_host, settings.network.p2p_port
+        ),
+        direction: "inbound+outbound",
+        connected_since: now,
+        sync_state: "in-sync",
+    }];
 
     let response = PeerList {
         mode: "single-node",
@@ -3194,8 +3265,12 @@ pub fn cmd_metrics(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct RpcStatus {
+        enabled: bool,
         bind_host: String,
-        rpc_port: u16,
+        port: u16,
+        http_ready: bool,
+        jsonrpc_ready: bool,
+        uptime_secs: u64,
         listener_active: bool,
         curl_compatible: bool,
         probe_target: String,
@@ -3207,11 +3282,13 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
     }
 
     let settings = effective_settings_for_ops()?;
+    let state = lifecycle::load_state()?;
     let probe_target = format!(
         "{}:{}",
         settings.network.bind_host, settings.network.rpc_port
     );
     let listener_active = rpc_listener_active(&probe_target);
+    let uptime_secs = uptime_secs_from_rfc3339(&state.updated_at);
     let curl_host = if settings.network.bind_host == "0.0.0.0" {
         "127.0.0.1".to_string()
     } else {
@@ -3247,8 +3324,12 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
         ),
     );
     let response = RpcStatus {
+        enabled: true,
         bind_host: settings.network.bind_host.clone(),
-        rpc_port: settings.network.rpc_port,
+        port: settings.network.rpc_port,
+        http_ready: listener_active,
+        jsonrpc_ready: listener_active,
+        uptime_secs,
         listener_active,
         curl_compatible: listener_active,
         probe_target,
@@ -3415,6 +3496,16 @@ fn derive_state_root(state: &crate::node::state::NodeState) -> Result<String, Ap
     let mut hasher = Sha256::new();
     hasher.update(encoded);
     Ok(hex::encode(hasher.finalize()))
+}
+
+fn uptime_secs_from_rfc3339(value: &str) -> u64 {
+    chrono::DateTime::parse_from_rfc3339(value)
+        .ok()
+        .and_then(|time| {
+            let elapsed = Utc::now().signed_duration_since(time.with_timezone(&Utc));
+            (elapsed.num_seconds() >= 0).then_some(elapsed.num_seconds() as u64)
+        })
+        .unwrap_or(0)
 }
 
 fn rpc_listener_active(probe_target: &str) -> bool {

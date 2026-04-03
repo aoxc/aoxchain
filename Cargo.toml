@@ -65,10 +65,10 @@ pqcrypto-traits = "0.3.5"
 rand = "0.10"
 serde_yaml = "0.9.34"
 redb = "4.0.0"
-axum = { version = "0.8.6", features = ["json", "macros"] }
-clap = { version = "4.5.53", features = ["derive", "env"] }
-tower = { version = "0.5.2", features = ["limit", "timeout", "util"] }
-tower-http = { version = "0.6.6", features = ["trace"] }
+axum = { version = "0.8.8", features = ["json", "macros"] }
+clap = { version = "4.6.0", features = ["derive", "env"] }
+tower = { version = "0.5.3", features = ["limit", "timeout", "util"] }
+tower-http = { version = "0.6.8", features = ["trace"] }
 async-stream = "0.3.6"
 futures-core = "0.3.32"
 
