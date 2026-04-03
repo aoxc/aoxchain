@@ -17,7 +17,6 @@ use aoxcunity::{
     LaneType, Proposer,
 };
 use sha3::{Digest, Sha3_256};
-use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
