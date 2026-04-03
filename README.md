@@ -62,7 +62,6 @@ make build
 make test
 make quality
 make audit
-make os-compat-gate
 make quantum-readiness-gate
 make quantum-full
 ```
