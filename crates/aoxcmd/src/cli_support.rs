@@ -128,8 +128,14 @@ NODE AND ECONOMY
   stake-delegate
   stake-undelegate
   economy-status
-  faucet-status
-  faucet-config [--enable|--disable] [--max-claim-amount <n>] [--cooldown-secs <n>] [--daily-limit-per-account <n>]
+  faucet-status [--account-id <id>]
+  faucet-history --account-id <id>
+  faucet-balance
+  faucet-enable
+  faucet-disable
+  faucet-config-show
+  faucet-audit
+  faucet-config [--enable|--disable] [--max-claim-amount <n>] [--cooldown-secs <n>] [--daily-limit-per-account <n>] [--daily-global-limit <n>] [--min-reserve-balance <n>] [--ban-account <id>] [--unban-account <id>] [--allow-account <id>] [--disallow-account <id>]
   faucet-claim --account-id <id> [--amount <n>] [--auto-init] [--force]
   faucet-reset [--keep-config]
   runtime-status

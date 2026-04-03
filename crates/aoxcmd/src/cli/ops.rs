@@ -32,22 +32,42 @@ use std::{
 const FAUCET_MAX_CLAIM_AMOUNT: u64 = 10_000;
 const FAUCET_COOLDOWN_SECS: u64 = 3_600;
 const FAUCET_DAILY_LIMIT_PER_ACCOUNT: u64 = 50_000;
+const FAUCET_DAILY_GLOBAL_LIMIT: u64 = 1_000_000;
+const FAUCET_MIN_RESERVE_BALANCE: u64 = 100_000;
+const FAUCET_AUDIT_RETENTION_HOURS: i64 = 168;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct FaucetClaimRecord {
     account_id: String,
     amount: u64,
-    timestamp_unix: u64,
-    tx_id: String,
+    #[serde(alias = "timestamp_unix")]
+    claimed_at: u64,
+    #[serde(alias = "tx_id")]
+    tx_hash: String,
+    status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct FaucetAuditRecord {
+    at_unix: u64,
+    action: String,
+    actor: String,
+    detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 struct FaucetState {
     enabled: bool,
     max_claim_amount: u64,
     cooldown_secs: u64,
     daily_limit_per_account: u64,
+    daily_global_limit: u64,
+    min_reserve_balance: u64,
     claims: Vec<FaucetClaimRecord>,
+    banned_accounts: Vec<String>,
+    allowlisted_accounts: Vec<String>,
+    audit_log: Vec<FaucetAuditRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -56,6 +76,9 @@ struct FaucetClaimDecision {
     cooldown_remaining_secs: u64,
     claimed_last_24h: u64,
     daily_remaining: u64,
+    global_distributed_last_24h: u64,
+    global_remaining: u64,
+    next_eligible_claim_at: Option<u64>,
     denied_reason: Option<String>,
 }
 
@@ -66,7 +89,12 @@ impl Default for FaucetState {
             max_claim_amount: FAUCET_MAX_CLAIM_AMOUNT,
             cooldown_secs: FAUCET_COOLDOWN_SECS,
             daily_limit_per_account: FAUCET_DAILY_LIMIT_PER_ACCOUNT,
+            daily_global_limit: FAUCET_DAILY_GLOBAL_LIMIT,
+            min_reserve_balance: FAUCET_MIN_RESERVE_BALANCE,
             claims: Vec::new(),
+            banned_accounts: Vec::new(),
+            allowlisted_accounts: Vec::new(),
+            audit_log: Vec::new(),
         }
     }
 }
@@ -2374,30 +2402,42 @@ pub fn cmd_economy_status(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_faucet_status(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct FaucetStatus {
+        enabled: bool,
+        network_kind: String,
+        treasury_balance: u64,
+        total_distributed_today: u64,
+        claims_today: usize,
+        account_remaining_allowance: Option<u64>,
+        next_eligible_claim_time: Option<u64>,
         faucet: FaucetState,
-        claims_last_24h: usize,
-        unique_accounts_last_24h: usize,
-        latest_claim_at_unix: Option<u64>,
     }
 
     let now_unix = now_unix_secs()?;
-    let state = load_faucet_state()?;
+    let account_id = parse_optional_text_arg(args, "--account-id", false);
+    let settings = effective_settings_for_ops()?;
+    let mut state = load_faucet_state()?;
+    prune_faucet_history(&mut state, now_unix);
     let day_ago = now_unix.saturating_sub(24 * 60 * 60);
     let recent: Vec<&FaucetClaimRecord> = state
         .claims
         .iter()
-        .filter(|record| record.timestamp_unix >= day_ago)
+        .filter(|record| record.claimed_at >= day_ago)
         .collect();
+    let total_distributed_today = recent.iter().map(|record| record.amount).sum::<u64>();
 
-    let mut unique_accounts = std::collections::BTreeSet::new();
-    for record in &recent {
-        unique_accounts.insert(record.account_id.clone());
-    }
+    let decision = account_id
+        .as_ref()
+        .map(|id| evaluate_faucet_claim(&state, id, 1, now_unix, false, None, &settings.profile));
+    let ledger_state = ledger::load().unwrap_or_default();
 
     let response = FaucetStatus {
-        latest_claim_at_unix: state.claims.last().map(|record| record.timestamp_unix),
-        claims_last_24h: recent.len(),
-        unique_accounts_last_24h: unique_accounts.len(),
+        enabled: state.enabled,
+        network_kind: settings.profile,
+        treasury_balance: ledger_state.treasury_balance,
+        total_distributed_today,
+        claims_today: recent.len(),
+        account_remaining_allowance: decision.as_ref().map(|d| d.daily_remaining),
+        next_eligible_claim_time: decision.and_then(|d| d.next_eligible_claim_at),
         faucet: state,
     };
 
@@ -2406,30 +2446,90 @@ pub fn cmd_faucet_status(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_faucet_config(args: &[String]) -> Result<(), AppError> {
     let mut state = load_faucet_state()?;
+    let now_unix = now_unix_secs()?;
+    let mut changed = false;
 
     if has_flag(args, "--enable") {
         state.enabled = true;
+        changed = true;
     }
     if has_flag(args, "--disable") {
         state.enabled = false;
+        changed = true;
     }
 
     if let Some(amount) = arg_value(args, "--max-claim-amount") {
         state.max_claim_amount =
             parse_positive_u64_value(&amount, "--max-claim-amount", "faucet config")?;
+        changed = true;
     }
 
     if let Some(cooldown_secs) = arg_value(args, "--cooldown-secs") {
         state.cooldown_secs =
             parse_positive_u64_value(&cooldown_secs, "--cooldown-secs", "faucet config")?;
+        changed = true;
     }
 
     if let Some(limit) = arg_value(args, "--daily-limit-per-account") {
         state.daily_limit_per_account =
             parse_positive_u64_value(&limit, "--daily-limit-per-account", "faucet config")?;
+        changed = true;
     }
 
-    prune_faucet_history(&mut state, now_unix_secs()?);
+    if let Some(limit) = arg_value(args, "--daily-global-limit") {
+        state.daily_global_limit =
+            parse_positive_u64_value(&limit, "--daily-global-limit", "faucet config")?;
+        changed = true;
+    }
+
+    if let Some(balance) = arg_value(args, "--min-reserve-balance") {
+        state.min_reserve_balance =
+            parse_positive_u64_value(&balance, "--min-reserve-balance", "faucet config")?;
+        changed = true;
+    }
+
+    if let Some(account) = parse_optional_text_arg(args, "--ban-account", true) {
+        if !state.banned_accounts.contains(&account) {
+            state.banned_accounts.push(account.clone());
+            state.banned_accounts.sort();
+            changed = true;
+        }
+    }
+
+    if let Some(account) = parse_optional_text_arg(args, "--unban-account", true) {
+        let initial_len = state.banned_accounts.len();
+        state
+            .banned_accounts
+            .retain(|existing| existing != &account);
+        changed = changed || initial_len != state.banned_accounts.len();
+    }
+
+    if let Some(account) = parse_optional_text_arg(args, "--allow-account", true) {
+        if !state.allowlisted_accounts.contains(&account) {
+            state.allowlisted_accounts.push(account.clone());
+            state.allowlisted_accounts.sort();
+            changed = true;
+        }
+    }
+
+    if let Some(account) = parse_optional_text_arg(args, "--disallow-account", true) {
+        let initial_len = state.allowlisted_accounts.len();
+        state
+            .allowlisted_accounts
+            .retain(|existing| existing != &account);
+        changed = changed || initial_len != state.allowlisted_accounts.len();
+    }
+
+    prune_faucet_history(&mut state, now_unix);
+    if changed {
+        append_faucet_audit(
+            &mut state,
+            "config-update",
+            "operator-cli",
+            "Faucet configuration updated via CLI",
+            now_unix,
+        );
+    }
     persist_faucet_state(&state)?;
     emit_serialized(&state, output_format(args))
 }
@@ -2437,12 +2537,15 @@ pub fn cmd_faucet_config(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_faucet_claim(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct FaucetClaimResponse {
-        tx_id: String,
+        tx_hash: String,
+        status: &'static str,
         account_id: String,
         amount: u64,
         claimed_last_24h: u64,
         daily_remaining: u64,
+        global_remaining: u64,
         cooldown_remaining_secs: u64,
+        next_eligible_claim_at: Option<u64>,
         claims_total: usize,
         automation_hint: &'static str,
         ledger: crate::economy::ledger::LedgerState,
@@ -2453,8 +2556,10 @@ pub fn cmd_faucet_claim(args: &[String]) -> Result<(), AppError> {
     let force = has_flag(args, "--force");
     let auto_init = has_flag(args, "--auto-init");
     let mut state = load_faucet_state()?;
+    let settings = effective_settings_for_ops()?;
     let now_unix = now_unix_secs()?;
     prune_faucet_history(&mut state, now_unix);
+    let mut ledger_snapshot = ledger::load().unwrap_or_default();
 
     if !state.enabled && !force {
         return Err(AppError::new(
@@ -2465,8 +2570,27 @@ pub fn cmd_faucet_claim(args: &[String]) -> Result<(), AppError> {
 
     let amount = parse_positive_u64_arg(args, "--amount", state.max_claim_amount, "faucet claim")?;
 
-    let decision = evaluate_faucet_claim(&state, &account_id, amount, now_unix, force);
+    let decision = evaluate_faucet_claim(
+        &state,
+        &account_id,
+        amount,
+        now_unix,
+        force,
+        Some(ledger_snapshot.treasury_balance),
+        &settings.profile,
+    );
     if !decision.allowed {
+        append_faucet_audit(
+            &mut state,
+            "claim-denied",
+            "operator-cli",
+            &decision
+                .denied_reason
+                .clone()
+                .unwrap_or_else(|| "Faucet claim denied".to_string()),
+            now_unix,
+        );
+        persist_faucet_state(&state)?;
         return Err(AppError::new(
             ErrorCode::PolicyGateFailed,
             decision
@@ -2488,21 +2612,33 @@ pub fn cmd_faucet_claim(args: &[String]) -> Result<(), AppError> {
     state.claims.push(FaucetClaimRecord {
         account_id: account_id.clone(),
         amount,
-        timestamp_unix: now_unix,
-        tx_id: tx_id.clone(),
+        claimed_at: now_unix,
+        tx_hash: tx_id.clone(),
+        status: "confirmed".to_string(),
     });
+    append_faucet_audit(
+        &mut state,
+        "claim-approved",
+        "operator-cli",
+        &format!("account_id={account_id} amount={amount} tx_hash={tx_id}"),
+        now_unix,
+    );
     persist_faucet_state(&state)?;
+    ledger_snapshot = ledger_result.clone();
 
     let response = FaucetClaimResponse {
-        tx_id,
+        tx_hash: tx_id,
+        status: "confirmed",
         account_id,
         amount,
         cooldown_remaining_secs: state.cooldown_secs,
         claimed_last_24h: decision.claimed_last_24h.saturating_add(amount),
         daily_remaining: decision.daily_remaining.saturating_sub(amount),
+        global_remaining: decision.global_remaining.saturating_sub(amount),
+        next_eligible_claim_at: Some(now_unix.saturating_add(state.cooldown_secs)),
         claims_total: state.claims.len(),
         automation_hint: "Use --format json for CI/CD scripts and --auto-init for first-run ephemeral homes.",
-        ledger: ledger_result,
+        ledger: ledger_snapshot,
     };
 
     emit_serialized(&response, output_format(args))
@@ -2510,6 +2646,7 @@ pub fn cmd_faucet_claim(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_faucet_reset(args: &[String]) -> Result<(), AppError> {
     let keep_config = has_flag(args, "--keep-config");
+    let now_unix = now_unix_secs()?;
     let state = if keep_config {
         let current = load_faucet_state()?;
         FaucetState {
@@ -2517,13 +2654,107 @@ pub fn cmd_faucet_reset(args: &[String]) -> Result<(), AppError> {
             max_claim_amount: current.max_claim_amount,
             cooldown_secs: current.cooldown_secs,
             daily_limit_per_account: current.daily_limit_per_account,
+            daily_global_limit: current.daily_global_limit,
+            min_reserve_balance: current.min_reserve_balance,
             claims: Vec::new(),
+            banned_accounts: current.banned_accounts,
+            allowlisted_accounts: current.allowlisted_accounts,
+            audit_log: current.audit_log,
         }
     } else {
         FaucetState::default()
     };
+    let mut state = state;
+    append_faucet_audit(
+        &mut state,
+        "reset",
+        "operator-cli",
+        "Faucet state reset via CLI",
+        now_unix,
+    );
     persist_faucet_state(&state)?;
     emit_serialized(&state, output_format(args))
+}
+
+pub fn cmd_faucet_history(args: &[String]) -> Result<(), AppError> {
+    let account_id =
+        parse_required_or_default_text_arg(args, "--account-id", "testnet-user", false)?;
+    let mut state = load_faucet_state()?;
+    prune_faucet_history(&mut state, now_unix_secs()?);
+    let claims = state
+        .claims
+        .into_iter()
+        .filter(|claim| claim.account_id == account_id)
+        .collect::<Vec<_>>();
+    emit_serialized(&claims, output_format(args))
+}
+
+pub fn cmd_faucet_balance(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct FaucetBalance {
+        treasury_balance: u64,
+        reserve_floor: u64,
+        available_for_faucet: u64,
+    }
+
+    let state = load_faucet_state()?;
+    let ledger = ledger::load().unwrap_or_default();
+    let response = FaucetBalance {
+        treasury_balance: ledger.treasury_balance,
+        reserve_floor: state.min_reserve_balance,
+        available_for_faucet: ledger
+            .treasury_balance
+            .saturating_sub(state.min_reserve_balance),
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_faucet_enable(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_ops()?;
+    if settings.profile == "mainnet" {
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            "Mainnet profile cannot enable faucet",
+        ));
+    }
+    let mut state = load_faucet_state()?;
+    state.enabled = true;
+    let now_unix = now_unix_secs()?;
+    append_faucet_audit(
+        &mut state,
+        "enabled",
+        "operator-cli",
+        "Faucet enabled",
+        now_unix,
+    );
+    persist_faucet_state(&state)?;
+    emit_serialized(&state, output_format(args))
+}
+
+pub fn cmd_faucet_disable(args: &[String]) -> Result<(), AppError> {
+    let mut state = load_faucet_state()?;
+    state.enabled = false;
+    let now_unix = now_unix_secs()?;
+    append_faucet_audit(
+        &mut state,
+        "disabled",
+        "operator-cli",
+        "Faucet disabled",
+        now_unix,
+    );
+    persist_faucet_state(&state)?;
+    emit_serialized(&state, output_format(args))
+}
+
+pub fn cmd_faucet_config_show(args: &[String]) -> Result<(), AppError> {
+    let state = load_faucet_state()?;
+    emit_serialized(&state, output_format(args))
+}
+
+pub fn cmd_faucet_audit(args: &[String]) -> Result<(), AppError> {
+    let mut state = load_faucet_state()?;
+    prune_faucet_history(&mut state, now_unix_secs()?);
+    emit_serialized(&state.audit_log, output_format(args))
 }
 
 pub fn cmd_runtime_status(args: &[String]) -> Result<(), AppError> {
@@ -2778,6 +3009,16 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
             "curl -fsS -H 'content-type: application/json' -d '{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"status\",\"params\":[]}}' {http_base_url}"
         ),
     );
+    curl_examples.insert(
+        "faucet-status",
+        format!("curl -fsS {http_base_url}/faucet/status"),
+    );
+    curl_examples.insert(
+        "faucet-claim",
+        format!(
+            "curl -fsS -X POST -H 'content-type: application/json' -d '{{\"account_id\":\"devnet-user\",\"amount\":1000}}' {http_base_url}/faucet/claim"
+        ),
+    );
     let response = RpcStatus {
         bind_host: settings.network.bind_host.clone(),
         rpc_port: settings.network.rpc_port,
@@ -2799,6 +3040,16 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
             "/network/peers",
             "/vm/status",
             "/state/root",
+            "/faucet/status",
+            "/faucet/claim",
+            "/faucet/history/{account_id}",
+            "/faucet/balance",
+            "/faucet/config",
+            "/faucet/enable",
+            "/faucet/disable",
+            "/faucet/ban",
+            "/faucet/unban",
+            "/faucet/config/update",
         ],
         json_rpc_methods: vec![
             "status",
@@ -3015,28 +3266,50 @@ fn evaluate_faucet_claim(
     amount: u64,
     now_unix: u64,
     force: bool,
+    treasury_balance: Option<u64>,
+    network_kind: &str,
 ) -> FaucetClaimDecision {
+    if network_kind == "mainnet" {
+        return FaucetClaimDecision {
+            allowed: false,
+            cooldown_remaining_secs: 0,
+            claimed_last_24h: 0,
+            daily_remaining: state.daily_limit_per_account,
+            global_distributed_last_24h: 0,
+            global_remaining: state.daily_global_limit,
+            next_eligible_claim_at: None,
+            denied_reason: Some("Mainnet profile does not allow faucet claims".to_string()),
+        };
+    }
+
     let day_ago = now_unix.saturating_sub(24 * 60 * 60);
     let relevant_claims: Vec<&FaucetClaimRecord> = state
         .claims
         .iter()
         .filter(|claim| claim.account_id == account_id)
         .collect();
+    let global_recent_claims: Vec<&FaucetClaimRecord> = state
+        .claims
+        .iter()
+        .filter(|claim| claim.claimed_at >= day_ago)
+        .collect();
 
     let claimed_last_24h = relevant_claims
         .iter()
-        .filter(|claim| claim.timestamp_unix >= day_ago)
+        .filter(|claim| claim.claimed_at >= day_ago)
         .map(|claim| claim.amount)
         .sum::<u64>();
 
+    let global_distributed_last_24h = global_recent_claims.iter().map(|claim| claim.amount).sum();
+
     let latest_claim = relevant_claims
         .iter()
-        .max_by_key(|claim| claim.timestamp_unix)
+        .max_by_key(|claim| claim.claimed_at)
         .copied();
 
     let cooldown_remaining_secs = latest_claim
         .map(|claim| {
-            let unlock_at = claim.timestamp_unix.saturating_add(state.cooldown_secs);
+            let unlock_at = claim.claimed_at.saturating_add(state.cooldown_secs);
             unlock_at.saturating_sub(now_unix)
         })
         .unwrap_or(0);
@@ -3044,6 +3317,14 @@ fn evaluate_faucet_claim(
     let daily_remaining = state
         .daily_limit_per_account
         .saturating_sub(claimed_last_24h);
+    let global_remaining = state
+        .daily_global_limit
+        .saturating_sub(global_distributed_last_24h);
+    let next_eligible_claim_at = if cooldown_remaining_secs > 0 {
+        Some(now_unix.saturating_add(cooldown_remaining_secs))
+    } else {
+        None
+    };
 
     if force {
         return FaucetClaimDecision {
@@ -3051,7 +3332,45 @@ fn evaluate_faucet_claim(
             cooldown_remaining_secs,
             claimed_last_24h,
             daily_remaining,
+            global_distributed_last_24h,
+            global_remaining,
+            next_eligible_claim_at,
             denied_reason: None,
+        };
+    }
+
+    if state
+        .banned_accounts
+        .iter()
+        .any(|entry| entry == account_id)
+    {
+        return FaucetClaimDecision {
+            allowed: false,
+            cooldown_remaining_secs,
+            claimed_last_24h,
+            daily_remaining,
+            global_distributed_last_24h,
+            global_remaining,
+            next_eligible_claim_at,
+            denied_reason: Some("Account is banned from faucet".to_string()),
+        };
+    }
+
+    if !state.allowlisted_accounts.is_empty()
+        && !state
+            .allowlisted_accounts
+            .iter()
+            .any(|entry| entry == account_id)
+    {
+        return FaucetClaimDecision {
+            allowed: false,
+            cooldown_remaining_secs,
+            claimed_last_24h,
+            daily_remaining,
+            global_distributed_last_24h,
+            global_remaining,
+            next_eligible_claim_at,
+            denied_reason: Some("Account is not in faucet allowlist".to_string()),
         };
     }
 
@@ -3061,6 +3380,9 @@ fn evaluate_faucet_claim(
             cooldown_remaining_secs,
             claimed_last_24h,
             daily_remaining,
+            global_distributed_last_24h,
+            global_remaining,
+            next_eligible_claim_at,
             denied_reason: Some(format!(
                 "Requested amount exceeds max claim amount (max={})",
                 state.max_claim_amount
@@ -3074,6 +3396,9 @@ fn evaluate_faucet_claim(
             cooldown_remaining_secs,
             claimed_last_24h,
             daily_remaining,
+            global_distributed_last_24h,
+            global_remaining,
+            next_eligible_claim_at,
             denied_reason: Some(format!(
                 "Cooldown is active; try again in {} seconds",
                 cooldown_remaining_secs
@@ -3087,9 +3412,46 @@ fn evaluate_faucet_claim(
             cooldown_remaining_secs,
             claimed_last_24h,
             daily_remaining,
+            global_distributed_last_24h,
+            global_remaining,
+            next_eligible_claim_at,
             denied_reason: Some(format!(
                 "Daily limit exceeded for account (limit={})",
                 state.daily_limit_per_account
+            )),
+        };
+    }
+
+    if global_distributed_last_24h.saturating_add(amount) > state.daily_global_limit {
+        return FaucetClaimDecision {
+            allowed: false,
+            cooldown_remaining_secs,
+            claimed_last_24h,
+            daily_remaining,
+            global_distributed_last_24h,
+            global_remaining,
+            next_eligible_claim_at,
+            denied_reason: Some(format!(
+                "Daily global faucet limit exceeded (limit={})",
+                state.daily_global_limit
+            )),
+        };
+    }
+
+    if let Some(balance) = treasury_balance
+        && balance.saturating_sub(amount) < state.min_reserve_balance
+    {
+        return FaucetClaimDecision {
+            allowed: false,
+            cooldown_remaining_secs,
+            claimed_last_24h,
+            daily_remaining,
+            global_distributed_last_24h,
+            global_remaining,
+            next_eligible_claim_at,
+            denied_reason: Some(format!(
+                "Reserve floor check failed (min_reserve_balance={})",
+                state.min_reserve_balance
             )),
         };
     }
@@ -3099,6 +3461,9 @@ fn evaluate_faucet_claim(
         cooldown_remaining_secs,
         claimed_last_24h,
         daily_remaining,
+        global_distributed_last_24h,
+        global_remaining,
+        next_eligible_claim_at,
         denied_reason: None,
     }
 }
@@ -3106,7 +3471,14 @@ fn evaluate_faucet_claim(
 fn prune_faucet_history(state: &mut FaucetState, now_unix: u64) {
     let retention = ChronoDuration::hours(48).num_seconds().unsigned_abs();
     let oldest = now_unix.saturating_sub(retention);
-    state.claims.retain(|claim| claim.timestamp_unix >= oldest);
+    state.claims.retain(|claim| claim.claimed_at >= oldest);
+    let audit_retention = ChronoDuration::hours(FAUCET_AUDIT_RETENTION_HOURS)
+        .num_seconds()
+        .unsigned_abs();
+    let audit_oldest = now_unix.saturating_sub(audit_retention);
+    state
+        .audit_log
+        .retain(|entry| entry.at_unix >= audit_oldest);
 }
 
 fn now_unix_secs() -> Result<u64, AppError> {
@@ -3126,6 +3498,21 @@ fn faucet_tx_id(account_id: &str, amount: u64, now_unix: u64, nonce: usize) -> S
     hasher.update(now_unix.to_le_bytes());
     hasher.update(nonce.to_le_bytes());
     format!("faucet-{}", hex::encode(hasher.finalize()))
+}
+
+fn append_faucet_audit(
+    state: &mut FaucetState,
+    action: &str,
+    actor: &str,
+    detail: &str,
+    now_unix: u64,
+) {
+    state.audit_log.push(FaucetAuditRecord {
+        at_unix: now_unix,
+        action: action.to_string(),
+        actor: actor.to_string(),
+        detail: detail.to_string(),
+    });
 }
 
 #[cfg(test)]
@@ -3192,6 +3579,8 @@ mod tests {
             state.max_claim_amount + 1,
             1_775_238_343,
             false,
+            Some(5_000_000),
+            "testnet",
         );
         assert!(!decision.allowed);
         assert!(
@@ -3208,10 +3597,19 @@ mod tests {
         state.claims.push(FaucetClaimRecord {
             account_id: "alice".to_string(),
             amount: 50,
-            timestamp_unix: 1_775_238_343,
-            tx_id: "tx-1".to_string(),
+            claimed_at: 1_775_238_343,
+            tx_hash: "tx-1".to_string(),
+            status: "confirmed".to_string(),
         });
-        let decision = evaluate_faucet_claim(&state, "alice", 50, 1_775_238_343 + 100, false);
+        let decision = evaluate_faucet_claim(
+            &state,
+            "alice",
+            50,
+            1_775_238_343 + 100,
+            false,
+            Some(5_000_000),
+            "testnet",
+        );
         assert!(!decision.allowed);
         assert!(decision.cooldown_remaining_secs > 0);
     }
