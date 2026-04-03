@@ -144,17 +144,19 @@ fn hack_test_rejects_duplicate_vote_replay() -> Result<(), ConsensusError> {
 }
 
 #[test]
-fn hack_test_rejects_parallel_sibling_fork_injection() -> Result<(), ConsensusError> {
+fn hack_test_accepts_parallel_sibling_forks_with_deterministic_head() -> Result<(), ConsensusError>
+{
     let mut state = state_with_validators()?;
     let genesis = build_block([0; 32], 1, 0, [7; 32], 8)?;
     let canonical_child = build_block(genesis.hash, 2, 1, [1; 32], 9)?;
     let conflicting_sibling = build_block(genesis.hash, 2, 1, [2; 32], 10)?;
     assert!(state.admit_block(genesis).is_ok());
-    assert!(state.admit_block(canonical_child).is_ok());
-    assert!(matches!(
-        state.admit_block(conflicting_sibling),
-        Err(ConsensusError::HeightRegression)
-    ));
+    assert!(state.admit_block(canonical_child.clone()).is_ok());
+    assert!(state.admit_block(conflicting_sibling.clone()).is_ok());
+    assert_eq!(
+        state.fork_choice.get_head(),
+        Some(canonical_child.hash.max(conflicting_sibling.hash))
+    );
     Ok(())
 }
 
