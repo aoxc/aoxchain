@@ -63,8 +63,8 @@ Primary references:
 
 ## Canonical Documents
 
-- `READ.md` — canonical technical contract and boundary rules.
-- `WHITEPAPER.md` — full engineering whitepaper and production-closure narrative.
+- `READ.md` — canonical technical reference and execution contract.
+- `WHITEPAPER.md` — end-to-end protocol architecture, trust model, and production closure narrative.
 - `SCOPE.md` — in-scope/out-of-scope and compatibility posture.
 - `ARCHITECTURE.md` — component topology, flow, and dependency direction.
 - `SECURITY.md` — private disclosure and security handling model.
