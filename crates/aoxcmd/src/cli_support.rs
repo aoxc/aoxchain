@@ -149,21 +149,14 @@ NODE AND ECONOMY
   consensus-commits
   consensus-evidence
   vm-status
-  vm-call --to <address> [--from <address>] [--data <hex>]
-  vm-simulate [--tx-hash <hash>] [--from <address>] [--to <address>]
-  vm-storage-get --address <address> --key <hex-key>
-  vm-contract-get --address <address>
-  vm-code-get --address <address>
-  vm-estimate-gas [--from <address>] [--to <address>]
-  vm-trace [--tx-hash <hash>]
   query chain status
   query block --height <latest|n>
   query tx --hash <tx-hash>
   query receipt --hash <tx-hash>
   query account --id <account-id>
   query balance --id <account-id>
-  query consensus status|validators|proposer|round|finality|commits|evidence
-  query vm status|call|simulate|storage|contract|code|estimate-gas|trace
+  query consensus status
+  query vm status
   query network status
   query network peers
   query state-root
