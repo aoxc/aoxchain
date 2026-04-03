@@ -210,3 +210,17 @@ This alignment must remain consistent with `QUANTUM_ROADMAP.md` and `QUANTUM_CHE
 - kernel/host isolation and resource-confinement baseline.
 
 This addendum is normative for networking and API changes that can affect consensus continuity, availability posture, or key-trust boundaries.
+
+---
+
+## Advanced Role Topology (Definition-First)
+
+AOXChain supports a full multi-role topology with staged activation. The normative role and plane blueprint is documented in:
+
+- `docs/ADVANCED_NODE_ROLE_BLUEPRINT.md`
+- `configs/topology/full-role-topology.toml`
+- `configs/topology/socket-matrix.toml`
+- `configs/topology/consensus-policy.toml`
+- `configs/topology/aoxcq-consensus.toml`
+
+This model preserves validator isolation while allowing non-core roles (archive, index, sentinel, bridge, oracle, DA) to be pre-defined and activated only by explicit policy and readiness evidence.

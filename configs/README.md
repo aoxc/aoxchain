@@ -103,3 +103,14 @@ python3 scripts/validate_environment_bundle.py
 - Keep environment differences intentional and documented in `network-matrix.toml`.
 - Apply stricter security posture on mainnet than test/dev environments.
 - Treat this folder as release-critical; all modifications should be reviewed.
+
+## Advanced Topology Templates
+
+The `configs/topology/` folder defines a full-role, multi-plane blueprint for staged activation:
+
+- `full-role-topology.toml` — complete role inventory with policy-gated activation flags.
+- `socket-matrix.toml` — explicit role-to-role transport allowances on control/consensus/data/service planes.
+- `consensus-policy.toml` — advanced consensus hardening and crypto-agility policy template.
+- `aoxcq-consensus.toml` — AOXC-Q (AOXChain-specific) consensus phase and guardrail template.
+
+These templates are intentionally definition-first. They should be adapted per environment before activation in production-like deployments.

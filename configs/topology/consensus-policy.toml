@@ -1,0 +1,66 @@
+# AOXChain advanced consensus hardening policy template.
+
+version = 1
+policy_name = "advanced-hardened"
+
+[finality]
+algorithm = "bft_deterministic"
+min_commit_threshold = "2f+1"
+max_reorg_depth = 0
+enable_equivocation_evidence = true
+
+[slashing]
+enabled = true
+double_sign = "critical"
+invalid_vote = "critical"
+liveness_fault = "major"
+penalty_mode = "governance_profile"
+
+[committee]
+rotation = "epoch"
+entropy_source = "kernel_vrf"
+allow_emergency_freeze = true
+
+[crypto_agility]
+enabled = true
+active_suite = "ed25519"
+allowed_suites = ["ed25519", "hybrid_ed25519_dilithium"]
+require_suite_negotiation = true
+downgrade_policy = "fail_closed"
+
+[pqc_transition]
+mode = "staged"
+hybrid_signatures_enabled = false
+activation_requires_governance = true
+rollback_requires_evidence = true
+
+[network_guardrails]
+validator_rpc_cohost_forbidden = true
+bridge_with_validator_keys_forbidden = true
+require_plane_isolation = true
+
+[aoxcq]
+enabled = true
+pipeline = "q_prepare_q_lock_q_commit_q_seal"
+dual_certificate_mode = true
+profile_bound_finality = true
+deterministic_evidence_window_blocks = 8
+
+[aoxcq.pacemaker]
+strategy = "deterministic_round_robin"
+base_timeout_ms = 1200
+timeout_backoff = "linear"
+max_rounds_per_height = 16
+
+[aoxcq.certificates]
+require_lock_certificate = true
+require_commit_certificate = true
+certificate_binding = "header_hash+crypto_profile"
+reject_partial_commit = true
+
+[aoxcq.crypto_profiles]
+active = "classical"
+allow_hybrid = true
+allow_pqc_only = false
+activation_gate = "onchain_governance"
+rollback_gate = "evidence_required"
