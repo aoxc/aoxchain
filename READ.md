@@ -1,75 +1,62 @@
-# AOXChain Canonical Technical Reference (v2)
+# AOXChain Canonical Technical Reference
 
-This document is the system-level engineering contract for AOXChain. It defines what the system must do, what it must not do, and how correctness/readiness claims are validated.
+This document is the repository-level technical contract for AOXChain.  
+It defines non-negotiable behavior, boundary ownership, and validation expectations used for engineering review and release decisions.
+
+---
 
 ## 1) System Intent
 
-AOXChain is engineered as a deterministic protocol stack with:
-- kernel-first consensus and settlement controls,
-- AOXChain-owned deterministic VM execution,
-- crypto-agile and post-quantum migration capability,
-- operator-verifiable evidence for release posture.
+AOXChain is engineered as a deterministic Layer-1 program with:
 
-## 2) Canonical Layers
+- kernel-owned consensus and settlement policy,
+- protocol-governed deterministic VM execution,
+- explicit cryptographic profile evolution (including post-quantum migration),
+- evidence-driven operational readiness decisions.
 
-### 2.1 Kernel and consensus layer
-Responsibilities:
-- transaction/block validity,
-- finality policy and replay safety,
-- cryptographic profile enforcement at consensus boundary.
+The system favors explicit policy, reproducibility, and fail-closed behavior over convenience.
 
-### 2.2 VM and execution layer
-Responsibilities:
-- deterministic execution semantics,
-- bounded resource accounting,
-- deterministic cryptographic syscall behavior under active profile policy.
+---
 
-### 2.3 Service and transport layer
-Responsibilities:
-- p2p networking and peer/session controls,
-- RPC/API surfaces,
-- persistence and configuration materialization.
+## 2) Canonical Layer Responsibilities
 
-### 2.4 Operator and evidence layer
-Responsibilities:
-- lifecycle orchestration,
-- quality and readiness command workflows,
-- artifact generation for audits and closure decisions.
+### 2.1 Kernel and Consensus (`aoxcore`, `aoxcunity`)
+- owns consensus truth, finality interpretation, and settlement admission;
+- enforces profile-bound cryptographic policy at protocol boundaries;
+- preserves replay protection and deterministic validity semantics.
+
+### 2.2 Execution (`aoxcvm`, `aoxcexec`, `aoxcenergy`)
+- executes deterministic state transitions under kernel-defined policy;
+- enforces bounded metering and deterministic cryptographic syscall behavior;
+- must not redefine consensus-level trust or finality meaning.
+
+### 2.3 Services (`aoxcnet`, `aoxcrpc`, `aoxcdata`, `aoxconfig`)
+- provides transport, RPC, storage, and typed configuration delivery;
+- treats all external ingress as untrusted until validated;
+- cannot bypass kernel validation decisions.
+
+### 2.4 Operations (`aoxcmd`, `aoxckit`, `aoxchub`, `scripts/`)
+- provides lifecycle orchestration, diagnostics, and evidence generation;
+- drives release gates and closure workflows;
+- cannot mutate protocol truth outside defined policy surfaces.
+
+---
 
 ## 3) Non-Negotiable Invariants
 
-1. **Determinism:** equal canonical inputs produce equal canonical outputs.
+1. **Determinism:** identical canonical inputs must yield identical canonical outputs.
 2. **Fail-closed validation:** unknown or malformed critical inputs are rejected before state transition.
 3. **Boundary integrity:** non-kernel surfaces cannot override consensus truth.
-4. **Crypto-profile explicitness:** every consensus-critical cryptographic behavior is profile-bound and versioned.
-5. **Evidence traceability:** operational or readiness claims require reproducible command evidence.
+4. **Profile explicitness:** consensus-critical cryptographic behavior is versioned and policy-bound.
+5. **Evidence traceability:** readiness claims require reproducible commands and retained artifacts.
 
-## 4) VM Contract Principles
+---
 
-The AOXChain VM is a protocol surface, not a convenience runtime.
+## 4) Validation and Readiness Contract
 
-Mandatory properties:
-- deterministic instruction behavior,
-- explicit metering and bounded execution,
-- admission checks for bytecode and syscalls,
-- profile-aware cryptographic verification paths,
-- no nondeterministic external dependencies in consensus-critical execution.
+Readiness claims are valid only when required validation gates pass with reviewable evidence.
 
-## 5) Post-Quantum Migration Contract
-
-AOXChain must implement a staged migration strategy:
-- profile versioning in consensus-visible structures,
-- hybrid operation during migration windows,
-- deterministic deprecation and rollback controls,
-- artifact-backed verification of performance and safety impact.
-
-Reference execution documents:
-- `QUANTUM_ROADMAP.md`
-- `QUANTUM_CHECKLIST.md`
-
-## 6) Canonical Command Surface
-
-Engineering baseline:
+Canonical quality surfaces:
 
 ```bash
 make build
@@ -77,62 +64,50 @@ make test
 make quality
 make audit
 make os-compat-gate
+make testnet-gate
+make testnet-readiness-gate
 make quantum-readiness-gate
 ```
 
-Runtime lifecycle example:
+Runtime lifecycle surface:
 
 ```bash
-make runtime-source-check AOXC_NETWORK_KIND=devnet
-make runtime-install AOXC_NETWORK_KIND=devnet
-make runtime-verify AOXC_NETWORK_KIND=devnet
-make runtime-activate AOXC_NETWORK_KIND=devnet
+make runtime-source-check AOXC_NETWORK_KIND=<env>
+make runtime-install AOXC_NETWORK_KIND=<env>
+make runtime-verify AOXC_NETWORK_KIND=<env>
+make runtime-activate AOXC_NETWORK_KIND=<env>
+make runtime-status AOXC_NETWORK_KIND=<env>
 ```
 
-## 7) Change Impact Rules
+---
 
-A change must be accompanied by documentation and validation updates when it touches:
-- consensus/finality rules,
-- VM semantics or gas behavior,
-- cryptographic profiles and key handling,
-- serialization/storage formats,
-- operator controls and release gates.
+## 5) Change Impact Rules
 
-## 8) License and Liability
+A change is high-sensitivity and requires synchronized documentation + validation updates when it affects:
 
-AOXChain is distributed under the MIT License and provided **"as is"** without warranty or liability assumptions by maintainers or contributors, except where prohibited by law.
+- consensus/finality behavior,
+- VM semantics, metering, or syscall policy,
+- cryptographic profiles or key workflows,
+- storage or serialization contracts,
+- release controls or operator procedures.
 
-## 9) Protocol Naming Contract
+Non-trivial behavior changes must be explicitly described in review context.
 
-For external and internal consistency, AOXChain naming should remain explicit and stable:
+---
 
-- **Ecosystem / chain name:** `AOXChain`
-- **Protocol name:** `AOXC Constitutional Protocol`
-- **Network IDs:** `AOXC-DEVNET`, `AOXC-TESTNET`, `AOXC-MAINNET`
+## 6) Cross-Reference Map
 
-Rationale:
-- preserves constitutional governance and kernel-boundary semantics,
-- keeps protocol branding concise for explorer/RPC/release surfaces,
-- keeps network identity deterministic across genesis, runtime, and tooling.
+- `README.md` — project purpose, repository surfaces, command entry points.
+- `SCOPE.md` — scope boundaries and compatibility posture.
+- `ARCHITECTURE.md` — component boundaries and dependency direction.
+- `SECURITY.md` — private reporting and disclosure model.
+- `TESTING.md` — mandatory validation policy and testnet go/no-go criteria.
+- `WHITEPAPER.md` — end-to-end protocol design narrative and implementation blueprint.
+- `docs/PRODUCTION_IMPLEMENTATION_BLUEPRINT.md` — production closure matrix.
+- `QUANTUM_ROADMAP.md` / `QUANTUM_CHECKLIST.md` — profile migration execution and gate checklist.
 
-## 10) Advanced Genesis Program (Operator Baseline)
+---
 
-AOXChain genesis hardening is treated as an operational security surface.
+## 7) License and Liability Context
 
-Mandatory controls before promotion:
-
-1. deterministic serialization is enabled,
-2. validator quorum policy is explicit and non-empty,
-3. binding references (`validators`, `bootnodes`, `certificate`) are populated,
-4. profile/environment alignment is verified,
-5. testnet validator-account threshold is reviewed.
-
-CLI surfaces:
-
-```bash
-aoxc genesis-template-advanced --profile testnet --out ./genesis.testnet.advanced.example.json
-aoxc genesis-security-audit --profile testnet --genesis ./genesis.testnet.advanced.example.json
-aoxc genesis-security-audit --profile testnet --genesis ./genesis.testnet.advanced.example.json --enforce
-```
-
-These commands provide a secure starting template and an enforceable security-audit gate for custom genesis workflows.
+AOXChain is distributed under the MIT License and provided **"as is"**, without warranties or liability assumptions by maintainers or contributors, except where restricted by applicable law.
