@@ -92,31 +92,3 @@ layer = "L6"
 trust_zone = "interop"
 enabled = false
 planes = ["service", "data", "control"]
-
-[roles.core_qc]
-name = "Quantum Certificate Aggregator"
-layer = "L5"
-trust_zone = "kernel"
-enabled = false
-planes = ["consensus", "control"]
-
-[roles.core_qv]
-name = "PQ Verifier Node"
-layer = "L5"
-trust_zone = "kernel"
-enabled = false
-planes = ["consensus", "control"]
-
-[roles.sec_evd]
-name = "Evidence Custodian"
-layer = "L2"
-trust_zone = "security"
-enabled = false
-planes = ["control", "data"]
-
-[roles.net_pacer]
-name = "Consensus Pacemaker"
-layer = "L5"
-trust_zone = "kernel"
-enabled = false
-planes = ["consensus", "control"]
