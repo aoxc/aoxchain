@@ -3891,114 +3891,6 @@ pub fn cmd_rpc_curl_smoke(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&report, output_format(args))
 }
 
-fn load_historical_block(
-    requested_height: &str,
-    requested_hash: Option<&str>,
-) -> Result<Option<BlockEnvelope>, AppError> {
-    let store = match open_historical_store() {
-        Ok(store) => store,
-        Err(_) => return Ok(None),
-    };
-
-    let by_height = if requested_height == "latest" {
-        None
-    } else {
-        requested_height
-            .parse::<u64>()
-            .ok()
-            .and_then(|height| match store.get_block_by_height(height) {
-                Ok(block) => Some(block),
-                Err(DataError::NotFound) => None,
-                Err(_) => None,
-            })
-    };
-
-    let by_hash = requested_hash.and_then(|hash| match store.get_block_by_hash(hash) {
-        Ok(block) => Some(block),
-        Err(DataError::NotFound) => None,
-        Err(_) => None,
-    });
-
-    let resolved = match (by_height, by_hash) {
-        (Some(height_block), Some(hash_block)) => {
-            if height_block.block_hash_hex.eq_ignore_ascii_case(&hash_block.block_hash_hex) {
-                Some(height_block)
-            } else {
-                None
-            }
-        }
-        (Some(height_block), None) => Some(height_block),
-        (None, Some(hash_block)) => Some(hash_block),
-        (None, None) => None,
-    };
-
-    Ok(resolved)
-}
-
-fn historical_tx_hashes(envelope: &BlockEnvelope) -> Vec<String> {
-    let maybe_payload = serde_json::from_slice::<serde_json::Value>(&envelope.payload).ok();
-    let maybe_tx = maybe_payload.and_then(|value| {
-        value
-            .get("body")
-            .and_then(|body| body.get("sections"))
-            .and_then(|sections| sections.as_array())
-            .and_then(|sections| sections.first())
-            .and_then(|section| section.get("payload"))
-            .and_then(|payload| payload.as_str())
-            .map(|payload| payload.to_string())
-    });
-    match maybe_tx {
-        Some(tx) if !tx.trim().is_empty() => vec![tx_hash_hex(&tx)],
-        _ => Vec::new(),
-    }
-}
-
-fn open_historical_store() -> Result<HybridDataStore, AppError> {
-    let home = resolve_home()?;
-    let db_root = home.join("runtime").join("db");
-    HybridDataStore::new(&db_root, IndexBackend::Redb).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!("Failed to open historical block store at {}", db_root.display()),
-            error,
-        )
-    })
-}
-
-fn load_tx_index_entry(tx_hash: &str) -> Result<Option<TxIndexEntry>, AppError> {
-    let home = resolve_home()?;
-    let path = home
-        .join("runtime")
-        .join("db")
-        .join("query")
-        .join(TX_INDEX_FILE);
-    if !path.exists() {
-        return Ok(None);
-    }
-
-    let encoded = fs::read(&path).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!("Failed to read tx index file {}", path.display()),
-            error,
-        )
-    })?;
-    let index = serde_json::from_slice::<TxIndex>(&encoded).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::OutputEncodingFailed,
-            format!("Failed to parse tx index file {}", path.display()),
-            error,
-        )
-    })?;
-
-    Ok(index.entries.get(tx_hash).cloned())
-}
-
-fn tx_hash_hex(tx_payload: &str) -> String {
-    let digest = sha3::Sha3_256::digest(format!("AOXC-TX-V1:{tx_payload}").as_bytes());
-    hex::encode(digest)
-}
-
 /// Resolves effective settings for read-oriented ops surfaces without creating
 /// configuration files on disk.
 fn effective_settings_for_ops() -> Result<Settings, AppError> {
@@ -4573,7 +4465,7 @@ mod tests {
         };
 
         let tx_hashes = historical_tx_hashes(&envelope);
-        assert_eq!(tx_hashes, vec![tx_hash_hex("tx-demo-7")]);
+        assert_eq!(tx_hashes, vec!["tx-demo-7".to_string()]);
     }
 
     #[test]
