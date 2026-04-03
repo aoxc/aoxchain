@@ -1,0 +1,110 @@
+# AOXChain role-to-role plane/socket policy matrix.
+# Deny-by-default. Only explicit rules are allowed.
+
+version = 1
+default_action = "deny"
+
+[[rules]]
+from = "net_gate"
+to = "net_relay"
+plane = "data"
+socket = "quic://data.ingress"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "net_relay"
+to = "core_val"
+plane = "data"
+socket = "quic://data.gossip"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "core_prop"
+to = "core_val"
+plane = "consensus"
+socket = "quic://consensus.proposal"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "core_val"
+to = "core_val"
+plane = "consensus"
+socket = "quic://consensus.vote"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "core_guard"
+to = "core_val"
+plane = "consensus"
+socket = "quic://consensus.evidence"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "serv_rpc"
+to = "net_gate"
+plane = "service"
+socket = "quic://service.submit"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "serv_idx"
+to = "data_arch"
+plane = "service"
+socket = "quic://service.query"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "sec_sent"
+to = "core_guard"
+plane = "control"
+socket = "quic://control.alert"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "x_orcl"
+to = "core_prop"
+plane = "service"
+socket = "quic://service.oracle_attest"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "x_bridge"
+to = "core_prop"
+plane = "service"
+socket = "quic://service.bridge_intent"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "core_val"
+to = "core_qc"
+plane = "consensus"
+socket = "quic://consensus.cert_aggregate"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "core_qc"
+to = "core_val"
+plane = "consensus"
+socket = "quic://consensus.cert_distribute"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "core_qv"
+to = "core_qc"
+plane = "consensus"
+socket = "quic://consensus.pq_verify"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "sec_evd"
+to = "core_guard"
+plane = "control"
+socket = "quic://control.evidence_ingest"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "net_pacer"
+to = "core_prop"
+plane = "consensus"
+socket = "quic://consensus.round_control"
+auth = "mtls_role_cert"

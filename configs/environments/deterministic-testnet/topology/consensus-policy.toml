@@ -1,0 +1,22 @@
+# AOXChain consensus hardening profile for deterministic-testnet.
+version = 1
+environment = "deterministic-testnet"
+policy_name = "advanced-hardened-deterministic-testnet"
+
+[finality]
+algorithm = "bft_deterministic"
+min_commit_threshold = "2f+1"
+max_reorg_depth = 0
+
+[aoxcq]
+enabled = true
+pipeline = "q_prepare_q_lock_q_commit_q_seal"
+dual_certificate_mode = true
+profile_bound_finality = true
+deterministic_evidence_window_blocks = 8
+
+[aoxcq.crypto_profiles]
+active = "classical"
+allow_hybrid = true
+allow_pqc_only = false
+activation_gate = "onchain_governance"

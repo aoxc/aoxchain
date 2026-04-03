@@ -1,0 +1,16 @@
+# AOXC-Q staged configuration for testnet.
+version = 1
+environment = "testnet"
+name = "aoxcq-testnet"
+
+[protocol]
+family = "bft"
+phases = ["q_prepare", "q_lock", "q_commit", "q_seal"]
+
+[evidence]
+window_blocks = 8
+
+[crypto]
+active_profile = "classical"
+allowed_profiles = ["classical", "hybrid_pq"]
+downgrade_policy = "fail_closed"
