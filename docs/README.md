@@ -7,6 +7,7 @@ This directory contains the authoritative documentation system for AOXChain engi
 - `src/` — mdBook chapters used as the canonical reading path.
 - `testing/` — testing matrix, coverage posture, and critical invariants.
 - `AOXCHUB_FULL_SPEC.md` — AOXCHub product-level specification.
+- `ADVANCED_NODE_ROLE_BLUEPRINT.md` — full role/layer/plane topology with policy-gated activation.
 - `OS_COMPATIBILITY.md` — cross-platform host/container compatibility contract (Linux, NixOS, macOS, Windows, Docker).
 
 ## Documentation Rules
