@@ -51,6 +51,7 @@ AOXChain is a deterministic Layer-1 engineering program focused on three primary
 - `ROADMAP.md` — repository execution roadmap.
 - `QUANTUM_ROADMAP.md` — quantum-resilience transformation plan.
 - `QUANTUM_CHECKLIST.md` — release-gating checklist for crypto-profile migration.
+- `docs/OS_COMPATIBILITY.md` — Linux/NixOS/macOS/Windows/Docker compatibility contract and validation gates.
 - `docs/PRODUCTION_IMPLEMENTATION_BLUEPRINT.md` — complete production delivery gate matrix for kernel, VM, API/CLI, and crypto-agility execution.
 
 ## 4) Operator and Engineering Command Baseline
