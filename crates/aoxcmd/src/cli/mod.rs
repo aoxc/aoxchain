@@ -154,6 +154,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "state-root" => ops::cmd_state_root(&args[2..]),
         "metrics" => ops::cmd_metrics(&args[2..]),
         "rpc-status" => ops::cmd_rpc_status(&args[2..]),
+        "rpc-curl-smoke" => ops::cmd_rpc_curl_smoke(&args[2..]),
         "diagnostics-doctor" => audit::cmd_diagnostics_doctor(&args[2..]),
         "diagnostics-bundle" => audit::cmd_diagnostics_bundle(&args[2..]),
         "interop-readiness" => audit::cmd_interop_readiness(&args[2..]),

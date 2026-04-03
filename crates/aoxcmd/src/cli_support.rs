@@ -171,6 +171,7 @@ NODE AND ECONOMY
   state-root
   metrics
   rpc-status
+  rpc-curl-smoke
 
 VALIDATION AND AUDIT
   load-benchmark
