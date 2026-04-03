@@ -53,6 +53,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "account" => route_account_group(&args[2..]),
         "node" => route_node_group(&args[2..]),
         "network" => route_network_group(&args[2..]),
+        "query" => route_query_group(&args[2..]),
         "tx" => route_tx_group(&args[2..]),
         "stake" => route_stake_group(&args[2..]),
         "doctor" => route_doctor_group(&args[2..]),
@@ -255,6 +256,75 @@ fn route_network_group(args: &[String]) -> Result<(), AppError> {
         "status" | "verify" => ops::cmd_network_smoke(tail),
         "doctor" => audit::cmd_diagnostics_doctor(tail),
         _ => invalid_group_usage("network", "unsupported subcommand"),
+    }
+}
+
+fn route_query_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("query", "missing subcommand");
+    };
+
+    match subcommand.as_str() {
+        "chain" => route_query_chain_group(tail),
+        "consensus" => route_query_consensus_group(tail),
+        "vm" => route_query_vm_group(tail),
+        "block" => ops::cmd_block_get(tail),
+        "tx" => ops::cmd_tx_get(tail),
+        "receipt" => ops::cmd_tx_receipt(tail),
+        "account" => ops::cmd_account_get(tail),
+        "balance" => ops::cmd_balance_get(tail),
+        "network" => route_query_network_group(tail),
+        "state-root" => ops::cmd_state_root(tail),
+        "rpc" => ops::cmd_rpc_status(tail),
+        _ => invalid_group_usage("query", "unsupported subcommand"),
+    }
+}
+
+fn route_query_chain_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return ops::cmd_chain_status(args);
+    };
+
+    match subcommand.as_str() {
+        "status" => ops::cmd_chain_status(tail),
+        "block" => ops::cmd_block_get(tail),
+        "tx" => ops::cmd_tx_get(tail),
+        "receipt" => ops::cmd_tx_receipt(tail),
+        _ => invalid_group_usage("query chain", "unsupported subcommand"),
+    }
+}
+
+fn route_query_consensus_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return ops::cmd_consensus_status(args);
+    };
+
+    match subcommand.as_str() {
+        "status" => ops::cmd_consensus_status(tail),
+        _ => invalid_group_usage("query consensus", "unsupported subcommand"),
+    }
+}
+
+fn route_query_vm_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return ops::cmd_vm_status(args);
+    };
+
+    match subcommand.as_str() {
+        "status" => ops::cmd_vm_status(tail),
+        _ => invalid_group_usage("query vm", "unsupported subcommand"),
+    }
+}
+
+fn route_query_network_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return ops::cmd_network_status(args);
+    };
+
+    match subcommand.as_str() {
+        "status" => ops::cmd_network_status(tail),
+        "peers" => ops::cmd_peer_list(tail),
+        _ => invalid_group_usage("query network", "unsupported subcommand"),
     }
 }
 
