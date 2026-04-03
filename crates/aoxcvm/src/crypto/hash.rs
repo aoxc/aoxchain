@@ -69,7 +69,7 @@ pub fn quantum_unaffected_digest(domain: &'static [u8], payload: &[u8]) -> Quant
 
 #[cfg(test)]
 mod tests {
-    use super::{quantum_hardened_digest, quantum_unaffected_digest};
+    use super::quantum_hardened_digest;
 
     #[test]
     fn digest_is_deterministic() {
