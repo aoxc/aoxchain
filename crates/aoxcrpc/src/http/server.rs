@@ -4,10 +4,8 @@
 
 use crate::config::RpcConfig;
 use crate::contracts::ContractHttpApi;
-use crate::grpc::services::{query_service::QueryService, tx_submission::TxSubmissionService};
 use crate::http::{health::health_with_context, metrics::prometheus_metrics_snapshot};
-use crate::types::{RpcErrorResponse, TxSubmissionRequest};
-use serde::{Deserialize, Serialize};
+use crate::types::RpcErrorResponse;
 
 #[derive(Debug, Clone)]
 pub struct HttpRpcResponse {
@@ -20,8 +18,6 @@ pub struct HttpRpcResponse {
 pub struct HttpRpcServer {
     pub config: RpcConfig,
     pub contract_api: ContractHttpApi,
-    pub query_service: QueryService,
-    pub tx_submission_service: TxSubmissionService,
     pub uptime_secs: u64,
     pub total_requests: u64,
     pub rejected_requests: u64,
@@ -64,8 +60,6 @@ impl HttpRpcServer {
             ("GET", "/quantum/profile") => {
                 self.ok_json(&crate::http::quantum::quantum_crypto_profile())
             }
-            ("POST", "/v1/query/chain-status") => self.query_chain_status(body),
-            ("POST", "/v1/tx/submit") => self.submit_tx(body),
             ("POST", "/contracts/validate") => {
                 self.contract_post(body, |api, request| api.validate_manifest(request))
             }
@@ -103,47 +97,6 @@ impl HttpRpcServer {
         }
     }
 
-    fn query_chain_status(
-        &mut self,
-        body: Option<&str>,
-    ) -> Result<HttpRpcResponse, HttpRpcResponse> {
-        let request: ChainStatusQueryRequest = self.parse_json_body(body)?;
-        let response = self.query_service.get_chain_status(
-            request.height.unwrap_or(0),
-            request.syncing.unwrap_or(false),
-        );
-        self.ok_json(&response)
-    }
-
-    fn submit_tx(&mut self, body: Option<&str>) -> Result<HttpRpcResponse, HttpRpcResponse> {
-        let request: TxSubmissionRequest = self.parse_json_body(body)?;
-        match self.tx_submission_service.submit(request) {
-            Ok(response) => self.ok_json(&response),
-            Err(error) => {
-                self.rejected_requests = self.rejected_requests.saturating_add(1);
-                Err(self.error_response(422, error.to_response(None)))
-            }
-        }
-    }
-
-    fn parse_json_body<T>(&mut self, body: Option<&str>) -> Result<T, HttpRpcResponse>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        let Some(body) = body else {
-            self.rejected_requests = self.rejected_requests.saturating_add(1);
-            return Err(self.error_response(400, parse_error("request body is required")));
-        };
-
-        match serde_json::from_str::<T>(body) {
-            Ok(value) => Ok(value),
-            Err(error) => {
-                self.rejected_requests = self.rejected_requests.saturating_add(1);
-                Err(self.error_response(400, parse_error(&error.to_string())))
-            }
-        }
-    }
-
     fn contract_post<T, R>(
         &mut self,
         body: Option<&str>,
@@ -153,7 +106,18 @@ impl HttpRpcServer {
         T: serde::de::DeserializeOwned,
         R: serde::Serialize,
     {
-        let request: T = self.parse_json_body(body)?;
+        let Some(body) = body else {
+            self.rejected_requests = self.rejected_requests.saturating_add(1);
+            return Err(self.error_response(400, parse_error("request body is required")));
+        };
+
+        let request: T = match serde_json::from_str(body) {
+            Ok(value) => value,
+            Err(error) => {
+                self.rejected_requests = self.rejected_requests.saturating_add(1);
+                return Err(self.error_response(400, parse_error(&error.to_string())));
+            }
+        };
 
         match handler(&mut self.contract_api, request) {
             Ok(response) => self.ok_json(&response),
@@ -198,14 +162,6 @@ impl HttpRpcServer {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct ChainStatusQueryRequest {
-    #[serde(default)]
-    height: Option<u64>,
-    #[serde(default)]
-    syncing: Option<bool>,
-}
-
 fn parse_error(message: &str) -> RpcErrorResponse {
     RpcErrorResponse {
         code: "INVALID_REQUEST",
@@ -239,32 +195,5 @@ mod tests {
             .expect_err("unknown route should be rejected");
         assert_eq!(response.status, 404);
         assert!(response.body.contains("METHOD_NOT_FOUND"));
-    }
-
-    #[test]
-    fn chain_status_route_returns_chain_payload() {
-        let mut server = HttpRpcServer::default();
-        let response = server
-            .handle_json(
-                "POST",
-                "/v1/query/chain-status",
-                Some("{\"height\":42,\"syncing\":false}"),
-            )
-            .expect("query route should return success");
-
-        assert_eq!(response.status, 200);
-        assert!(response.body.contains("\"height\":42"));
-        assert!(response.body.contains("\"chain_id\""));
-    }
-
-    #[test]
-    fn tx_submit_route_rejects_invalid_payload() {
-        let mut server = HttpRpcServer::default();
-        let response = server
-            .handle_json("POST", "/v1/tx/submit", Some("{}"))
-            .expect_err("invalid tx submission should fail");
-
-        assert_eq!(response.status, 400);
-        assert!(response.body.contains("INVALID_REQUEST"));
     }
 }

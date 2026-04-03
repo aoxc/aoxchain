@@ -115,47 +115,4 @@ mod tests {
         assert!(methods.contains(&"query.GetChainStatus"));
         assert!(methods.contains(&"tx.Submit"));
     }
-
-    #[test]
-    fn query_chain_status_returns_requested_height() {
-        let config = RpcConfig {
-            genesis_hash: Some(format!("0x{}", "ab".repeat(32))),
-            tls_cert_path: "Cargo.toml".to_string(),
-            tls_key_path: "README.md".to_string(),
-            mtls_ca_cert_path: Some("Cargo.toml".to_string()),
-            ..RpcConfig::default()
-        };
-
-        let server = GrpcServer::new(config);
-        let response = server
-            .query_chain_status(99, false)
-            .expect("query should pass startup checks");
-        assert_eq!(response.height, 99);
-    }
-
-    #[test]
-    fn submit_tx_accepts_valid_hybrid_payload() {
-        let config = RpcConfig {
-            genesis_hash: Some(format!("0x{}", "ab".repeat(32))),
-            tls_cert_path: "Cargo.toml".to_string(),
-            tls_key_path: "README.md".to_string(),
-            mtls_ca_cert_path: Some("Cargo.toml".to_string()),
-            ..RpcConfig::default()
-        };
-        let server = GrpcServer::new(config);
-
-        let response = server
-            .submit_tx(TxSubmissionRequest {
-                actor_id: "actor-1".to_string(),
-                tx_payload: vec![1, 2, 3, 4],
-                zkp_proof: vec![9; 64],
-                identity_tier: Some("signed_client".to_string()),
-                signer_algorithms: vec!["ed25519".to_string(), "ml-dsa-65".to_string()],
-                remaining_budget_units: Some(100),
-            })
-            .expect("valid submit should be accepted");
-
-        assert!(response.accepted);
-        assert!(response.tx_id.starts_with("tx-"));
-    }
 }

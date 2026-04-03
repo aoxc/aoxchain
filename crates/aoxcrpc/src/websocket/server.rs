@@ -50,13 +50,6 @@ impl WebSocketServer {
         session.subscriptions.insert(topic.to_string())
     }
 
-    pub fn unsubscribe(&mut self, session_id: &str, topic: &str) -> bool {
-        let Some(session) = self.sessions.get_mut(session_id) else {
-            return false;
-        };
-        session.subscriptions.remove(topic)
-    }
-
     #[must_use]
     pub fn publish_block_confirmed(&self, event: &BlockConfirmedEvent) -> Vec<(String, String)> {
         let payload = self.format_event(event);
@@ -88,20 +81,5 @@ mod tests {
         assert_eq!(published.len(), 1);
         assert_eq!(published[0].0, "session-a");
         assert!(published[0].1.contains("BLOCK_CONFIRMED"));
-    }
-
-    #[test]
-    fn unsubscribe_stops_delivery() {
-        let mut server = WebSocketServer::new();
-        server.connect("session-a");
-        assert!(server.subscribe("session-a", "BLOCK_CONFIRMED"));
-        assert!(server.unsubscribe("session-a", "BLOCK_CONFIRMED"));
-
-        let published = server.publish_block_confirmed(&BlockConfirmedEvent {
-            block_hash: "0xdef".to_string(),
-            height: 8,
-        });
-
-        assert!(published.is_empty());
     }
 }

@@ -116,47 +116,14 @@ can distinguish production-ready behavior from scaffolded or partial capabilitie
 
 | Surface | Current status | What is implemented now | Gaps / non-final areas |
 | --- | --- | --- | --- |
-| HTTP RPC (curl-consumable) | **Full (repository scope)** | Deterministic route dispatch for health, metrics, quantum profile, and contract control-plane operations with structured JSON success/error envelopes. | Production deployment still requires environment-level TLS/key provisioning and network policy controls. |
-| gRPC | **Full (repository scope)** | Startup checks, explicit method catalog, query and tx dispatch methods, and deterministic service-level request validation. | Production deployment still requires service host integration and release-profile hardening. |
-| WebSocket RPC | **Full (repository scope)** | Session connect/disconnect, topic subscription, and deterministic fan-out payload delivery for block-confirmed events. | Production deployment still requires external transport host integration and runtime capacity controls. |
-| AOXC CLI | **Full operator plane** | Command routing spans chain/genesis/validator/wallet/account/node/network/tx/stake/doctor/audit and compatibility aliases. | Operator runbooks still need environment-specific release evidence before each public rollout. |
-| Chain query ergonomics | **Full baseline surface** | CLI query commands and typed query service admission-aware responses are implemented and mapped across operator and API layers. | Environment parity validation should still be executed in pre-release and production gates. |
+| HTTP RPC (curl-consumable) | **Partial** | Health, metrics snapshot, quantum profile payload builders, and contract HTTP-style request/response handlers with validation and mapping logic. | No end-to-end HTTP router/listener wiring is defined in this document set; operators should treat this as API-domain implementation, not confirmed full deployment surface. |
+| gRPC | **Partial** | Server object and startup checks, query/tx service structs, admission checks, and deterministic response modeling. | Transport serving loop, full method catalog exposure, and network deployment hardening are not yet represented as complete runtime wiring here. |
+| WebSocket RPC | **Partial** | Event struct and deterministic JSON event formatting for confirmed-block notifications. | Subscription lifecycle, connection/session management, and streaming orchestration are not represented as complete production flow. |
+| AOXC CLI | **Broad but evolving** | Command routing spans chain/genesis/validator/wallet/account/node/network/tx/stake/doctor/audit and many compatibility aliases. | Command breadth is high, but not every command implies finalized mainnet-grade semantics; compatibility and behavior should be validated per command path. |
+| Chain query ergonomics | **Defined but not exhaustive** | CLI query-style commands (`chain-status`, `block-get`, `tx-get`, `balance-get`, `peer-list`, `rpc-status`) and typed query service responses exist. | Unified query contract/versioning and external RPC query parity still require explicit operator validation in each target environment. |
 
 ### Operator interpretation rule
 
-The repository now implements complete control-plane primitives for HTTP, gRPC, WebSocket,
-CLI, and baseline query surfaces. Production go-live remains conditional on environment
-readiness evidence, key-management posture, and release gate compliance.
-
-## CLI / API / curl Compatibility Baseline
-
-The following mapping is the canonical interoperability baseline for operator workflows.
-
-| Capability | CLI surface | HTTP (curl) surface | gRPC surface |
-| --- | --- | --- | --- |
-| Chain health/readiness | `aoxc rpc-status` / `aoxc chain-status` | `GET /health` | `query.GetChainStatus` |
-| Chain status query | `aoxc chain-status` | `POST /v1/query/chain-status` | `query.GetChainStatus` |
-| Transaction submit | `aoxc tx ...` workflows | `POST /v1/tx/submit` | `tx.Submit` |
-| Runtime security profile | `aoxc rpc-status` + diagnostics | `GET /quantum/profile` | N/A (HTTP profile endpoint) |
-| Metrics export | `aoxc metrics` | `GET /metrics` | N/A (Prometheus exposition) |
-
-### curl reference commands
-
-```bash
-curl -sS http://127.0.0.1:8080/health
-curl -sS http://127.0.0.1:8080/metrics
-curl -sS http://127.0.0.1:8080/quantum/profile
-curl -sS -X POST http://127.0.0.1:8080/v1/query/chain-status \
-  -H 'content-type: application/json' \
-  -d '{"height":42,"syncing":false}'
-curl -sS -X POST http://127.0.0.1:8080/v1/tx/submit \
-  -H 'content-type: application/json' \
-  -d '{
-    "actor_id":"actor-1",
-    "tx_payload":[1,2,3,4],
-    "zkp_proof":[9,9,9,9,9,9,9,9],
-    "identity_tier":"signed_client",
-    "signer_algorithms":["ed25519","ml-dsa-65"],
-    "remaining_budget_units":100
-  }'
-```
+Until full endpoint wiring and environment-level readiness evidence are published for each
+transport surface, treat HTTP/gRPC/WebSocket as **implemented modules with partial
+end-to-end closure**, not as an unconditional “fully complete” public API guarantee.
