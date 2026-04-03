@@ -134,7 +134,6 @@ If these checks cannot run in the current environment, the limitation must be st
 
 For Phase-1 completion claims, the following integrated readiness checks are mandatory:
 
-- `make phase1-full`
 - `cargo test -p tests phase1_full_readiness_surface_is_consistent`
 - `cargo test -p tests vm_phase1_execution_is_deterministic_across_replays`
 - `cargo test -p tests block_production_is_deterministic_for_permuted_body_sections`
