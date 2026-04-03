@@ -9,6 +9,7 @@ use crate::{
     },
     cli_support::{arg_value, emit_serialized, has_flag, output_format, text_envelope},
     config::{loader::load, settings::Settings},
+    data_home::resolve_home,
     economy::ledger,
     error::{AppError, ErrorCode},
     node::{engine, lifecycle},
@@ -26,6 +27,39 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
+
+const FAUCET_MAX_CLAIM_AMOUNT: u64 = 10_000;
+const FAUCET_COOLDOWN_SECS: u64 = 3_600;
+const FAUCET_DAILY_LIMIT_PER_ACCOUNT: u64 = 50_000;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct FaucetClaimRecord {
+    account_id: String,
+    amount: u64,
+    timestamp_unix: u64,
+    tx_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct FaucetState {
+    enabled: bool,
+    max_claim_amount: u64,
+    cooldown_secs: u64,
+    daily_limit_per_account: u64,
+    claims: Vec<FaucetClaimRecord>,
+}
+
+impl Default for FaucetState {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_claim_amount: FAUCET_MAX_CLAIM_AMOUNT,
+            cooldown_secs: FAUCET_COOLDOWN_SECS,
+            daily_limit_per_account: FAUCET_DAILY_LIMIT_PER_ACCOUNT,
+            claims: Vec::new(),
+        }
+    }
+}
 
 #[derive(Serialize)]
 struct ReadinessCheck {
