@@ -2,6 +2,7 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
+use crate::data_home::resolve_home;
 use crate::{
     app::{
         bootstrap::bootstrap_operator_home, runtime::refresh_runtime_metrics,
@@ -16,7 +17,7 @@ use crate::{
         core::runtime_context, handles::default_handles, node::health_status, unity::unity_status,
     },
 };
-use crate::data_home::resolve_home;
+use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -47,6 +48,15 @@ struct FaucetState {
     cooldown_secs: u64,
     daily_limit_per_account: u64,
     claims: Vec<FaucetClaimRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct FaucetClaimDecision {
+    allowed: bool,
+    cooldown_remaining_secs: u64,
+    claimed_last_24h: u64,
+    daily_remaining: u64,
+    denied_reason: Option<String>,
 }
 
 impl Default for FaucetState {
@@ -2361,6 +2371,161 @@ pub fn cmd_economy_status(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&ledger, output_format(args))
 }
 
+pub fn cmd_faucet_status(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct FaucetStatus {
+        faucet: FaucetState,
+        claims_last_24h: usize,
+        unique_accounts_last_24h: usize,
+        latest_claim_at_unix: Option<u64>,
+    }
+
+    let now_unix = now_unix_secs()?;
+    let state = load_faucet_state()?;
+    let day_ago = now_unix.saturating_sub(24 * 60 * 60);
+    let recent: Vec<&FaucetClaimRecord> = state
+        .claims
+        .iter()
+        .filter(|record| record.timestamp_unix >= day_ago)
+        .collect();
+
+    let mut unique_accounts = std::collections::BTreeSet::new();
+    for record in &recent {
+        unique_accounts.insert(record.account_id.clone());
+    }
+
+    let response = FaucetStatus {
+        latest_claim_at_unix: state.claims.last().map(|record| record.timestamp_unix),
+        claims_last_24h: recent.len(),
+        unique_accounts_last_24h: unique_accounts.len(),
+        faucet: state,
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_faucet_config(args: &[String]) -> Result<(), AppError> {
+    let mut state = load_faucet_state()?;
+
+    if has_flag(args, "--enable") {
+        state.enabled = true;
+    }
+    if has_flag(args, "--disable") {
+        state.enabled = false;
+    }
+
+    if let Some(amount) = arg_value(args, "--max-claim-amount") {
+        state.max_claim_amount =
+            parse_positive_u64_value(&amount, "--max-claim-amount", "faucet config")?;
+    }
+
+    if let Some(cooldown_secs) = arg_value(args, "--cooldown-secs") {
+        state.cooldown_secs =
+            parse_positive_u64_value(&cooldown_secs, "--cooldown-secs", "faucet config")?;
+    }
+
+    if let Some(limit) = arg_value(args, "--daily-limit-per-account") {
+        state.daily_limit_per_account =
+            parse_positive_u64_value(&limit, "--daily-limit-per-account", "faucet config")?;
+    }
+
+    prune_faucet_history(&mut state, now_unix_secs()?);
+    persist_faucet_state(&state)?;
+    emit_serialized(&state, output_format(args))
+}
+
+pub fn cmd_faucet_claim(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct FaucetClaimResponse {
+        tx_id: String,
+        account_id: String,
+        amount: u64,
+        claimed_last_24h: u64,
+        daily_remaining: u64,
+        cooldown_remaining_secs: u64,
+        claims_total: usize,
+        automation_hint: &'static str,
+        ledger: crate::economy::ledger::LedgerState,
+    }
+
+    let account_id =
+        parse_required_or_default_text_arg(args, "--account-id", "testnet-user", false)?;
+    let force = has_flag(args, "--force");
+    let auto_init = has_flag(args, "--auto-init");
+    let mut state = load_faucet_state()?;
+    let now_unix = now_unix_secs()?;
+    prune_faucet_history(&mut state, now_unix);
+
+    if !state.enabled && !force {
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            "Faucet is disabled for this profile; use --force only for controlled tests",
+        ));
+    }
+
+    let amount = parse_positive_u64_arg(args, "--amount", state.max_claim_amount, "faucet claim")?;
+
+    let decision = evaluate_faucet_claim(&state, &account_id, amount, now_unix, force);
+    if !decision.allowed {
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
+            decision
+                .denied_reason
+                .unwrap_or_else(|| "Faucet claim was denied".to_string()),
+        ));
+    }
+
+    let ledger_result = match ledger::delegate(&account_id, amount) {
+        Ok(ledger) => ledger,
+        Err(error) if auto_init && error.kind() == ErrorCode::FilesystemIoFailed => {
+            let _ = ledger::init()?;
+            ledger::delegate(&account_id, amount)?
+        }
+        Err(error) => return Err(error),
+    };
+
+    let tx_id = faucet_tx_id(&account_id, amount, now_unix, state.claims.len());
+    state.claims.push(FaucetClaimRecord {
+        account_id: account_id.clone(),
+        amount,
+        timestamp_unix: now_unix,
+        tx_id: tx_id.clone(),
+    });
+    persist_faucet_state(&state)?;
+
+    let response = FaucetClaimResponse {
+        tx_id,
+        account_id,
+        amount,
+        cooldown_remaining_secs: state.cooldown_secs,
+        claimed_last_24h: decision.claimed_last_24h.saturating_add(amount),
+        daily_remaining: decision.daily_remaining.saturating_sub(amount),
+        claims_total: state.claims.len(),
+        automation_hint: "Use --format json for CI/CD scripts and --auto-init for first-run ephemeral homes.",
+        ledger: ledger_result,
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_faucet_reset(args: &[String]) -> Result<(), AppError> {
+    let keep_config = has_flag(args, "--keep-config");
+    let state = if keep_config {
+        let current = load_faucet_state()?;
+        FaucetState {
+            enabled: current.enabled,
+            max_claim_amount: current.max_claim_amount,
+            cooldown_secs: current.cooldown_secs,
+            daily_limit_per_account: current.daily_limit_per_account,
+            claims: Vec::new(),
+        }
+    } else {
+        FaucetState::default()
+    };
+    persist_faucet_state(&state)?;
+    emit_serialized(&state, output_format(args))
+}
+
 pub fn cmd_runtime_status(args: &[String]) -> Result<(), AppError> {
     let context = runtime_context()?;
     let handles = default_handles();
@@ -2606,10 +2771,7 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
         "consensus-status",
         format!("curl -fsS {http_base_url}/consensus/status"),
     );
-    curl_examples.insert(
-        "vm-status",
-        format!("curl -fsS {http_base_url}/vm/status"),
-    );
+    curl_examples.insert("vm-status", format!("curl -fsS {http_base_url}/vm/status"));
     curl_examples.insert(
         "json-rpc-status",
         format!(
@@ -2705,6 +2867,31 @@ fn parse_positive_u64_arg(
     Ok(parsed)
 }
 
+fn parse_positive_u64_value(value: &str, flag: &str, context: &str) -> Result<u64, AppError> {
+    let normalized = normalize_text(value, false).ok_or_else(|| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Flag {flag} must not be blank for {context}"),
+        )
+    })?;
+
+    let parsed = normalized.parse::<u64>().map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Invalid numeric value for {flag}"),
+        )
+    })?;
+
+    if parsed == 0 {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Flag {flag} must be greater than zero"),
+        ));
+    }
+
+    Ok(parsed)
+}
+
 fn parse_required_or_default_text_arg(
     args: &[String],
     flag: &str,
@@ -2759,13 +2946,195 @@ fn rpc_listener_active(probe_target: &str) -> bool {
     }
 }
 
+fn faucet_state_path() -> Result<PathBuf, AppError> {
+    Ok(resolve_home()?.join("ledger").join("faucet_state.json"))
+}
+
+fn load_faucet_state() -> Result<FaucetState, AppError> {
+    let path = faucet_state_path()?;
+    if !path.exists() {
+        let state = FaucetState::default();
+        persist_faucet_state(&state)?;
+        return Ok(state);
+    }
+
+    let raw = fs::read_to_string(&path).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to read faucet state from {}", path.display()),
+            error,
+        )
+    })?;
+
+    serde_json::from_str::<FaucetState>(&raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::LedgerInvalid,
+            format!("Failed to parse faucet state from {}", path.display()),
+            error,
+        )
+    })
+}
+
+fn persist_faucet_state(state: &FaucetState) -> Result<(), AppError> {
+    let path = faucet_state_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to create faucet state directory {}",
+                    parent.display()
+                ),
+                error,
+            )
+        })?;
+    }
+
+    let payload = serde_json::to_string_pretty(state).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to encode faucet state",
+            error,
+        )
+    })?;
+
+    fs::write(&path, payload).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to write faucet state to {}", path.display()),
+            error,
+        )
+    })?;
+
+    Ok(())
+}
+
+fn evaluate_faucet_claim(
+    state: &FaucetState,
+    account_id: &str,
+    amount: u64,
+    now_unix: u64,
+    force: bool,
+) -> FaucetClaimDecision {
+    let day_ago = now_unix.saturating_sub(24 * 60 * 60);
+    let relevant_claims: Vec<&FaucetClaimRecord> = state
+        .claims
+        .iter()
+        .filter(|claim| claim.account_id == account_id)
+        .collect();
+
+    let claimed_last_24h = relevant_claims
+        .iter()
+        .filter(|claim| claim.timestamp_unix >= day_ago)
+        .map(|claim| claim.amount)
+        .sum::<u64>();
+
+    let latest_claim = relevant_claims
+        .iter()
+        .max_by_key(|claim| claim.timestamp_unix)
+        .copied();
+
+    let cooldown_remaining_secs = latest_claim
+        .map(|claim| {
+            let unlock_at = claim.timestamp_unix.saturating_add(state.cooldown_secs);
+            unlock_at.saturating_sub(now_unix)
+        })
+        .unwrap_or(0);
+
+    let daily_remaining = state
+        .daily_limit_per_account
+        .saturating_sub(claimed_last_24h);
+
+    if force {
+        return FaucetClaimDecision {
+            allowed: true,
+            cooldown_remaining_secs,
+            claimed_last_24h,
+            daily_remaining,
+            denied_reason: None,
+        };
+    }
+
+    if amount > state.max_claim_amount {
+        return FaucetClaimDecision {
+            allowed: false,
+            cooldown_remaining_secs,
+            claimed_last_24h,
+            daily_remaining,
+            denied_reason: Some(format!(
+                "Requested amount exceeds max claim amount (max={})",
+                state.max_claim_amount
+            )),
+        };
+    }
+
+    if cooldown_remaining_secs > 0 {
+        return FaucetClaimDecision {
+            allowed: false,
+            cooldown_remaining_secs,
+            claimed_last_24h,
+            daily_remaining,
+            denied_reason: Some(format!(
+                "Cooldown is active; try again in {} seconds",
+                cooldown_remaining_secs
+            )),
+        };
+    }
+
+    if claimed_last_24h.saturating_add(amount) > state.daily_limit_per_account {
+        return FaucetClaimDecision {
+            allowed: false,
+            cooldown_remaining_secs,
+            claimed_last_24h,
+            daily_remaining,
+            denied_reason: Some(format!(
+                "Daily limit exceeded for account (limit={})",
+                state.daily_limit_per_account
+            )),
+        };
+    }
+
+    FaucetClaimDecision {
+        allowed: true,
+        cooldown_remaining_secs,
+        claimed_last_24h,
+        daily_remaining,
+        denied_reason: None,
+    }
+}
+
+fn prune_faucet_history(state: &mut FaucetState, now_unix: u64) {
+    let retention = ChronoDuration::hours(48).num_seconds().unsigned_abs();
+    let oldest = now_unix.saturating_sub(retention);
+    state.claims.retain(|claim| claim.timestamp_unix >= oldest);
+}
+
+fn now_unix_secs() -> Result<u64, AppError> {
+    let now = Utc::now().timestamp();
+    u64::try_from(now).map_err(|_| {
+        AppError::new(
+            ErrorCode::NodeStateInvalid,
+            "System clock produced a negative unix timestamp",
+        )
+    })
+}
+
+fn faucet_tx_id(account_id: &str, amount: u64, now_unix: u64, nonce: usize) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(account_id.as_bytes());
+    hasher.update(amount.to_le_bytes());
+    hasher.update(now_unix.to_le_bytes());
+    hasher.update(nonce.to_le_bytes());
+    format!("faucet-{}", hex::encode(hasher.finalize()))
+}
+
 #[cfg(test)]
 #[allow(clippy::items_after_test_module)]
 mod tests {
     use super::{
-        build_surface, collect_surface_gate_failures, compare_aoxhub_network_profiles,
-        compare_embedded_network_profiles, evaluate_full_surface_readiness,
-        evaluate_profile_readiness, full_surface_markdown_report,
+        FaucetClaimRecord, FaucetState, build_surface, collect_surface_gate_failures,
+        compare_aoxhub_network_profiles, compare_embedded_network_profiles, evaluate_faucet_claim,
+        evaluate_full_surface_readiness, evaluate_profile_readiness, full_surface_markdown_report,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_release_provenance_bundle,
         has_security_drill_artifact, locate_repo_artifact_dir, open_checklist_items,
@@ -2812,6 +3181,39 @@ mod tests {
             parse_required_or_default_text_arg(&args(&["--to", "   "]), "--to", "ops", false)
                 .expect_err("blank target must fail");
         assert_eq!(error.code(), "AOXC-USG-002");
+    }
+
+    #[test]
+    fn faucet_claim_rejects_amount_above_max_without_force() {
+        let state = FaucetState::default();
+        let decision = evaluate_faucet_claim(
+            &state,
+            "alice",
+            state.max_claim_amount + 1,
+            1_775_238_343,
+            false,
+        );
+        assert!(!decision.allowed);
+        assert!(
+            decision
+                .denied_reason
+                .expect("reason should exist")
+                .contains("max claim amount")
+        );
+    }
+
+    #[test]
+    fn faucet_claim_rejects_when_cooldown_active() {
+        let mut state = FaucetState::default();
+        state.claims.push(FaucetClaimRecord {
+            account_id: "alice".to_string(),
+            amount: 50,
+            timestamp_unix: 1_775_238_343,
+            tx_id: "tx-1".to_string(),
+        });
+        let decision = evaluate_faucet_claim(&state, "alice", 50, 1_775_238_343 + 100, false);
+        assert!(!decision.allowed);
+        assert!(decision.cooldown_remaining_secs > 0);
     }
 
     #[test]
