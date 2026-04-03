@@ -13,6 +13,7 @@ This document records validation-critical invariants that must remain true as th
 - Identical transaction inputs and ordering produce identical post-state outputs.
 - Signature-agnostic intent hashing remains stable across signature rotation.
 - Failed execution paths do not leak partial state mutations.
+- Phase-1 closure requires deterministic agreement across block production canonicalization, fork-choice tie-breaking for equal-height siblings, and AOXCVM replay execution output.
 
 ## Genesis and Runtime Material Integrity
 
