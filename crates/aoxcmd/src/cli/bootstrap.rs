@@ -363,6 +363,10 @@ impl EnvironmentProfile {
 
     fn genesis_document(self) -> BootstrapGenesisDocument {
         let identity = self.identity();
+        let validator_quorum_policy = match self {
+            Self::Mainnet | Self::Testnet => "pq-hybrid-threshold-2of3".to_string(),
+            _ => "strict-majority".to_string(),
+        };
 
         BootstrapGenesisDocument {
             schema_version: 1,
@@ -376,7 +380,7 @@ impl EnvironmentProfile {
                 mode: "bft".to_string(),
                 genesis_epoch: 0,
                 block_time_ms: 3_000,
-                validator_quorum_policy: "strict-majority".to_string(),
+                validator_quorum_policy,
                 consensus_identity_profile: default_consensus_identity_profile(),
             },
             economics: BootstrapEconomicsConfig {
@@ -789,14 +793,194 @@ fn evaluate_consensus_profile_audit(
                 .to_string(),
         );
     }
+    if matches!(profile, EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet) {
+        let normalized_quorum = genesis
+            .consensus
+            .validator_quorum_policy
+            .trim()
+            .to_ascii_lowercase();
+        if normalized_quorum.contains("pq") || normalized_quorum.contains("hybrid") {
+            passed.push("validator-quorum-policy-pq-hybrid".to_string());
+        } else {
+            blockers.push(format!(
+                "mainnet/testnet profiles must declare a pq/hybrid quorum policy; got `{}`",
+                genesis.consensus.validator_quorum_policy
+            ));
+        }
+    }
 
-    if genesis.consensus.block_time_ms >= 500 && genesis.consensus.block_time_ms <= 15_000 {
+    let expected_identity = profile.identity();
+    if genesis.identity.network_class == expected_identity.network_class {
+        passed.push("identity-network-class-alignment".to_string());
+    } else {
+        blockers.push(format!(
+            "identity network_class `{}` does not match expected `{}` for profile `{}`",
+            genesis.identity.network_class,
+            expected_identity.network_class,
+            profile.as_str()
+        ));
+    }
+
+    if genesis.identity.network_id == expected_identity.network_id {
+        passed.push("identity-network-id-alignment".to_string());
+    } else {
+        blockers.push(format!(
+            "identity network_id `{}` does not match expected `{}` for profile `{}`",
+            genesis.identity.network_id,
+            expected_identity.network_id,
+            profile.as_str()
+        ));
+    }
+
+    if genesis.identity.chain_id == expected_identity.chain_id {
+        passed.push("identity-chain-id-alignment".to_string());
+    } else {
+        blockers.push(format!(
+            "identity chain_id `{}` does not match expected `{}` for profile `{}`",
+            genesis.identity.chain_id,
+            expected_identity.chain_id,
+            profile.as_str()
+        ));
+    }
+
+    if genesis
+        .consensus
+        .engine
+        .trim()
+        .eq_ignore_ascii_case("aoxcunity")
+    {
+        passed.push("consensus-engine".to_string());
+    } else {
+        blockers.push(format!(
+            "unsupported consensus engine `{}`; expected `aoxcunity`",
+            genesis.consensus.engine
+        ));
+    }
+
+    if genesis.consensus.mode.trim().eq_ignore_ascii_case("bft") {
+        passed.push("consensus-mode".to_string());
+    } else {
+        blockers.push(format!(
+            "unsupported consensus mode `{}`; expected `bft`",
+            genesis.consensus.mode
+        ));
+    }
+
+    if genesis
+        .integrity
+        .hash_algorithm
+        .trim()
+        .eq_ignore_ascii_case("sha256")
+    {
+        passed.push("integrity-hash-algorithm".to_string());
+    } else {
+        blockers.push(format!(
+            "unsupported integrity hash algorithm `{}`; expected `sha256`",
+            genesis.integrity.hash_algorithm
+        ));
+    }
+
+    let expected_identity = profile.identity();
+    if genesis.identity.network_class == expected_identity.network_class {
+        passed.push("identity-network-class-alignment".to_string());
+    } else {
+        blockers.push(format!(
+            "identity network_class `{}` does not match expected `{}` for profile `{}`",
+            genesis.identity.network_class,
+            expected_identity.network_class,
+            profile.as_str()
+        ));
+    }
+
+    if genesis.identity.network_id == expected_identity.network_id {
+        passed.push("identity-network-id-alignment".to_string());
+    } else {
+        blockers.push(format!(
+            "identity network_id `{}` does not match expected `{}` for profile `{}`",
+            genesis.identity.network_id,
+            expected_identity.network_id,
+            profile.as_str()
+        ));
+    }
+
+    if genesis.identity.chain_id == expected_identity.chain_id {
+        passed.push("identity-chain-id-alignment".to_string());
+    } else {
+        blockers.push(format!(
+            "identity chain_id `{}` does not match expected `{}` for profile `{}`",
+            genesis.identity.chain_id,
+            expected_identity.chain_id,
+            profile.as_str()
+        ));
+    }
+
+    if genesis
+        .consensus
+        .engine
+        .trim()
+        .eq_ignore_ascii_case("aoxcunity")
+    {
+        passed.push("consensus-engine".to_string());
+    } else {
+        blockers.push(format!(
+            "unsupported consensus engine `{}`; expected `aoxcunity`",
+            genesis.consensus.engine
+        ));
+    }
+
+    if genesis.consensus.mode.trim().eq_ignore_ascii_case("bft") {
+        passed.push("consensus-mode".to_string());
+    } else {
+        blockers.push(format!(
+            "unsupported consensus mode `{}`; expected `bft`",
+            genesis.consensus.mode
+        ));
+    }
+
+    if genesis
+        .integrity
+        .hash_algorithm
+        .trim()
+        .eq_ignore_ascii_case("sha256")
+    {
+        passed.push("integrity-hash-algorithm".to_string());
+    } else {
+        blockers.push(format!(
+            "unsupported integrity hash algorithm `{}`; expected `sha256`",
+            genesis.integrity.hash_algorithm
+        ));
+    }
+
+    if genesis
+        .integrity
+        .hash_algorithm
+        .trim()
+        .eq_ignore_ascii_case("sha256")
+    {
+        passed.push("integrity-hash-algorithm".to_string());
+    } else {
+        blockers.push(format!(
+            "unsupported integrity hash algorithm `{}`; expected `sha256`",
+            genesis.integrity.hash_algorithm
+        ));
+    }
+
+    let block_time_in_envelope = genesis.consensus.block_time_ms >= 500
+        && genesis.consensus.block_time_ms <= 15_000;
+    if block_time_in_envelope {
         passed.push("block-time-envelope".to_string());
     } else {
-        warnings.push(format!(
+        let message = format!(
             "block_time_ms={} is outside recommended envelope [500, 15000]",
             genesis.consensus.block_time_ms
-        ));
+        );
+        if matches!(profile, EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet) {
+            blockers.push(format!(
+                "mainnet/testnet profiles require block_time_ms in [500, 15000]: {message}"
+            ));
+        } else {
+            warnings.push(message);
+        }
     }
 
     if genesis.consensus.validator_quorum_policy.trim().is_empty() {
@@ -814,11 +998,18 @@ fn evaluate_consensus_profile_audit(
     if genesis.environment.eq_ignore_ascii_case(profile.as_str()) {
         passed.push("profile-environment-alignment".to_string());
     } else {
-        warnings.push(format!(
+        let message = format!(
             "requested profile `{}` differs from genesis environment `{}`",
             profile.as_str(),
             genesis.environment
-        ));
+        );
+        if matches!(profile, EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet) {
+            blockers.push(format!(
+                "mainnet/testnet profiles require strict profile-environment alignment: {message}"
+            ));
+        } else {
+            warnings.push(message);
+        }
     }
 
     let score = (passed.len() as u8)
@@ -910,7 +1101,9 @@ pub fn consensus_profile_gate_status(
         .map_err(|error| format!("failed to decode genesis `{path_display}`: {error}"))?;
 
     let report = evaluate_consensus_profile_audit(&genesis, profile, path_display.clone());
-    let passed = report.blockers.is_empty();
+    let strict_warning_free = !matches!(profile, EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet)
+        || report.warnings.is_empty();
+    let passed = report.blockers.is_empty() && strict_warning_free;
     let detail = format!(
         "profile={}, consensus_profile={}, score={}, verdict={}",
         report.profile, report.consensus_identity_profile, report.score, report.verdict
@@ -2300,6 +2493,46 @@ mod tests {
 
         assert_eq!(report.verdict, "pass");
         assert!(report.blockers.is_empty());
+    }
+
+    #[test]
+    fn consensus_profile_audit_blocks_identity_mismatch() {
+        let mut genesis = EnvironmentProfile::Mainnet.genesis_document();
+        genesis.identity.network_id = "aoxc-mainnet-invalid".to_string();
+
+        let report = evaluate_consensus_profile_audit(
+            &genesis,
+            EnvironmentProfile::Mainnet,
+            "memory://mainnet".to_string(),
+        );
+
+        assert_eq!(report.verdict, "fail");
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|item| item.contains("identity network_id"))
+        );
+    }
+
+    #[test]
+    fn consensus_profile_audit_blocks_invalid_consensus_engine() {
+        let mut genesis = EnvironmentProfile::Testnet.genesis_document();
+        genesis.consensus.engine = "other-engine".to_string();
+
+        let report = evaluate_consensus_profile_audit(
+            &genesis,
+            EnvironmentProfile::Testnet,
+            "memory://testnet".to_string(),
+        );
+
+        assert_eq!(report.verdict, "fail");
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|item| item.contains("unsupported consensus engine"))
+        );
     }
 
     #[test]

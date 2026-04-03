@@ -1,13 +1,13 @@
 {
   "counts": {
-    "crate_scoped_tests": 1258,
+    "crate_scoped_tests": 1511,
     "fuzz_targets": 0,
     "property_macro_entries": 0,
-    "total_visible_test_entries": 1274,
-    "workspace_integration_tests": 16
+    "total_visible_test_entries": 1541,
+    "workspace_integration_tests": 30
   },
   "crate_scoped_tests": {
-    "aoxcai": 51,
+    "aoxcai": 77,
     "aoxcdata": 20,
     "aoxcenergy": 12,
     "aoxcexec": 12,
@@ -15,16 +15,16 @@
     "aoxchub": 15,
     "aoxckit": 123,
     "aoxclibs": 27,
-    "aoxcmd": 282,
+    "aoxcmd": 288,
     "aoxcmob": 11,
-    "aoxcnet": 41,
+    "aoxcnet": 45,
     "aoxconfig": 10,
-    "aoxcontract": 21,
-    "aoxcore": 441,
-    "aoxcrpc": 34,
-    "aoxcsdk": 9,
-    "aoxcunity": 110,
-    "aoxcvm": 20
+    "aoxcontract": 27,
+    "aoxcore": 443,
+    "aoxcrpc": 43,
+    "aoxcsdk": 13,
+    "aoxcunity": 113,
+    "aoxcvm": 213
   },
-  "generated_at_utc": "2026-03-31T15:34:57.808689+00:00"
+  "generated_at_utc": "2026-04-03T13:29:56.342219+00:00"
 }
