@@ -29,7 +29,7 @@ fn encode_hex_upper(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::canonical_execution_fingerprint;
+    use super::{canonical_execution_fingerprint, execution_fingerprint};
 
     #[test]
     fn fingerprint_is_stable_and_uppercase_hex() {
