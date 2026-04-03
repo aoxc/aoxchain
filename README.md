@@ -4,58 +4,82 @@
   <img src="./logos/aoxc.png" alt="AOXChain Logo" width="180" />
 </p>
 
-AOXChain is a deterministic Layer-1 engineering program focused on three primary outcomes:
+AOXChain is a deterministic Layer-1 engineering program focused on:
 
-1. a kernel-led chain with explicit trust and validation boundaries,
-2. a special-purpose deterministic VM owned by the protocol,
-3. a crypto-agile migration path to post-quantum security profiles.
+1. kernel-owned consensus and settlement policy,
+2. protocol-governed deterministic VM execution,
+3. cryptographic agility with staged post-quantum migration controls.
 
-> **Repository status (April 2, 2026):** Active development. Production-readiness is gated by evidence, not by intent.
+---
 
-## 1) Strategic Goals
+## Repository Status (April 3, 2026)
 
-### Goal A — Deterministic kernel correctness
-- Preserve deterministic state transitions under all supported environments.
-- Enforce fail-closed admission and settlement rules.
-- Keep consensus-critical behavior isolated from non-deterministic surfaces.
+> **Current posture:** active development, testnet-readiness by gate evidence, not a production warranty.
+>
+> **Critical warning:** AOXChain remains experimental software.  
+> No repository state alone should be interpreted as a guarantee of production fitness, uninterrupted operation, legal compliance, or financial suitability.
 
-### Goal B — AOXChain-owned VM
-- Build and maintain a protocol-governed VM execution surface.
-- Enforce deterministic gas/metering and bounded resource behavior.
-- Provide explicit VM admission, opcode policy, and syscall validation controls.
+If you declare readiness, use retained command evidence and explicit gate outputs.
 
-### Goal C — Quantum-resilient protocol evolution
-- Introduce versioned cryptographic profiles for signatures, key exchange, and validation flows.
-- Support hybrid migration (classical + post-quantum) before legacy deprecation.
-- Require auditable artifact evidence for every crypto-profile transition.
+---
 
-## 2) Primary Repository Surfaces
+## Why AOXChain
+
+AOXChain is designed for environments where deterministic behavior and auditable boundaries are non-negotiable:
+
+- deterministic execution and replay consistency,
+- fail-closed validation at ingress and policy boundaries,
+- kernel-first interpretation of trust/finality,
+- explicit cryptographic profile governance (including PQ transition paths),
+- release decisions backed by reproducible artifacts.
+
+---
+
+## Is AOXChain a Quantum-Targeting Chain?
+
+**Yes—by roadmap and architecture intent.**  
+AOXChain targets quantum-resilience via profile-versioned cryptography, hybrid migration windows, and rollback-safe governance flows rather than unverifiable “absolute security” claims.
+
+Primary references:
+
+- `QUANTUM_ROADMAP.md`
+- `QUANTUM_CHECKLIST.md`
+- `WHITEPAPER.md`
+
+---
+
+## Repository Layout
 
 | Path | Purpose |
 |---|---|
-| `crates/` | Protocol/kernel/VM/network/service implementation crates. |
-| `configs/` | Runtime and network profile definitions. |
-| `scripts/` | Validation, audit, and evidence automation. |
-| `tests/` | Integration, adversarial, and readiness validation suites. |
-| `artifacts/` | Generated readiness and release evidence outputs. |
-| `docs/` | mdBook and operator-facing documentation surfaces. |
+| `crates/` | Protocol, kernel, VM, network, service, and operator crates. |
+| `configs/` | Runtime/network profile definitions and environment bundles. |
+| `tests/` | Integration, adversarial, and production-readiness validation suites. |
+| `scripts/` | Automation for quality/readiness/audit evidence workflows. |
+| `docs/` | mdBook + operator-facing technical and governance documents. |
+| `artifacts/` | Generated evidence and release/readiness artifacts. |
 
-## 3) Canonical Governance and Technical Documents
+---
+
+## Canonical Documents
 
 - `READ.md` — canonical technical reference and execution contract.
 - `WHITEPAPER.md` — end-to-end protocol architecture, trust model, and production closure narrative.
 - `SCOPE.md` — in-scope/out-of-scope and compatibility posture.
-- `ARCHITECTURE.md` — component boundaries, dependency direction, trust surfaces.
-- `SECURITY.md` — reporting and security handling expectations.
-- `TESTING.md` — validation policy and evidence requirements.
-- `NETWORK_SECURITY_ARCHITECTURE.md` — network/RPC trust segmentation, DDoS controls, and kernel hardening baseline.
-- `ROADMAP.md` — repository execution roadmap.
-- `QUANTUM_ROADMAP.md` — quantum-resilience transformation plan.
-- `QUANTUM_CHECKLIST.md` — release-gating checklist for crypto-profile migration.
-- `docs/OS_COMPATIBILITY.md` — Linux/NixOS/macOS/Windows/Docker compatibility contract and validation gates.
-- `docs/PRODUCTION_IMPLEMENTATION_BLUEPRINT.md` — complete production delivery gate matrix for kernel, VM, API/CLI, and crypto-agility execution.
+- `ARCHITECTURE.md` — component topology, flow, and dependency direction.
+- `SECURITY.md` — private disclosure and security handling model.
+- `TESTING.md` — mandatory validation policy and gate criteria.
+- `NETWORK_SECURITY_ARCHITECTURE.md` — validator/sentry/RPC trust segmentation baseline.
+- `ROADMAP.md` — program roadmap.
+- `QUANTUM_ROADMAP.md` + `QUANTUM_CHECKLIST.md` — cryptographic migration execution/gates.
+- `docs/PRODUCTION_IMPLEMENTATION_BLUEPRINT.md` — production implementation and closure matrix.
+- `docs/OS_COMPATIBILITY.md` — cross-OS and Docker compatibility contract.
 
-## 4) Operator and Engineering Command Baseline
+---
+
+## Engineering and Operator Baseline Commands
+
+Quality and readiness:
 
 ```bash
 make help
@@ -63,90 +87,53 @@ make build
 make test
 make quality
 make audit
+make testnet-gate
+make testnet-readiness-gate
 make quantum-readiness-gate
 make quantum-full
 ```
 
-For environment lifecycle operations:
+Runtime lifecycle:
 
 ```bash
-make runtime-source-check AOXC_NETWORK_KIND=devnet
-make runtime-install AOXC_NETWORK_KIND=devnet
-make runtime-verify AOXC_NETWORK_KIND=devnet
-make runtime-activate AOXC_NETWORK_KIND=devnet
-make runtime-status AOXC_NETWORK_KIND=devnet
+make runtime-source-check AOXC_NETWORK_KIND=<env>
+make runtime-install AOXC_NETWORK_KIND=<env>
+make runtime-verify AOXC_NETWORK_KIND=<env>
+make runtime-activate AOXC_NETWORK_KIND=<env>
+make runtime-status AOXC_NETWORK_KIND=<env>
 ```
 
-## 3) How the Make system is organized
+---
 
-The root `Makefile` is a single-runtime operator surface. It intentionally avoids environment fan-out and exposes auditable targets for:
-- build and packaging,
-- runtime installation and activation,
-- health and policy verification,
-- daemon lifecycle operations,
-- evidence and audit trace generation.
+## Readiness and Promotion Policy (Short Form)
 
-Key target groups:
-- **Engineering quality:** `build`, `test`, `check`, `fmt`, `clippy`, `quality`, `ci`.
-- **Runtime management:** `runtime-install`, `runtime-verify`, `runtime-activate`, `runtime-status`, `runtime-doctor`, `runtime-reset`.
-- **Operations:** `ops-prepare`, `ops-start`, `ops-stop`, `ops-restart`, `ops-logs`, `ops-flow`.
-- **Guided workflows:** `demo`, `localnet`, `devnet`, `testnet`, `doctor`, `audit-chain`.
-- **Release/evidence:** `package-*`, `publish-release`, `audit`, `db-*`.
+AOXChain should be treated as ready for a target environment only when required gates pass and evidence is retained.
 
-## 4) Identity and key management baseline
+For testnet go/no-go decisions, use:
 
-AOXChain identity derivation uses a canonical BIP44-style HD path envelope:
+- `make testnet-gate`
+- `make testnet-readiness-gate`
+- `cargo test -p tests`
 
-- **Purpose:** `44`
-- **AOXC coin type:** `2626`
-- **Canonical path format:** `m/44/2626/<chain>/<role>/<zone>/<index>`
+If any required gate fails, status is **NOT_READY** until remediation and revalidation are complete.
 
-Important implementation details:
-- Canonical persisted path components are constrained to the 31-bit unhardened range (`0 ..= 0x7FFF_FFFF`).
-- Hardened behavior is represented as a projection helper where needed, not by storing hardened markers in canonical path text.
-- Deterministic entropy derivation is domain-separated and combines master-seed + canonical path fields.
-- Node key bundles enforce role-path consistency and fingerprint validation for auditability.
+---
 
-If you are asking whether the system is aligned to `m/44'/2626'`: AOXChain follows the BIP44 field semantics (`44`, `2626`) but stores canonical textual paths in unhardened numeric form (`m/44/2626/...`) as an explicit policy decision.
+## Compatibility and Change Discipline
 
-## 5) Repository map
+Breaking changes may be accepted when required for determinism, safety, or architectural integrity, but they must be:
 
-| Path | Role |
-|---|---|
-| `crates/` | Rust workspace crates (kernel, execution, networking, RPC, SDK, operator tooling). |
-| `configs/` | Environment/runtime profiles and deterministic network definitions. |
-| `docs/` | mdBook-backed governance and technical documentation. |
-| `models/` | Readiness, risk, and profile models used by checks and audits. |
-| `scripts/` | Automation for quality gates and evidence generation. |
-| `tests/` | Integration and production-readiness validation suite. |
-| `artifacts/` | Generated release-evidence and production-closure bundles. |
-| `contracts/` | Contract surface and deployment matrix inputs. |
+- explicitly declared,
+- documented with impact rationale,
+- accompanied by relevant validation evidence.
 
-## 6) Documentation baseline
+Architecture-sensitive changes (consensus, execution semantics, crypto policy, storage format, API behavior, operator controls) require synchronized updates to canonical docs.
 
-- `README.md`: repository purpose, setup, and operational entry points.
-- `READ.md`: canonical technical definitions and invariants.
-- `SCOPE.md`: in-scope and out-of-scope boundaries, compatibility policy.
-- `ARCHITECTURE.md`: component boundaries and data/control flow.
-- `SECURITY.md`: reporting and security coordination expectations.
-- `TESTING.md`: required validation layers and commands.
-- `QUANTUM_ROADMAP.md`: phased post-quantum transformation program (block structure, VM, network, governance, AI-assisted operations).
-- `QUANTUM_CHECKLIST.md`: release-gating checklist for quantum-resilience execution and evidence.
+---
 
-mdBook entry points:
-- `docs/src/README.md`
-- `docs/src/SYSTEM_STATUS.md`
-- `docs/src/AI_TRAINING_AND_AUDIT_GUIDE.md`
+## Experimental and Liability Notice
 
-A change is considered high-risk and requires explicit documentation updates when it affects:
-- consensus/finality behavior,
-- VM execution semantics,
-- cryptographic profile behavior,
-- persistence or serialization format,
-- external API or operator procedures.
+AOXChain is distributed under the [MIT License](./LICENSE) on an **"as is"** basis.  
+Maintainers and contributors provide no warranty of correctness, availability, merchantability, fitness for a particular purpose, or regulatory/compliance suitability, except where prohibited by applicable law.
 
-No “ready” claim is valid without reproducible commands and retained artifacts.
-
-## 6) License and Liability Context
-
-AOXChain is distributed under the [MIT License](./LICENSE). Repository materials are provided on an **"as is"** basis without warranties or liability assumptions by maintainers or contributors.
+Do not interpret testnet readiness as production guarantee.
