@@ -31,47 +31,12 @@ use std::{
     time::Duration,
 };
 
-mod chain_ops;
-mod consensus_ops;
-mod economy_runtime_ops;
 mod faucet;
-mod metrics_ops;
-mod network_read_ops;
-mod node_ops;
-mod readiness_commands;
-mod rpc_status_ops;
-mod tx_account_ops;
-mod vm_ops;
 
-pub use chain_ops::{cmd_block_get, cmd_chain_status};
-pub use consensus_ops::{
-    cmd_consensus_commits, cmd_consensus_evidence, cmd_consensus_finality, cmd_consensus_proposer,
-    cmd_consensus_round, cmd_consensus_status, cmd_consensus_validators,
-};
-pub use economy_runtime_ops::{
-    cmd_economy_init, cmd_economy_status, cmd_runtime_status, cmd_stake_delegate,
-    cmd_stake_undelegate, cmd_treasury_transfer,
-};
 pub use faucet::{
     cmd_faucet_audit, cmd_faucet_balance, cmd_faucet_claim, cmd_faucet_config,
     cmd_faucet_config_show, cmd_faucet_disable, cmd_faucet_enable, cmd_faucet_history,
     cmd_faucet_reset, cmd_faucet_status,
-};
-pub use metrics_ops::cmd_metrics;
-pub use network_read_ops::{cmd_network_full, cmd_network_status, cmd_peer_list, cmd_state_root};
-pub use node_ops::{
-    cmd_network_smoke, cmd_node_bootstrap, cmd_node_health, cmd_node_run, cmd_produce_once,
-    cmd_real_network, cmd_storage_smoke,
-};
-pub use readiness_commands::{
-    cmd_full_surface_gate, cmd_full_surface_readiness, cmd_level_score, cmd_load_benchmark,
-    cmd_mainnet_readiness, cmd_profile_baseline, cmd_testnet_readiness,
-};
-pub use rpc_status_ops::{cmd_rpc_curl_smoke, cmd_rpc_status};
-pub use tx_account_ops::{cmd_account_get, cmd_balance_get, cmd_tx_get, cmd_tx_receipt};
-pub use vm_ops::{
-    cmd_vm_call, cmd_vm_code_get, cmd_vm_contract_get, cmd_vm_estimate_gas, cmd_vm_simulate,
-    cmd_vm_status, cmd_vm_storage_get, cmd_vm_trace,
 };
 
 const FAUCET_MAX_CLAIM_AMOUNT: u64 = 10_000;
@@ -1995,6 +1960,776 @@ fn ports_are_shifted_consistently(
 
 fn extract_port(addr: &str) -> Option<u16> {
     addr.rsplit(':').next()?.parse::<u16>().ok()
+}
+
+pub fn cmd_economy_init(args: &[String]) -> Result<(), AppError> {
+    let ledger = ledger::init()?;
+    let _ = refresh_runtime_metrics().ok();
+    emit_serialized(&ledger, output_format(args))
+}
+
+pub fn cmd_treasury_transfer(args: &[String]) -> Result<(), AppError> {
+    let to = parse_required_or_default_text_arg(args, "--to", "ops", false)?;
+    let amount = parse_positive_u64_arg(args, "--amount", 1000, "treasury transfer")?;
+
+    let ledger = ledger::transfer(&to, amount)?;
+    let _ = refresh_runtime_metrics().ok();
+    emit_serialized(&ledger, output_format(args))
+}
+
+pub fn cmd_stake_delegate(args: &[String]) -> Result<(), AppError> {
+    let validator = parse_required_or_default_text_arg(args, "--validator", "validator-01", false)?;
+    let amount = parse_positive_u64_arg(args, "--amount", 1000, "stake delegation")?;
+
+    let ledger = ledger::delegate(&validator, amount)?;
+    let _ = refresh_runtime_metrics().ok();
+    emit_serialized(&ledger, output_format(args))
+}
+
+pub fn cmd_stake_undelegate(args: &[String]) -> Result<(), AppError> {
+    let validator = parse_required_or_default_text_arg(args, "--validator", "validator-01", false)?;
+    let amount = parse_positive_u64_arg(args, "--amount", 1000, "stake undelegation")?;
+
+    let ledger = ledger::undelegate(&validator, amount)?;
+    let _ = refresh_runtime_metrics().ok();
+    emit_serialized(&ledger, output_format(args))
+}
+
+pub fn cmd_economy_status(args: &[String]) -> Result<(), AppError> {
+    let ledger = ledger::load()?;
+    emit_serialized(&ledger, output_format(args))
+}
+
+pub fn cmd_runtime_status(args: &[String]) -> Result<(), AppError> {
+    let context = runtime_context()?;
+    let handles = default_handles();
+    let unity = unity_status();
+    let ai = crate::ai::runtime::report();
+
+    #[derive(serde::Serialize)]
+    struct RuntimeStatus {
+        context: crate::runtime::context::RuntimeContext,
+        handles: crate::runtime::handles::RuntimeHandleSet,
+        unity: crate::runtime::unity::UnityStatus,
+        ai: crate::ai::runtime::AiRuntimeReport,
+    }
+
+    let status = RuntimeStatus {
+        context,
+        handles,
+        unity,
+        ai,
+    };
+
+    emit_serialized(&status, output_format(args))
+}
+
+pub fn cmd_chain_status(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct ChainStatus {
+        network_id: u32,
+        current_height: u64,
+        latest_block_hash: String,
+        latest_parent_hash: String,
+        latest_timestamp_unix: u64,
+        produced_blocks: u64,
+        running: bool,
+        profile: String,
+        consensus_mode: &'static str,
+    }
+
+    let settings = effective_settings_for_ops()?;
+    let state = lifecycle::load_state()?;
+    let status = ChainStatus {
+        network_id: state.consensus.network_id,
+        current_height: state.current_height,
+        latest_block_hash: state.consensus.last_block_hash_hex,
+        latest_parent_hash: state.consensus.last_parent_hash_hex,
+        latest_timestamp_unix: state.consensus.last_timestamp_unix,
+        produced_blocks: state.produced_blocks,
+        running: state.running,
+        profile: settings.profile,
+        consensus_mode: "aoxcunity",
+    };
+
+    emit_serialized(&status, output_format(args))
+}
+
+pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct BlockView {
+        requested_height: Option<String>,
+        requested_hash: Option<String>,
+        available: bool,
+        height: u64,
+        block_hash: String,
+        parent_hash: String,
+        proposer: String,
+        consensus_round: u64,
+        timestamp_unix: u64,
+        section_count: usize,
+        tx_count: usize,
+        tx_hashes: Vec<String>,
+        state_root: String,
+    }
+
+    let requested_height = arg_value(args, "--height").and_then(|v| normalize_text(&v, false));
+    let requested_hash = arg_value(args, "--hash").and_then(|v| normalize_text(&v, false));
+    if requested_height.is_some() && requested_hash.is_some() {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Use either --height or --hash, not both",
+        ));
+    }
+    let state = lifecycle::load_state()?;
+    let canonical_height = state.current_height;
+    let state_root = derive_state_root(&state)?;
+    let default_height = "latest".to_string();
+    let requested_height_value = requested_height
+        .as_deref()
+        .unwrap_or(default_height.as_str());
+
+    let historical = load_historical_block(requested_height_value, requested_hash.as_deref())?;
+    let (available, height, block_hash, parent_hash, tx_hashes) = if let Some(envelope) = historical
+    {
+        let tx_hashes = historical_tx_hashes(&envelope);
+        (
+            true,
+            envelope.height,
+            envelope.block_hash_hex,
+            envelope.parent_hash_hex,
+            tx_hashes,
+        )
+    } else {
+        let available = match requested_height_value {
+            "latest" => true,
+            value => value.parse::<u64>().ok() == Some(canonical_height),
+        } && match requested_hash.as_ref() {
+            Some(hash) => hash.eq_ignore_ascii_case(&state.consensus.last_block_hash_hex),
+            None => true,
+        };
+        let tx_hashes = if state.last_tx == "none" {
+            Vec::new()
+        } else {
+            vec![state.last_tx.clone()]
+        };
+        (
+            available,
+            canonical_height,
+            state.consensus.last_block_hash_hex.clone(),
+            state.consensus.last_parent_hash_hex.clone(),
+            tx_hashes,
+        )
+    };
+
+    let view = BlockView {
+        requested_height: Some(requested_height_value.to_string()),
+        requested_hash,
+        available,
+        height,
+        block_hash,
+        parent_hash,
+        proposer: state.consensus.last_proposer_hex,
+        consensus_round: state.consensus.last_round,
+        timestamp_unix: state.consensus.last_timestamp_unix,
+        section_count: state.consensus.last_section_count,
+        tx_count: tx_hashes.len(),
+        tx_hashes,
+        state_root,
+    };
+
+    emit_serialized(&view, output_format(args))
+}
+
+pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct TxView {
+        tx_hash: String,
+        known: bool,
+        block_height: u64,
+        execution_status: String,
+        source: String,
+    }
+
+    let tx_hash = arg_value(args, "--hash")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --hash must not be blank",
+            )
+        })?;
+    let state = lifecycle::load_state()?;
+    let indexed = load_tx_index_entry(&tx_hash)?;
+    let known = indexed.is_some()
+        || (state.last_tx != "none" && tx_hash == state.last_tx)
+        || (state.last_tx != "none" && tx_hash == tx_hash_hex(&state.last_tx));
+
+    let (block_height, execution_status, source) = if let Some(entry) = indexed {
+        (
+            entry.block_height,
+            entry.execution_status,
+            "tx-index".to_string(),
+        )
+    } else {
+        (
+            state.current_height,
+            if known {
+                "applied".to_string()
+            } else {
+                "unknown".to_string()
+            },
+            "runtime-last-tx".to_string(),
+        )
+    };
+
+    let tx = TxView {
+        tx_hash,
+        known,
+        block_height,
+        execution_status,
+        source,
+    };
+
+    emit_serialized(&tx, output_format(args))
+}
+
+pub fn cmd_tx_receipt(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct TxReceiptView {
+        tx_hash: String,
+        found: bool,
+        success: bool,
+        gas_used: u64,
+        fee_paid: u64,
+        events: Vec<String>,
+        logs: Vec<String>,
+        state_change_summary: String,
+    }
+
+    let tx_hash = arg_value(args, "--hash")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --hash must not be blank",
+            )
+        })?;
+    let state = lifecycle::load_state()?;
+    let indexed = load_tx_index_entry(&tx_hash)?;
+    let found = indexed.is_some()
+        || (state.last_tx != "none" && tx_hash == state.last_tx)
+        || (state.last_tx != "none" && tx_hash == tx_hash_hex(&state.last_tx));
+    let receipt = TxReceiptView {
+        tx_hash,
+        found,
+        success: found,
+        gas_used: indexed.as_ref().map_or(0, |entry| entry.gas_used),
+        fee_paid: indexed.as_ref().map_or(0, |entry| entry.fee_paid),
+        events: indexed.as_ref().map_or_else(
+            || {
+                if found {
+                    vec!["runtime_tx_applied".to_string()]
+                } else {
+                    Vec::new()
+                }
+            },
+            |entry| entry.events.clone(),
+        ),
+        logs: Vec::new(),
+        state_change_summary: if let Some(entry) = indexed {
+            entry.state_change_summary
+        } else if found {
+            "local runtime marker updated".to_string()
+        } else {
+            "receipt not found".to_string()
+        },
+    };
+
+    emit_serialized(&receipt, output_format(args))
+}
+
+pub fn cmd_account_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct AccountView {
+        account_id: String,
+        known: bool,
+        balance: u64,
+        nonce: u64,
+        source: &'static str,
+    }
+
+    let account_id = arg_value(args, "--id")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --id must not be blank",
+            )
+        })?;
+    let ledger = ledger::load().unwrap_or_default();
+    let balance = if account_id == "treasury" {
+        ledger.treasury_balance
+    } else {
+        ledger.delegations.get(&account_id).copied().unwrap_or(0)
+    };
+
+    let account = AccountView {
+        known: account_id == "treasury" || ledger.delegations.contains_key(&account_id),
+        account_id,
+        balance,
+        nonce: 0,
+        source: "local-ledger",
+    };
+
+    emit_serialized(&account, output_format(args))
+}
+
+pub fn cmd_balance_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct BalanceView {
+        account_id: String,
+        balance: u64,
+        known: bool,
+        source: &'static str,
+    }
+
+    let account_id = arg_value(args, "--id")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --id must not be blank",
+            )
+        })?;
+    let ledger = ledger::load().unwrap_or_default();
+    let balance = if account_id == "treasury" {
+        ledger.treasury_balance
+    } else {
+        ledger.delegations.get(&account_id).copied().unwrap_or(0)
+    };
+    let response = BalanceView {
+        known: account_id == "treasury" || ledger.delegations.contains_key(&account_id),
+        account_id,
+        balance,
+        source: "local-ledger",
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_ops()?;
+    let response = build_network_snapshot(&settings);
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_ops()?;
+    let snapshot = build_network_snapshot(&settings);
+    let status = NetworkStatus {
+        mode: snapshot.mode,
+        bind_host: snapshot.bind_host,
+        p2p_port: snapshot.p2p_port,
+        rpc_port: snapshot.rpc_port,
+        peer_count: snapshot.peer_count,
+        listener_active: snapshot.listener_active,
+        sync_state: snapshot.sync_state,
+    };
+
+    emit_serialized(&status, output_format(args))
+}
+
+pub fn cmd_network_full(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_ops()?;
+    let response = build_network_snapshot(&settings);
+
+    emit_serialized(&response, output_format(args))
+}
+
+#[derive(serde::Serialize)]
+struct PeerView {
+    peer_id: String,
+    address: String,
+    direction: &'static str,
+    connected_since: String,
+    sync_state: &'static str,
+}
+
+#[derive(serde::Serialize)]
+struct NetworkSnapshot {
+    mode: &'static str,
+    bind_host: String,
+    p2p_port: u16,
+    rpc_port: u16,
+    peer_count: usize,
+    listener_active: bool,
+    sync_state: &'static str,
+    enforce_official_peers: bool,
+    peers: Vec<PeerView>,
+}
+
+#[derive(serde::Serialize)]
+struct NetworkStatus {
+    mode: &'static str,
+    bind_host: String,
+    p2p_port: u16,
+    rpc_port: u16,
+    peer_count: usize,
+    listener_active: bool,
+    sync_state: &'static str,
+}
+
+fn build_network_snapshot(settings: &Settings) -> NetworkSnapshot {
+    let now = Utc::now().to_rfc3339();
+    let peers = vec![PeerView {
+        peer_id: "self".to_string(),
+        address: format!(
+            "{}:{}",
+            settings.network.bind_host, settings.network.p2p_port
+        ),
+        direction: "inbound+outbound",
+        connected_since: now,
+        sync_state: "in-sync",
+    }];
+
+    let probe_target = format!(
+        "{}:{}",
+        settings.network.bind_host, settings.network.rpc_port
+    );
+    let listener_active = rpc_listener_active(&probe_target);
+    NetworkSnapshot {
+        mode: "single-node",
+        bind_host: settings.network.bind_host.clone(),
+        p2p_port: settings.network.p2p_port,
+        rpc_port: settings.network.rpc_port,
+        peer_count: peers.len(),
+        listener_active,
+        sync_state: "in-sync",
+        enforce_official_peers: settings.network.enforce_official_peers,
+        peers,
+    }
+}
+
+pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct StateRoot {
+        state_root: String,
+        height: u64,
+        updated_at: String,
+        source: String,
+    }
+
+    let state = lifecycle::load_state()?;
+    let requested_height = arg_value(args, "--height")
+        .and_then(|value| normalize_text(&value, false))
+        .and_then(|value| value.parse::<u64>().ok());
+    let indexed = if let Some(height) = requested_height {
+        load_state_root_for_height(height)?
+    } else {
+        None
+    };
+    let source = if indexed.is_some() {
+        "state-root-index".to_string()
+    } else {
+        "runtime-snapshot".to_string()
+    };
+    let response = StateRoot {
+        state_root: indexed
+            .as_ref()
+            .map(|(_, root)| root.clone())
+            .unwrap_or(derive_state_root(&state)?),
+        height: indexed
+            .map(|(height, _)| height)
+            .unwrap_or(state.current_height),
+        updated_at: state.updated_at,
+        source,
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_metrics(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct MetricsView {
+        node_height: u64,
+        produced_blocks: u64,
+        treasury_balance: u64,
+        recorded_at: String,
+        source: &'static str,
+    }
+
+    let state = lifecycle::load_state()?;
+    let ledger = ledger::load().unwrap_or_default();
+    let metrics_path = crate::telemetry::prometheus::metrics_path()?;
+    if metrics_path.exists() {
+        let raw = fs::read_to_string(&metrics_path).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to read metrics snapshot from {}",
+                    metrics_path.display()
+                ),
+                error,
+            )
+        })?;
+        let snapshot: crate::telemetry::prometheus::MetricsSnapshot = serde_json::from_str(&raw)
+            .map_err(|error| {
+                AppError::with_source(
+                    ErrorCode::OutputEncodingFailed,
+                    format!(
+                        "Failed to parse metrics snapshot from {}",
+                        metrics_path.display()
+                    ),
+                    error,
+                )
+            })?;
+        let response = MetricsView {
+            node_height: snapshot.node_height,
+            produced_blocks: snapshot.produced_blocks,
+            treasury_balance: snapshot.treasury_balance,
+            recorded_at: snapshot.recorded_at,
+            source: "telemetry-snapshot",
+        };
+        return emit_serialized(&response, output_format(args));
+    }
+
+    let response = MetricsView {
+        node_height: state.current_height,
+        produced_blocks: state.produced_blocks,
+        treasury_balance: ledger.treasury_balance,
+        recorded_at: Utc::now().to_rfc3339(),
+        source: "derived-live",
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct RpcStatus {
+        enabled: bool,
+        bind_host: String,
+        port: u16,
+        http_ready: bool,
+        jsonrpc_ready: bool,
+        required_endpoint_ready: bool,
+        uptime_secs: u64,
+        listener_active: bool,
+        curl_compatible: bool,
+        probe_target: String,
+        http_base_url: String,
+        probe_mode: &'static str,
+        required_endpoint_probes: BTreeMap<&'static str, bool>,
+        jsonrpc_status_probe: bool,
+        rest_endpoints: Vec<&'static str>,
+        json_rpc_methods: Vec<&'static str>,
+        curl_examples: BTreeMap<&'static str, String>,
+    }
+
+    let settings = effective_settings_for_ops()?;
+    let state = lifecycle::load_state()?;
+    let probe_target = format!(
+        "{}:{}",
+        settings.network.bind_host, settings.network.rpc_port
+    );
+    let listener_active = rpc_listener_active(&probe_target);
+    let uptime_secs = uptime_secs_from_rfc3339(&state.updated_at);
+    let curl_host = if settings.network.bind_host == "0.0.0.0" {
+        "127.0.0.1".to_string()
+    } else {
+        settings.network.bind_host.clone()
+    };
+    let http_base_url = format!("http://{}:{}", curl_host, settings.network.rpc_port);
+    let mut curl_examples = BTreeMap::new();
+    curl_examples.insert("health", format!("curl -fsS {http_base_url}/health"));
+    curl_examples.insert("status", format!("curl -fsS {http_base_url}/status"));
+    curl_examples.insert(
+        "latest-block",
+        format!("curl -fsS {http_base_url}/block/latest"),
+    );
+    curl_examples.insert(
+        "consensus-status",
+        format!("curl -fsS {http_base_url}/consensus/status"),
+    );
+    curl_examples.insert("vm-status", format!("curl -fsS {http_base_url}/vm/status"));
+    curl_examples.insert(
+        "json-rpc-status",
+        format!(
+            "curl -fsS -H 'content-type: application/json' -d '{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"status\",\"params\":[]}}' {http_base_url}"
+        ),
+    );
+    curl_examples.insert(
+        "faucet-status",
+        format!("curl -fsS {http_base_url}/faucet/status"),
+    );
+    curl_examples.insert(
+        "faucet-claim",
+        format!(
+            "curl -fsS -X POST -H 'content-type: application/json' -d '{{\"account_id\":\"devnet-user\",\"amount\":1000}}' {http_base_url}/faucet/claim"
+        ),
+    );
+    let required_paths = [
+        "/health",
+        "/status",
+        "/chain/status",
+        "/consensus/status",
+        "/vm/status",
+    ];
+    let mut required_endpoint_probes = BTreeMap::new();
+    if listener_active {
+        for path in required_paths {
+            required_endpoint_probes.insert(
+                path,
+                rpc_http_get_probe(&curl_host, settings.network.rpc_port, path),
+            );
+        }
+    } else {
+        for path in required_paths {
+            required_endpoint_probes.insert(path, false);
+        }
+    }
+    let required_endpoint_ready = required_endpoint_probes.values().all(|ready| *ready);
+    let jsonrpc_status_probe =
+        listener_active && rpc_jsonrpc_status_probe(&curl_host, settings.network.rpc_port);
+    let response = RpcStatus {
+        enabled: true,
+        bind_host: settings.network.bind_host.clone(),
+        port: settings.network.rpc_port,
+        http_ready: required_endpoint_ready,
+        jsonrpc_ready: jsonrpc_status_probe,
+        required_endpoint_ready,
+        uptime_secs,
+        listener_active,
+        curl_compatible: required_endpoint_ready && jsonrpc_status_probe,
+        probe_target,
+        http_base_url,
+        probe_mode: if listener_active {
+            "tcp+http-active-probe"
+        } else {
+            "tcp-connect"
+        },
+        required_endpoint_probes,
+        jsonrpc_status_probe,
+        rest_endpoints: vec![
+            "/health",
+            "/status",
+            "/metrics",
+            "/chain/status",
+            "/block/latest",
+            "/block/{height}",
+            "/tx/{hash}",
+            "/tx/{hash}/receipt",
+            "/account/{id}",
+            "/consensus/status",
+            "/network/peers",
+            "/vm/status",
+            "/state/root",
+            "/rpc/status",
+            "/faucet/status",
+            "/faucet/claim",
+            "/faucet/history/{account_id}",
+            "/faucet/balance",
+            "/faucet/config",
+            "/faucet/enable",
+            "/faucet/disable",
+            "/faucet/ban",
+            "/faucet/unban",
+            "/faucet/config/update",
+        ],
+        json_rpc_methods: vec![
+            "status",
+            "getLatestBlock",
+            "getBlockByHeight",
+            "getBlockByHash",
+            "getTxByHash",
+            "getReceiptByHash",
+            "getAccount",
+            "getBalance",
+            "getStateRoot",
+            "getConsensusStatus",
+            "getNetworkStatus",
+            "getPeers",
+            "getVmStatus",
+        ],
+        curl_examples,
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_rpc_curl_smoke(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct ProbeResult {
+        target: String,
+        ok: bool,
+    }
+
+    #[derive(serde::Serialize)]
+    struct RpcCurlSmokeReport {
+        listener_active: bool,
+        probe_target: String,
+        http_base_url: String,
+        probes: Vec<ProbeResult>,
+        all_passed: bool,
+    }
+
+    let settings = effective_settings_for_ops()?;
+    let probe_target = format!(
+        "{}:{}",
+        settings.network.bind_host, settings.network.rpc_port
+    );
+    let listener_active = rpc_listener_active(&probe_target);
+    let curl_host = if settings.network.bind_host == "0.0.0.0" {
+        "127.0.0.1".to_string()
+    } else {
+        settings.network.bind_host.clone()
+    };
+    let http_base_url = format!("http://{}:{}", curl_host, settings.network.rpc_port);
+
+    let mut probes = vec![
+        ProbeResult {
+            target: format!("GET {http_base_url}/health"),
+            ok: listener_active
+                && rpc_http_get_probe(&curl_host, settings.network.rpc_port, "/health"),
+        },
+        ProbeResult {
+            target: format!("GET {http_base_url}/status"),
+            ok: listener_active
+                && rpc_http_get_probe(&curl_host, settings.network.rpc_port, "/status"),
+        },
+        ProbeResult {
+            target: format!("GET {http_base_url}/chain/status"),
+            ok: listener_active
+                && rpc_http_get_probe(&curl_host, settings.network.rpc_port, "/chain/status"),
+        },
+        ProbeResult {
+            target: format!("GET {http_base_url}/consensus/status"),
+            ok: listener_active
+                && rpc_http_get_probe(&curl_host, settings.network.rpc_port, "/consensus/status"),
+        },
+        ProbeResult {
+            target: format!("GET {http_base_url}/vm/status"),
+            ok: listener_active
+                && rpc_http_get_probe(&curl_host, settings.network.rpc_port, "/vm/status"),
+        },
+    ];
+
+    probes.push(ProbeResult {
+        target: format!(
+            "POST {http_base_url} {{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"status\",\"params\":[]}}"
+        ),
+        ok: listener_active && rpc_jsonrpc_status_probe(&curl_host, settings.network.rpc_port),
+    });
+
+    let report = RpcCurlSmokeReport {
+        listener_active,
+        probe_target,
+        http_base_url,
+        all_passed: probes.iter().all(|probe| probe.ok),
+        probes,
+    };
+    emit_serialized(&report, output_format(args))
 }
 
 /// Resolves effective settings for read-oriented ops surfaces without creating
