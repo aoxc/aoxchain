@@ -129,3 +129,31 @@ Recommended command set for profile-impacting changes:
 - `make audit`
 
 If these checks cannot run in the current environment, the limitation must be stated explicitly with remediation plan and rerun owner.
+
+## Phase-1 Full Determinism Closure Gate
+
+For Phase-1 completion claims, the following integrated readiness checks are mandatory:
+
+- `make phase1-full`
+- `cargo test -p tests phase1_full_readiness_surface_is_consistent`
+- `cargo test -p tests vm_phase1_execution_is_deterministic_across_replays`
+- `cargo test -p tests block_production_is_deterministic_for_permuted_body_sections`
+- `cargo test -p tests fork_choice_accepts_equal_height_siblings_with_deterministic_tiebreak`
+
+`phase1_full_readiness_surface_is_consistent` is the umbrella regression proving that
+deterministic block construction, deterministic equal-height fork-choice selection,
+and deterministic AOXCVM phase-1 replay behavior hold together in one control flow.
+
+## Phase-2 Full Crypto/Key Closure Gate
+
+For Phase-2 completion claims, the following integrated crypto/key checks are mandatory:
+
+- `make phase2-full`
+- `cargo test -p tests phase2_full_crypto_key_surface_is_consistent`
+
+`phase2_full_crypto_key_surface_is_consistent` must verify, in one control flow:
+
+- signature verification admission behavior,
+- key rotation continuity constraints,
+- hybrid post-quantum policy enforcement,
+- domain-separated PQ signing and verification.

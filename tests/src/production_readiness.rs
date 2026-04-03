@@ -10,6 +10,7 @@ use aoxcnet::{
 };
 use aoxcore::{
     block::{Capability, TargetOutpost},
+    identity::pq_keys,
     identity::{
         actor_id::{ActorIdError, generate_actor_id, parse_actor_id, validate_actor_id},
         hd_path::{HdPath, HdPathError, MAX_HD_INDEX},
@@ -20,11 +21,31 @@ use aoxcore::{
     },
 };
 use aoxcunity::{
-    BlockBody, ConsensusError, ConsensusState, LaneCommitment, LaneCommitmentSection, LaneType,
+    BlockBody, BlockSection, ConsensusError, ConsensusState, ExternalNetwork, ExternalProofRecord,
+    ExternalProofSection, ExternalProofType, LaneCommitment, LaneCommitmentSection, LaneType,
     Proposer, QuorumCertificate, QuorumThreshold, Validator, ValidatorRole, ValidatorRotation,
     Vote, VoteKind,
 };
-use ed25519_dalek::SigningKey;
+use aoxcvm::{
+    auth::{
+        envelope::{AuthEnvelope, SignatureEntry},
+        scheme::SignatureAlgorithm as VmSignatureAlgorithm,
+    },
+    auth::{hybrid::HybridPolicy, rotation::RotationPlan},
+    context::{
+        block::BlockContext, call::CallContext, environment::EnvironmentContext,
+        execution::ExecutionContext, origin::OriginContext, tx::TxContext,
+    },
+    tx::{envelope::TxEnvelope, fee::FeeBudget, kind::TxKind, payload::TxPayload},
+    vm::{
+        machine::{Instruction, Program},
+        phase1::{
+            BasicAuthVerifier, BasicObjectVerifier, ExecutionContract, InMemoryHost, VmSpec,
+            execute,
+        },
+    },
+};
+use ed25519_dalek::{Signer, SigningKey};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 #[test]
@@ -147,6 +168,379 @@ fn finalized_consensus_rejects_votes_from_conflicting_branch() {
         .add_vote(stale_vote)
         .expect_err("vote on conflicting branch must be rejected after finality");
     assert!(matches!(error, ConsensusError::StaleVote));
+}
+
+#[test]
+fn block_production_is_deterministic_for_permuted_body_sections() {
+    let proposer = Proposer::new(2626, [7u8; 32]);
+
+    let lane = BlockSection::LaneCommitment(LaneCommitmentSection {
+        lanes: vec![LaneCommitment {
+            lane_id: 7,
+            lane_type: LaneType::Native,
+            tx_count: 2,
+            input_root: [1u8; 32],
+            output_root: [2u8; 32],
+            receipt_root: [3u8; 32],
+            state_commitment: [4u8; 32],
+            proof_commitment: [5u8; 32],
+        }],
+    });
+    let proof = BlockSection::ExternalProof(ExternalProofSection {
+        proofs: vec![ExternalProofRecord {
+            source_network: ExternalNetwork::Bitcoin,
+            proof_type: ExternalProofType::Finality,
+            subject_hash: [6u8; 32],
+            proof_commitment: [8u8; 32],
+            finalized_at: 1_800_000_010,
+        }],
+    });
+
+    let a = proposer
+        .propose(
+            [0u8; 32],
+            1,
+            0,
+            1,
+            1_800_000_000,
+            BlockBody {
+                sections: vec![lane.clone(), proof.clone()],
+            },
+        )
+        .expect("first block should build");
+    let b = proposer
+        .propose(
+            [0u8; 32],
+            1,
+            0,
+            1,
+            1_800_000_000,
+            BlockBody {
+                sections: vec![proof, lane],
+            },
+        )
+        .expect("second block should build");
+
+    assert_eq!(a.hash, b.hash);
+    assert_eq!(a.header.body_root, b.header.body_root);
+}
+
+#[test]
+fn fork_choice_accepts_equal_height_siblings_with_deterministic_tiebreak() {
+    let validators = [[1u8; 32], [2u8; 32], [3u8; 32]]
+        .into_iter()
+        .map(|secret| {
+            let key = SigningKey::from_bytes(&secret);
+            Validator::new(key.verifying_key().to_bytes(), 1, ValidatorRole::Validator)
+        })
+        .collect::<Vec<_>>();
+    let rotation = ValidatorRotation::new(validators).expect("validator rotation");
+    let mut consensus = ConsensusState::new(rotation, QuorumThreshold::two_thirds());
+
+    let genesis = build_block([0u8; 32], 1, 1, [9u8; 32]);
+    consensus
+        .admit_block(genesis.clone())
+        .expect("genesis should admit");
+
+    let sibling_a = build_block(genesis.hash, 2, 2, [9u8; 32]);
+    let sibling_b = build_block(genesis.hash, 2, 3, [9u8; 32]);
+    consensus
+        .admit_block(sibling_a.clone())
+        .expect("first sibling should admit");
+    consensus
+        .admit_block(sibling_b.clone())
+        .expect("second sibling should admit");
+
+    assert_eq!(
+        consensus.fork_choice.get_head(),
+        Some(sibling_a.hash.max(sibling_b.hash))
+    );
+}
+
+#[test]
+fn vm_phase1_execution_is_deterministic_across_replays() {
+    let tx = TxEnvelope::new(
+        2626,
+        1,
+        TxKind::UserCall,
+        FeeBudget::new(80, 1),
+        TxPayload::new(vec![1, 2, 3]),
+    );
+    let auth = AuthEnvelope {
+        domain: "tx".to_string(),
+        nonce: 1,
+        signers: vec![SignatureEntry {
+            algorithm: VmSignatureAlgorithm::Ed25519,
+            key_id: "validator-1".to_string(),
+            signature: vec![9u8; 64],
+        }],
+    };
+    let context = ExecutionContext::new(
+        EnvironmentContext::new(2626, 1),
+        BlockContext::new(10, 0, 0, [0u8; 32]),
+        TxContext::new([0u8; 32], 0, 80, false, 1, 0),
+        CallContext::new(0),
+        OriginContext::new([0u8; 32], [0u8; 32], [0u8; 32], 0),
+    );
+    let contract = ExecutionContract {
+        tx,
+        auth,
+        object: vec![1, 2, 3, 4],
+        context,
+        program: Program {
+            code: vec![
+                Instruction::Push(7),
+                Instruction::Push(5),
+                Instruction::Add,
+                Instruction::Halt,
+            ],
+        },
+    };
+
+    let mut host_a = InMemoryHost::default();
+    let mut host_b = InMemoryHost::default();
+    let spec = VmSpec::default();
+
+    let run_a = execute(
+        &contract,
+        &mut host_a,
+        spec,
+        &BasicAuthVerifier,
+        &BasicObjectVerifier,
+    )
+    .expect("run_a should execute");
+    let run_b = execute(
+        &contract,
+        &mut host_b,
+        spec,
+        &BasicAuthVerifier,
+        &BasicObjectVerifier,
+    )
+    .expect("run_b should execute");
+
+    assert_eq!(run_a.receipt.state_root, run_b.receipt.state_root);
+    assert_eq!(run_a.receipt.gas_used, run_b.receipt.gas_used);
+    assert_eq!(run_a.stack, run_b.stack);
+    assert_eq!(run_a.halt_reason, run_b.halt_reason);
+    assert_eq!(run_a.vm_error, run_b.vm_error);
+}
+
+#[test]
+fn phase1_full_readiness_surface_is_consistent() {
+    let proposer = Proposer::new(2626, [7u8; 32]);
+    let lane = BlockSection::LaneCommitment(LaneCommitmentSection {
+        lanes: vec![LaneCommitment {
+            lane_id: 9,
+            lane_type: LaneType::Native,
+            tx_count: 1,
+            input_root: [1u8; 32],
+            output_root: [2u8; 32],
+            receipt_root: [3u8; 32],
+            state_commitment: [4u8; 32],
+            proof_commitment: [5u8; 32],
+        }],
+    });
+    let proof = BlockSection::ExternalProof(ExternalProofSection {
+        proofs: vec![ExternalProofRecord {
+            source_network: ExternalNetwork::Bitcoin,
+            proof_type: ExternalProofType::Finality,
+            subject_hash: [6u8; 32],
+            proof_commitment: [7u8; 32],
+            finalized_at: 1_800_000_111,
+        }],
+    });
+    let block_a = proposer
+        .propose(
+            [0u8; 32],
+            1,
+            0,
+            1,
+            1_800_000_100,
+            BlockBody {
+                sections: vec![lane.clone(), proof.clone()],
+            },
+        )
+        .expect("block_a should build");
+    let block_b = proposer
+        .propose(
+            [0u8; 32],
+            1,
+            0,
+            1,
+            1_800_000_100,
+            BlockBody {
+                sections: vec![proof, lane],
+            },
+        )
+        .expect("block_b should build");
+    assert_eq!(block_a.hash, block_b.hash);
+
+    let validators = [[1u8; 32], [2u8; 32], [3u8; 32]]
+        .into_iter()
+        .map(|secret| {
+            let key = SigningKey::from_bytes(&secret);
+            Validator::new(key.verifying_key().to_bytes(), 1, ValidatorRole::Validator)
+        })
+        .collect::<Vec<_>>();
+    let rotation = ValidatorRotation::new(validators).expect("validator rotation");
+    let mut consensus = ConsensusState::new(rotation, QuorumThreshold::two_thirds());
+    let genesis = build_block([0u8; 32], 1, 1, [9u8; 32]);
+    consensus
+        .admit_block(genesis.clone())
+        .expect("genesis admits");
+    let sibling_a = build_block(genesis.hash, 2, 2, [9u8; 32]);
+    let sibling_b = build_block(genesis.hash, 2, 3, [9u8; 32]);
+    consensus
+        .admit_block(sibling_a.clone())
+        .expect("sibling a admits");
+    consensus
+        .admit_block(sibling_b.clone())
+        .expect("sibling b admits");
+    assert_eq!(
+        consensus.fork_choice.get_head(),
+        Some(sibling_a.hash.max(sibling_b.hash))
+    );
+
+    let contract = ExecutionContract {
+        tx: TxEnvelope::new(
+            2626,
+            1,
+            TxKind::UserCall,
+            FeeBudget::new(80, 1),
+            TxPayload::new(vec![1, 2, 3]),
+        ),
+        auth: AuthEnvelope {
+            domain: "tx".to_string(),
+            nonce: 1,
+            signers: vec![SignatureEntry {
+                algorithm: VmSignatureAlgorithm::Ed25519,
+                key_id: "validator-1".to_string(),
+                signature: vec![9u8; 64],
+            }],
+        },
+        object: vec![1, 2, 3, 4],
+        context: ExecutionContext::new(
+            EnvironmentContext::new(2626, 1),
+            BlockContext::new(10, 0, 0, [0u8; 32]),
+            TxContext::new([0u8; 32], 0, 80, false, 1, 0),
+            CallContext::new(0),
+            OriginContext::new([0u8; 32], [0u8; 32], [0u8; 32], 0),
+        ),
+        program: Program {
+            code: vec![
+                Instruction::Push(7),
+                Instruction::Push(5),
+                Instruction::Add,
+                Instruction::Halt,
+            ],
+        },
+    };
+    let mut host_a = InMemoryHost::default();
+    let mut host_b = InMemoryHost::default();
+    let spec = VmSpec::default();
+    let vm_a = execute(
+        &contract,
+        &mut host_a,
+        spec,
+        &BasicAuthVerifier,
+        &BasicObjectVerifier,
+    )
+    .expect("vm_a should execute");
+    let vm_b = execute(
+        &contract,
+        &mut host_b,
+        spec,
+        &BasicAuthVerifier,
+        &BasicObjectVerifier,
+    )
+    .expect("vm_b should execute");
+    assert_eq!(vm_a.receipt.state_root, vm_b.receipt.state_root);
+    assert_eq!(vm_a.gas_used, vm_b.gas_used);
+}
+
+#[test]
+fn phase2_full_crypto_key_surface_is_consistent() {
+    let validators = [[1u8; 32], [2u8; 32], [3u8; 32]]
+        .into_iter()
+        .map(|secret| {
+            let key = SigningKey::from_bytes(&secret);
+            Validator::new(key.verifying_key().to_bytes(), 1, ValidatorRole::Validator)
+        })
+        .collect::<Vec<_>>();
+    let rotation = ValidatorRotation::new(validators).expect("validator rotation");
+    let mut consensus = ConsensusState::new(rotation, QuorumThreshold::two_thirds());
+    let genesis = build_block([0u8; 32], 1, 1, [9u8; 32]);
+    consensus
+        .admit_block(genesis.clone())
+        .expect("genesis should admit");
+
+    let signing_key = SigningKey::from_bytes(&[1u8; 32]);
+    let vote = Vote {
+        voter: signing_key.verifying_key().to_bytes(),
+        block_hash: genesis.hash,
+        height: genesis.header.height,
+        round: genesis.header.round,
+        kind: VoteKind::Commit,
+    };
+    let signature = signing_key.sign(&vote.signing_bytes()).to_bytes().to_vec();
+    consensus
+        .add_signed_vote(aoxcunity::SignedVote {
+            vote: vote.clone(),
+            signature: signature.clone(),
+        })
+        .expect("signed vote should verify and admit");
+    let mut bad_signature = signature;
+    bad_signature[0] ^= 0x01;
+    assert!(
+        consensus
+            .add_signed_vote(aoxcunity::SignedVote {
+                vote: vote.clone(),
+                signature: bad_signature
+            })
+            .is_err(),
+        "tampered signature must fail verification"
+    );
+
+    let upgrade_plan = RotationPlan {
+        previous: vec![VmSignatureAlgorithm::Ed25519, VmSignatureAlgorithm::MlDsa65],
+        next: vec![VmSignatureAlgorithm::MlDsa65, VmSignatureAlgorithm::MlDsa87],
+    };
+    assert!(upgrade_plan.preserves_quantum_continuity());
+    assert!(upgrade_plan.has_overlap());
+
+    let hybrid_envelope = AuthEnvelope {
+        domain: "tx".to_string(),
+        nonce: 7,
+        signers: vec![
+            SignatureEntry {
+                algorithm: VmSignatureAlgorithm::Ed25519,
+                key_id: "classic".to_string(),
+                signature: vec![9u8; 64],
+            },
+            SignatureEntry {
+                algorithm: VmSignatureAlgorithm::MlDsa65,
+                key_id: "pq".to_string(),
+                signature: vec![7u8; 2048],
+            },
+        ],
+    };
+    assert!(HybridPolicy::default().validate(&hybrid_envelope).is_ok());
+    let classical_only = AuthEnvelope {
+        signers: vec![SignatureEntry {
+            algorithm: VmSignatureAlgorithm::Ed25519,
+            key_id: "classic-only".to_string(),
+            signature: vec![9u8; 64],
+        }],
+        ..hybrid_envelope
+    };
+    assert!(HybridPolicy::default().validate(&classical_only).is_err());
+
+    let (pq_public, pq_secret) = pq_keys::generate_keypair();
+    let message = b"aoxc-phase2-pq";
+    let signed = pq_keys::sign_message_domain_separated(message, &pq_secret);
+    let opened = pq_keys::verify_message_domain_separated(&signed, &pq_public)
+        .expect("pq domain-separated signature should verify");
+    assert_eq!(opened, message);
 }
 
 #[test]

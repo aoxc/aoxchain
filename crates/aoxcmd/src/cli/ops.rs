@@ -2434,7 +2434,7 @@ mod tests {
     use super::{
         build_surface, collect_surface_gate_failures, compare_aoxhub_network_profiles,
         compare_embedded_network_profiles, evaluate_full_surface_readiness,
-        evaluate_profile_readiness, full_surface_markdown_report, gate_failure_code,
+        evaluate_profile_readiness, full_surface_markdown_report,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_release_provenance_bundle,
         has_security_drill_artifact, locate_repo_artifact_dir, open_checklist_items,
