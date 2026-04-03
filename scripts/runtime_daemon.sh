@@ -13,6 +13,7 @@ IFS=$'\n\t'
 #   - Strong PID and process supervision semantics
 #   - Explicit operator receipts
 #   - Premium AOXC-specific cycle rendering
+#   - Strict separation between raw command output and operator-facing logs
 #   - Safe failure behavior with actionable diagnostics
 #
 # Commands:
@@ -22,17 +23,30 @@ IFS=$'\n\t'
 #   stop             Stop daemon
 #   restart          Restart daemon
 #   status           Print current daemon status
-#   tail             Tail runtime log
+#   tail             Tail premium runtime log
+#   tail-raw         Tail raw runtime log
 #   paths            Show resolved runtime paths
 # ==============================================================================
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
 readonly COMMAND="${1:-}"
 
 AOXC_ROOT="${AOXC_ROOT:-${HOME}/.aoxc}"
-AOXC_RUNTIME_ROOT="${AOXC_RUNTIME_ROOT:-${AOXC_ROOT}/runtime}"
+
+# ------------------------------------------------------------------------------
+# Runtime root resolution policy
+# ------------------------------------------------------------------------------
+# The Makefile passes AOXC_HOME as the canonical runtime root. The daemon must
+# honor that contract in order to remain consistent with the repository's
+# operator surfaces.
+# ------------------------------------------------------------------------------
+if [[ -n "${AOXC_HOME:-}" ]]; then
+  AOXC_RUNTIME_ROOT="${AOXC_RUNTIME_ROOT:-${AOXC_HOME}}"
+else
+  AOXC_RUNTIME_ROOT="${AOXC_RUNTIME_ROOT:-${AOXC_ROOT}/runtime}"
+fi
+
 AOXC_LOG_DIR="${AOXC_LOG_DIR:-${AOXC_ROOT}/logs}"
 AOXC_AUDIT_DIR="${AOXC_AUDIT_DIR:-${AOXC_ROOT}/audit}"
 AOXC_NETWORK_KIND="${AOXC_NETWORK_KIND:-mainnet}"
@@ -41,6 +55,7 @@ AOXC_BIN_OVERRIDE="${BIN_PATH:-}"
 
 PID_FILE="${AOXC_LOG_DIR}/runtime.pid"
 RUNTIME_LOG="${AOXC_LOG_DIR}/runtime.log"
+RAW_RUNTIME_LOG="${AOXC_LOG_DIR}/runtime.raw.log"
 STATUS_RECEIPT="${AOXC_AUDIT_DIR}/runtime-status.latest.txt"
 HEALTH_RECEIPT="${AOXC_AUDIT_DIR}/runtime-health.latest.txt"
 BOOTSTRAP_MARKER="${AOXC_RUNTIME_ROOT}/.bootstrap_done"
@@ -126,6 +141,7 @@ ensure_dir() {
 validate_non_negative_integer() {
   local value="$1"
   local name="$2"
+
   [[ "${value}" =~ ^[0-9]+$ ]] || {
     printf 'ERROR: %s must be a non-negative integer. got=%s\n' "${name}" "${value}" >&2
     exit 6
@@ -135,22 +151,31 @@ validate_non_negative_integer() {
 validate_positive_integer() {
   local value="$1"
   local name="$2"
+
   [[ "${value}" =~ ^[1-9][0-9]*$ ]] || {
     printf 'ERROR: %s must be a positive integer. got=%s\n' "${name}" "${value}" >&2
     exit 6
   }
 }
 
+append_premium_log() {
+  printf '%s\n' "$*" >> "${RUNTIME_LOG}"
+}
+
+append_raw_log() {
+  printf '%s\n' "$*" >> "${RAW_RUNTIME_LOG}"
+}
+
 log_info() {
-  printf '%s  INFO   %s\n' "$(timestamp_utc)" "$*" | tee -a "${RUNTIME_LOG}" >/dev/null
+  append_premium_log "$(printf '%s  INFO   %s' "$(timestamp_utc)" "$*")"
 }
 
 log_warn() {
-  printf '%s  WARN   %s\n' "$(timestamp_utc)" "$*" | tee -a "${RUNTIME_LOG}" >/dev/null
+  append_premium_log "$(printf '%s  WARN   %s' "$(timestamp_utc)" "$*")"
 }
 
 log_error() {
-  printf '%s  ERROR  %s\n' "$(timestamp_utc)" "$*" | tee -a "${RUNTIME_LOG}" >/dev/null
+  append_premium_log "$(printf '%s  ERROR  %s' "$(timestamp_utc)" "$*")"
 }
 
 die() {
@@ -166,6 +191,7 @@ initialize_paths() {
   ensure_dir "${AOXC_LOG_DIR}"
   ensure_dir "${AOXC_AUDIT_DIR}"
   touch "${RUNTIME_LOG}"
+  touch "${RAW_RUNTIME_LOG}"
 }
 
 write_status_receipt() {
@@ -178,6 +204,7 @@ write_status_receipt() {
     printf 'aoxc_root=%s\n' "${AOXC_ROOT}"
     printf 'runtime_root=%s\n' "${AOXC_RUNTIME_ROOT}"
     printf 'log_file=%s\n' "${RUNTIME_LOG}"
+    printf 'raw_log_file=%s\n' "${RAW_RUNTIME_LOG}"
     printf 'timestamp_utc=%s\n' "$(timestamp_utc)"
   } > "${STATUS_RECEIPT}"
 }
@@ -186,6 +213,7 @@ write_health_receipt() {
   {
     printf 'runtime_root=%s\n' "${AOXC_RUNTIME_ROOT}"
     printf 'runtime_log=%s\n' "${RUNTIME_LOG}"
+    printf 'raw_runtime_log=%s\n' "${RAW_RUNTIME_LOG}"
     printf 'pid_file=%s\n' "${PID_FILE}"
     printf 'bootstrap_marker_present=%s\n' "$([[ -f "${BOOTSTRAP_MARKER}" ]] && echo yes || echo no)"
     printf 'timestamp_utc=%s\n' "$(timestamp_utc)"
@@ -253,11 +281,20 @@ extract_or_default() {
 
 status_icon() {
   local value="$1"
+
   case "${value}" in
-    ok|healthy|active|true|running) printf '%s' "✅" ;;
-    degraded|warning|retry)         printf '%s' "⚠️" ;;
-    false|stopped|failed|error)     printf '%s' "❌" ;;
-    *)                              printf '%s' "ℹ️" ;;
+    ok|healthy|active|true|running)
+      printf '%s' "✅"
+      ;;
+    degraded|warning|retry)
+      printf '%s' "⚠️"
+      ;;
+    false|stopped|failed|error)
+      printf '%s' "❌"
+      ;;
+    *)
+      printf '%s' "ℹ️"
+      ;;
   esac
 }
 
@@ -269,12 +306,14 @@ print_box_line() {
   local left="$1"
   local fill="$2"
   local right="$3"
+
   printf '%s%s%s\n' "${left}" "$(repeat_char "${fill}" $((AOXC_CONSOLE_WIDTH - 2)))" "${right}"
 }
 
 print_box_text_line() {
   local text="$1"
   local inner_width=$((AOXC_CONSOLE_WIDTH - 4))
+
   printf '║ %s ║\n' "$(center_text "${inner_width}" "${text}")"
 }
 
@@ -316,6 +355,7 @@ print_kv() {
   local icon="$1"
   local key="$2"
   local value="$3"
+
   printf '  %-2s %-29s : %s\n' "${icon}" "${key}" "${value}"
 }
 
@@ -327,6 +367,7 @@ print_cycle_header() {
   local smoke="$5"
   local probe="$6"
   local state_icon
+
   state_icon="$(status_icon "${smoke}")"
 
   print_box_line "╔" "═" "╗"
@@ -444,6 +485,22 @@ emit_professional_cycle_log() {
   } >> "${RUNTIME_LOG}"
 }
 
+emit_cycle_failure_log() {
+  local tx_id="$1"
+  local stage="$2"
+  local exit_code="$3"
+
+  {
+    printf '\n'
+    print_section_divider "⚠️" "AOXC RUNTIME CYCLE FAILURE"
+    print_kv "🧾" "Transaction" "${tx_id}"
+    print_kv "🛠️" "Failed Stage" "${stage}"
+    print_kv "❌" "Exit Code" "${exit_code}"
+    print_kv "📄" "Raw Log" "${RAW_RUNTIME_LOG}"
+    printf '\n'
+  } >> "${RUNTIME_LOG}"
+}
+
 # ------------------------------------------------------------------------------
 # Runtime installation/bootstrap
 # ------------------------------------------------------------------------------
@@ -489,12 +546,11 @@ bootstrap_runtime() {
 
   local db_init_output=""
   db_init_output="$(run_and_capture "${bin_path}" db-init --backend redb --format json)" || {
-    printf '%s\n' "${db_init_output}" >> "${RUNTIME_LOG}"
+    append_raw_log "${db_init_output}"
     die "db-init failed during bootstrap" 7
   }
 
-  printf '%s\n' "${db_init_output}" >> "${RUNTIME_LOG}"
-
+  append_raw_log "${db_init_output}"
   touch "${BOOTSTRAP_MARKER}"
   log_info "Runtime bootstrap completed successfully"
 }
@@ -509,27 +565,41 @@ run_cycle() {
   local timeout_ms="${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}"
 
   validate_positive_integer "${timeout_ms}" "NETWORK_TIMEOUT_MS"
-
   export AOXC_HOME="${AOXC_RUNTIME_ROOT}"
 
   local tx_id="AOXC_RUNTIME_${mode^^}_$(date +%s)"
   local produce_output=""
   local smoke_output=""
+  local produce_rc=0
+  local smoke_rc=0
 
-  produce_output="$(run_and_capture "${bin_path}" produce-once --tx "${tx_id}")" || {
-    printf '%s\n' "${produce_output}" >> "${RUNTIME_LOG}"
+  set +e
+  produce_output="$("${bin_path}" produce-once --tx "${tx_id}" 2>&1)"
+  produce_rc=$?
+  set -e
+
+  append_raw_log "${produce_output}"
+
+  if (( produce_rc != 0 )); then
+    emit_cycle_failure_log "${tx_id}" "produce-once" "${produce_rc}"
     return 1
-  }
+  fi
 
-  smoke_output="$(run_and_capture "${bin_path}" network-smoke \
+  set +e
+  smoke_output="$("${bin_path}" network-smoke \
     --timeout-ms "${timeout_ms}" \
     --bind-host 127.0.0.1 \
     --port 0 \
-    --payload "HEALTH_RUNTIME")" || {
-    printf '%s\n' "${produce_output}" >> "${RUNTIME_LOG}"
-    printf '%s\n' "${smoke_output}" >> "${RUNTIME_LOG}"
+    --payload "HEALTH_RUNTIME" 2>&1)"
+  smoke_rc=$?
+  set -e
+
+  append_raw_log "${smoke_output}"
+
+  if (( smoke_rc != 0 )); then
+    emit_cycle_failure_log "${tx_id}" "network-smoke" "${smoke_rc}"
     return 1
-  }
+  fi
 
   emit_professional_cycle_log "${produce_output}" "${smoke_output}"
   write_health_receipt
@@ -585,11 +655,17 @@ start_daemon() {
   bootstrap_runtime "${bin_path}"
 
   (
-    exec bash -c '
-      set -Eeuo pipefail
-      "'"${SCRIPT_DIR}/runtime_daemon.sh"'" foreground
-    '
-  ) >> "${RUNTIME_LOG}" 2>&1 &
+    exec env \
+      AOXC_ROOT="${AOXC_ROOT}" \
+      AOXC_HOME="${AOXC_RUNTIME_ROOT}" \
+      AOXC_RUNTIME_ROOT="${AOXC_RUNTIME_ROOT}" \
+      AOXC_LOG_DIR="${AOXC_LOG_DIR}" \
+      AOXC_AUDIT_DIR="${AOXC_AUDIT_DIR}" \
+      AOXC_NETWORK_KIND="${AOXC_NETWORK_KIND}" \
+      AOXC_RUNTIME_SOURCE_ROOT="${AOXC_RUNTIME_SOURCE_ROOT}" \
+      BIN_PATH="${bin_path}" \
+      "${SCRIPT_DIR}/runtime_daemon.sh" foreground
+  ) >/dev/null 2>&1 &
 
   pid="$!"
   printf '%s\n' "${pid}" > "${PID_FILE}"
@@ -599,7 +675,7 @@ start_daemon() {
   if ! is_pid_running "${pid}"; then
     rm -f "${PID_FILE}"
     write_status_receipt "failed" "none"
-    die "Runtime daemon exited during stabilization window. Inspect ${RUNTIME_LOG}" 8
+    die "Runtime daemon exited during stabilization window. Inspect ${RUNTIME_LOG} and ${RAW_RUNTIME_LOG}" 8
   fi
 
   write_status_receipt "running" "${pid}"
@@ -609,11 +685,13 @@ start_daemon() {
   printf '  PID File   : %s\n' "${PID_FILE}"
   printf '  PID        : %s\n' "${pid}"
   printf '  Log File   : %s\n' "${RUNTIME_LOG}"
+  printf '  Raw Log    : %s\n' "${RAW_RUNTIME_LOG}"
   printf '  Status     : %s\n' "${STATUS_RECEIPT}"
 }
 
 run_foreground() {
   local bin_path="$1"
+
   bootstrap_runtime "${bin_path}"
   write_status_receipt "running" "$$"
   write_health_receipt
@@ -622,6 +700,7 @@ run_foreground() {
 
 run_once() {
   local bin_path="$1"
+
   bootstrap_runtime "${bin_path}"
 
   if run_cycle "${bin_path}" "once"; then
@@ -631,7 +710,7 @@ run_once() {
   fi
 
   write_status_receipt "single-run-failed" "$$"
-  die "Single runtime cycle failed. Inspect ${RUNTIME_LOG}" 8
+  die "Single runtime cycle failed. Inspect ${RUNTIME_LOG} and ${RAW_RUNTIME_LOG}" 8
 }
 
 stop_daemon() {
@@ -682,11 +761,11 @@ status_daemon() {
   local pid=""
 
   printf 'AOXC Runtime Status\n'
-  printf '%s\n' "$(repeat_char "─" 40)"
-
+  printf '%s\n' "$(repeat_char "─" 48)"
   printf 'AOXC Root      : %s\n' "${AOXC_ROOT}"
   printf 'Runtime Root   : %s\n' "${AOXC_RUNTIME_ROOT}"
   printf 'Log File       : %s\n' "${RUNTIME_LOG}"
+  printf 'Raw Log File   : %s\n' "${RAW_RUNTIME_LOG}"
   printf 'PID File       : %s\n' "${PID_FILE}"
   printf 'Status Receipt : %s\n' "${STATUS_RECEIPT}"
   printf 'Health Receipt : %s\n' "${HEALTH_RECEIPT}"
@@ -710,8 +789,14 @@ status_daemon() {
 
 tail_logs() {
   touch "${RUNTIME_LOG}"
-  printf 'Tailing AOXC runtime log: %s\n' "${RUNTIME_LOG}"
+  printf 'Tailing AOXC premium runtime log: %s\n' "${RUNTIME_LOG}"
   exec tail -n 200 -f "${RUNTIME_LOG}"
+}
+
+tail_raw_logs() {
+  touch "${RAW_RUNTIME_LOG}"
+  printf 'Tailing AOXC raw runtime log: %s\n' "${RAW_RUNTIME_LOG}"
+  exec tail -n 200 -f "${RAW_RUNTIME_LOG}"
 }
 
 print_paths() {
@@ -719,7 +804,7 @@ print_paths() {
   bin_path="$(resolve_bin_path || true)"
 
   printf 'AOXC Runtime Paths\n'
-  printf '%s\n' "$(repeat_char "─" 40)"
+  printf '%s\n' "$(repeat_char "─" 48)"
   printf 'ROOT_DIR                 : %s\n' "${ROOT_DIR}"
   printf 'SCRIPT_DIR               : %s\n' "${SCRIPT_DIR}"
   printf 'AOXC_ROOT                : %s\n' "${AOXC_ROOT}"
@@ -730,6 +815,7 @@ print_paths() {
   printf 'RESOLVED_BIN             : %s\n' "${bin_path}"
   printf 'PID_FILE                 : %s\n' "${PID_FILE}"
   printf 'RUNTIME_LOG              : %s\n' "${RUNTIME_LOG}"
+  printf 'RAW_RUNTIME_LOG          : %s\n' "${RAW_RUNTIME_LOG}"
   printf 'STATUS_RECEIPT           : %s\n' "${STATUS_RECEIPT}"
   printf 'HEALTH_RECEIPT           : %s\n' "${HEALTH_RECEIPT}"
 }
@@ -737,7 +823,7 @@ print_paths() {
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/runtime_daemon.sh <start|foreground|once|stop|restart|status|tail|paths>
+  ./scripts/runtime_daemon.sh <start|foreground|once|stop|restart|status|tail|tail-raw|paths>
 EOF
 }
 
@@ -781,6 +867,9 @@ main() {
       ;;
     tail)
       tail_logs
+      ;;
+    tail-raw)
+      tail_raw_logs
       ;;
     paths)
       print_paths
