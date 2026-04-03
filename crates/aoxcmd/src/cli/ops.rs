@@ -18,10 +18,13 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs,
+    net::{TcpStream, ToSocketAddrs},
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 #[derive(Serialize)]
@@ -2348,6 +2351,294 @@ pub fn cmd_runtime_status(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&status, output_format(args))
 }
 
+pub fn cmd_consensus_status(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct ConsensusStatus {
+        network_id: u32,
+        last_round: u64,
+        last_message_kind: String,
+        latest_block_hash: String,
+        latest_parent_hash: String,
+        latest_proposer: String,
+        latest_timestamp_unix: u64,
+        produced_blocks: u64,
+        current_height: u64,
+        updated_at: String,
+    }
+
+    let state = lifecycle::load_state()?;
+    let status = ConsensusStatus {
+        network_id: state.consensus.network_id,
+        last_round: state.consensus.last_round,
+        last_message_kind: state.consensus.last_message_kind,
+        latest_block_hash: state.consensus.last_block_hash_hex,
+        latest_parent_hash: state.consensus.last_parent_hash_hex,
+        latest_proposer: state.consensus.last_proposer_hex,
+        latest_timestamp_unix: state.consensus.last_timestamp_unix,
+        produced_blocks: state.produced_blocks,
+        current_height: state.current_height,
+        updated_at: state.updated_at,
+    };
+
+    emit_serialized(&status, output_format(args))
+}
+
+pub fn cmd_vm_status(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct VmStatus {
+        vm_enabled: bool,
+        execution_plane: &'static str,
+        latest_height: u64,
+        latest_tx_marker: String,
+        runtime_running: bool,
+        state_root: String,
+        updated_at: String,
+    }
+
+    let state = lifecycle::load_state()?;
+    let state_root = derive_state_root(&state)?;
+    let status = VmStatus {
+        vm_enabled: true,
+        execution_plane: "deterministic-local",
+        latest_height: state.current_height,
+        latest_tx_marker: state.last_tx,
+        runtime_running: state.running,
+        state_root,
+        updated_at: state.updated_at,
+    };
+
+    emit_serialized(&status, output_format(args))
+}
+
+pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct BlockView {
+        requested_height: String,
+        requested_hash: Option<String>,
+        available: bool,
+        height: u64,
+        block_hash: String,
+        parent_hash: String,
+        proposer: String,
+        consensus_round: u64,
+        timestamp_unix: u64,
+        section_count: usize,
+        state_root: String,
+    }
+
+    let requested_height = arg_value(args, "--height").unwrap_or_else(|| "latest".to_string());
+    let requested_hash = arg_value(args, "--hash");
+    let state = lifecycle::load_state()?;
+    let canonical_height = state.current_height;
+    let state_root = derive_state_root(&state)?;
+
+    if requested_height != "latest" && requested_height.parse::<u64>().is_err() {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Flag --height must be 'latest' or an unsigned integer",
+        ));
+    }
+
+    let height_matches = match requested_height.as_str() {
+        "latest" => true,
+        value => value.parse::<u64>().ok() == Some(canonical_height),
+    };
+    let hash_matches = match requested_hash.as_ref() {
+        Some(hash) => hash == &state.consensus.last_block_hash_hex,
+        None => true,
+    };
+    let available = height_matches && hash_matches;
+
+    let view = BlockView {
+        requested_height,
+        requested_hash,
+        available,
+        height: canonical_height,
+        block_hash: state.consensus.last_block_hash_hex,
+        parent_hash: state.consensus.last_parent_hash_hex,
+        proposer: state.consensus.last_proposer_hex,
+        consensus_round: state.consensus.last_round,
+        timestamp_unix: state.consensus.last_timestamp_unix,
+        section_count: state.consensus.last_section_count,
+        state_root,
+    };
+
+    emit_serialized(&view, output_format(args))
+}
+
+pub fn cmd_account_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct AccountView {
+        account_id: String,
+        known: bool,
+        balance: u64,
+        nonce: u64,
+        source: &'static str,
+    }
+
+    let account_id = arg_value(args, "--id")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --id must not be blank",
+            )
+        })?;
+    let ledger = ledger::load().unwrap_or_default();
+    let balance = if account_id == "treasury" {
+        ledger.treasury_balance
+    } else {
+        ledger.delegations.get(&account_id).copied().unwrap_or(0)
+    };
+
+    let account = AccountView {
+        known: account_id == "treasury" || ledger.delegations.contains_key(&account_id),
+        account_id,
+        balance,
+        nonce: 0,
+        source: "local-ledger",
+    };
+
+    emit_serialized(&account, output_format(args))
+}
+
+pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct PeerList {
+        mode: &'static str,
+        bind_host: String,
+        p2p_port: u16,
+        rpc_port: u16,
+        peers: Vec<String>,
+        peer_count: usize,
+    }
+
+    let settings = effective_settings_for_ops()?;
+    let peers = vec![format!(
+        "{}:{}",
+        settings.network.bind_host, settings.network.p2p_port
+    )];
+
+    let response = PeerList {
+        mode: "single-node",
+        bind_host: settings.network.bind_host,
+        p2p_port: settings.network.p2p_port,
+        rpc_port: settings.network.rpc_port,
+        peer_count: peers.len(),
+        peers,
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct StateRoot {
+        state_root: String,
+        height: u64,
+        updated_at: String,
+    }
+
+    let state = lifecycle::load_state()?;
+    let response = StateRoot {
+        state_root: derive_state_root(&state)?,
+        height: state.current_height,
+        updated_at: state.updated_at,
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct RpcStatus {
+        bind_host: String,
+        rpc_port: u16,
+        listener_active: bool,
+        probe_target: String,
+        probe_mode: &'static str,
+    }
+
+    let settings = effective_settings_for_ops()?;
+    let probe_target = format!(
+        "{}:{}",
+        settings.network.bind_host, settings.network.rpc_port
+    );
+    let response = RpcStatus {
+        bind_host: settings.network.bind_host.clone(),
+        rpc_port: settings.network.rpc_port,
+        listener_active: rpc_listener_active(&probe_target),
+        probe_target,
+        probe_mode: "tcp-connect",
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct NetworkStatus {
+        bind_host: String,
+        p2p_port: u16,
+        rpc_port: u16,
+        prometheus_port: u16,
+        enforce_official_peers: bool,
+        rpc_listener_active: bool,
+        mode: &'static str,
+    }
+
+    let settings = effective_settings_for_ops()?;
+    let probe_target = format!(
+        "{}:{}",
+        settings.network.bind_host, settings.network.rpc_port
+    );
+    let response = NetworkStatus {
+        bind_host: settings.network.bind_host,
+        p2p_port: settings.network.p2p_port,
+        rpc_port: settings.network.rpc_port,
+        prometheus_port: settings.network.prometheus_port,
+        enforce_official_peers: settings.network.enforce_official_peers,
+        rpc_listener_active: rpc_listener_active(&probe_target),
+        mode: "single-node",
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_tx_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct TxView {
+        requested_hash: String,
+        found: bool,
+        latest_tx_marker: String,
+        height: u64,
+        updated_at: String,
+        source: &'static str,
+    }
+
+    let requested_hash = arg_value(args, "--hash")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --hash must not be blank",
+            )
+        })?;
+    let state = lifecycle::load_state()?;
+    let found = state.last_tx == requested_hash;
+
+    let response = TxView {
+        requested_hash,
+        found,
+        latest_tx_marker: state.last_tx,
+        height: state.current_height,
+        updated_at: state.updated_at,
+        source: "runtime-node-state",
+    };
+
+    emit_serialized(&response, output_format(args))
+}
+
 /// Resolves effective settings for read-oriented ops surfaces without creating
 /// configuration files on disk.
 fn effective_settings_for_ops() -> Result<Settings, AppError> {
@@ -2425,6 +2716,28 @@ fn normalize_text(value: &str, lowercase: bool) -> Option<String> {
         Some(normalized.to_ascii_lowercase())
     } else {
         Some(normalized)
+    }
+}
+
+fn derive_state_root(state: &crate::node::state::NodeState) -> Result<String, AppError> {
+    let encoded = serde_json::to_vec(state).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to serialize node state for state-root derivation",
+            error,
+        )
+    })?;
+    let mut hasher = Sha256::new();
+    hasher.update(encoded);
+    Ok(hex::encode(hasher.finalize()))
+}
+
+fn rpc_listener_active(probe_target: &str) -> bool {
+    match probe_target.to_socket_addrs() {
+        Ok(addrs) => addrs
+            .into_iter()
+            .any(|addr| TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok()),
+        Err(_) => false,
     }
 }
 
