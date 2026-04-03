@@ -5,6 +5,7 @@
 use crate::config::RpcConfig;
 use crate::error::RpcError;
 use crate::grpc::services::{query_service::QueryService, tx_submission::TxSubmissionService};
+use crate::types::{ChainStatus, TxSubmissionRequest, TxSubmissionResult};
 
 /// gRPC server entry point.
 #[derive(Debug, Clone)]
@@ -50,11 +51,27 @@ impl GrpcServer {
 
         Ok(())
     }
+
+    #[must_use]
+    pub fn method_catalog(&self) -> Vec<&'static str> {
+        vec!["query.GetChainStatus", "tx.Submit"]
+    }
+
+    pub fn query_chain_status(&self, height: u64, syncing: bool) -> Result<ChainStatus, RpcError> {
+        self.startup_checks()?;
+        Ok(self.query_service.get_chain_status(height, syncing))
+    }
+
+    pub fn submit_tx(&self, request: TxSubmissionRequest) -> Result<TxSubmissionResult, RpcError> {
+        self.startup_checks()?;
+        self.tx_submission_service.submit(request)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::TxSubmissionRequest;
 
     #[test]
     fn startup_checks_fail_for_bad_grpc_bind_addr() {
@@ -81,5 +98,64 @@ mod tests {
         let result = server.startup_checks();
 
         assert!(matches!(result, Err(RpcError::InternalError)));
+    }
+
+    #[test]
+    fn method_catalog_contains_core_surface() {
+        let config = RpcConfig {
+            genesis_hash: Some(format!("0x{}", "ab".repeat(32))),
+            tls_cert_path: "Cargo.toml".to_string(),
+            tls_key_path: "README.md".to_string(),
+            mtls_ca_cert_path: Some("Cargo.toml".to_string()),
+            ..RpcConfig::default()
+        };
+
+        let server = GrpcServer::new(config);
+        let methods = server.method_catalog();
+        assert!(methods.contains(&"query.GetChainStatus"));
+        assert!(methods.contains(&"tx.Submit"));
+    }
+
+    #[test]
+    fn query_chain_status_returns_requested_height() {
+        let config = RpcConfig {
+            genesis_hash: Some(format!("0x{}", "ab".repeat(32))),
+            tls_cert_path: "Cargo.toml".to_string(),
+            tls_key_path: "README.md".to_string(),
+            mtls_ca_cert_path: Some("Cargo.toml".to_string()),
+            ..RpcConfig::default()
+        };
+
+        let server = GrpcServer::new(config);
+        let response = server
+            .query_chain_status(99, false)
+            .expect("query should pass startup checks");
+        assert_eq!(response.height, 99);
+    }
+
+    #[test]
+    fn submit_tx_accepts_valid_hybrid_payload() {
+        let config = RpcConfig {
+            genesis_hash: Some(format!("0x{}", "ab".repeat(32))),
+            tls_cert_path: "Cargo.toml".to_string(),
+            tls_key_path: "README.md".to_string(),
+            mtls_ca_cert_path: Some("Cargo.toml".to_string()),
+            ..RpcConfig::default()
+        };
+        let server = GrpcServer::new(config);
+
+        let response = server
+            .submit_tx(TxSubmissionRequest {
+                actor_id: "actor-1".to_string(),
+                tx_payload: vec![1, 2, 3, 4],
+                zkp_proof: vec![9; 64],
+                identity_tier: Some("signed_client".to_string()),
+                signer_algorithms: vec!["ed25519".to_string(), "ml-dsa-65".to_string()],
+                remaining_budget_units: Some(100),
+            })
+            .expect("valid submit should be accepted");
+
+        assert!(response.accepted);
+        assert!(response.tx_id.starts_with("tx-"));
     }
 }

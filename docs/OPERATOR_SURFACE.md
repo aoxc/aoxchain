@@ -108,3 +108,55 @@ To align with this roadmap, the repository now provides orchestration helpers un
 
 These wrappers are intentionally thin and defer operational logic to `make` targets
 and `aoxc` subcommands.
+
+## API and Control-Surface Completeness Matrix (Current Repository State)
+
+This section records the implemented status of user-facing control surfaces so operators
+can distinguish production-ready behavior from scaffolded or partial capabilities.
+
+| Surface | Current status | What is implemented now | Gaps / non-final areas |
+| --- | --- | --- | --- |
+| HTTP RPC (curl-consumable) | **Full (repository scope)** | Deterministic route dispatch for health, metrics, quantum profile, and contract control-plane operations with structured JSON success/error envelopes. | Production deployment still requires environment-level TLS/key provisioning and network policy controls. |
+| gRPC | **Full (repository scope)** | Startup checks, explicit method catalog, query and tx dispatch methods, and deterministic service-level request validation. | Production deployment still requires service host integration and release-profile hardening. |
+| WebSocket RPC | **Full (repository scope)** | Session connect/disconnect, topic subscription, and deterministic fan-out payload delivery for block-confirmed events. | Production deployment still requires external transport host integration and runtime capacity controls. |
+| AOXC CLI | **Full operator plane** | Command routing spans chain/genesis/validator/wallet/account/node/network/tx/stake/doctor/audit and compatibility aliases. | Operator runbooks still need environment-specific release evidence before each public rollout. |
+| Chain query ergonomics | **Full baseline surface** | CLI query commands and typed query service admission-aware responses are implemented and mapped across operator and API layers. | Environment parity validation should still be executed in pre-release and production gates. |
+
+### Operator interpretation rule
+
+The repository now implements complete control-plane primitives for HTTP, gRPC, WebSocket,
+CLI, and baseline query surfaces. Production go-live remains conditional on environment
+readiness evidence, key-management posture, and release gate compliance.
+
+## CLI / API / curl Compatibility Baseline
+
+The following mapping is the canonical interoperability baseline for operator workflows.
+
+| Capability | CLI surface | HTTP (curl) surface | gRPC surface |
+| --- | --- | --- | --- |
+| Chain health/readiness | `aoxc rpc-status` / `aoxc chain-status` | `GET /health` | `query.GetChainStatus` |
+| Chain status query | `aoxc chain-status` | `POST /v1/query/chain-status` | `query.GetChainStatus` |
+| Transaction submit | `aoxc tx ...` workflows | `POST /v1/tx/submit` | `tx.Submit` |
+| Runtime security profile | `aoxc rpc-status` + diagnostics | `GET /quantum/profile` | N/A (HTTP profile endpoint) |
+| Metrics export | `aoxc metrics` | `GET /metrics` | N/A (Prometheus exposition) |
+
+### curl reference commands
+
+```bash
+curl -sS http://127.0.0.1:8080/health
+curl -sS http://127.0.0.1:8080/metrics
+curl -sS http://127.0.0.1:8080/quantum/profile
+curl -sS -X POST http://127.0.0.1:8080/v1/query/chain-status \
+  -H 'content-type: application/json' \
+  -d '{"height":42,"syncing":false}'
+curl -sS -X POST http://127.0.0.1:8080/v1/tx/submit \
+  -H 'content-type: application/json' \
+  -d '{
+    "actor_id":"actor-1",
+    "tx_payload":[1,2,3,4],
+    "zkp_proof":[9,9,9,9,9,9,9,9],
+    "identity_tier":"signed_client",
+    "signer_algorithms":["ed25519","ml-dsa-65"],
+    "remaining_budget_units":100
+  }'
+```
