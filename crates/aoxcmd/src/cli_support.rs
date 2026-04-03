@@ -129,6 +129,19 @@ NODE AND ECONOMY
   stake-undelegate
   economy-status
   runtime-status
+  consensus-status
+  vm-status
+  block-get --height <latest|n>
+  account-get --id <account-id>
+  peer-list
+  network-status
+  state-root
+  rpc-status
+  tx-get --hash <tx-hash>
+  api-curl [--host <host>] [--port <port>]
+  faucet-status
+  faucet-claim --account <id> --amount <n>
+  faucet-history [--account <id>] [--limit <n>]
 
 VALIDATION AND AUDIT
   load-benchmark
