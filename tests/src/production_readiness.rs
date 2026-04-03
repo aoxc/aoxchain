@@ -25,6 +25,24 @@ use aoxcunity::{
     Proposer, QuorumCertificate, QuorumThreshold, Validator, ValidatorRole, ValidatorRotation,
     Vote, VoteKind,
 };
+use aoxcvm::{
+    auth::{
+        envelope::{AuthEnvelope, SignatureEntry},
+        scheme::SignatureAlgorithm,
+    },
+    context::{
+        block::BlockContext, call::CallContext, environment::EnvironmentContext,
+        execution::ExecutionContext, origin::OriginContext, tx::TxContext,
+    },
+    tx::{envelope::TxEnvelope, fee::FeeBudget, kind::TxKind, payload::TxPayload},
+    vm::{
+        machine::{Instruction, Program},
+        phase1::{
+            BasicAuthVerifier, BasicObjectVerifier, ExecutionContract, InMemoryHost, VmSpec,
+            execute,
+        },
+    },
+};
 use ed25519_dalek::SigningKey;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
