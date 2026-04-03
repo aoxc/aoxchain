@@ -3,6 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 use crate::{
+    data_home::{ensure_layout, resolve_home},
     error::{AppError, ErrorCode},
     keys::material::KeyMaterial,
     node::{
@@ -10,11 +11,13 @@ use crate::{
         state::{ConsensusSnapshot, KeyMaterialSnapshot, NodeState},
     },
 };
+use aoxcdata::{BlockEnvelope, HybridDataStore, IndexBackend};
 use aoxcunity::{
     Block, BlockBody, BlockSection, ConsensusMessage, LaneCommitment, LaneCommitmentSection,
     LaneType, Proposer,
 };
 use sha3::{Digest, Sha3_256};
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const BLOCK_PROPOSAL_MESSAGE_KIND: &str = "block_proposal";
@@ -46,6 +49,7 @@ pub fn produce_once(tx: &str) -> Result<NodeState, AppError> {
     let key_material = crate::keys::loader::load_operator_key()?;
     let block = build_block_for_tx(&state, tx, &key_material)?;
     apply_block_proposal(&mut state, tx, &block, &key_material)?;
+    persist_block_envelope(&block)?;
 
     persist_state(&state)?;
     Ok(state)
@@ -84,6 +88,7 @@ where
         let tx = format!("{tx_prefix}-{index}");
         let block = build_block_for_tx(&state, &tx, &key_material)?;
         apply_block_proposal(&mut state, &tx, &block, &key_material)?;
+        persist_block_envelope(&block)?;
 
         let telemetry = RoundTelemetry {
             round_index: index + 1,
@@ -101,6 +106,52 @@ where
 
     persist_state(&state)?;
     Ok(state)
+}
+
+fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
+    let db_root = runtime_db_root()?;
+    let store = HybridDataStore::new(&db_root, IndexBackend::Redb).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!(
+                "Failed to open block index store at {}",
+                db_root.display()
+            ),
+            error,
+        )
+    })?;
+
+    let envelope = BlockEnvelope {
+        height: block.header.height,
+        block_hash_hex: hex::encode(block.hash),
+        parent_hash_hex: hex::encode(block.header.parent_hash),
+        payload: serde_json::to_vec(block).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::OutputEncodingFailed,
+                "Failed to serialize block payload for historical storage",
+                error,
+            )
+        })?,
+    };
+
+    store.put_block(&envelope).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::LedgerInvalid,
+            format!(
+                "Failed to persist historical block at height {}",
+                envelope.height
+            ),
+            error,
+        )
+    })?;
+
+    Ok(())
+}
+
+fn runtime_db_root() -> Result<PathBuf, AppError> {
+    let home = resolve_home()?;
+    ensure_layout(&home)?;
+    Ok(home.join("runtime").join("db"))
 }
 
 /// Constructs a deterministic block proposal.

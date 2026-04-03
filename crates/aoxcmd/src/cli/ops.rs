@@ -18,6 +18,7 @@ use crate::{
     },
 };
 use chrono::{Duration as ChronoDuration, Utc};
+use aoxcdata::{BlockEnvelope, DataError, HybridDataStore, IndexBackend};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -3276,26 +3277,44 @@ pub fn cmd_block_get(args: &[String]) -> Result<(), AppError> {
         .as_deref()
         .unwrap_or(default_height.as_str());
 
-    let available = match requested_height_value {
-        "latest" => true,
-        value => value.parse::<u64>().ok() == Some(canonical_height),
-    } && match requested_hash.as_ref() {
-        Some(hash) => hash.eq_ignore_ascii_case(&state.consensus.last_block_hash_hex),
-        None => true,
-    };
-    let tx_hashes = if state.last_tx == "none" {
-        Vec::new()
+    let historical = load_historical_block(requested_height_value, requested_hash.as_deref())?;
+    let (available, height, block_hash, parent_hash, tx_hashes) = if let Some(envelope) = historical {
+        (
+            true,
+            envelope.height,
+            envelope.block_hash_hex,
+            envelope.parent_hash_hex,
+            historical_tx_hashes(&envelope),
+        )
     } else {
-        vec![state.last_tx.clone()]
+        let available = match requested_height_value {
+            "latest" => true,
+            value => value.parse::<u64>().ok() == Some(canonical_height),
+        } && match requested_hash.as_ref() {
+            Some(hash) => hash.eq_ignore_ascii_case(&state.consensus.last_block_hash_hex),
+            None => true,
+        };
+        let tx_hashes = if state.last_tx == "none" {
+            Vec::new()
+        } else {
+            vec![state.last_tx.clone()]
+        };
+        (
+            available,
+            canonical_height,
+            state.consensus.last_block_hash_hex.clone(),
+            state.consensus.last_parent_hash_hex.clone(),
+            tx_hashes,
+        )
     };
 
     let view = BlockView {
         requested_height: Some(requested_height_value.to_string()),
         requested_hash,
         available,
-        height: canonical_height,
-        block_hash: state.consensus.last_block_hash_hex,
-        parent_hash: state.consensus.last_parent_hash_hex,
+        height,
+        block_hash,
+        parent_hash,
         proposer: state.consensus.last_proposer_hex,
         consensus_round: state.consensus.last_round,
         timestamp_unix: state.consensus.last_timestamp_unix,
@@ -4339,6 +4358,7 @@ mod tests {
         FaucetClaimRecord, FaucetState, build_surface, collect_surface_gate_failures,
         compare_aoxhub_network_profiles, compare_embedded_network_profiles, evaluate_faucet_claim,
         evaluate_full_surface_readiness, evaluate_profile_readiness, full_surface_markdown_report,
+        historical_tx_hashes,
         has_desktop_wallet_compat_artifact, has_matching_artifact,
         has_production_closure_artifacts, has_release_evidence, has_release_provenance_bundle,
         has_security_drill_artifact, locate_repo_artifact_dir, open_checklist_items,
@@ -4347,6 +4367,7 @@ mod tests {
         rpc_jsonrpc_status_probe, surface_check, write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
+    use aoxcdata::BlockEnvelope;
     use std::{
         fs,
         io::{Read, Write},
@@ -4388,6 +4409,21 @@ mod tests {
             parse_required_or_default_text_arg(&args(&["--to", "   "]), "--to", "ops", false)
                 .expect_err("blank target must fail");
         assert_eq!(error.code(), "AOXC-USG-002");
+    }
+
+    #[test]
+    fn historical_tx_hashes_extracts_payload_from_block_envelope() {
+        let envelope = BlockEnvelope {
+            height: 7,
+            block_hash_hex: "e3c0fdbff6f570f0449557cb9a9d8bc95eeb5d1f7e5bc8f2a580f7f7f6f7a9a7"
+                .to_string(),
+            parent_hash_hex: "7f6f7a9ae3c0fdbff6f570f0449557cb9a9d8bc95eeb5d1f7e5bc8f2a580f7f7"
+                .to_string(),
+            payload: br#"{"body":{"sections":[{"payload":"tx-demo-7"}]}}"#.to_vec(),
+        };
+
+        let tx_hashes = historical_tx_hashes(&envelope);
+        assert_eq!(tx_hashes, vec!["tx-demo-7".to_string()]);
     }
 
     #[test]
