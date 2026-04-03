@@ -14,6 +14,7 @@ IFS=$'\n\t'
 #   - Explicit operator receipts
 #   - Premium AOXC-specific cycle rendering
 #   - Strict separation between raw command output and operator-facing logs
+#   - Refined cycle transitions with visually stable operator surfaces
 #   - Safe failure behavior with actionable diagnostics
 #
 # Commands:
@@ -37,9 +38,8 @@ AOXC_ROOT="${AOXC_ROOT:-${HOME}/.aoxc}"
 # ------------------------------------------------------------------------------
 # Runtime root resolution policy
 # ------------------------------------------------------------------------------
-# The Makefile passes AOXC_HOME as the canonical runtime root. The daemon must
-# honor that contract in order to remain consistent with the repository's
-# operator surfaces.
+# The repository operator surfaces pass AOXC_HOME as the canonical runtime root.
+# The daemon must honor that contract to preserve runtime path consistency.
 # ------------------------------------------------------------------------------
 if [[ -n "${AOXC_HOME:-}" ]]; then
   AOXC_RUNTIME_ROOT="${AOXC_RUNTIME_ROOT:-${AOXC_HOME}}"
@@ -98,25 +98,6 @@ trim_value() {
 safe_value() {
   local value="${1:-}"
   [[ -n "${value}" ]] && printf '%s' "${value}" || printf '%s' "-"
-}
-
-center_text() {
-  local width="$1"
-  local text="$2"
-  local text_len="${#text}"
-
-  if (( text_len >= width )); then
-    printf '%s' "${text}"
-    return 0
-  fi
-
-  local left_pad=$(( (width - text_len) / 2 ))
-  local right_pad=$(( width - text_len - left_pad ))
-
-  printf '%s%s%s' \
-    "$(repeat_char " " "${left_pad}")" \
-    "${text}" \
-    "$(repeat_char " " "${right_pad}")"
 }
 
 require_command() {
@@ -302,6 +283,11 @@ status_icon() {
 # Premium AOXC formatter
 # ------------------------------------------------------------------------------
 
+print_full_width_bar() {
+  local glyph="$1"
+  printf '%s\n' "$(repeat_char "${glyph}" "${AOXC_CONSOLE_WIDTH}")"
+}
+
 print_box_line() {
   local left="$1"
   local fill="$2"
@@ -310,11 +296,16 @@ print_box_line() {
   printf '%s%s%s\n' "${left}" "$(repeat_char "${fill}" $((AOXC_CONSOLE_WIDTH - 2)))" "${right}"
 }
 
-print_box_text_line() {
+print_box_title_line() {
   local text="$1"
   local inner_width=$((AOXC_CONSOLE_WIDTH - 4))
+  local line="  ${text}"
 
-  printf '║ %s ║\n' "$(center_text "${inner_width}" "${text}")"
+  if (( ${#line} > inner_width )); then
+    line="${line:0:inner_width}"
+  fi
+
+  printf '║ %-*s ║\n' "${inner_width}" "${line}"
 }
 
 print_box_kv_line() {
@@ -347,8 +338,26 @@ print_section_divider() {
     "$(repeat_char "━" "${right}")"
 }
 
-print_subtle_divider() {
+print_minor_divider() {
   printf '%s\n' "$(repeat_char "┈" "${AOXC_CONSOLE_WIDTH}")"
+}
+
+print_cycle_transition() {
+  print_full_width_bar "═"
+}
+
+print_cycle_entry_banner() {
+  local mode="$1"
+  local timestamp="$2"
+
+  print_full_width_bar "═"
+  printf '  🚀 %-27s  🕒 %s\n' "AOXC RUNTIME ${mode^^} CYCLE" "${timestamp}"
+  print_full_width_bar "═"
+}
+
+print_cycle_exit_banner() {
+  printf '  ✅ %-27s  📄 %s\n' "AOXC CYCLE COMPLETE" "${RUNTIME_LOG}"
+  print_full_width_bar "═"
 }
 
 print_kv() {
@@ -371,7 +380,7 @@ print_cycle_header() {
   state_icon="$(status_icon "${smoke}")"
 
   print_box_line "╔" "═" "╗"
-  print_box_text_line "🚀 AOXC RUNTIME NODE CYCLE"
+  print_box_title_line "🚀 AOXC RUNTIME NODE CYCLE"
   print_box_line "╠" "═" "╣"
   print_box_kv_line "${state_icon}" "Status" "HEALTHY"
   print_box_kv_line "🧾" "Transaction" "${tx_id}"
@@ -393,7 +402,7 @@ print_consensus_block() {
   print_kv "🧩" "Last Message Kind"      "$(extract_or_default "${produce_payload}" "last_message_kind")"
   print_kv "📚" "Last Section Count"     "$(extract_or_default "${produce_payload}" "last_section_count")"
   print_kv "⏱️" "Last Timestamp (Unix)"   "$(extract_or_default "${produce_payload}" "last_timestamp_unix")"
-  print_subtle_divider
+  print_minor_divider
   print_kv "🔐" "Last Block Hash"        "$(extract_or_default "${produce_payload}" "last_block_hash_hex")"
   print_kv "🧬" "Parent Block Hash"      "$(extract_or_default "${produce_payload}" "last_parent_hash_hex")"
   print_kv "👤" "Proposer Public Key"    "$(extract_or_default "${produce_payload}" "last_proposer_hex")"
@@ -477,10 +486,14 @@ render_aoxc_cycle_console() {
 emit_professional_cycle_log() {
   local produce_payload="$1"
   local smoke_payload="$2"
+  local mode_label="$3"
 
   {
     printf '\n'
+    print_cycle_transition
+    print_cycle_entry_banner "${mode_label}" "$(timestamp_utc)"
     render_aoxc_cycle_console "${produce_payload}" "${smoke_payload}"
+    print_cycle_exit_banner
     printf '\n'
   } >> "${RUNTIME_LOG}"
 }
@@ -492,11 +505,13 @@ emit_cycle_failure_log() {
 
   {
     printf '\n'
+    print_cycle_transition
     print_section_divider "⚠️" "AOXC RUNTIME CYCLE FAILURE"
     print_kv "🧾" "Transaction" "${tx_id}"
     print_kv "🛠️" "Failed Stage" "${stage}"
     print_kv "❌" "Exit Code" "${exit_code}"
     print_kv "📄" "Raw Log" "${RAW_RUNTIME_LOG}"
+    print_full_width_bar "═"
     printf '\n'
   } >> "${RUNTIME_LOG}"
 }
@@ -533,7 +548,6 @@ bootstrap_runtime() {
   export AOXC_HOME="${AOXC_RUNTIME_ROOT}"
 
   if [[ -f "${BOOTSTRAP_MARKER}" ]]; then
-    log_info "Bootstrap marker already present. Reusing initialized runtime root."
     return 0
   fi
 
@@ -601,7 +615,7 @@ run_cycle() {
     return 1
   fi
 
-  emit_professional_cycle_log "${produce_output}" "${smoke_output}"
+  emit_professional_cycle_log "${produce_output}" "${smoke_output}" "${mode}"
   write_health_receipt
   return 0
 }
@@ -692,7 +706,10 @@ start_daemon() {
 run_foreground() {
   local bin_path="$1"
 
-  bootstrap_runtime "${bin_path}"
+  if [[ ! -f "${BOOTSTRAP_MARKER}" ]]; then
+    bootstrap_runtime "${bin_path}"
+  fi
+
   write_status_receipt "running" "$$"
   write_health_receipt
   run_daemon_loop "${bin_path}" "daemon"
@@ -701,7 +718,9 @@ run_foreground() {
 run_once() {
   local bin_path="$1"
 
-  bootstrap_runtime "${bin_path}"
+  if [[ ! -f "${BOOTSTRAP_MARKER}" ]]; then
+    bootstrap_runtime "${bin_path}"
+  fi
 
   if run_cycle "${bin_path}" "once"; then
     write_status_receipt "single-run-complete" "$$"
