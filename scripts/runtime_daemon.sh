@@ -1,126 +1,206 @@
 #!/usr/bin/env bash
-# -----------------------------------------------------------------------------
-# AOXC MIT License
-#
-# Experimental software under active construction.
-# This file is part of the AOXC pre-release codebase.
-# -----------------------------------------------------------------------------
-#
-# Purpose:
-#   Provide single-runtime AOXC daemon lifecycle control for the canonical
-#   operator surface.
-#
-# Operational Model:
-#   - Resolve the AOXC binary from approved local locations
-#   - Materialize one runtime root and one log root
-#   - Support `start`, `once`, `status`, `stop`, `restart`, `tail`,
-#     and `install-service`
-#   - Persist PID-based lifecycle state for managed background execution
-#   - Emit deterministic status and health receipts
-#   - Fail closed on invalid prerequisites or runtime drift
-#
-# Exit Codes:
-#   0  Successful completion
-#   2  Invalid invocation
-#   4  AOXC binary resolution failure
-#   5  Unsupported command
-#   6  Invalid configuration
-#   7  Bootstrap failure
-#   8  Managed daemon start failure
-#   9  Managed daemon stop failure
-#   10 Service installation failure
-# -----------------------------------------------------------------------------
-
 set -Eeuo pipefail
 IFS=$'\n\t'
 
+# ==============================================================================
+# AOXC Runtime Daemon
+# ------------------------------------------------------------------------------
+# Purpose:
+#   Production-grade runtime daemon manager for AOXC.
+#
+# Operational goals:
+#   - Deterministic runtime bootstrapping
+#   - Strong PID and process supervision semantics
+#   - Explicit operator receipts
+#   - Premium AOXC-specific cycle rendering
+#   - Safe failure behavior with actionable diagnostics
+#
+# Commands:
+#   start            Start daemon in background mode
+#   foreground       Run daemon loop in foreground
+#   once             Execute one production/smoke cycle
+#   stop             Stop daemon
+#   restart          Restart daemon
+#   status           Print current daemon status
+#   tail             Tail runtime log
+#   paths            Show resolved runtime paths
+# ==============================================================================
+
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-readonly DEFAULT_NETWORK_TIMEOUT_MS=3000
-readonly DEFAULT_DAEMON_SLEEP_SECS=2
-readonly DEFAULT_STOP_WAIT_SECS=10
-readonly DEFAULT_DAEMON_FAILURE_BACKOFF_SECS=3
 
 readonly COMMAND="${1:-}"
 
 AOXC_ROOT="${AOXC_ROOT:-${HOME}/.aoxc}"
 AOXC_RUNTIME_ROOT="${AOXC_RUNTIME_ROOT:-${AOXC_ROOT}/runtime}"
 AOXC_LOG_DIR="${AOXC_LOG_DIR:-${AOXC_ROOT}/logs}"
-AOXC_BIN_PATH_OVERRIDE="${BIN_PATH:-}"
+AOXC_AUDIT_DIR="${AOXC_AUDIT_DIR:-${AOXC_ROOT}/audit}"
 AOXC_NETWORK_KIND="${AOXC_NETWORK_KIND:-mainnet}"
 AOXC_RUNTIME_SOURCE_ROOT="${AOXC_RUNTIME_SOURCE_ROOT:-${ROOT_DIR}/configs/environments/${AOXC_NETWORK_KIND}}"
+AOXC_BIN_OVERRIDE="${BIN_PATH:-}"
 
 PID_FILE="${AOXC_LOG_DIR}/runtime.pid"
 RUNTIME_LOG="${AOXC_LOG_DIR}/runtime.log"
+STATUS_RECEIPT="${AOXC_AUDIT_DIR}/runtime-status.latest.txt"
+HEALTH_RECEIPT="${AOXC_AUDIT_DIR}/runtime-health.latest.txt"
 BOOTSTRAP_MARKER="${AOXC_RUNTIME_ROOT}/.bootstrap_done"
-HEALTH_RECEIPT="${AOXC_LOG_DIR}/runtime-health.latest.txt"
-STATUS_RECEIPT="${AOXC_LOG_DIR}/runtime-status.latest.txt"
 
-log_info() {
-  printf '[runtime-daemon][info] %s\n' "$*"
+readonly DEFAULT_DAEMON_SLEEP_SECS=2
+readonly DEFAULT_DAEMON_FAILURE_BACKOFF_SECS=3
+readonly DEFAULT_NETWORK_TIMEOUT_MS=3000
+readonly DEFAULT_START_STABILIZE_SECS=2
+readonly DEFAULT_STOP_WAIT_SECS=10
+readonly AOXC_CONSOLE_WIDTH=94
+
+# ------------------------------------------------------------------------------
+# Generic helpers
+# ------------------------------------------------------------------------------
+
+timestamp_utc() {
+  TZ=UTC date '+%Y-%m-%dT%H:%M:%SZ'
 }
 
-log_warn() {
-  printf '[runtime-daemon][warn] %s\n' "$*" >&2
+repeat_char() {
+  local char="$1"
+  local count="$2"
+  local out=""
+
+  while (( count > 0 )); do
+    out="${out}${char}"
+    count=$((count - 1))
+  done
+
+  printf '%s' "${out}"
 }
 
-log_error() {
-  printf '[runtime-daemon][error] %s\n' "$*" >&2
+trim_value() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "${value}"
 }
 
-die() {
-  local message="$1"
-  local exit_code="$2"
-
-  log_error "${message}"
-  exit "${exit_code}"
+safe_value() {
+  local value="${1:-}"
+  [[ -n "${value}" ]] && printf '%s' "${value}" || printf '%s' "-"
 }
 
-print_usage() {
-  cat <<'USAGE'
-Usage:
-  ./scripts/runtime_daemon.sh <start|once|status|stop|restart|tail|install-service>
+center_text() {
+  local width="$1"
+  local text="$2"
+  local text_len="${#text}"
 
-Environment:
-  AOXC_SYSTEMD_SCOPE=user|system (default: user)
-  AOXC_SYSTEMD_SERVICE_NAME=<service-name> (default: aoxc-runtime)
-USAGE
+  if (( text_len >= width )); then
+    printf '%s' "${text}"
+    return 0
+  fi
+
+  local left_pad=$(( (width - text_len) / 2 ))
+  local right_pad=$(( width - text_len - left_pad ))
+
+  printf '%s%s%s' \
+    "$(repeat_char " " "${left_pad}")" \
+    "${text}" \
+    "$(repeat_char " " "${right_pad}")"
 }
 
 require_command() {
-  local command_name="$1"
-  command -v "${command_name}" >/dev/null 2>&1 || die "Missing required command: ${command_name}" 6
+  local cmd="$1"
+  command -v "${cmd}" >/dev/null 2>&1 || {
+    printf 'ERROR: required command not found: %s\n' "${cmd}" >&2
+    exit 6
+  }
 }
 
-ensure_directory() {
-  local dir_path="$1"
+ensure_dir() {
+  local dir="$1"
 
-  if [[ -e "${dir_path}" && ! -d "${dir_path}" ]]; then
-    die "Path exists but is not a directory: ${dir_path}" 6
+  if [[ -e "${dir}" && ! -d "${dir}" ]]; then
+    printf 'ERROR: path exists but is not a directory: %s\n' "${dir}" >&2
+    exit 6
   fi
 
-  mkdir -p "${dir_path}"
+  mkdir -p "${dir}"
 }
 
 validate_non_negative_integer() {
   local value="$1"
   local name="$2"
-
-  [[ "${value}" =~ ^[0-9]+$ ]] || die "Invalid value for ${name}: '${value}'. A non-negative integer is required." 6
+  [[ "${value}" =~ ^[0-9]+$ ]] || {
+    printf 'ERROR: %s must be a non-negative integer. got=%s\n' "${name}" "${value}" >&2
+    exit 6
+  }
 }
 
 validate_positive_integer() {
   local value="$1"
   local name="$2"
+  [[ "${value}" =~ ^[1-9][0-9]*$ ]] || {
+    printf 'ERROR: %s must be a positive integer. got=%s\n' "${name}" "${value}" >&2
+    exit 6
+  }
+}
 
-  [[ "${value}" =~ ^[1-9][0-9]*$ ]] || die "Invalid value for ${name}: '${value}'. A positive integer is required." 6
+log_info() {
+  printf '%s  INFO   %s\n' "$(timestamp_utc)" "$*" | tee -a "${RUNTIME_LOG}" >/dev/null
+}
+
+log_warn() {
+  printf '%s  WARN   %s\n' "$(timestamp_utc)" "$*" | tee -a "${RUNTIME_LOG}" >/dev/null
+}
+
+log_error() {
+  printf '%s  ERROR  %s\n' "$(timestamp_utc)" "$*" | tee -a "${RUNTIME_LOG}" >/dev/null
+}
+
+die() {
+  local message="$1"
+  local code="${2:-1}"
+  log_error "${message}"
+  exit "${code}"
+}
+
+initialize_paths() {
+  ensure_dir "${AOXC_ROOT}"
+  ensure_dir "${AOXC_RUNTIME_ROOT}"
+  ensure_dir "${AOXC_LOG_DIR}"
+  ensure_dir "${AOXC_AUDIT_DIR}"
+  touch "${RUNTIME_LOG}"
+}
+
+write_status_receipt() {
+  local state="$1"
+  local pid_value="$2"
+
+  {
+    printf 'state=%s\n' "${state}"
+    printf 'pid=%s\n' "${pid_value}"
+    printf 'aoxc_root=%s\n' "${AOXC_ROOT}"
+    printf 'runtime_root=%s\n' "${AOXC_RUNTIME_ROOT}"
+    printf 'log_file=%s\n' "${RUNTIME_LOG}"
+    printf 'timestamp_utc=%s\n' "$(timestamp_utc)"
+  } > "${STATUS_RECEIPT}"
+}
+
+write_health_receipt() {
+  {
+    printf 'runtime_root=%s\n' "${AOXC_RUNTIME_ROOT}"
+    printf 'runtime_log=%s\n' "${RUNTIME_LOG}"
+    printf 'pid_file=%s\n' "${PID_FILE}"
+    printf 'bootstrap_marker_present=%s\n' "$([[ -f "${BOOTSTRAP_MARKER}" ]] && echo yes || echo no)"
+    printf 'timestamp_utc=%s\n' "$(timestamp_utc)"
+  } > "${HEALTH_RECEIPT}"
+}
+
+is_pid_running() {
+  local pid="$1"
+  kill -0 "${pid}" >/dev/null 2>&1
 }
 
 resolve_bin_path() {
-  if [[ -n "${AOXC_BIN_PATH_OVERRIDE}" ]]; then
-    [[ -x "${AOXC_BIN_PATH_OVERRIDE}" ]] || die "BIN_PATH is set but not executable: ${AOXC_BIN_PATH_OVERRIDE}" 4
-    printf '%s\n' "${AOXC_BIN_PATH_OVERRIDE}"
+  if [[ -n "${AOXC_BIN_OVERRIDE}" ]]; then
+    [[ -x "${AOXC_BIN_OVERRIDE}" ]] || die "BIN_PATH is set but not executable: ${AOXC_BIN_OVERRIDE}" 4
+    printf '%s\n' "${AOXC_BIN_OVERRIDE}"
     return 0
   fi
 
@@ -134,479 +214,579 @@ resolve_bin_path() {
     return 0
   fi
 
-  if [[ -x "${ROOT_DIR}/bin/aoxc" ]]; then
-    printf '%s\n' "${ROOT_DIR}/bin/aoxc"
-    return 0
-  fi
-
   return 1
 }
 
-initialize_runtime_paths() {
-  ensure_directory "${AOXC_ROOT}"
-  ensure_directory "${AOXC_RUNTIME_ROOT}"
-  ensure_directory "${AOXC_LOG_DIR}"
-  touch "${RUNTIME_LOG}"
-}
-
-run_and_tee() {
-  local log_file="$1"
-  shift
+run_and_capture() {
+  local output=""
+  local rc=0
 
   set +e
-  "$@" 2>&1 | tee -a "${log_file}"
-  local cmd_exit=${PIPESTATUS[0]}
+  output="$("$@" 2>&1)"
+  rc=$?
   set -e
 
-  return "${cmd_exit}"
+  printf '%s' "${output}"
+  return "${rc}"
 }
 
-extract_status_field() {
+extract_yaml_like_field() {
   local payload="$1"
   local field="$2"
-  local value=''
+  local value=""
 
   value="$(printf '%s\n' "${payload}" \
     | awk -F': ' -v key="${field}" '$1 ~ "^[[:space:]]*" key "$" {print $2}' \
-    | tail -n 1 \
-    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    | tail -n 1)"
 
-  if [[ -z "${value}" ]]; then
-    printf '%s\n' "-"
-    return 0
+  trim_value "${value}"
+}
+
+extract_or_default() {
+  local payload="$1"
+  local field="$2"
+  local value=""
+
+  value="$(extract_yaml_like_field "${payload}" "${field}")"
+  safe_value "${value}"
+}
+
+status_icon() {
+  local value="$1"
+  case "${value}" in
+    ok|healthy|active|true|running) printf '%s' "✅" ;;
+    degraded|warning|retry)         printf '%s' "⚠️" ;;
+    false|stopped|failed|error)     printf '%s' "❌" ;;
+    *)                              printf '%s' "ℹ️" ;;
+  esac
+}
+
+# ------------------------------------------------------------------------------
+# Premium AOXC formatter
+# ------------------------------------------------------------------------------
+
+print_box_line() {
+  local left="$1"
+  local fill="$2"
+  local right="$3"
+  printf '%s%s%s\n' "${left}" "$(repeat_char "${fill}" $((AOXC_CONSOLE_WIDTH - 2)))" "${right}"
+}
+
+print_box_text_line() {
+  local text="$1"
+  local inner_width=$((AOXC_CONSOLE_WIDTH - 4))
+  printf '║ %s ║\n' "$(center_text "${inner_width}" "${text}")"
+}
+
+print_box_kv_line() {
+  local icon="$1"
+  local key="$2"
+  local value="$3"
+  local inner_width=$((AOXC_CONSOLE_WIDTH - 4))
+  local line
+
+  line="$(printf '%-2s %-17s : %s' "${icon}" "${key}" "${value}")"
+  if (( ${#line} > inner_width )); then
+    line="${line:0:inner_width}"
   fi
 
-  printf '%s\n' "${value}"
+  printf '║ %-*s ║\n' "${inner_width}" "${line}"
 }
 
-emit_compact_cycle_log() {
+print_section_divider() {
+  local icon="$1"
+  local title="$2"
+  local core=" ${icon} ${title} "
+  local core_len="${#core}"
+  local remaining=$((AOXC_CONSOLE_WIDTH - core_len))
+  local left=$((remaining / 2))
+  local right=$((remaining - left))
+
+  printf '%s%s%s\n' \
+    "$(repeat_char "━" "${left}")" \
+    "${core}" \
+    "$(repeat_char "━" "${right}")"
+}
+
+print_subtle_divider() {
+  printf '%s\n' "$(repeat_char "┈" "${AOXC_CONSOLE_WIDTH}")"
+}
+
+print_kv() {
+  local icon="$1"
+  local key="$2"
+  local value="$3"
+  printf '  %-2s %-29s : %s\n' "${icon}" "${key}" "${value}"
+}
+
+print_cycle_header() {
   local tx_id="$1"
-  local produce_payload="$2"
-  local smoke_payload="$3"
-  local log_file="$4"
+  local blk="$2"
+  local height="$3"
+  local round="$4"
+  local smoke="$5"
+  local probe="$6"
+  local state_icon
+  state_icon="$(status_icon "${smoke}")"
 
-  local produced_blocks=''
-  local current_height=''
-  local last_round=''
-  local smoke_status=''
-  local smoke_probe=''
-
-  produced_blocks="$(extract_status_field "${produce_payload}" "produced_blocks")"
-  current_height="$(extract_status_field "${produce_payload}" "current_height")"
-  last_round="$(extract_status_field "${produce_payload}" "last_round")"
-  smoke_status="$(extract_status_field "${smoke_payload}" "status")"
-  smoke_probe="$(extract_status_field "${smoke_payload}" "probe")"
-
-  printf '[✅ node] tx=%-30s blk=%-6s h=%-6s rnd=%-6s smoke=%-6s probe=%s\n' \
-    "${tx_id}" \
-    "${produced_blocks}" \
-    "${current_height}" \
-    "${last_round}" \
-    "${smoke_status}" \
-    "${smoke_probe}" >> "${log_file}"
+  print_box_line "╔" "═" "╗"
+  print_box_text_line "🚀 AOXC RUNTIME NODE CYCLE"
+  print_box_line "╠" "═" "╣"
+  print_box_kv_line "${state_icon}" "Status" "HEALTHY"
+  print_box_kv_line "🧾" "Transaction" "${tx_id}"
+  print_box_kv_line "🧱" "Block" "${blk}"
+  print_box_kv_line "📏" "Height" "${height}"
+  print_box_kv_line "🔁" "Round" "${round}"
+  print_box_kv_line "🧪" "Smoke Check" "${smoke}"
+  print_box_kv_line "📡" "Probe" "${probe}"
+  print_box_line "╚" "═" "╝"
 }
+
+print_consensus_block() {
+  local produce_payload="$1"
+
+  print_section_divider "⚖️" "CONSENSUS SNAPSHOT"
+  print_kv "🌐" "Network ID"             "$(extract_or_default "${produce_payload}" "network_id")"
+  print_kv "📏" "Current Height"         "$(extract_or_default "${produce_payload}" "current_height")"
+  print_kv "🔁" "Last Round"             "$(extract_or_default "${produce_payload}" "last_round")"
+  print_kv "🧩" "Last Message Kind"      "$(extract_or_default "${produce_payload}" "last_message_kind")"
+  print_kv "📚" "Last Section Count"     "$(extract_or_default "${produce_payload}" "last_section_count")"
+  print_kv "⏱️" "Last Timestamp (Unix)"   "$(extract_or_default "${produce_payload}" "last_timestamp_unix")"
+  print_subtle_divider
+  print_kv "🔐" "Last Block Hash"        "$(extract_or_default "${produce_payload}" "last_block_hash_hex")"
+  print_kv "🧬" "Parent Block Hash"      "$(extract_or_default "${produce_payload}" "last_parent_hash_hex")"
+  print_kv "👤" "Proposer Public Key"    "$(extract_or_default "${produce_payload}" "last_proposer_hex")"
+}
+
+print_key_material_block() {
+  local produce_payload="$1"
+
+  print_section_divider "🔑" "KEY MATERIAL STATUS"
+  print_kv "🪪" "Bundle Fingerprint"     "$(extract_or_default "${produce_payload}" "bundle_fingerprint")"
+  print_kv "🛡️" "Consensus Key"          "$(extract_or_default "${produce_payload}" "consensus_public_key_hex")"
+  print_kv "🔄" "Transport Key"          "$(extract_or_default "${produce_payload}" "transport_public_key_hex")"
+  print_kv "$(status_icon "$(extract_or_default "${produce_payload}" "operational_state")")" \
+           "Operational State"          "$(extract_or_default "${produce_payload}" "operational_state")"
+}
+
+print_runtime_block() {
+  local produce_payload="$1"
+
+  print_section_divider "⚙️" "RUNTIME EXECUTION"
+  print_kv "$(status_icon "$(extract_or_default "${produce_payload}" "initialized")")" \
+           "Initialized"                "$(extract_or_default "${produce_payload}" "initialized")"
+  print_kv "$(status_icon "$(extract_or_default "${produce_payload}" "running")")" \
+           "Running"                    "$(extract_or_default "${produce_payload}" "running")"
+  print_kv "📦" "Produced Blocks"       "$(extract_or_default "${produce_payload}" "produced_blocks")"
+  print_kv "📏" "Current Height"        "$(extract_or_default "${produce_payload}" "current_height")"
+  print_kv "🧾" "Last Transaction"      "$(extract_or_default "${produce_payload}" "last_tx")"
+  print_kv "🕒" "Updated At"            "$(extract_or_default "${produce_payload}" "updated_at")"
+}
+
+print_network_block() {
+  local smoke_payload="$1"
+
+  print_section_divider "📡" "NETWORK SMOKE TEST"
+  print_kv "🛠️" "Command"               "$(extract_or_default "${smoke_payload}" "command")"
+  print_kv "$(status_icon "$(extract_or_default "${smoke_payload}" "status")")" \
+           "Status"                     "$(extract_or_default "${smoke_payload}" "status")"
+  print_kv "🌍" "Bind Host"             "$(extract_or_default "${smoke_payload}" "bind_host")"
+  print_kv "🚪" "RPC Port"              "$(extract_or_default "${smoke_payload}" "rpc_port")"
+  print_kv "📶" "Probe Result"          "$(extract_or_default "${smoke_payload}" "probe")"
+  print_kv "$(status_icon "$(extract_or_default "${smoke_payload}" "key_operational_state")")" \
+           "Key Operational State"      "$(extract_or_default "${smoke_payload}" "key_operational_state")"
+  print_kv "🔄" "Transport Public Key"  "$(extract_or_default "${smoke_payload}" "transport_public_key")"
+  print_kv "🕒" "Timestamp"             "$(extract_or_default "${smoke_payload}" "timestamp")"
+}
+
+print_identity_footer() {
+  print_section_divider "🏛️" "AOXC NODE MARK"
+  print_kv "🧬" "Identity Class"        "AOXC Validator Runtime"
+  print_kv "🖥️" "Runtime Mode"          "Daemon Cycle"
+  print_kv "🎛️" "Output Profile"        "Professional Operator Console"
+  print_kv "🔗" "Chain Signature"       "AOXC Premium Structured Telemetry"
+}
+
+render_aoxc_cycle_console() {
+  local produce_payload="$1"
+  local smoke_payload="$2"
+
+  local tx_id blk height round smoke probe
+
+  tx_id="$(extract_or_default "${produce_payload}" "last_tx")"
+  blk="$(extract_or_default "${produce_payload}" "produced_blocks")"
+  height="$(extract_or_default "${produce_payload}" "current_height")"
+  round="$(extract_or_default "${produce_payload}" "last_round")"
+  smoke="$(extract_or_default "${smoke_payload}" "status")"
+  probe="$(extract_or_default "${smoke_payload}" "probe")"
+
+  print_cycle_header "${tx_id}" "${blk}" "${height}" "${round}" "${smoke}" "${probe}"
+  printf '\n'
+  print_consensus_block "${produce_payload}"
+  printf '\n'
+  print_key_material_block "${produce_payload}"
+  printf '\n'
+  print_runtime_block "${produce_payload}"
+  printf '\n'
+  print_network_block "${smoke_payload}"
+  printf '\n'
+  print_identity_footer
+}
+
+emit_professional_cycle_log() {
+  local produce_payload="$1"
+  local smoke_payload="$2"
+
+  {
+    printf '\n'
+    render_aoxc_cycle_console "${produce_payload}" "${smoke_payload}"
+    printf '\n'
+  } >> "${RUNTIME_LOG}"
+}
+
+# ------------------------------------------------------------------------------
+# Runtime installation/bootstrap
+# ------------------------------------------------------------------------------
 
 copy_runtime_source_if_present() {
   if [[ ! -d "${AOXC_RUNTIME_SOURCE_ROOT}" ]]; then
-    log_warn "Runtime source root is absent: ${AOXC_RUNTIME_SOURCE_ROOT}. Source materialization will be skipped."
+    log_warn "Runtime source root not found: ${AOXC_RUNTIME_SOURCE_ROOT}"
     return 0
   fi
 
-  ensure_directory "${AOXC_RUNTIME_ROOT}/identity"
-  ensure_directory "${AOXC_RUNTIME_ROOT}/config"
+  mkdir -p "${AOXC_RUNTIME_ROOT}/identity" "${AOXC_RUNTIME_ROOT}/config"
 
-  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/manifest.v1.json" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/manifest.v1.json" "${AOXC_RUNTIME_ROOT}/identity/manifest.json"
-  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/genesis.v1.json" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/genesis.v1.json" "${AOXC_RUNTIME_ROOT}/identity/genesis.json"
-  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/validators.json" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/validators.json" "${AOXC_RUNTIME_ROOT}/identity/validators.json"
-  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/bootnodes.json" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/bootnodes.json" "${AOXC_RUNTIME_ROOT}/identity/bootnodes.json"
-  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/certificate.json" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/certificate.json" "${AOXC_RUNTIME_ROOT}/identity/certificate.json"
-  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/profile.toml" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/profile.toml" "${AOXC_RUNTIME_ROOT}/config/profile.toml"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/manifest.v1.json"    ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/manifest.v1.json"    "${AOXC_RUNTIME_ROOT}/identity/manifest.json"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/genesis.v1.json"     ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/genesis.v1.json"     "${AOXC_RUNTIME_ROOT}/identity/genesis.json"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/validators.json"     ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/validators.json"     "${AOXC_RUNTIME_ROOT}/identity/validators.json"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/bootnodes.json"      ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/bootnodes.json"      "${AOXC_RUNTIME_ROOT}/identity/bootnodes.json"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/certificate.json"    ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/certificate.json"    "${AOXC_RUNTIME_ROOT}/identity/certificate.json"
+  [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/profile.toml"        ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/profile.toml"        "${AOXC_RUNTIME_ROOT}/config/profile.toml"
   [[ -f "${AOXC_RUNTIME_SOURCE_ROOT}/release-policy.toml" ]] && cp "${AOXC_RUNTIME_SOURCE_ROOT}/release-policy.toml" "${AOXC_RUNTIME_ROOT}/config/release-policy.toml"
 
   if [[ -f "${AOXC_RUNTIME_ROOT}/identity/genesis.json" ]]; then
     sha256sum "${AOXC_RUNTIME_ROOT}/identity/genesis.json" > "${AOXC_RUNTIME_ROOT}/identity/genesis.sha256"
   fi
+
+  log_info "Runtime source material installed into ${AOXC_RUNTIME_ROOT}"
 }
 
 bootstrap_runtime() {
   local bin_path="$1"
-
   export AOXC_HOME="${AOXC_RUNTIME_ROOT}"
 
   if [[ -f "${BOOTSTRAP_MARKER}" ]]; then
-    log_info "Bootstrap already completed for runtime root '${AOXC_RUNTIME_ROOT}'."
+    log_info "Bootstrap marker already present. Reusing initialized runtime root."
     return 0
   fi
 
-  log_info "Bootstrap started for runtime root '${AOXC_RUNTIME_ROOT}'."
-  log_info "Resolved network kind '${AOXC_NETWORK_KIND}' with source root '${AOXC_RUNTIME_SOURCE_ROOT}'."
+  log_info "Starting runtime bootstrap"
+  log_info "Resolved binary: ${bin_path}"
+  log_info "Runtime root: ${AOXC_RUNTIME_ROOT}"
+  log_info "Source root: ${AOXC_RUNTIME_SOURCE_ROOT}"
 
   copy_runtime_source_if_present
 
-  if ! run_and_tee "${RUNTIME_LOG}" \
-    "${bin_path}" db-init --backend redb --format json; then
-    die "db-init failed during runtime bootstrap." 7
-  fi
+  local db_init_output=""
+  db_init_output="$(run_and_capture "${bin_path}" db-init --backend redb --format json)" || {
+    printf '%s\n' "${db_init_output}" >> "${RUNTIME_LOG}"
+    die "db-init failed during bootstrap" 7
+  }
+
+  printf '%s\n' "${db_init_output}" >> "${RUNTIME_LOG}"
 
   touch "${BOOTSTRAP_MARKER}"
-  log_info "Bootstrap completed for runtime root '${AOXC_RUNTIME_ROOT}'."
+  log_info "Runtime bootstrap completed successfully"
 }
 
-run_once() {
+# ------------------------------------------------------------------------------
+# Runtime cycles
+# ------------------------------------------------------------------------------
+
+run_cycle() {
   local bin_path="$1"
+  local mode="$2"
+  local timeout_ms="${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}"
+
+  validate_positive_integer "${timeout_ms}" "NETWORK_TIMEOUT_MS"
 
   export AOXC_HOME="${AOXC_RUNTIME_ROOT}"
 
-  run_and_tee "${RUNTIME_LOG}" \
-    "${bin_path}" produce-once --tx "AOXC_RUNTIME_$(date +%s)"
+  local tx_id="AOXC_RUNTIME_${mode^^}_$(date +%s)"
+  local produce_output=""
+  local smoke_output=""
 
-  run_and_tee "${RUNTIME_LOG}" \
-    "${bin_path}" network-smoke \
-      --timeout-ms "${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}" \
-      --bind-host 127.0.0.1 \
-      --port 0 \
-      --payload "HEALTH_RUNTIME"
+  produce_output="$(run_and_capture "${bin_path}" produce-once --tx "${tx_id}")" || {
+    printf '%s\n' "${produce_output}" >> "${RUNTIME_LOG}"
+    return 1
+  }
+
+  smoke_output="$(run_and_capture "${bin_path}" network-smoke \
+    --timeout-ms "${timeout_ms}" \
+    --bind-host 127.0.0.1 \
+    --port 0 \
+    --payload "HEALTH_RUNTIME")" || {
+    printf '%s\n' "${produce_output}" >> "${RUNTIME_LOG}"
+    printf '%s\n' "${smoke_output}" >> "${RUNTIME_LOG}"
+    return 1
+  }
+
+  emit_professional_cycle_log "${produce_output}" "${smoke_output}"
+  write_health_receipt
+  return 0
 }
 
-is_managed_pid_running() {
-  local pid="$1"
-  kill -0 "${pid}" >/dev/null 2>&1
+run_daemon_loop() {
+  local bin_path="$1"
+  local mode="$2"
+
+  local sleep_secs="${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
+  local backoff_secs="${DAEMON_FAILURE_BACKOFF_SECS:-$DEFAULT_DAEMON_FAILURE_BACKOFF_SECS}"
+
+  validate_non_negative_integer "${sleep_secs}" "DAEMON_SLEEP_SECS"
+  validate_non_negative_integer "${backoff_secs}" "DAEMON_FAILURE_BACKOFF_SECS"
+
+  log_info "Entering daemon loop mode=${mode}"
+
+  while true; do
+    if ! run_cycle "${bin_path}" "${mode}"; then
+      log_warn "Cycle failed in mode=${mode}; retrying in ${backoff_secs}s"
+      sleep "${backoff_secs}"
+      continue
+    fi
+
+    sleep "${sleep_secs}"
+  done
 }
 
-write_status_receipt() {
-  local state="$1"
-  local pid_value="$2"
-
-  {
-    printf 'state=%s\n' "${state}"
-    printf 'pid=%s\n' "${pid_value}"
-    printf 'runtime_root=%s\n' "${AOXC_RUNTIME_ROOT}"
-    printf 'log_dir=%s\n' "${AOXC_LOG_DIR}"
-    printf 'timestamp_utc=%s\n' "$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
-  } > "${STATUS_RECEIPT}"
-}
-
-write_health_receipt() {
-  {
-    printf 'runtime_root=%s\n' "${AOXC_RUNTIME_ROOT}"
-    printf 'log_dir=%s\n' "${AOXC_LOG_DIR}"
-    printf 'pid_file=%s\n' "${PID_FILE}"
-    printf 'runtime_log=%s\n' "${RUNTIME_LOG}"
-    printf 'bootstrap_marker_present=%s\n' "$([[ -f "${BOOTSTRAP_MARKER}" ]] && echo yes || echo no)"
-    printf 'timestamp_utc=%s\n' "$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
-  } > "${HEALTH_RECEIPT}"
-}
+# ------------------------------------------------------------------------------
+# Commands
+# ------------------------------------------------------------------------------
 
 start_daemon() {
   local bin_path="$1"
-  local daemon_pid=''
+  local stabilize_secs="${START_STABILIZE_SECS:-$DEFAULT_START_STABILIZE_SECS}"
+  local pid=""
+
+  validate_non_negative_integer "${stabilize_secs}" "START_STABILIZE_SECS"
 
   if [[ -f "${PID_FILE}" ]]; then
-    daemon_pid="$(cat "${PID_FILE}")"
-    if [[ "${daemon_pid}" =~ ^[0-9]+$ ]] && is_managed_pid_running "${daemon_pid}"; then
-      write_status_receipt "running" "${daemon_pid}"
+    pid="$(cat "${PID_FILE}")"
+    if [[ "${pid}" =~ ^[0-9]+$ ]] && is_pid_running "${pid}"; then
+      write_status_receipt "running" "${pid}"
       write_health_receipt
-      log_info "Runtime is already running with PID ${daemon_pid}."
+      printf 'AOXC runtime already running. pid=%s\n' "${pid}"
       return 0
     fi
-
     rm -f "${PID_FILE}"
+    log_warn "Removed stale PID file"
   fi
 
   bootstrap_runtime "${bin_path}"
 
   (
-    export AOXC_HOME="${AOXC_RUNTIME_ROOT}"
-    local backoff_secs="${DAEMON_FAILURE_BACKOFF_SECS:-$DEFAULT_DAEMON_FAILURE_BACKOFF_SECS}"
-    local sleep_secs="${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
-    local timeout_ms="${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}"
-    local tx_suffix=''
-    local tx_id=''
-    local produce_rc=0
-    local smoke_rc=0
-    local produce_output=''
-    local smoke_output=''
+    exec bash -c '
+      set -Eeuo pipefail
+      "'"${SCRIPT_DIR}/runtime_daemon.sh"'" foreground
+    '
+  ) >> "${RUNTIME_LOG}" 2>&1 &
 
-    validate_non_negative_integer "${backoff_secs}" "DAEMON_FAILURE_BACKOFF_SECS"
+  pid="$!"
+  printf '%s\n' "${pid}" > "${PID_FILE}"
 
-    while true; do
-      tx_suffix="$(date +%s)"
-      tx_id="AOXC_RUNTIME_DAEMON_${tx_suffix}"
+  sleep "${stabilize_secs}"
 
-      set +e
-      produce_output="$("${bin_path}" produce-once --tx "${tx_id}" 2>&1)"
-      produce_rc=$?
-      printf '%s\n' "${produce_output}" >> "${RUNTIME_LOG}"
-      smoke_output="$("${bin_path}" network-smoke \
-        --timeout-ms "${timeout_ms}" \
-        --bind-host 127.0.0.1 \
-        --port 0 \
-        --payload "HEALTH_RUNTIME" 2>&1)"
-      smoke_rc=$?
-      printf '%s\n' "${smoke_output}" >> "${RUNTIME_LOG}"
-      set -e
-
-      if (( produce_rc != 0 || smoke_rc != 0 )); then
-        printf '[runtime-daemon][warn] cycle failed (produce-once=%s network-smoke=%s). Retrying in %ss.\n' "${produce_rc}" "${smoke_rc}" "${backoff_secs}" >> "${RUNTIME_LOG}"
-        sleep "${backoff_secs}"
-        continue
-      fi
-
-      emit_compact_cycle_log "${tx_id}" "${produce_output}" "${smoke_output}" "${RUNTIME_LOG}"
-      sleep "${sleep_secs}"
-    done
-  ) &
-
-  daemon_pid="$!"
-  printf '%s\n' "${daemon_pid}" > "${PID_FILE}"
-
-  if ! is_managed_pid_running "${daemon_pid}"; then
+  if ! is_pid_running "${pid}"; then
     rm -f "${PID_FILE}"
-    die "Managed daemon failed to start." 8
+    write_status_receipt "failed" "none"
+    die "Runtime daemon exited during stabilization window. Inspect ${RUNTIME_LOG}" 8
   fi
 
-  write_status_receipt "running" "${daemon_pid}"
+  write_status_receipt "running" "${pid}"
   write_health_receipt
-  log_info "Started runtime with PID ${daemon_pid}. Log: ${RUNTIME_LOG}"
+
+  printf 'AOXC runtime started successfully.\n'
+  printf '  PID File   : %s\n' "${PID_FILE}"
+  printf '  PID        : %s\n' "${pid}"
+  printf '  Log File   : %s\n' "${RUNTIME_LOG}"
+  printf '  Status     : %s\n' "${STATUS_RECEIPT}"
 }
 
 run_foreground() {
   local bin_path="$1"
-  local backoff_secs="${DAEMON_FAILURE_BACKOFF_SECS:-$DEFAULT_DAEMON_FAILURE_BACKOFF_SECS}"
-  local sleep_secs="${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}"
-  local timeout_ms="${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}"
-  local tx_suffix=''
-  local tx_id=''
-  local produce_rc=0
-  local smoke_rc=0
-  local produce_output=''
-  local smoke_output=''
-
-  validate_non_negative_integer "${backoff_secs}" "DAEMON_FAILURE_BACKOFF_SECS"
-  validate_non_negative_integer "${sleep_secs}" "DAEMON_SLEEP_SECS"
-  validate_positive_integer "${timeout_ms}" "NETWORK_TIMEOUT_MS"
-
   bootstrap_runtime "${bin_path}"
-  export AOXC_HOME="${AOXC_RUNTIME_ROOT}"
+  write_status_receipt "running" "$$"
+  write_health_receipt
+  run_daemon_loop "${bin_path}" "daemon"
+}
 
-  log_info "Running foreground runtime loop for persistent service mode."
-  while true; do
-    tx_suffix="$(date +%s)"
-    tx_id="AOXC_RUNTIME_FOREGROUND_${tx_suffix}"
+run_once() {
+  local bin_path="$1"
+  bootstrap_runtime "${bin_path}"
 
-    set +e
-    produce_output="$("${bin_path}" produce-once --tx "${tx_id}" 2>&1)"
-    produce_rc=$?
-    printf '%s\n' "${produce_output}" >> "${RUNTIME_LOG}"
-    smoke_output="$("${bin_path}" network-smoke \
-      --timeout-ms "${timeout_ms}" \
-      --bind-host 127.0.0.1 \
-      --port 0 \
-      --payload "HEALTH_RUNTIME" 2>&1)"
-    smoke_rc=$?
-    printf '%s\n' "${smoke_output}" >> "${RUNTIME_LOG}"
-    set -e
+  if run_cycle "${bin_path}" "once"; then
+    write_status_receipt "single-run-complete" "$$"
+    printf 'AOXC single runtime cycle completed successfully.\n'
+    return 0
+  fi
 
-    if (( produce_rc != 0 || smoke_rc != 0 )); then
-      log_warn "Foreground cycle failed (produce-once=${produce_rc}, network-smoke=${smoke_rc}); retrying in ${backoff_secs}s."
-      sleep "${backoff_secs}"
-      continue
+  write_status_receipt "single-run-failed" "$$"
+  die "Single runtime cycle failed. Inspect ${RUNTIME_LOG}" 8
+}
+
+stop_daemon() {
+  local max_wait="${STOP_WAIT_SECS:-$DEFAULT_STOP_WAIT_SECS}"
+  local pid=""
+  local waited=0
+
+  validate_non_negative_integer "${max_wait}" "STOP_WAIT_SECS"
+
+  if [[ ! -f "${PID_FILE}" ]]; then
+    write_status_receipt "stopped" "none"
+    printf 'AOXC runtime is already stopped.\n'
+    return 0
+  fi
+
+  pid="$(cat "${PID_FILE}")"
+
+  if [[ ! "${pid}" =~ ^[0-9]+$ ]]; then
+    rm -f "${PID_FILE}"
+    die "PID file content is invalid" 9
+  fi
+
+  if ! is_pid_running "${pid}"; then
+    rm -f "${PID_FILE}"
+    write_status_receipt "stopped" "none"
+    printf 'Removed stale AOXC runtime PID file.\n'
+    return 0
+  fi
+
+  kill "${pid}" >/dev/null 2>&1 || die "Unable to signal PID ${pid}" 9
+
+  while is_pid_running "${pid}"; do
+    sleep 1
+    waited=$((waited + 1))
+    if (( waited >= max_wait )); then
+      die "Runtime did not stop within ${max_wait}s" 9
     fi
-
-    emit_compact_cycle_log "${tx_id}" "${produce_output}" "${smoke_output}" "${RUNTIME_LOG}"
-    sleep "${sleep_secs}"
   done
+
+  rm -f "${PID_FILE}"
+  write_status_receipt "stopped" "none"
+  write_health_receipt
+
+  printf 'AOXC runtime stopped successfully. pid=%s\n' "${pid}"
 }
 
 status_daemon() {
-  local daemon_pid=''
+  local pid=""
+
+  printf 'AOXC Runtime Status\n'
+  printf '%s\n' "$(repeat_char "─" 40)"
+
+  printf 'AOXC Root      : %s\n' "${AOXC_ROOT}"
+  printf 'Runtime Root   : %s\n' "${AOXC_RUNTIME_ROOT}"
+  printf 'Log File       : %s\n' "${RUNTIME_LOG}"
+  printf 'PID File       : %s\n' "${PID_FILE}"
+  printf 'Status Receipt : %s\n' "${STATUS_RECEIPT}"
+  printf 'Health Receipt : %s\n' "${HEALTH_RECEIPT}"
+  printf '\n'
 
   if [[ -f "${PID_FILE}" ]]; then
-    daemon_pid="$(cat "${PID_FILE}")"
-    if [[ "${daemon_pid}" =~ ^[0-9]+$ ]] && is_managed_pid_running "${daemon_pid}"; then
-      write_status_receipt "running" "${daemon_pid}"
+    pid="$(cat "${PID_FILE}")"
+    if [[ "${pid}" =~ ^[0-9]+$ ]] && is_pid_running "${pid}"; then
+      write_status_receipt "running" "${pid}"
       write_health_receipt
-      log_info "Runtime is running with PID ${daemon_pid}."
+      printf 'State          : RUNNING ✅\n'
+      printf 'PID            : %s\n' "${pid}"
       return 0
     fi
   fi
 
   write_status_receipt "stopped" "none"
   write_health_receipt
-  log_info "Runtime is stopped."
-}
-
-stop_daemon() {
-  local daemon_pid=''
-  local wait_round=0
-  local max_wait="${STOP_WAIT_SECS:-$DEFAULT_STOP_WAIT_SECS}"
-
-  validate_non_negative_integer "${max_wait}" "STOP_WAIT_SECS"
-
-  if [[ ! -f "${PID_FILE}" ]]; then
-    write_status_receipt "stopped" "none"
-    write_health_receipt
-    log_info "No PID file exists for runtime."
-    return 0
-  fi
-
-  daemon_pid="$(cat "${PID_FILE}")"
-
-  if [[ ! "${daemon_pid}" =~ ^[0-9]+$ ]]; then
-    rm -f "${PID_FILE}"
-    die "PID file contains an invalid process identifier." 9
-  fi
-
-  if ! is_managed_pid_running "${daemon_pid}"; then
-    rm -f "${PID_FILE}"
-    write_status_receipt "stopped" "none"
-    write_health_receipt
-    log_info "Managed process is no longer running. Stale PID file removed."
-    return 0
-  fi
-
-  kill "${daemon_pid}" >/dev/null 2>&1 || die "Failed to send termination signal to PID ${daemon_pid}." 9
-
-  while is_managed_pid_running "${daemon_pid}"; do
-    wait_round=$((wait_round + 1))
-    if (( wait_round >= max_wait )); then
-      die "Managed process did not terminate within the expected interval." 9
-    fi
-    sleep 1
-  done
-
-  rm -f "${PID_FILE}"
-  write_status_receipt "stopped" "none"
-  write_health_receipt
-  log_info "Stopped runtime with PID ${daemon_pid}."
+  printf 'State          : STOPPED ❌\n'
 }
 
 tail_logs() {
   touch "${RUNTIME_LOG}"
-  exec tail -n 100 -f "${RUNTIME_LOG}"
+  printf 'Tailing AOXC runtime log: %s\n' "${RUNTIME_LOG}"
+  exec tail -n 200 -f "${RUNTIME_LOG}"
 }
 
-install_service() {
-  local scope="${AOXC_SYSTEMD_SCOPE:-user}"
-  local service_name="${AOXC_SYSTEMD_SERVICE_NAME:-aoxc-runtime}"
-  local runtime_script="${SCRIPT_DIR}/runtime_daemon.sh"
-  local unit_dir=''
-  local service_file=''
+print_paths() {
+  local bin_path="-"
+  bin_path="$(resolve_bin_path || true)"
 
-  [[ "${service_name}" =~ ^[A-Za-z0-9._-]+$ ]] || die "Invalid AOXC_SYSTEMD_SERVICE_NAME: '${service_name}'." 10
-  [[ -x "${runtime_script}" ]] || chmod +x "${runtime_script}" || die "Unable to mark runtime script executable: ${runtime_script}" 10
+  printf 'AOXC Runtime Paths\n'
+  printf '%s\n' "$(repeat_char "─" 40)"
+  printf 'ROOT_DIR                 : %s\n' "${ROOT_DIR}"
+  printf 'SCRIPT_DIR               : %s\n' "${SCRIPT_DIR}"
+  printf 'AOXC_ROOT                : %s\n' "${AOXC_ROOT}"
+  printf 'AOXC_RUNTIME_ROOT        : %s\n' "${AOXC_RUNTIME_ROOT}"
+  printf 'AOXC_LOG_DIR             : %s\n' "${AOXC_LOG_DIR}"
+  printf 'AOXC_AUDIT_DIR           : %s\n' "${AOXC_AUDIT_DIR}"
+  printf 'AOXC_RUNTIME_SOURCE_ROOT : %s\n' "${AOXC_RUNTIME_SOURCE_ROOT}"
+  printf 'RESOLVED_BIN             : %s\n' "${bin_path}"
+  printf 'PID_FILE                 : %s\n' "${PID_FILE}"
+  printf 'RUNTIME_LOG              : %s\n' "${RUNTIME_LOG}"
+  printf 'STATUS_RECEIPT           : %s\n' "${STATUS_RECEIPT}"
+  printf 'HEALTH_RECEIPT           : %s\n' "${HEALTH_RECEIPT}"
+}
 
-  case "${scope}" in
-    user)
-      unit_dir="${HOME}/.config/systemd/user"
-      require_command systemctl
-      ;;
-    system)
-      unit_dir="/etc/systemd/system"
-      require_command systemctl
-      if [[ "${EUID}" -ne 0 ]]; then
-        die "System scope requires root privileges (AOXC_SYSTEMD_SCOPE=system)." 10
-      fi
-      ;;
-    *)
-      die "Invalid AOXC_SYSTEMD_SCOPE: '${scope}'. Use 'user' or 'system'." 10
-      ;;
-  esac
-
-  ensure_directory "${unit_dir}"
-  service_file="${unit_dir}/${service_name}.service"
-
-  cat > "${service_file}" <<SERVICE
-[Unit]
-Description=AOXC Persistent Runtime Daemon
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-WorkingDirectory=${ROOT_DIR}
-Environment=AOXC_ROOT=${AOXC_ROOT}
-Environment=AOXC_RUNTIME_ROOT=${AOXC_RUNTIME_ROOT}
-Environment=AOXC_LOG_DIR=${AOXC_LOG_DIR}
-Environment=AOXC_NETWORK_KIND=${AOXC_NETWORK_KIND}
-Environment=AOXC_RUNTIME_SOURCE_ROOT=${AOXC_RUNTIME_SOURCE_ROOT}
-ExecStart=${runtime_script} start
-ExecStop=${runtime_script} stop
-Restart=always
-RestartSec=5
-TimeoutStopSec=30
-
-[Install]
-WantedBy=default.target
-SERVICE
-
-  if [[ "${scope}" == "user" ]]; then
-    systemctl --user daemon-reload || die "systemctl --user daemon-reload failed." 10
-    systemctl --user enable "${service_name}.service" || die "Unable to enable user service '${service_name}'." 10
-    log_info "Service installed: ${service_file}"
-    log_info "Start with: systemctl --user start ${service_name}.service"
-    log_info "Enable linger for reboot persistence: loginctl enable-linger ${USER}"
-  else
-    systemctl daemon-reload || die "systemctl daemon-reload failed." 10
-    systemctl enable "${service_name}.service" || die "Unable to enable system service '${service_name}'." 10
-    log_info "Service installed: ${service_file}"
-    log_info "Start with: systemctl start ${service_name}.service"
-  fi
+usage() {
+  cat <<'EOF'
+Usage:
+  ./scripts/runtime_daemon.sh <start|foreground|once|stop|restart|status|tail|paths>
+EOF
 }
 
 main() {
-  local bin_path=''
+  local bin_path=""
 
-  require_command sha256sum
   require_command awk
   require_command tail
+  require_command sha256sum
 
-  validate_positive_integer "${NETWORK_TIMEOUT_MS:-$DEFAULT_NETWORK_TIMEOUT_MS}" "NETWORK_TIMEOUT_MS"
-  validate_non_negative_integer "${DAEMON_SLEEP_SECS:-$DEFAULT_DAEMON_SLEEP_SECS}" "DAEMON_SLEEP_SECS"
+  initialize_paths
 
   [[ -n "${COMMAND}" ]] || {
-    print_usage >&2
+    usage
     exit 2
   }
 
-  initialize_runtime_paths
-
   case "${COMMAND}" in
     start)
-      if ! bin_path="$(resolve_bin_path)"; then
-        die "AOXC binary not found. Run: make package-bin" 4
-      fi
+      bin_path="$(resolve_bin_path)" || die "AOXC binary not found. Build/install it first." 4
       start_daemon "${bin_path}"
       ;;
-    once)
-      if ! bin_path="$(resolve_bin_path)"; then
-        die "AOXC binary not found. Run: make package-bin" 4
-      fi
-      bootstrap_runtime "${bin_path}"
-      run_once "${bin_path}"
-      write_health_receipt
+    foreground)
+      bin_path="$(resolve_bin_path)" || die "AOXC binary not found. Build/install it first." 4
+      run_foreground "${bin_path}"
       ;;
-    status)
-      status_daemon
+    once)
+      bin_path="$(resolve_bin_path)" || die "AOXC binary not found. Build/install it first." 4
+      run_once "${bin_path}"
       ;;
     stop)
       stop_daemon
       ;;
     restart)
-      if ! bin_path="$(resolve_bin_path)"; then
-        die "AOXC binary not found. Run: make package-bin" 4
-      fi
-      stop_daemon
+      stop_daemon || true
+      bin_path="$(resolve_bin_path)" || die "AOXC binary not found. Build/install it first." 4
       start_daemon "${bin_path}"
+      ;;
+    status)
+      status_daemon
       ;;
     tail)
       tail_logs
       ;;
-    install-service)
-      install_service
+    paths)
+      print_paths
       ;;
-    --help|-h|help)
-      print_usage
+    -h|--help|help)
+      usage
       ;;
     *)
       die "Unknown command: ${COMMAND}" 5
