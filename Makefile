@@ -258,12 +258,6 @@ endef
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
 	runtime-bundle-compat-check docker-check production-full \
 	phase1-full \
-	phase2-full \
-	phase3-full \
-	phase4-full \
-	phase5-full \
-	phase6-full \
-	phase7-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
 	demo localnet devnet testnet testnet-gate testnet-readiness-gate aoxcvm-phase3-gate reset doctor audit-chain logs down restart \
@@ -297,12 +291,6 @@ help:
 	@printf "  make quality\n\n"
 	@printf "  make production-full\n\n"
 	@printf "  make phase1-full\n\n"
-	@printf "  make phase2-full\n\n"
-	@printf "  make phase3-full\n\n"
-	@printf "  make phase4-full\n\n"
-	@printf "  make phase5-full\n\n"
-	@printf "  make phase6-full\n\n"
-	@printf "  make phase7-full\n\n"
 
 	@printf "Quick operator workflows\n"
 	@printf "  make demo\n"
@@ -895,46 +883,6 @@ phase1-full:
 	@$(CARGO) test -p aoxcmd consensus_profile_gate_status_reports_pass_for_hybrid_testnet
 	@$(CARGO) test -p aoxcunity
 	@echo "Phase-1 determinism validation flow completed."
-
-phase2-full:
-	$(call print_banner,Running full phase-2 crypto/key validation flow)
-	@$(CARGO) test -p tests phase2_full_crypto_key_surface_is_consistent
-	@$(CARGO) test -p aoxcunity add_signed_vote_accepts_valid_signature_end_to_end
-	@$(CARGO) test -p aoxcunity add_signed_vote_rejects_invalid_signature_end_to_end
-	@echo "Phase-2 crypto/key validation flow completed."
-
-phase3-full:
-	$(call print_banner,Running full phase-3 networking/sync validation flow)
-	@$(CARGO) test -p tests phase3_full_network_sync_surface_is_consistent
-	@$(CARGO) test -p tests resilience_harness_preserves_integrity_metadata_under_chaos
-	@$(CARGO) test -p tests testnet_bundle_identity_is_cross_file_consistent
-	@echo "Phase-3 networking/sync validation flow completed."
-
-phase4-full:
-	$(call print_banner,Running full phase-4 data/state security validation flow)
-	@$(CARGO) test -p tests phase4_data_state_security_surface_is_consistent
-	@$(CARGO) test -p aoxcunity finalized_branch_prunes_conflicting_blocks_and_votes
-	@echo "Phase-4 data/state security validation flow completed."
-
-phase5-full:
-	$(call print_banner,Running full phase-5 operational readiness validation flow)
-	@$(CARGO) test -p tests phase5_operational_readiness_surface_is_consistent
-	@$(CARGO) test -p tests resilience_harness_preserves_integrity_metadata_under_chaos
-	@echo "Phase-5 operational readiness validation flow completed."
-
-phase6-full:
-	$(call print_banner,Running full phase-6 attack/fuzz/load validation flow)
-	@$(CARGO) test -p aoxcunity --test adversarial_consensus
-	@$(CARGO) test -p aoxcunity --test kernel_fuzz_matrix
-	@$(CARGO) test -p aoxcunity --test block_fuzz_latency
-	@echo "Phase-6 attack/fuzz/load validation flow completed."
-
-phase7-full:
-	$(call print_banner,Running full phase-7 testnet launch validation flow)
-	@$(CARGO) test -p tests testnet_bundle_identity_is_cross_file_consistent
-	@$(CARGO) test -p tests testnet_genesis_hash_and_policy_flags_match_release_gates
-	@$(CARGO) test -p tests testnet_public_endpoints_and_topology_remain_transport_hardened
-	@echo "Phase-7 launch validation flow completed."
 
 # --------------------------------------------------------------------
 # Operations
