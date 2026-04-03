@@ -315,12 +315,6 @@ fn route_query_consensus_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "status" => ops::cmd_consensus_status(tail),
-        "validators" => ops::cmd_consensus_validators(tail),
-        "proposer" => ops::cmd_consensus_proposer(tail),
-        "round" => ops::cmd_consensus_round(tail),
-        "finality" => ops::cmd_consensus_finality(tail),
-        "commits" => ops::cmd_consensus_commits(tail),
-        "evidence" => ops::cmd_consensus_evidence(tail),
         _ => invalid_group_usage("query consensus", "unsupported subcommand"),
     }
 }
@@ -332,13 +326,6 @@ fn route_query_vm_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "status" => ops::cmd_vm_status(tail),
-        "call" => ops::cmd_vm_call(tail),
-        "simulate" => ops::cmd_vm_simulate(tail),
-        "storage" => ops::cmd_vm_storage_get(tail),
-        "contract" => ops::cmd_vm_contract_get(tail),
-        "code" => ops::cmd_vm_code_get(tail),
-        "estimate-gas" => ops::cmd_vm_estimate_gas(tail),
-        "trace" => ops::cmd_vm_trace(tail),
         _ => invalid_group_usage("query vm", "unsupported subcommand"),
     }
 }
