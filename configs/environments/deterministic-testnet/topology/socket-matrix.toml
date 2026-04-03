@@ -1,0 +1,39 @@
+# AOXChain socket policy profile for deterministic-testnet.
+version = 1
+environment = "deterministic-testnet"
+default_action = "deny"
+
+[[rules]]
+from = "net_gate"
+to = "net_relay"
+plane = "data"
+socket = "quic://data.ingress"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "net_relay"
+to = "core_val"
+plane = "data"
+socket = "quic://data.gossip"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "serv_rpc"
+to = "net_gate"
+plane = "service"
+socket = "quic://service.submit"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "core_val"
+to = "core_qc"
+plane = "consensus"
+socket = "quic://consensus.cert_aggregate"
+auth = "mtls_role_cert"
+
+[[rules]]
+from = "net_pacer"
+to = "core_prop"
+plane = "consensus"
+socket = "quic://consensus.round_control"
+auth = "mtls_role_cert"
