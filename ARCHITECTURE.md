@@ -221,6 +221,5 @@ AOXChain supports a full multi-role topology with staged activation. The normati
 - `configs/topology/full-role-topology.toml`
 - `configs/topology/socket-matrix.toml`
 - `configs/topology/consensus-policy.toml`
-- `configs/topology/aoxcq-consensus.toml`
 
 This model preserves validator isolation while allowing non-core roles (archive, index, sentinel, bridge, oracle, DA) to be pre-defined and activated only by explicit policy and readiness evidence.

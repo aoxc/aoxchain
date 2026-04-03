@@ -38,29 +38,3 @@ rollback_requires_evidence = true
 validator_rpc_cohost_forbidden = true
 bridge_with_validator_keys_forbidden = true
 require_plane_isolation = true
-
-[aoxcq]
-enabled = true
-pipeline = "q_prepare_q_lock_q_commit_q_seal"
-dual_certificate_mode = true
-profile_bound_finality = true
-deterministic_evidence_window_blocks = 8
-
-[aoxcq.pacemaker]
-strategy = "deterministic_round_robin"
-base_timeout_ms = 1200
-timeout_backoff = "linear"
-max_rounds_per_height = 16
-
-[aoxcq.certificates]
-require_lock_certificate = true
-require_commit_certificate = true
-certificate_binding = "header_hash+crypto_profile"
-reject_partial_commit = true
-
-[aoxcq.crypto_profiles]
-active = "classical"
-allow_hybrid = true
-allow_pqc_only = false
-activation_gate = "onchain_governance"
-rollback_gate = "evidence_required"
