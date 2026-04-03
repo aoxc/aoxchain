@@ -84,6 +84,7 @@ GUIDED GROUPS
   account fund
   node init|start|status|doctor
   network create|start|status|verify|doctor
+  query chain|consensus|vm|block|tx|receipt|account|balance|network|state-root|rpc
   tx transfer|stake delegate|stake undelegate
   stake delegate|undelegate|validators|rewards
   doctor [node|network|runtime]
@@ -141,7 +142,25 @@ NODE AND ECONOMY
   runtime-status
   chain-status
   consensus-status
+  consensus-validators
+  consensus-proposer
+  consensus-round
+  consensus-finality
+  consensus-commits
+  consensus-evidence
   vm-status
+  query chain status
+  query block --height <latest|n>
+  query tx --hash <tx-hash>
+  query receipt --hash <tx-hash>
+  query account --id <account-id>
+  query balance --id <account-id>
+  query consensus status
+  query vm status
+  query network status
+  query network peers
+  query state-root
+  query rpc
   block-get --height <latest|n>
   tx-get --hash <tx-hash>
   tx-receipt --hash <tx-hash>

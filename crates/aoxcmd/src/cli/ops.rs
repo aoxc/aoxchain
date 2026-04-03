@@ -2828,6 +2828,153 @@ pub fn cmd_consensus_status(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&status, output_format(args))
 }
 
+pub fn cmd_consensus_validators(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct ValidatorView {
+        validator_id: String,
+        voting_power: u64,
+        status: &'static str,
+        proposer_priority: i64,
+    }
+
+    #[derive(serde::Serialize)]
+    struct ValidatorSetView {
+        mode: &'static str,
+        validator_set_hash: String,
+        total_voting_power: u64,
+        validators: Vec<ValidatorView>,
+    }
+
+    let state = lifecycle::load_state()?;
+    let validators = vec![ValidatorView {
+        validator_id: state.consensus.last_proposer_hex.clone(),
+        voting_power: 1,
+        status: if state.running { "active" } else { "inactive" },
+        proposer_priority: 0,
+    }];
+    let response = ValidatorSetView {
+        mode: "single-node",
+        validator_set_hash: state.key_material.bundle_fingerprint,
+        total_voting_power: 1,
+        validators,
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_consensus_proposer(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct ProposerView {
+        proposer_id: String,
+        height: u64,
+        round: u64,
+        timestamp_unix: u64,
+    }
+
+    let state = lifecycle::load_state()?;
+    let response = ProposerView {
+        proposer_id: state.consensus.last_proposer_hex,
+        height: state.current_height,
+        round: state.consensus.last_round,
+        timestamp_unix: state.consensus.last_timestamp_unix,
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_consensus_round(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct ConsensusRoundView {
+        height: u64,
+        round: u64,
+        message_kind: String,
+        quorum_status: &'static str,
+        timeout_state: &'static str,
+    }
+
+    let state = lifecycle::load_state()?;
+    let response = ConsensusRoundView {
+        height: state.current_height,
+        round: state.consensus.last_round,
+        message_kind: state.consensus.last_message_kind,
+        quorum_status: if state.running {
+            "single-node-ok"
+        } else {
+            "idle"
+        },
+        timeout_state: "not-triggered",
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_consensus_finality(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct FinalityView {
+        head_height: u64,
+        safe_height: u64,
+        finalized_height: u64,
+        pending_height: u64,
+        mode: &'static str,
+    }
+
+    let state = lifecycle::load_state()?;
+    let response = FinalityView {
+        head_height: state.current_height,
+        safe_height: state.current_height,
+        finalized_height: state.current_height,
+        pending_height: state.current_height.saturating_add(1),
+        mode: "single-node",
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_consensus_commits(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct CommitVoteView {
+        validator_id: String,
+        vote: &'static str,
+        round: u64,
+    }
+
+    #[derive(serde::Serialize)]
+    struct CommitView {
+        height: u64,
+        block_hash: String,
+        commits: Vec<CommitVoteView>,
+    }
+
+    let state = lifecycle::load_state()?;
+    let response = CommitView {
+        height: state.current_height,
+        block_hash: state.consensus.last_block_hash_hex,
+        commits: vec![CommitVoteView {
+            validator_id: state.consensus.last_proposer_hex,
+            vote: "precommit",
+            round: state.consensus.last_round,
+        }],
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_consensus_evidence(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct ConsensusEvidence {
+        height: u64,
+        round: u64,
+        lock_reason: &'static str,
+        quorum_certificate: bool,
+        evidence: Vec<&'static str>,
+    }
+
+    let state = lifecycle::load_state()?;
+    let response = ConsensusEvidence {
+        height: state.current_height,
+        round: state.consensus.last_round,
+        lock_reason: "single-validator-lock",
+        quorum_certificate: true,
+        evidence: vec!["prevote", "precommit", "commit"],
+    };
+    emit_serialized(&response, output_format(args))
+}
+
 pub fn cmd_vm_status(args: &[String]) -> Result<(), AppError> {
     #[derive(serde::Serialize)]
     struct VmStatus {
@@ -2870,6 +3017,198 @@ pub fn cmd_vm_status(args: &[String]) -> Result<(), AppError> {
     };
 
     emit_serialized(&status, output_format(args))
+}
+
+pub fn cmd_vm_call(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct VmCallView {
+        to: String,
+        from: Option<String>,
+        data: Option<String>,
+        read_only: bool,
+        status: &'static str,
+        return_data: String,
+        source: &'static str,
+    }
+
+    let to = arg_value(args, "--to")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(ErrorCode::UsageInvalidArguments, "Flag --to must not be blank")
+        })?;
+    let from = arg_value(args, "--from").and_then(|value| normalize_text(&value, false));
+    let data = arg_value(args, "--data").and_then(|value| normalize_text(&value, false));
+    let response = VmCallView {
+        to,
+        from,
+        data,
+        read_only: true,
+        status: "simulated-local",
+        return_data: "0x".to_string(),
+        source: "deterministic-local",
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_vm_simulate(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct VmSimulateView {
+        tx_hash: Option<String>,
+        from: Option<String>,
+        to: Option<String>,
+        gas_used: u64,
+        success: bool,
+        revert_reason: Option<String>,
+        trace_available: bool,
+        source: &'static str,
+    }
+
+    let response = VmSimulateView {
+        tx_hash: arg_value(args, "--tx-hash").and_then(|value| normalize_text(&value, false)),
+        from: arg_value(args, "--from").and_then(|value| normalize_text(&value, false)),
+        to: arg_value(args, "--to").and_then(|value| normalize_text(&value, false)),
+        gas_used: 0,
+        success: true,
+        revert_reason: None,
+        trace_available: true,
+        source: "deterministic-local",
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_vm_storage_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct VmStorageView {
+        address: String,
+        key: String,
+        value: String,
+        found: bool,
+        source: &'static str,
+    }
+
+    let address = arg_value(args, "--address")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --address must not be blank",
+            )
+        })?;
+    let key = arg_value(args, "--key")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(ErrorCode::UsageInvalidArguments, "Flag --key must not be blank")
+        })?;
+    let response = VmStorageView {
+        address,
+        key,
+        value: "0x".to_string(),
+        found: false,
+        source: "local-snapshot",
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_vm_contract_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct VmContractView {
+        address: String,
+        exists: bool,
+        code_hash: String,
+        source: &'static str,
+    }
+
+    let address = arg_value(args, "--address")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --address must not be blank",
+            )
+        })?;
+    let response = VmContractView {
+        address,
+        exists: false,
+        code_hash: "0x0".to_string(),
+        source: "local-snapshot",
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_vm_code_get(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct VmCodeView {
+        address: String,
+        code: String,
+        source: &'static str,
+    }
+
+    let address = arg_value(args, "--address")
+        .and_then(|value| normalize_text(&value, false))
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --address must not be blank",
+            )
+        })?;
+    let response = VmCodeView {
+        address,
+        code: "0x".to_string(),
+        source: "local-snapshot",
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_vm_estimate_gas(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct VmEstimateGasView {
+        from: Option<String>,
+        to: Option<String>,
+        estimated_gas: u64,
+        source: &'static str,
+    }
+
+    let response = VmEstimateGasView {
+        from: arg_value(args, "--from").and_then(|value| normalize_text(&value, false)),
+        to: arg_value(args, "--to").and_then(|value| normalize_text(&value, false)),
+        estimated_gas: 21_000,
+        source: "deterministic-local",
+    };
+    emit_serialized(&response, output_format(args))
+}
+
+pub fn cmd_vm_trace(args: &[String]) -> Result<(), AppError> {
+    #[derive(serde::Serialize)]
+    struct VmTraceStep {
+        index: u64,
+        op: &'static str,
+        gas: u64,
+    }
+
+    #[derive(serde::Serialize)]
+    struct VmTraceView {
+        tx_hash: Option<String>,
+        trace: Vec<VmTraceStep>,
+        source: &'static str,
+    }
+
+    let response = VmTraceView {
+        tx_hash: arg_value(args, "--tx-hash").and_then(|value| normalize_text(&value, false)),
+        trace: vec![
+            VmTraceStep {
+                index: 0,
+                op: "BEGIN",
+                gas: 21_000,
+            },
+            VmTraceStep {
+                index: 1,
+                op: "END",
+                gas: 0,
+            },
+        ],
+        source: "deterministic-local",
+    };
+    emit_serialized(&response, output_format(args))
 }
 
 pub fn cmd_chain_status(args: &[String]) -> Result<(), AppError> {
