@@ -24,7 +24,8 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fs,
-    net::TcpStream,
+    io::{BufRead, BufReader, Write},
+    net::{TcpStream, ToSocketAddrs},
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -3271,12 +3272,15 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
         port: u16,
         http_ready: bool,
         jsonrpc_ready: bool,
+        required_endpoint_ready: bool,
         uptime_secs: u64,
         listener_active: bool,
         curl_compatible: bool,
         probe_target: String,
         http_base_url: String,
         probe_mode: &'static str,
+        required_endpoint_probes: BTreeMap<&'static str, bool>,
+        jsonrpc_status_probe: bool,
         rest_endpoints: Vec<&'static str>,
         json_rpc_methods: Vec<&'static str>,
         curl_examples: BTreeMap<&'static str, String>,
@@ -3324,18 +3328,48 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
             "curl -fsS -X POST -H 'content-type: application/json' -d '{{\"account_id\":\"devnet-user\",\"amount\":1000}}' {http_base_url}/faucet/claim"
         ),
     );
+    let required_paths = [
+        "/health",
+        "/status",
+        "/chain/status",
+        "/consensus/status",
+        "/vm/status",
+    ];
+    let mut required_endpoint_probes = BTreeMap::new();
+    if listener_active {
+        for path in required_paths {
+            required_endpoint_probes.insert(
+                path,
+                rpc_http_get_probe(&curl_host, settings.network.rpc_port, path),
+            );
+        }
+    } else {
+        for path in required_paths {
+            required_endpoint_probes.insert(path, false);
+        }
+    }
+    let required_endpoint_ready = required_endpoint_probes.values().all(|ready| *ready);
+    let jsonrpc_status_probe =
+        listener_active && rpc_jsonrpc_status_probe(&curl_host, settings.network.rpc_port);
     let response = RpcStatus {
         enabled: true,
         bind_host: settings.network.bind_host.clone(),
         port: settings.network.rpc_port,
-        http_ready: listener_active,
-        jsonrpc_ready: listener_active,
+        http_ready: required_endpoint_ready,
+        jsonrpc_ready: jsonrpc_status_probe,
+        required_endpoint_ready,
         uptime_secs,
         listener_active,
-        curl_compatible: listener_active,
+        curl_compatible: required_endpoint_ready && jsonrpc_status_probe,
         probe_target,
         http_base_url,
-        probe_mode: "tcp-connect",
+        probe_mode: if listener_active {
+            "tcp+http-active-probe"
+        } else {
+            "tcp-connect"
+        },
+        required_endpoint_probes,
+        jsonrpc_status_probe,
         rest_endpoints: vec![
             "/health",
             "/status",
@@ -3344,11 +3378,13 @@ pub fn cmd_rpc_status(args: &[String]) -> Result<(), AppError> {
             "/block/latest",
             "/block/{height}",
             "/tx/{hash}",
+            "/tx/{hash}/receipt",
             "/account/{id}",
             "/consensus/status",
             "/network/peers",
             "/vm/status",
             "/state/root",
+            "/rpc/status",
             "/faucet/status",
             "/faucet/claim",
             "/faucet/history/{account_id}",
@@ -3514,6 +3550,55 @@ fn rpc_listener_active(probe_target: &str) -> bool {
         Ok(addr) => TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok(),
         Err(_) => false,
     }
+}
+
+fn rpc_http_get_probe(host: &str, port: u16, path: &str) -> bool {
+    let request = format!(
+        "GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\nAccept: application/json\r\n\r\n"
+    );
+    rpc_http_status_code(host, port, &request)
+        .map(|code| (200..300).contains(&code))
+        .unwrap_or(false)
+}
+
+fn rpc_jsonrpc_status_probe(host: &str, port: u16) -> bool {
+    let body = r#"{"jsonrpc":"2.0","id":1,"method":"status","params":[]}"#;
+    let request = format!(
+        "POST / HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
+    );
+    rpc_http_status_code(host, port, &request)
+        .map(|code| (200..300).contains(&code))
+        .unwrap_or(false)
+}
+
+fn rpc_http_status_code(host: &str, port: u16, request: &str) -> Option<u16> {
+    let target = format!("{host}:{port}");
+    let addr = target.to_socket_addrs().ok()?.next()?;
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(350)).ok()?;
+    if stream
+        .set_read_timeout(Some(Duration::from_millis(350)))
+        .is_err()
+    {
+        return None;
+    }
+    if stream
+        .set_write_timeout(Some(Duration::from_millis(350)))
+        .is_err()
+    {
+        return None;
+    }
+    if stream.write_all(request.as_bytes()).is_err() {
+        return None;
+    }
+    let mut reader = BufReader::new(stream);
+    let mut status_line = String::new();
+    if reader.read_line(&mut status_line).ok()? == 0 {
+        return None;
+    }
+    let mut parts = status_line.split_whitespace();
+    let _http_version = parts.next()?;
+    parts.next()?.parse::<u16>().ok()
 }
 
 fn faucet_state_path() -> Result<PathBuf, AppError> {
@@ -3845,13 +3930,16 @@ mod tests {
         has_production_closure_artifacts, has_release_evidence, has_release_provenance_bundle,
         has_security_drill_artifact, locate_repo_artifact_dir, open_checklist_items,
         parse_network_profile, parse_positive_u64_arg, parse_required_or_default_text_arg,
-        ports_are_shifted_consistently, readiness_markdown_report, surface_check,
-        write_readiness_markdown_report,
+        ports_are_shifted_consistently, readiness_markdown_report, rpc_http_get_probe,
+        rpc_jsonrpc_status_probe, surface_check, write_readiness_markdown_report,
     };
     use crate::config::settings::Settings;
     use std::{
         fs,
+        io::{Read, Write},
+        net::TcpListener,
         path::{Path, PathBuf},
+        thread,
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -4424,5 +4512,47 @@ security_mode = "audit_strict"
             &mainnet_profile,
             &testnet_profile
         ));
+    }
+
+    #[test]
+    fn rpc_http_get_probe_reports_success_for_200_response() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+        let port = listener
+            .local_addr()
+            .expect("listener should expose local addr")
+            .port();
+        let server = thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut request = [0_u8; 1024];
+                let _ = stream.read(&mut request);
+                let _ = stream.write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}",
+                );
+            }
+        });
+
+        assert!(rpc_http_get_probe("127.0.0.1", port, "/health"));
+        let _ = server.join();
+    }
+
+    #[test]
+    fn rpc_jsonrpc_status_probe_reports_success_for_200_response() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener should bind");
+        let port = listener
+            .local_addr()
+            .expect("listener should expose local addr")
+            .port();
+        let server = thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut request = [0_u8; 2048];
+                let _ = stream.read(&mut request);
+                let _ = stream.write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 36\r\n\r\n{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}",
+                );
+            }
+        });
+
+        assert!(rpc_jsonrpc_status_probe("127.0.0.1", port));
+        let _ = server.join();
     }
 }
