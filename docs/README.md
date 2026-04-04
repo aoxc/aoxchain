@@ -9,6 +9,7 @@ This directory contains the authoritative documentation system for AOXChain engi
 - `AOXCHUB_FULL_SPEC.md` — AOXCHub product-level specification.
 - `ADVANCED_NODE_ROLE_BLUEPRINT.md` — full role/layer/plane topology with policy-gated activation.
 - `OS_COMPATIBILITY.md` — cross-platform host/container compatibility contract (Linux, NixOS, macOS, Windows, Docker).
+- `bootstrap/BOOTSTRAP_RUNBOOK.md` — deterministic bootstrap phases, gate model, failure taxonomy, and closure evidence contract.
 
 ## Documentation Rules
 
