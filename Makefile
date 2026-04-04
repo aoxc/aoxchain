@@ -567,6 +567,10 @@ code-size-gate:
 	$(call print_banner,Running code file length gate)
 	@./scripts/validation/code_file_length_gate.sh
 
+code-size-gate-full:
+	$(call print_banner,Running full repository code file length gate)
+	@./scripts/validation/code_file_length_gate.sh --all
+
 quality:
 	$(call print_banner,Running full quality gate)
 	./scripts/quality_gate.sh full

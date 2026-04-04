@@ -22,7 +22,8 @@ Unless a stricter control is explicitly required by change scope, the following 
 - `cargo fmt --all --check`
 - `make test`
 - `make quality`
-- `make code-size-gate` (required for changes that add or modify source files; enforces `MAX_CODE_LINES=260` by default)
+- `make code-size-gate` (required for changes that add or modify source files; enforces `MAX_CODE_LINES=260` by default on staged/modified files)
+- `make code-size-gate-full` (recommended before major refactors to assess large-file compliance across the full tracked repository surface)
 - `make os-compat-gate` (required when changes affect cross-platform runtime, Docker, or host-tooling contract)
 - `make testnet-gate` (required when changes affect `configs/environments/testnet` or testnet operator flow)
 - `make testnet-readiness-gate` (single-command gate for PR-ready testnet validation)
