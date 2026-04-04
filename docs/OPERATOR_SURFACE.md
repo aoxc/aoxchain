@@ -70,6 +70,154 @@ Primary entrypoints:
 - `make network-start`
 - `make network-stop`
 
+
+## Deterministic Bootstrap Breakdown
+
+This section decomposes bootstrap into explicit phases so operators can run, audit,
+and recover the process without hidden assumptions.
+
+### Bootstrap Phase 0 — Environment and artifact boundary
+
+Purpose:
+
+- Establish the exact environment profile (`localnet`, `devnet`, `testnet`,
+  `validation`, or `mainnet`)
+- Freeze artifact inputs before node activation
+
+Required inputs:
+
+- `profile.toml`
+- `manifest.v1.json`
+- `release-policy.toml`
+- `certificate.json`
+
+Expected controls:
+
+1. Verify all required files exist and are readable.
+2. Validate manifest identity fields are internally consistent.
+3. Verify certificate and release policy compatibility with target profile.
+4. Record immutable fingerprints (for example SHA-256 digests) in operator logs.
+
+Fail-closed behavior:
+
+- If any required artifact is missing or malformed, bootstrap stops before key
+  loading or process startup.
+
+### Bootstrap Phase 1 — Genesis and topology integrity
+
+Purpose:
+
+- Guarantee deterministic chain identity and peer layout before any runtime action
+
+Required inputs:
+
+- `genesis.v1.json`
+- `validators.json`
+- `bootnodes.json`
+- Topology policy files under `topology/`
+
+Expected controls:
+
+1. Validate genesis schema and chain/network identifiers.
+2. Validate validator set structure, uniqueness, and identity linkage.
+3. Validate bootnode records and endpoint formatting.
+4. Validate topology matrix and role mapping constraints.
+5. Confirm hash compatibility between genesis and manifest references.
+
+Fail-closed behavior:
+
+- Any mismatch across genesis/validator/bootnode/topology surfaces aborts
+  bootstrap and prevents partial startup.
+
+### Bootstrap Phase 2 — Node identity and local trust material
+
+Purpose:
+
+- Confirm each node starts with deterministic and non-conflicting local identity
+
+Required inputs:
+
+- Node identity material in environment-specific node homes
+- Local host mapping and socket matrix policy
+
+Expected controls:
+
+1. Verify node home layout and permissions.
+2. Verify seed/key files are present for all required nodes.
+3. Validate local endpoint uniqueness (no port collisions in role topology).
+4. Verify node-role assignments match consensus policy expectations.
+
+Fail-closed behavior:
+
+- Missing identity artifacts, permission violations, or endpoint collisions block
+  process launch.
+
+### Bootstrap Phase 3 — Controlled process activation
+
+Purpose:
+
+- Activate processes in a deterministic order with immediate health feedback
+
+Expected controls:
+
+1. Start required bootstrap node set first.
+2. Start remaining validator/observer nodes according to role topology.
+3. Perform bounded readiness checks after each start stage.
+4. Abort and roll back startup if critical readiness thresholds are not met.
+
+Fail-closed behavior:
+
+- Startup halts when required quorum or core service readiness is not achieved
+  within policy-defined limits.
+
+### Bootstrap Phase 4 — Post-start verification and smoke signals
+
+Purpose:
+
+- Prove network operability immediately after activation
+
+Expected controls:
+
+1. Run chain/rpc health checks.
+2. Run finality smoke checks.
+3. Run transfer smoke checks where required by environment policy.
+4. Export deterministic status and evidence artifacts.
+
+Fail-closed behavior:
+
+- A network that starts but fails post-start smoke checks is treated as not
+  bootstrap-complete.
+
+### Bootstrap Phase 5 — Audit closure and handoff
+
+Purpose:
+
+- Create a reviewable closure package for operations and governance consumers
+
+Expected controls:
+
+1. Export fingerprints, health summaries, and smoke outcomes.
+2. Record bootstrap timestamp window and operator command trace.
+3. Persist closure artifacts under `artifacts/` or the environment evidence path.
+4. Mark bootstrap state as complete only after evidence export succeeds.
+
+Fail-closed behavior:
+
+- Bootstrap success is not declared until audit closure artifacts are durable and
+  reviewable.
+
+### Minimal acceptance definition for "bootstrap complete"
+
+Bootstrap is complete only when all of the following are true:
+
+1. Artifact validation passed (Phase 0 and Phase 1).
+2. Node identity and topology checks passed (Phase 2).
+3. Deterministic startup reached required readiness thresholds (Phase 3).
+4. Health/finality/smoke checks passed (Phase 4).
+5. Audit closure artifacts were exported and persisted (Phase 5).
+
+Any missing condition must be reported as "bootstrap incomplete" in operator output.
+
 ## Command Surface Direction
 
 The long-term user-facing command plane should evolve into grouped subcommands (for
