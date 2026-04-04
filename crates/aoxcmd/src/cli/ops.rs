@@ -31,21 +31,37 @@ use std::{
     time::Duration,
 };
 
+mod chain_ops;
 mod consensus_ops;
+mod economy_runtime_ops;
 mod faucet;
+mod metrics_ops;
+mod network_read_ops;
 mod node_ops;
 mod readiness_commands;
+mod readiness_core;
+mod rpc_status_ops;
+mod shared_helpers;
+mod tx_account_ops;
+mod types;
 mod vm_ops;
 
+pub use chain_ops::{cmd_block_get, cmd_chain_status};
 pub use consensus_ops::{
     cmd_consensus_commits, cmd_consensus_evidence, cmd_consensus_finality, cmd_consensus_proposer,
     cmd_consensus_round, cmd_consensus_status, cmd_consensus_validators,
+};
+pub use economy_runtime_ops::{
+    cmd_economy_init, cmd_economy_status, cmd_runtime_status, cmd_stake_delegate,
+    cmd_stake_undelegate, cmd_treasury_transfer,
 };
 pub use faucet::{
     cmd_faucet_audit, cmd_faucet_balance, cmd_faucet_claim, cmd_faucet_config,
     cmd_faucet_config_show, cmd_faucet_disable, cmd_faucet_enable, cmd_faucet_history,
     cmd_faucet_reset, cmd_faucet_status,
 };
+pub use metrics_ops::cmd_metrics;
+pub use network_read_ops::{cmd_network_full, cmd_network_status, cmd_peer_list, cmd_state_root};
 pub use node_ops::{
     cmd_network_smoke, cmd_node_bootstrap, cmd_node_health, cmd_node_run, cmd_produce_once,
     cmd_real_network, cmd_storage_smoke,
@@ -54,10 +70,16 @@ pub use readiness_commands::{
     cmd_full_surface_gate, cmd_full_surface_readiness, cmd_level_score, cmd_load_benchmark,
     cmd_mainnet_readiness, cmd_profile_baseline, cmd_testnet_readiness,
 };
+pub use rpc_status_ops::{cmd_rpc_curl_smoke, cmd_rpc_status};
+pub use tx_account_ops::{cmd_account_get, cmd_balance_get, cmd_tx_get, cmd_tx_receipt};
 pub use vm_ops::{
     cmd_vm_call, cmd_vm_code_get, cmd_vm_contract_get, cmd_vm_estimate_gas, cmd_vm_simulate,
     cmd_vm_status, cmd_vm_storage_get, cmd_vm_trace,
 };
+
+use readiness_core::*;
+use shared_helpers::*;
+use types::*;
 
 const FAUCET_MAX_CLAIM_AMOUNT: u64 = 10_000;
 const FAUCET_COOLDOWN_SECS: u64 = 3_600;

@@ -71,7 +71,6 @@ impl GrpcServer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::TxSubmissionRequest;
 
     #[test]
     fn startup_checks_fail_for_bad_grpc_bind_addr() {
