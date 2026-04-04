@@ -17,6 +17,7 @@ use aoxcunity::{
     LaneType, Proposer,
 };
 use sha3::{Digest, Sha3_256};
+use sha2::Sha256;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -118,17 +119,22 @@ fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
         )
     })?;
 
+    let payload = serde_json::to_vec(block).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to serialize block payload for historical storage",
+            error,
+        )
+    })?;
+
+    let parent_hash_hex = hex::encode(block.header.parent_hash);
+    let block_hash_hex = canonical_envelope_hash_hex(block.header.height, &parent_hash_hex, &payload)?;
+
     let envelope = BlockEnvelope {
         height: block.header.height,
-        block_hash_hex: hex::encode(block.hash),
-        parent_hash_hex: hex::encode(block.header.parent_hash),
-        payload: serde_json::to_vec(block).map_err(|error| {
-            AppError::with_source(
-                ErrorCode::OutputEncodingFailed,
-                "Failed to serialize block payload for historical storage",
-                error,
-            )
-        })?,
+        block_hash_hex,
+        parent_hash_hex,
+        payload,
     };
 
     store.put_block(&envelope).map_err(|error| {
@@ -143,6 +149,24 @@ fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
     })?;
 
     Ok(())
+}
+
+fn canonical_envelope_hash_hex(height: u64, parent_hash_hex: &str, payload: &[u8]) -> Result<String, AppError> {
+    let parent_hash = hex::decode(parent_hash_hex).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::UsageInvalidArguments,
+            "Failed to decode parent hash for envelope integrity digest",
+            error,
+        )
+    })?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(b"AOXC_BLOCK_V1");
+    hasher.update(height.to_le_bytes());
+    hasher.update(parent_hash);
+    hasher.update((payload.len() as u64).to_le_bytes());
+    hasher.update(payload);
+    Ok(hex::encode(hasher.finalize()))
 }
 
 fn runtime_db_root() -> Result<PathBuf, AppError> {
