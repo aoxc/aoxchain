@@ -1,0 +1,134 @@
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_public_mainnet_chain_id_correctly() {
+        let chain_id = build_chain_id(AOXC_FAMILY_ID, NetworkClass::PublicMainnet, 1).unwrap();
+        assert_eq!(chain_id, 2626000001);
+    }
+
+    #[test]
+    fn builds_public_testnet_chain_id_correctly() {
+        let chain_id = build_chain_id(AOXC_FAMILY_ID, NetworkClass::PublicTestnet, 1).unwrap();
+        assert_eq!(chain_id, 2626010001);
+    }
+
+    #[test]
+    fn builds_network_serial_correctly() {
+        assert_eq!(build_network_serial(2626, 1), "2626-001");
+        assert_eq!(build_network_serial(2626, 12), "2626-012");
+    }
+
+    #[test]
+    fn builds_network_id_correctly() {
+        let network_id = build_network_id(NetworkClass::PublicMainnet, "2626-001");
+        assert_eq!(network_id, "aoxc-mainnet-2626-001");
+    }
+
+    #[test]
+    fn validates_chain_identity_successfully() {
+        let identity = ChainIdentity::new(
+            AOXC_FAMILY_ID,
+            NetworkClass::PublicMainnet,
+            1,
+            1,
+            "AOXC Mihver",
+        )
+        .unwrap();
+
+        assert_eq!(identity.chain_id, 2626000001);
+        assert_eq!(identity.network_serial, "2626-001");
+        assert_eq!(identity.network_id, "aoxc-mainnet-2626-001");
+    }
+
+    #[test]
+    fn genesis_fingerprint_is_deterministic() {
+        let identity = ChainIdentity::new(
+            AOXC_FAMILY_ID,
+            NetworkClass::PublicMainnet,
+            1,
+            1,
+            "AOXC Mihver",
+        )
+        .unwrap();
+
+        let cfg = GenesisConfig::new(
+            identity,
+            3000,
+            vec![Validator { id: "val-1".into() }],
+            vec![GenesisAccount {
+                address: "aox1test".into(),
+                balance: 1_000_000,
+            }],
+            10_000_000,
+            SettlementLink {
+                endpoint: "settlement://root".into(),
+            },
+            AOXCANDSeal {
+                seal_id: "seal-001".into(),
+            },
+        )
+        .unwrap();
+
+        let fp1 = cfg.fingerprint().unwrap();
+        let fp2 = cfg.fingerprint().unwrap();
+
+        assert_eq!(fp1, fp2);
+    }
+
+    #[test]
+    fn rejects_duplicate_validator_ids() {
+        let identity =
+            ChainIdentity::new(AOXC_FAMILY_ID, NetworkClass::Devnet, 3, 1, "AOXC Kivilcim")
+                .unwrap();
+
+        let err = GenesisConfig::new(
+            identity,
+            3000,
+            vec![
+                Validator { id: "val-1".into() },
+                Validator { id: "val-1".into() },
+            ],
+            vec![GenesisAccount {
+                address: "acct-1".into(),
+                balance: 10,
+            }],
+            10,
+            SettlementLink {
+                endpoint: "aoxc://settlement/root".into(),
+            },
+            AOXCANDSeal {
+                seal_id: "seal-1".into(),
+            },
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            GenesisConfigError::DuplicateValidatorId { .. }
+        ));
+    }
+
+    #[test]
+    fn mainnet_quantum_policy_is_strict() {
+        let policy = QuantumPolicy::for_network_class(NetworkClass::PublicMainnet);
+        assert_eq!(policy.handshake_kem, "ML-KEM-1024");
+        assert!(policy.min_signature_threshold >= 3);
+        assert!(policy.pq_signature_schemes.iter().any(|v| v == "ML-DSA-87"));
+    }
+
+    #[test]
+    fn testnet_and_devnet_receive_distinct_quantum_profiles() {
+        let testnet = QuantumPolicy::for_network_class(NetworkClass::PublicTestnet);
+        let devnet = QuantumPolicy::for_network_class(NetworkClass::Devnet);
+
+        assert_ne!(testnet.handshake_kem, devnet.handshake_kem);
+        assert!(testnet.rotation_epoch_blocks > devnet.rotation_epoch_blocks);
+    }
+
+    #[test]
+    fn default_timestamp_is_deterministic() {
+        assert_eq!(default_genesis_timestamp(), DEFAULT_GENESIS_TIMESTAMP_UNIX);
+    }
+}
