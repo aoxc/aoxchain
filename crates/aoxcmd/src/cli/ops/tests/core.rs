@@ -1,15 +1,18 @@
 use super::*;
 
+#[test]
 fn parse_positive_u64_arg_rejects_zero() {
     let error = parse_positive_u64_arg(&args(&["--rounds", "0"]), "--rounds", 10, "node run")
         .expect_err("zero rounds must fail");
     assert_eq!(error.code(), "AOXC-USG-002");
 }
+#[test]
 fn parse_required_or_default_text_arg_rejects_blank_value() {
     let error = parse_required_or_default_text_arg(&args(&["--to", "   "]), "--to", "ops", false)
         .expect_err("blank target must fail");
     assert_eq!(error.code(), "AOXC-USG-002");
 }
+#[test]
 fn historical_tx_hashes_extracts_payload_from_block_envelope() {
     let envelope = BlockEnvelope {
         height: 7,
@@ -24,6 +27,7 @@ fn historical_tx_hashes_extracts_payload_from_block_envelope() {
     assert_eq!(tx_hashes, vec!["tx-demo-7".to_string()]);
 }
 
+#[test]
 fn faucet_claim_rejects_amount_above_max_without_force() {
     let state = FaucetState::default();
     let decision = evaluate_faucet_claim(
