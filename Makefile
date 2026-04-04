@@ -252,7 +252,7 @@ endef
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
 	release-binary-list install-bin package-desktop \
-	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate code-size-report quality quality-quick quality-release ci \
+	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate quality quality-quick quality-release ci \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
@@ -289,7 +289,6 @@ help:
 	@printf "  make clippy\n"
 	@printf "  make audit\n"
 	@printf "  make code-size-gate\n"
-	@printf "  make code-size-report\n"
 	@printf "  make quality\n\n"
 	@printf "  make production-full\n\n"
 	@printf "  make phase1-full\n\n"
@@ -567,10 +566,6 @@ audit:
 code-size-gate:
 	$(call print_banner,Running code file length gate)
 	@./scripts/validation/code_file_length_gate.sh
-
-code-size-report:
-	$(call print_banner,Reporting oversized code files)
-	@./scripts/validation/code_file_length_gate.sh --all --report
 
 quality:
 	$(call print_banner,Running full quality gate)

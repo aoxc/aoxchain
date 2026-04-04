@@ -23,7 +23,6 @@ Unless a stricter control is explicitly required by change scope, the following 
 - `make test`
 - `make quality`
 - `make code-size-gate` (required for changes that add or modify source files; enforces `MAX_CODE_LINES=260` by default)
-- `make code-size-report` (lists current oversized source files across the repository without failing the run)
 - `make os-compat-gate` (required when changes affect cross-platform runtime, Docker, or host-tooling contract)
 - `make testnet-gate` (required when changes affect `configs/environments/testnet` or testnet operator flow)
 - `make testnet-readiness-gate` (single-command gate for PR-ready testnet validation)
