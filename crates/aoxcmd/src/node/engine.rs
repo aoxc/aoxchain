@@ -16,8 +16,8 @@ use aoxcunity::{
     Block, BlockBody, BlockSection, ConsensusMessage, LaneCommitment, LaneCommitmentSection,
     LaneType, Proposer,
 };
-use sha3::{Digest, Sha3_256};
 use sha2::Sha256;
+use sha3::{Digest, Sha3_256};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -128,7 +128,8 @@ fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
     })?;
 
     let parent_hash_hex = hex::encode(block.header.parent_hash);
-    let block_hash_hex = canonical_envelope_hash_hex(block.header.height, &parent_hash_hex, &payload)?;
+    let block_hash_hex =
+        canonical_envelope_hash_hex(block.header.height, &parent_hash_hex, &payload)?;
 
     let envelope = BlockEnvelope {
         height: block.header.height,
@@ -151,7 +152,11 @@ fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
     Ok(())
 }
 
-fn canonical_envelope_hash_hex(height: u64, parent_hash_hex: &str, payload: &[u8]) -> Result<String, AppError> {
+fn canonical_envelope_hash_hex(
+    height: u64,
+    parent_hash_hex: &str,
+    payload: &[u8],
+) -> Result<String, AppError> {
     let parent_hash = hex::decode(parent_hash_hex).map_err(|error| {
         AppError::with_source(
             ErrorCode::UsageInvalidArguments,
