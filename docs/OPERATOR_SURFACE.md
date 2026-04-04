@@ -70,6 +70,24 @@ Primary entrypoints:
 - `make network-start`
 - `make network-stop`
 
+
+## Deterministic Bootstrap Breakdown
+
+Detailed bootstrap execution guidance has been moved to:
+
+- `docs/bootstrap/BOOTSTRAP_RUNBOOK.md`
+
+This roadmap document keeps only control-surface policy and governance intent.
+Bootstrap execution, gate semantics, failure classing, status payload format,
+and sign-off closure requirements are defined in the dedicated runbook.
+
+Bootstrap policy anchors for operator surfaces:
+
+1. Bootstrap is fail-closed and must not permit partial promotion.
+2. Pass/fail truth for safety-critical checks must come from `aoxc` validations.
+3. Bootstrap completion requires durable evidence artifacts and explicit closure status.
+4. Environment strictness may vary by risk posture, but gate sequencing must remain deterministic.
+
 ## Command Surface Direction
 
 The long-term user-facing command plane should evolve into grouped subcommands (for
