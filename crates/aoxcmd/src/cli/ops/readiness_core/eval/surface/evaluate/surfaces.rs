@@ -1,118 +1,11 @@
 use super::*;
+use std::path::Path;
 
-pub(in crate::cli::ops) fn load_full_surface_matrix(
-    repo_root: &Path,
-) -> (String, Option<FullSurfaceMatrixModel>, Vec<String>) {
-    let matrix_path = repo_root
-        .join("models")
-        .join("full_surface_readiness_matrix_v1.yaml");
-    let matrix_path_string = matrix_path.display().to_string();
-
-    let raw = match fs::read_to_string(&matrix_path) {
-        Ok(raw) => raw,
-        Err(error) => {
-            return (
-                matrix_path_string,
-                None,
-                vec![format!("Unable to read canonical matrix: {error}")],
-            );
-        }
-    };
-
-    match serde_yaml::from_str::<FullSurfaceMatrixModel>(&raw) {
-        Ok(model) => (matrix_path_string, Some(model), Vec::new()),
-        Err(error) => (
-            matrix_path_string,
-            None,
-            vec![format!("Unable to parse canonical matrix YAML: {error}")],
-        ),
-    }
-}
-
-pub(in crate::cli::ops) fn validate_full_surface_matrix(
-    matrix: Option<&FullSurfaceMatrixModel>,
-    surfaces: &[SurfaceReadiness],
-    release_line: &str,
-) -> (bool, Option<String>, u8, Vec<String>) {
-    let Some(matrix) = matrix else {
-        return (false, None, 0, Vec::new());
-    };
-
-    let mut warnings = Vec::new();
-    if matrix.release_line != release_line {
-        warnings.push(format!(
-            "Matrix release line {} does not match runtime release line {}",
-            matrix.release_line, release_line
-        ));
-    }
-
-    for expected in &matrix.surfaces {
-        if expected.required_evidence.is_empty() {
-            warnings.push(format!(
-                "Matrix surface {} is missing required_evidence entries",
-                expected.id
-            ));
-        }
-        if expected.verification_command.trim().is_empty() {
-            warnings.push(format!(
-                "Matrix surface {} is missing verification_command",
-                expected.id
-            ));
-        }
-        if expected.blocker.trim().is_empty() {
-            warnings.push(format!(
-                "Matrix surface {} is missing blocker text",
-                expected.id
-            ));
-        }
-
-        match surfaces
-            .iter()
-            .find(|surface| surface.surface == expected.id)
-        {
-            Some(surface) => {
-                if surface.owner != expected.owner {
-                    warnings.push(format!(
-                        "Matrix owner mismatch for {}: matrix={} runtime={}",
-                        expected.id, expected.owner, surface.owner
-                    ));
-                }
-            }
-            None => warnings.push(format!(
-                "Matrix surface {} is not represented in runtime readiness output",
-                expected.id
-            )),
-        }
-    }
-
-    for surface in surfaces {
-        if !matrix
-            .surfaces
-            .iter()
-            .any(|expected| expected.id == surface.surface)
-        {
-            warnings.push(format!(
-                "Runtime surface {} is missing from canonical matrix",
-                surface.surface
-            ));
-        }
-    }
-
-    (
-        true,
-        Some(matrix.release_line.clone()),
-        matrix.surfaces.len() as u8,
-        warnings,
-    )
-}
-
-pub(in crate::cli::ops) fn evaluate_full_surface_readiness(
+pub(super) fn build_surface_readiness_set(
     settings: &crate::config::settings::Settings,
     mainnet_readiness: &Readiness,
-) -> FullSurfaceReadiness {
-    let repo_root = locate_repo_root();
-    let release_line = "aoxc.v.0.1.1-akdeniz";
-    let (matrix_path, matrix_model, mut matrix_warnings) = load_full_surface_matrix(&repo_root);
+    repo_root: &Path,
+) -> Vec<SurfaceReadiness> {
     let release_dir = repo_root.join("artifacts").join("release-evidence");
     let closure_dir = repo_root
         .join("artifacts")
@@ -170,7 +63,7 @@ pub(in crate::cli::ops) fn evaluate_full_surface_readiness(
         .join("MAINNET_READINESS_CHECKLIST.md");
     let consensus_gate = crate::cli::bootstrap::consensus_profile_gate_status(None, None);
 
-    let surfaces = vec![
+    vec![
         build_surface(
             "mainnet",
             "protocol-release",
@@ -473,64 +366,5 @@ pub(in crate::cli::ops) fn evaluate_full_surface_readiness(
                     .to_string(),
             ],
         ),
-    ];
-
-    let blockers = surfaces
-        .iter()
-        .flat_map(|surface| {
-            surface
-                .blockers
-                .iter()
-                .map(move |blocker| format!("{}: {}", surface.surface, blocker))
-        })
-        .collect::<Vec<_>>();
-
-    let total_score = surfaces
-        .iter()
-        .map(|surface| surface.score as u16)
-        .sum::<u16>();
-    let overall_score = (total_score / surfaces.len() as u16) as u8;
-    let candidate_surfaces = surfaces
-        .iter()
-        .filter(|surface| surface.status == "ready")
-        .count() as u8;
-    let next_focus = surfaces
-        .iter()
-        .filter(|surface| surface.status != "ready")
-        .take(3)
-        .map(|surface| {
-            format!(
-                "{}: raise from {}% to 100% by clearing {} blocker(s)",
-                surface.surface,
-                surface.score,
-                surface.blockers.len()
-            )
-        })
-        .collect::<Vec<_>>();
-
-    let (matrix_loaded, matrix_release_line, matrix_surface_count, validation_warnings) =
-        validate_full_surface_matrix(matrix_model.as_ref(), &surfaces, release_line);
-    matrix_warnings.extend(validation_warnings);
-
-    FullSurfaceReadiness {
-        release_line,
-        matrix_path,
-        matrix_loaded,
-        matrix_release_line,
-        matrix_surface_count,
-        matrix_warnings,
-        overall_status: if blockers.is_empty() {
-            "candidate"
-        } else if overall_score >= 75 {
-            "hardening"
-        } else {
-            "not-ready"
-        },
-        overall_score,
-        candidate_surfaces,
-        total_surfaces: surfaces.len() as u8,
-        surfaces,
-        blockers,
-        next_focus,
-    }
+    ]
 }
