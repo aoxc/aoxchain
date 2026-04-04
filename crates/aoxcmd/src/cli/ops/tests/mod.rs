@@ -6,6 +6,7 @@ use super::{
     has_release_evidence, has_release_provenance_bundle, has_security_drill_artifact,
     historical_tx_hashes, locate_repo_artifact_dir, open_checklist_items, parse_network_profile,
     parse_positive_u64_arg, parse_required_or_default_text_arg, ports_are_shifted_consistently,
+    NetworkProfileConfig,
     readiness_markdown_report, rpc_http_get_probe, rpc_jsonrpc_status_probe, surface_check,
     tx_hash_hex, write_readiness_markdown_report,
 };
@@ -39,7 +40,6 @@ fn args(items: &[&str]) -> Vec<String> {
     items.iter().map(|item| (*item).to_string()).collect()
 }
 
-#[test]
 mod core;
 mod network;
 mod readiness;
