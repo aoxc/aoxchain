@@ -1,4 +1,6 @@
-fn bootstrap_profile_directory(
+use super::*;
+
+pub(super) fn bootstrap_profile_directory(
     output_dir: &Path,
     profile: EnvironmentProfile,
     operator_name: &str,
@@ -71,7 +73,7 @@ fn bootstrap_profile_directory(
     })
 }
 
-fn build_profile_settings(
+pub(super) fn build_profile_settings(
     home_dir: String,
     profile: EnvironmentProfile,
     bind_host: Option<String>,
@@ -90,7 +92,7 @@ fn build_profile_settings(
     Ok(settings)
 }
 
-fn upsert_validator_account(
+pub(super) fn upsert_validator_account(
     genesis: &mut BootstrapGenesisDocument,
     operator: &crate::keys::material::KeyMaterialSummary,
     balance: &str,
@@ -130,7 +132,7 @@ fn upsert_validator_account(
     Ok(())
 }
 
-fn materialize_binding_documents(
+pub(super) fn materialize_binding_documents(
     genesis: &BootstrapGenesisDocument,
     operator: &crate::keys::material::KeyMaterialSummary,
     settings: &Settings,
@@ -276,7 +278,7 @@ fn materialize_binding_documents(
     Ok(())
 }
 
-fn write_json_pretty<T: Serialize>(
+pub(super) fn write_json_pretty<T: Serialize>(
     path: &Path,
     payload: &T,
     context: &str,
@@ -286,7 +288,7 @@ fn write_json_pretty<T: Serialize>(
     write_file(path, &encoded)
 }
 
-fn load_genesis() -> Result<BootstrapGenesisDocument, AppError> {
+pub(super) fn load_genesis() -> Result<BootstrapGenesisDocument, AppError> {
     let raw = read_file(&genesis_path()?)?;
     serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|error| {
         AppError::with_source(
@@ -297,7 +299,7 @@ fn load_genesis() -> Result<BootstrapGenesisDocument, AppError> {
     })
 }
 
-fn persist_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+pub(super) fn persist_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
     write_json_pretty(
         &genesis_path()?,
         genesis,
@@ -305,7 +307,7 @@ fn persist_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
     )
 }
 
-fn identity_dir_from_genesis(genesis: &BootstrapGenesisDocument) -> Result<PathBuf, AppError> {
+pub(super) fn identity_dir_from_genesis(genesis: &BootstrapGenesisDocument) -> Result<PathBuf, AppError> {
     let path = genesis_path()?;
     let root = path.parent().ok_or_else(|| {
         AppError::new(
@@ -327,7 +329,7 @@ fn identity_dir_from_genesis(genesis: &BootstrapGenesisDocument) -> Result<PathB
     Ok(root.to_path_buf())
 }
 
-fn sync_optional_accounts_binding(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+pub(super) fn sync_optional_accounts_binding(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
     let Some(accounts_file) = genesis.bindings.accounts_file.as_deref() else {
         return Ok(());
     };
@@ -351,12 +353,12 @@ fn sync_optional_accounts_binding(genesis: &BootstrapGenesisDocument) -> Result<
     write_json_pretty(&path, &doc, "Failed to encode accounts binding document")
 }
 
-fn derive_short_fingerprint(value: &str) -> String {
+pub(super) fn derive_short_fingerprint(value: &str) -> String {
     let digest = Sha256::digest(value.trim().as_bytes());
     hex::encode(digest)[..16].to_string()
 }
 
-fn load_or_default_validators_binding(
+pub(super) fn load_or_default_validators_binding(
     genesis: &BootstrapGenesisDocument,
 ) -> Result<BootstrapValidatorBindingsDocument, AppError> {
     let path = identity_dir_from_genesis(genesis)?.join(&genesis.bindings.validators_file);
@@ -382,7 +384,7 @@ fn load_or_default_validators_binding(
     })
 }
 
-fn upsert_validator_binding(
+pub(super) fn upsert_validator_binding(
     doc: &mut BootstrapValidatorBindingsDocument,
     record: BootstrapValidatorBindingRecord,
 ) {
@@ -397,7 +399,7 @@ fn upsert_validator_binding(
     }
 }
 
-fn persist_validators_binding(
+pub(super) fn persist_validators_binding(
     genesis: &BootstrapGenesisDocument,
     doc: &BootstrapValidatorBindingsDocument,
 ) -> Result<(), AppError> {
@@ -405,7 +407,7 @@ fn persist_validators_binding(
     write_json_pretty(&path, doc, "Failed to encode validators binding document")
 }
 
-fn load_or_default_bootnodes_binding(
+pub(super) fn load_or_default_bootnodes_binding(
     genesis: &BootstrapGenesisDocument,
 ) -> Result<BootstrapBootnodesDocument, AppError> {
     let path = identity_dir_from_genesis(genesis)?.join(&genesis.bindings.bootnodes_file);
@@ -431,7 +433,7 @@ fn load_or_default_bootnodes_binding(
     })
 }
 
-fn upsert_bootnode_binding(doc: &mut BootstrapBootnodesDocument, record: BootstrapBootnodeRecord) {
+pub(super) fn upsert_bootnode_binding(doc: &mut BootstrapBootnodesDocument, record: BootstrapBootnodeRecord) {
     if let Some(existing) = doc
         .bootnodes
         .iter_mut()
@@ -443,7 +445,7 @@ fn upsert_bootnode_binding(doc: &mut BootstrapBootnodesDocument, record: Bootstr
     }
 }
 
-fn persist_bootnodes_binding(
+pub(super) fn persist_bootnodes_binding(
     genesis: &BootstrapGenesisDocument,
     doc: &BootstrapBootnodesDocument,
 ) -> Result<(), AppError> {
@@ -451,7 +453,7 @@ fn persist_bootnodes_binding(
     write_json_pretty(&path, doc, "Failed to encode bootnodes binding document")
 }
 
-fn validate_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+pub(super) fn validate_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
     if genesis.schema_version != 1 {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
@@ -607,7 +609,7 @@ struct ValidatorRecord {
     status: String,
 }
 
-fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+pub(super) fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
     let genesis_file = genesis_path()?;
     let root = genesis_file.parent().ok_or_else(|| {
         AppError::new(
