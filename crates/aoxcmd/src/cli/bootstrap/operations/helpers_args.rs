@@ -1,5 +1,6 @@
+use super::*;
 
-fn parse_required_text_arg(
+pub(super) fn parse_required_text_arg(
     args: &[String],
     flag: &str,
     lowercase: bool,
@@ -20,7 +21,7 @@ fn parse_required_text_arg(
     })
 }
 
-fn parse_required_or_default_text_arg(
+pub(super) fn parse_required_or_default_text_arg(
     args: &[String],
     flag: &str,
     default: &str,
@@ -36,7 +37,7 @@ fn parse_required_or_default_text_arg(
     }
 }
 
-fn parse_optional_text_arg(args: &[String], flag: &str, lowercase: bool) -> Option<String> {
+pub(super) fn parse_optional_text_arg(args: &[String], flag: &str, lowercase: bool) -> Option<String> {
     arg_value(args, flag).and_then(|value| normalize_text(&value, lowercase))
 }
 
@@ -53,11 +54,11 @@ fn normalize_text(value: &str, lowercase: bool) -> Option<String> {
     }
 }
 
-fn is_decimal_string(value: &str) -> bool {
+pub(super) fn is_decimal_string(value: &str) -> bool {
     let trimmed = value.trim();
     !trimmed.is_empty() && trimmed.chars().all(|ch| ch.is_ascii_digit())
 }
 
-fn is_non_zero_decimal_string(value: &str) -> bool {
+pub(super) fn is_non_zero_decimal_string(value: &str) -> bool {
     is_decimal_string(value) && value.trim().chars().any(|ch| ch != '0')
 }

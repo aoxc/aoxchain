@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::{
+    use super::super::{
         BootstrapBootnodeRecord, BootstrapBootnodesDocument, BootstrapValidatorBindingRecord,
         BootstrapValidatorBindingsDocument, CanonicalIdentity, EnvironmentProfile,
         consensus_profile_gate_status, derive_short_fingerprint, evaluate_consensus_profile_audit,
