@@ -8,7 +8,7 @@ use super::{
     parse_positive_u64_arg, parse_required_or_default_text_arg, ports_are_shifted_consistently,
     NetworkProfileConfig,
     readiness_markdown_report, rpc_http_get_probe, rpc_jsonrpc_status_probe, surface_check,
-    tx_hash_hex, write_readiness_markdown_report,
+    write_readiness_markdown_report,
 };
 use crate::config::settings::Settings;
 use aoxcdata::BlockEnvelope;
