@@ -4,6 +4,8 @@
 
 This document defines how AOXChain versions are advanced in a slow, controlled, and reviewable way.
 
+Current active release line target: `AOXC-Q-v0.2.0`.
+
 ## Canonical Sources
 
 - Repository release version: `Cargo.toml` (`[workspace.package].version`)

@@ -5,7 +5,7 @@ pub(in crate::cli::ops) fn evaluate_full_surface_readiness(
     mainnet_readiness: &Readiness,
 ) -> FullSurfaceReadiness {
     let repo_root = locate_repo_root();
-    let release_line = "aoxc.v.0.1.1-akdeniz";
+    let release_line = "AOXC-Q-v0.2.0";
     let (matrix_path, matrix_model, mut matrix_warnings) = load_full_surface_matrix(&repo_root);
     let release_dir = repo_root.join("artifacts").join("release-evidence");
     let closure_dir = repo_root
