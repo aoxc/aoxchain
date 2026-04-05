@@ -57,6 +57,7 @@ pub struct HandshakePolicy {
     pub minimum_protocol_version: u16,
     pub required_release_line: String,
     pub required_profile: TransportCryptoProfile,
+    pub allowed_peer_classes: Vec<PeerClass>,
     pub max_frame_bytes: usize,
     pub allow_compression: bool,
     pub require_retry_token: bool,
@@ -67,8 +68,15 @@ impl Default for HandshakePolicy {
     fn default() -> Self {
         Self {
             minimum_protocol_version: 1,
-            required_release_line: "AOXC-Q-v0.2.0".to_string(),
+            required_release_line: AOXC_Q_RELEASE_LINE.to_string(),
             required_profile: TransportCryptoProfile::HybridV2,
+            allowed_peer_classes: vec![
+                PeerClass::Validator,
+                PeerClass::Sentry,
+                PeerClass::Archive,
+                PeerClass::Observer,
+                PeerClass::Bootstrap,
+            ],
             max_frame_bytes: 256 * 1024,
             allow_compression: false,
             require_retry_token: true,
@@ -84,6 +92,7 @@ pub enum HandshakeRejectReason {
     ReleaseLineMismatch,
     ProtocolVersionTooOld,
     ProfileDowngradeRejected,
+    PeerClassNotAllowed,
     FrameBudgetExceeded,
     CompressionForbidden,
     RetryTokenMissing,
@@ -107,6 +116,10 @@ impl HandshakePolicy {
 
         if intent.transport_profile != self.required_profile {
             return Err(HandshakeRejectReason::ProfileDowngradeRejected);
+        }
+
+        if !self.allowed_peer_classes.contains(&intent.peer_class) {
+            return Err(HandshakeRejectReason::PeerClassNotAllowed);
         }
 
         if intent.max_frame_bytes > self.max_frame_bytes {
@@ -168,6 +181,22 @@ mod tests {
         assert_eq!(
             policy.evaluate(&intent),
             Err(HandshakeRejectReason::ProfileDowngradeRejected)
+        );
+    }
+
+    #[test]
+    fn rejects_disallowed_peer_class() {
+        let policy = HandshakePolicy {
+            allowed_peer_classes: vec![PeerClass::Validator],
+            ..HandshakePolicy::default()
+        };
+
+        let mut intent = base_intent();
+        intent.peer_class = PeerClass::Observer;
+
+        assert_eq!(
+            policy.evaluate(&intent),
+            Err(HandshakeRejectReason::PeerClassNotAllowed)
         );
     }
 
