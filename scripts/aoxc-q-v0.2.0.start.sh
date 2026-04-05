@@ -15,9 +15,6 @@ AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
 AOXC_Q_START="${AOXC_Q_START:-1}"
 AOXC_Q_SLEEP_MS="${AOXC_Q_SLEEP_MS:-250}"
 AOXC_Q_FORCE="${AOXC_Q_FORCE:-0}"
-AOXC_Q_PASSWORD="${AOXC_Q_PASSWORD:-}"
-AOXC_Q_PASSWORD_FILE="${AOXC_Q_PASSWORD_FILE:-}"
-AOXC_Q_PROMPT_PASSWORD="${AOXC_Q_PROMPT_PASSWORD:-1}"
 
 usage() {
   cat <<USAGE
@@ -33,18 +30,13 @@ Options:
   --profile <name>      AOXC profile for config/key bootstrap (default: ${AOXC_Q_PROFILE})
   --rounds <n>          rounds per node-run invocation (default: ${AOXC_Q_ROUNDS})
   --sleep-ms <n>        sleep between rounds in ms (default: ${AOXC_Q_SLEEP_MS})
-  --password <value>    operator password for all node key bootstrap operations
-  --password-file <p>   read operator password from file path <p>
-  --prompt-password     prompt for password interactively when not provided
-  --no-prompt-password  fail if password is not provided by flag/env/file
   --no-start            bootstrap only; do not start persistent loops
   --force               remove existing target root first
   -h, --help            show this help
 
 Environment:
   AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_NODE_COUNT,
-  AOXC_Q_ROUNDS, AOXC_Q_START, AOXC_Q_SLEEP_MS, AOXC_Q_FORCE,
-  AOXC_Q_PASSWORD, AOXC_Q_PASSWORD_FILE, AOXC_Q_PROMPT_PASSWORD
+  AOXC_Q_ROUNDS, AOXC_Q_START, AOXC_Q_SLEEP_MS, AOXC_Q_FORCE
 USAGE
 }
 
@@ -55,10 +47,6 @@ while [[ $# -gt 0 ]]; do
     --profile) AOXC_Q_PROFILE="$2"; shift 2 ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
     --sleep-ms) AOXC_Q_SLEEP_MS="$2"; shift 2 ;;
-    --password) AOXC_Q_PASSWORD="$2"; shift 2 ;;
-    --password-file) AOXC_Q_PASSWORD_FILE="$2"; shift 2 ;;
-    --prompt-password) AOXC_Q_PROMPT_PASSWORD=1; shift ;;
-    --no-prompt-password) AOXC_Q_PROMPT_PASSWORD=0; shift ;;
     --no-start) AOXC_Q_START=0; shift ;;
     --force) AOXC_Q_FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -75,50 +63,9 @@ require_uint() {
   fi
 }
 
-run_cmd_logged() {
-  local log_file="$1"
-  shift
-  mkdir -p "$(dirname "${log_file}")"
-  if ! "$@" >"${log_file}" 2>&1; then
-    echo "Command failed. Log: ${log_file}" >&2
-    tail -n 40 "${log_file}" >&2 || true
-    exit 10
-  fi
-}
-
-resolve_password() {
-  if [[ -n "${AOXC_Q_PASSWORD}" ]]; then
-    return 0
-  fi
-
-  if [[ -n "${AOXC_Q_PASSWORD_FILE}" ]]; then
-    if [[ ! -f "${AOXC_Q_PASSWORD_FILE}" ]]; then
-      echo "Password file does not exist: ${AOXC_Q_PASSWORD_FILE}" >&2
-      exit 2
-    fi
-    AOXC_Q_PASSWORD="$(head -n 1 "${AOXC_Q_PASSWORD_FILE}")"
-  fi
-
-  if [[ -z "${AOXC_Q_PASSWORD}" && "${AOXC_Q_PROMPT_PASSWORD}" == "1" ]]; then
-    if [[ -t 0 ]]; then
-      read -r -s -p "AOXC operator password: " AOXC_Q_PASSWORD
-      echo ""
-    else
-      echo "Cannot prompt for password in non-interactive shell. Use --password or --password-file." >&2
-      exit 2
-    fi
-  fi
-
-  if [[ -z "${AOXC_Q_PASSWORD}" ]]; then
-    echo "Missing operator password. Provide --password, --password-file, AOXC_Q_PASSWORD, or enable --prompt-password." >&2
-    exit 2
-  fi
-}
-
 require_uint "${AOXC_Q_NODE_COUNT}" "AOXC_Q_NODE_COUNT"
 require_uint "${AOXC_Q_ROUNDS}" "AOXC_Q_ROUNDS"
 require_uint "${AOXC_Q_SLEEP_MS}" "AOXC_Q_SLEEP_MS"
-resolve_password
 
 if (( AOXC_Q_NODE_COUNT < 7 )); then
   echo "AOXC_Q_NODE_COUNT must be >= 7 for this production-like topology script." >&2
@@ -181,7 +128,7 @@ for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
   node_name="node$(printf '%02d' "${i}")"
   validator_name="aoxcq-val-$(printf '%02d' "${i}")"
   operator_name="aoxcq-op-$(printf '%02d' "${i}")"
-  password="${AOXC_Q_PASSWORD}"
+  password="AOXC-Q-${AOXC_Q_ENV^^}-${node_name^^}-CHANGE-ME"
 
   node_root="${TARGET_ROOT}/nodes/${node_name}"
   node_home="${node_root}/home"
@@ -198,10 +145,12 @@ for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
   printf '%s\n' "${password}" > "${node_root}/operator.password"
   chmod 600 "${node_root}/operator.password" || true
 
-  run_cmd_logged "${run_dir}/config-init.log" env AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" config-init --profile "${AOXC_Q_PROFILE}" --json-logs
-  run_cmd_logged "${run_dir}/key-bootstrap.log" env AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" key-bootstrap --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" --force
-  run_cmd_logged "${run_dir}/keys-verify.log" env AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" keys-verify --password "${password}"
-  run_cmd_logged "${run_dir}/node-bootstrap.log" "${AOXC_BIN_CMD[@]}" node-bootstrap --home "${node_home}"
+  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" config-init --profile "${AOXC_Q_PROFILE}" --json-logs > "${run_dir}/config-init.json"
+  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" address-create --name "${operator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-operator.json"
+  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" address-create --name "${validator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-validator.json"
+  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" key-bootstrap --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
+  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" keys-verify --password "${password}" > "${run_dir}/keys-verify.json"
+  "${AOXC_BIN_CMD[@]}" node-bootstrap --home "${node_home}" > "${run_dir}/node-bootstrap.json"
 
   printf '%s\t%s\t%s\n' "${node_name}" "${validator_name}" "${operator_name}" >> "${ACCOUNTS_FILE}"
 
@@ -222,7 +171,9 @@ cat > "${TARGET_ROOT}/system/scripts/start-all.sh" <<STARTALL
 #!/usr/bin/env bash
 set -Eeuo pipefail
 ROOT="${TARGET_ROOT}"
-for i in \$(seq 1 "${AOXC_Q_NODE_COUNT}"); do
+for i in \
+$(seq 1 "${AOXC_Q_NODE_COUNT}" | sed 's/^/  /')
+; do
   node_name="node\$(printf '%02d' "\${i}")"
   node_root="\${ROOT}/nodes/\${node_name}"
   if [[ -f "\${node_root}/node.pid" ]] && kill -0 "\$(cat "\${node_root}/node.pid")" 2>/dev/null; then
@@ -240,7 +191,9 @@ cat > "${TARGET_ROOT}/system/scripts/stop-all.sh" <<STOPALL
 #!/usr/bin/env bash
 set -Eeuo pipefail
 ROOT="${TARGET_ROOT}"
-for i in \$(seq 1 "${AOXC_Q_NODE_COUNT}"); do
+for i in \
+$(seq 1 "${AOXC_Q_NODE_COUNT}" | sed 's/^/  /')
+; do
   node_name="node\$(printf '%02d' "\${i}")"
   node_root="\${ROOT}/nodes/\${node_name}"
   if [[ -f "\${node_root}/node.pid" ]]; then
@@ -277,6 +230,5 @@ chmod -R u+rwX "${TARGET_ROOT}" || true
 
 echo "AOXC-Q local ${AOXC_Q_NODE_COUNT}-node layout prepared at: ${TARGET_ROOT}"
 echo "Accounts manifest: ${ACCOUNTS_FILE}"
-echo "Bootstrap logs: ${TARGET_ROOT}/nodes/nodeXX/run/*.log"
 echo "Start script: ${TARGET_ROOT}/system/scripts/start-all.sh"
 echo "Stop script:  ${TARGET_ROOT}/system/scripts/stop-all.sh"

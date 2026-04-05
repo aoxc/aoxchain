@@ -315,10 +315,7 @@ for isolated node services.
 The `aoxc-q-v0.2.0.start.sh` flow provisions a seven-node AOXC-Q v0.2.0 style
 local testnet layout (no Docker/Podman requirement), prepares per-node account
 material, and can run persistent local node loops from generated `start-all.sh`
-and `stop-all.sh` control scripts. Per-node bootstrap command logs are written
-under `nodes/<node>/run/*.log` for failure diagnosis. Operator password can be
-provided with `--password`, `--password-file`, `AOXC_Q_PASSWORD`, or an
-interactive prompt (`--prompt-password`).
+and `stop-all.sh` control scripts.
 
 ### Quality
 - `make fmt`
