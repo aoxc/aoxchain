@@ -59,6 +59,46 @@ pub enum GenesisConfigError {
     WeakQuantumPolicy {
         reason: &'static str,
     },
+    InvalidNodePolicy,
+    DuplicateNodeRolePolicy {
+        role: String,
+    },
+    MissingNodeRolePolicy {
+        role: String,
+    },
+    WeakNodeRolePolicy {
+        role: String,
+        reason: &'static str,
+    },
+    InvalidSealLayerPolicy {
+        layer_id: String,
+    },
+    DuplicateSealLayerPolicy {
+        layer_id: String,
+    },
+    InvalidMultisigSigner {
+        signer: String,
+    },
+    DuplicateMultisigSigner {
+        signer: String,
+    },
+    InsufficientMultisigSignatures {
+        role: String,
+        required: u8,
+        actual: u8,
+    },
+    InsufficientMultisigParticipants {
+        role: String,
+        required: u8,
+        actual: u8,
+    },
+    InvalidKernelOperationRole {
+        role: String,
+        operation: String,
+    },
+    MissingActiveQuantumSealLayer {
+        epoch: u64,
+    },
     InvalidSettlementLink,
     InvalidGenesisSeal,
     GenesisNotesTooLong {
@@ -155,6 +195,61 @@ impl fmt::Display for GenesisConfigError {
             Self::WeakQuantumPolicy { reason } => write!(
                 f,
                 "genesis validation failed: quantum policy is too weak; {reason}"
+            ),
+            Self::InvalidNodePolicy => {
+                f.write_str("genesis validation failed: node policy is invalid")
+            }
+            Self::DuplicateNodeRolePolicy { role } => write!(
+                f,
+                "genesis validation failed: duplicate node role policy `{role}` detected"
+            ),
+            Self::MissingNodeRolePolicy { role } => write!(
+                f,
+                "genesis validation failed: missing required node role policy `{role}`"
+            ),
+            Self::WeakNodeRolePolicy { role, reason } => write!(
+                f,
+                "genesis validation failed: node role policy `{role}` is too weak; {reason}"
+            ),
+            Self::InvalidSealLayerPolicy { layer_id } => write!(
+                f,
+                "genesis validation failed: seal layer policy `{layer_id}` is invalid"
+            ),
+            Self::DuplicateSealLayerPolicy { layer_id } => write!(
+                f,
+                "genesis validation failed: duplicate seal layer policy `{layer_id}` detected"
+            ),
+            Self::InvalidMultisigSigner { signer } => write!(
+                f,
+                "genesis validation failed: multisig signer `{signer}` is not eligible for the role"
+            ),
+            Self::DuplicateMultisigSigner { signer } => write!(
+                f,
+                "genesis validation failed: duplicate multisig signer `{signer}` detected"
+            ),
+            Self::InsufficientMultisigSignatures {
+                role,
+                required,
+                actual,
+            } => write!(
+                f,
+                "genesis validation failed: role `{role}` has insufficient signatures; required `{required}`, actual `{actual}`"
+            ),
+            Self::InsufficientMultisigParticipants {
+                role,
+                required,
+                actual,
+            } => write!(
+                f,
+                "genesis validation failed: role `{role}` has insufficient participants; required `{required}`, actual `{actual}`"
+            ),
+            Self::InvalidKernelOperationRole { role, operation } => write!(
+                f,
+                "genesis validation failed: role `{role}` is not authorized for kernel operation `{operation}`"
+            ),
+            Self::MissingActiveQuantumSealLayer { epoch } => write!(
+                f,
+                "genesis validation failed: no active quantum-hardened seal layer for epoch `{epoch}`"
             ),
             Self::InvalidSettlementLink => {
                 f.write_str("genesis validation failed: settlement link is invalid")
