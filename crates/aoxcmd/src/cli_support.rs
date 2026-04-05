@@ -84,7 +84,7 @@ GUIDED GROUPS
   account fund
   node init|start|status|doctor
   network create|start|status|verify|doctor
-  api [status|smoke|contract|metrics|health|network]
+  api [status|smoke|metrics|health|network]
   query chain|consensus|vm|block|tx|receipt|account|balance|network|state-root|rpc
   tx transfer|stake delegate|stake undelegate
   stake delegate|undelegate|validators|rewards
@@ -181,11 +181,9 @@ NODE AND ECONOMY
   query rpc
   api status
   api smoke
-  api contract
   api metrics
   api health
   api network full
-  api-contract
   block-get --height <latest|n>
   tx-get --hash <tx-hash>
   tx-receipt --hash <tx-hash>

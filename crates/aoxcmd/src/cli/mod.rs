@@ -383,7 +383,6 @@ fn route_api_group(args: &[String]) -> Result<(), AppError> {
     match subcommand.as_str() {
         "status" | "rpc" => ops::cmd_rpc_status(tail),
         "smoke" | "curl-smoke" => ops::cmd_rpc_curl_smoke(tail),
-        "contract" | "surface" | "methods" | "endpoints" => ops::cmd_api_contract(tail),
         "metrics" => ops::cmd_metrics(tail),
         "health" => ops::cmd_runtime_status(tail),
         "network" => route_query_network_group(tail),
@@ -493,15 +492,5 @@ mod tests {
     fn api_group_rejects_unknown_subcommands() {
         let command = vec!["unknown".to_string()];
         assert!(route_api_group(&command).is_err());
-    }
-
-    #[test]
-    fn api_group_supports_contract_surface() {
-        let command = vec![
-            "contract".to_string(),
-            "--format".to_string(),
-            "json".to_string(),
-        ];
-        assert!(route_api_group(&command).is_ok());
     }
 }
