@@ -143,7 +143,7 @@ mod tests {
         HandshakeIntent {
             peer_id: "validator-a".to_string(),
             peer_class: PeerClass::Validator,
-            release_line: "AOXC-Q-v0.2.0".to_string(),
+            release_line: AOXC_Q_RELEASE_LINE.to_string(),
             transport_profile: TransportCryptoProfile::HybridV2,
             protocol_version: 1,
             max_frame_bytes: 128 * 1024,
