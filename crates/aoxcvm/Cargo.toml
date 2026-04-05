@@ -16,3 +16,28 @@ blake3.workspace = true
 
 [dev-dependencies]
 aoxcsdk = { path = "../aoxcsdk" }
+
+
+[[bench]]
+name = "decode"
+harness = false
+
+[[bench]]
+name = "execute_small"
+harness = false
+
+[[bench]]
+name = "execute_heavy"
+harness = false
+
+[[bench]]
+name = "gas_accounting"
+harness = false
+
+[[bench]]
+name = "object_lookup"
+harness = false
+
+[[bench]]
+name = "verify"
+harness = false
