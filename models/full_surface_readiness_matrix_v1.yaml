@@ -1,5 +1,5 @@
 version: 2
-release_line: aoxc.v.0.1.1-akdeniz
+release_line: AOXC-Q-v0.2.0
 objective: >
   Canonical full-surface production readiness matrix covering mainnet, testnet,
   devnet, AOXHub, desktop wallet, telemetry, and quantum consensus policy for
