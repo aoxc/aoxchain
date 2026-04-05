@@ -70,12 +70,6 @@ pub enum GenesisConfigError {
         role: String,
         reason: &'static str,
     },
-    InvalidSealLayerPolicy {
-        layer_id: String,
-    },
-    DuplicateSealLayerPolicy {
-        layer_id: String,
-    },
     InvalidSettlementLink,
     InvalidGenesisSeal,
     GenesisNotesTooLong {
@@ -187,14 +181,6 @@ impl fmt::Display for GenesisConfigError {
             Self::WeakNodeRolePolicy { role, reason } => write!(
                 f,
                 "genesis validation failed: node role policy `{role}` is too weak; {reason}"
-            ),
-            Self::InvalidSealLayerPolicy { layer_id } => write!(
-                f,
-                "genesis validation failed: seal layer policy `{layer_id}` is invalid"
-            ),
-            Self::DuplicateSealLayerPolicy { layer_id } => write!(
-                f,
-                "genesis validation failed: duplicate seal layer policy `{layer_id}` detected"
             ),
             Self::InvalidSettlementLink => {
                 f.write_str("genesis validation failed: settlement link is invalid")

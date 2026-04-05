@@ -184,34 +184,4 @@ mod tests {
             GenesisConfigError::InvalidNodePolicy | GenesisConfigError::MissingNodeRolePolicy { .. }
         ));
     }
-
-    #[test]
-    fn node_policy_multisig_quorum_check_is_kernel_enforced() {
-        let policy = NodePolicy::for_network_class(NetworkClass::PublicMainnet);
-
-        let accepted = policy
-            .is_multisig_quorum_satisfied(NodeRole::Quorum, 4, 7)
-            .unwrap();
-        let rejected = policy
-            .is_multisig_quorum_satisfied(NodeRole::Quorum, 3, 7)
-            .unwrap();
-
-        assert!(accepted);
-        assert!(!rejected);
-    }
-
-    #[test]
-    fn node_policy_accepts_extensible_seal_layers() {
-        let mut policy = NodePolicy::for_network_class(NetworkClass::PublicTestnet);
-        policy.seal_layers.push(SealLayerPolicy {
-            layer_id: "seal-v2".into(),
-            commitment_hash: "SHA3-256".into(),
-            activation_epoch: 90,
-            quantum_hardened: true,
-        });
-
-        assert!(policy
-            .validate_for_network_class(NetworkClass::PublicTestnet)
-            .is_ok());
-    }
 }

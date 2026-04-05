@@ -346,7 +346,6 @@ impl NodeRolePolicy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NodePolicy {
     pub role_policies: Vec<NodeRolePolicy>,
-    pub seal_layers: Vec<SealLayerPolicy>,
     pub treasury_reward_bps: u16,
     pub governance_epoch_blocks: u64,
 }
@@ -435,34 +434,9 @@ impl NodePolicy {
                     quantum_seal_required: false,
                 },
             ],
-            seal_layers: vec![SealLayerPolicy {
-                layer_id: "seal-v1".to_string(),
-                commitment_hash: "BLAKE3".to_string(),
-                activation_epoch: 0,
-                quantum_hardened: true,
-            }],
             treasury_reward_bps: 300,
             governance_epoch_blocks: epoch_blocks,
         }
-    }
-
-    /// Kernel-level multisig threshold checker for role-scoped authorization paths.
-    pub fn is_multisig_quorum_satisfied(
-        &self,
-        role: NodeRole,
-        observed_signatures: u8,
-        observed_participants: u8,
-    ) -> Result<bool, GenesisConfigError> {
-        let policy = self
-            .role_policies
-            .iter()
-            .find(|policy| policy.role == role)
-            .ok_or(GenesisConfigError::MissingNodeRolePolicy {
-                role: role.as_str().to_string(),
-            })?;
-
-        Ok(observed_participants >= policy.multisig_participants
-            && observed_signatures >= policy.multisig_threshold)
     }
 
     fn validate_for_network_class(
@@ -470,7 +444,6 @@ impl NodePolicy {
         network_class: NetworkClass,
     ) -> Result<(), GenesisConfigError> {
         if self.role_policies.len() != NodeRole::all().len()
-            || self.seal_layers.is_empty()
             || self.treasury_reward_bps > 10_000
             || self.governance_epoch_blocks == 0
         {
@@ -493,25 +466,6 @@ impl NodePolicy {
                     role: role.as_str().to_string(),
                 });
             }
-        }
-
-        let mut seal_layer_ids = HashSet::with_capacity(self.seal_layers.len());
-        let mut previous_epoch = 0_u64;
-        for (index, layer) in self.seal_layers.iter().enumerate() {
-            layer.validate()?;
-            if !seal_layer_ids.insert(layer.layer_id.as_str()) {
-                return Err(GenesisConfigError::DuplicateSealLayerPolicy {
-                    layer_id: layer.layer_id.clone(),
-                });
-            }
-
-            if index > 0 && layer.activation_epoch < previous_epoch {
-                return Err(GenesisConfigError::InvalidSealLayerPolicy {
-                    layer_id: layer.layer_id.clone(),
-                });
-            }
-
-            previous_epoch = layer.activation_epoch;
         }
 
         if network_class == NetworkClass::PublicMainnet {
@@ -543,49 +497,9 @@ impl NodePolicy {
             policy.encode_canonical(enc);
         }
 
-        let mut ordered_layers = self.seal_layers.clone();
-        ordered_layers.sort_by(|left, right| left.layer_id.cmp(&right.layer_id));
-        enc.usize(ordered_layers.len())?;
-        for layer in &ordered_layers {
-            layer.encode_canonical(enc);
-        }
-
         enc.u16(self.treasury_reward_bps);
         enc.u64(self.governance_epoch_blocks);
         Ok(())
-    }
-}
-
-/// Extensible seal-layer policy for retroactive hardening without history rewrites.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SealLayerPolicy {
-    pub layer_id: String,
-    pub commitment_hash: String,
-    pub activation_epoch: u64,
-    pub quantum_hardened: bool,
-}
-
-impl SealLayerPolicy {
-    fn validate(&self) -> Result<(), GenesisConfigError> {
-        validate_identifier(&self.layer_id).map_err(|_| GenesisConfigError::InvalidSealLayerPolicy {
-            layer_id: self.layer_id.clone(),
-        })?;
-        validate_algorithm_name(&self.commitment_hash)?;
-
-        if self.activation_epoch == 0 && self.layer_id != "seal-v1" {
-            return Err(GenesisConfigError::InvalidSealLayerPolicy {
-                layer_id: self.layer_id.clone(),
-            });
-        }
-
-        Ok(())
-    }
-
-    fn encode_canonical(&self, enc: &mut CanonicalEncoder) {
-        enc.str(&self.layer_id);
-        enc.str(&self.commitment_hash);
-        enc.u64(self.activation_epoch);
-        enc.u8(u8::from(self.quantum_hardened));
     }
 }
 
