@@ -196,7 +196,7 @@ If a change affects any of these properties, the architectural intent should be 
 - orchestrates staged rollout and rollback drills for profile transitions;
 - emits reproducible readiness artifacts used by release and closure gates.
 
-This alignment must remain consistent with `QUANTUM_ROADMAP.md` and `QUANTUM_CHECKLIST.md`.
+This alignment must remain consistent with `ROADMAP.md` and `READ.md`.
 
 ---
 

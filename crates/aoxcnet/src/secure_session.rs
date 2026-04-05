@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub const AOXC_Q_RELEASE_LINE: &str = "AOXC-Q-v0.2.0";
+
 /// Cryptographic transport profile declared during peer handshake.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -40,6 +42,7 @@ pub enum PeerClass {
 pub struct HandshakeIntent {
     pub peer_id: String,
     pub peer_class: PeerClass,
+    pub release_line: String,
     pub transport_profile: TransportCryptoProfile,
     pub protocol_version: u16,
     pub max_frame_bytes: usize,
@@ -52,6 +55,8 @@ pub struct HandshakeIntent {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandshakePolicy {
     pub minimum_protocol_version: u16,
+    pub required_release_line: String,
+    pub allowed_peer_classes: Vec<PeerClass>,
     pub required_profile: TransportCryptoProfile,
     pub max_frame_bytes: usize,
     pub allow_compression: bool,
@@ -63,6 +68,13 @@ impl Default for HandshakePolicy {
     fn default() -> Self {
         Self {
             minimum_protocol_version: 1,
+            required_release_line: AOXC_Q_RELEASE_LINE.to_string(),
+            allowed_peer_classes: vec![
+                PeerClass::Validator,
+                PeerClass::Sentry,
+                PeerClass::Archive,
+                PeerClass::Observer,
+            ],
             required_profile: TransportCryptoProfile::HybridV2,
             max_frame_bytes: 256 * 1024,
             allow_compression: false,
@@ -76,6 +88,8 @@ impl Default for HandshakePolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HandshakeRejectReason {
     EmptyPeerId,
+    ReleaseLineMismatch,
+    PeerClassForbidden,
     ProtocolVersionTooOld,
     ProfileDowngradeRejected,
     FrameBudgetExceeded,
@@ -89,6 +103,14 @@ impl HandshakePolicy {
     pub fn evaluate(&self, intent: &HandshakeIntent) -> Result<(), HandshakeRejectReason> {
         if intent.peer_id.trim().is_empty() {
             return Err(HandshakeRejectReason::EmptyPeerId);
+        }
+
+        if intent.release_line.trim() != self.required_release_line {
+            return Err(HandshakeRejectReason::ReleaseLineMismatch);
+        }
+
+        if !self.allowed_peer_classes.contains(&intent.peer_class) {
+            return Err(HandshakeRejectReason::PeerClassForbidden);
         }
 
         if intent.protocol_version < self.minimum_protocol_version {
@@ -125,13 +147,15 @@ impl HandshakePolicy {
 #[cfg(test)]
 mod tests {
     use super::{
-        HandshakeIntent, HandshakePolicy, HandshakeRejectReason, PeerClass, TransportCryptoProfile,
+        AOXC_Q_RELEASE_LINE, HandshakeIntent, HandshakePolicy, HandshakeRejectReason, PeerClass,
+        TransportCryptoProfile,
     };
 
     fn base_intent() -> HandshakeIntent {
         HandshakeIntent {
             peer_id: "validator-a".to_string(),
             peer_class: PeerClass::Validator,
+            release_line: AOXC_Q_RELEASE_LINE.to_string(),
             transport_profile: TransportCryptoProfile::HybridV2,
             protocol_version: 1,
             max_frame_bytes: 128 * 1024,
@@ -156,6 +180,30 @@ mod tests {
         assert_eq!(
             policy.evaluate(&intent),
             Err(HandshakeRejectReason::ProfileDowngradeRejected)
+        );
+    }
+
+    #[test]
+    fn rejects_release_line_mismatch() {
+        let policy = HandshakePolicy::default();
+        let mut intent = base_intent();
+        intent.release_line = "AOXC-Q-v0.1.9".to_string();
+
+        assert_eq!(
+            policy.evaluate(&intent),
+            Err(HandshakeRejectReason::ReleaseLineMismatch)
+        );
+    }
+
+    #[test]
+    fn rejects_forbidden_peer_class() {
+        let policy = HandshakePolicy::default();
+        let mut intent = base_intent();
+        intent.peer_class = PeerClass::Bootstrap;
+
+        assert_eq!(
+            policy.evaluate(&intent),
+            Err(HandshakeRejectReason::PeerClassForbidden)
         );
     }
 
