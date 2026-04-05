@@ -466,6 +466,21 @@ pub(in crate::cli::bootstrap::operations) fn persist_bootnodes_binding(
 pub(in crate::cli::bootstrap::operations) fn validate_genesis(
     genesis: &BootstrapGenesisDocument,
 ) -> Result<(), AppError> {
+    const ALLOWED_ACCOUNT_ROLES: [&str; 12] = [
+        "treasury",
+        "validator",
+        "system",
+        "user",
+        "governance",
+        "forge",
+        "quorum",
+        "seal",
+        "archive",
+        "sentinel",
+        "relay",
+        "pocket",
+    ];
+
     if genesis.schema_version != 1 {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
@@ -580,6 +595,16 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
                 "Genesis validation failed: duplicate account_id detected",
             ));
         }
+
+        if !ALLOWED_ACCOUNT_ROLES.contains(&account.role.trim().to_ascii_lowercase().as_str()) {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: unsupported account role '{}' for {}",
+                    account.role, account.account_id
+                ),
+            ));
+        }
     }
 
     if genesis.bindings.validators_file.trim().is_empty()
@@ -656,6 +681,23 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
         ));
     }
 
+    if matches!(genesis.environment.as_str(), "mainnet" | "testnet") {
+        let minimum_validators = if genesis.environment == "mainnet" {
+            4
+        } else {
+            3
+        };
+        if validators_doc.validators.len() < minimum_validators {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: {} requires at least {} validators",
+                    genesis.environment, minimum_validators
+                ),
+            ));
+        }
+    }
+
     for validator in &validators_doc.validators {
         if validator.validator_id.trim().is_empty() {
             return Err(AppError::new(
@@ -715,6 +757,27 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
                 bootnodes_path.display()
             ),
         ));
+    }
+
+    if matches!(genesis.environment.as_str(), "mainnet" | "testnet") {
+        let minimum_bootnodes = if genesis.environment == "mainnet" {
+            3
+        } else {
+            2
+        };
+        let bootnode_count = bootnodes_json
+            .get("bootnodes")
+            .and_then(Value::as_array)
+            .map_or(0, Vec::len);
+        if bootnode_count < minimum_bootnodes {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: {} requires at least {} bootnodes",
+                    genesis.environment, minimum_bootnodes
+                ),
+            ));
+        }
     }
 
     let certificate_path = root.join(&genesis.bindings.certificate_file);
