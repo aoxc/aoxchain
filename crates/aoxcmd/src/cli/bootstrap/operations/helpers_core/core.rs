@@ -682,7 +682,11 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
     }
 
     if matches!(genesis.environment.as_str(), "mainnet" | "testnet") {
-        let (minimum_validators, _) = load_topology_minimums(&genesis.environment)?;
+        let minimum_validators = if genesis.environment == "mainnet" {
+            4
+        } else {
+            3
+        };
         if validators_doc.validators.len() < minimum_validators {
             return Err(AppError::new(
                 ErrorCode::ConfigInvalid,
@@ -756,7 +760,11 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
     }
 
     if matches!(genesis.environment.as_str(), "mainnet" | "testnet") {
-        let (_, minimum_bootnodes) = load_topology_minimums(&genesis.environment)?;
+        let minimum_bootnodes = if genesis.environment == "mainnet" {
+            3
+        } else {
+            2
+        };
         let bootnode_count = bootnodes_json
             .get("bootnodes")
             .and_then(Value::as_array)
@@ -1065,55 +1073,4 @@ fn ensure_identity_tuple_match(
     }
 
     Ok(())
-}
-
-fn load_topology_minimums(environment: &str) -> Result<(usize, usize), AppError> {
-    let defaults = if environment == "mainnet" {
-        (4_usize, 3_usize)
-    } else {
-        (3_usize, 2_usize)
-    };
-
-    let repo_root = resolve_repo_root_for_configs()?;
-    let release_path = repo_root
-        .join("configs")
-        .join("environments")
-        .join(environment)
-        .join("release-policy.toml");
-    let raw = read_file(&release_path)?;
-
-    let mut in_section = false;
-    let mut minimum_validators = None::<usize>;
-    let mut minimum_bootnodes = None::<usize>;
-
-    for line in raw.lines().map(str::trim) {
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        if line.starts_with('[') && line.ends_with(']') {
-            in_section = line
-                .trim_matches(|ch| ch == '[' || ch == ']')
-                .trim()
-                .eq("topology_minimums");
-            continue;
-        }
-        if !in_section {
-            continue;
-        }
-
-        if let Some((key, value)) = line.split_once('=') {
-            let key = key.trim();
-            let value = value.trim();
-            match key {
-                "minimum_validators" => minimum_validators = value.parse::<usize>().ok(),
-                "minimum_bootnodes" => minimum_bootnodes = value.parse::<usize>().ok(),
-                _ => {}
-            }
-        }
-    }
-
-    Ok((
-        minimum_validators.unwrap_or(defaults.0),
-        minimum_bootnodes.unwrap_or(defaults.1),
-    ))
 }

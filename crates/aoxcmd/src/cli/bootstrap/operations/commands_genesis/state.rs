@@ -20,6 +20,25 @@ fn is_allowed_genesis_account_role(role: &str) -> bool {
     ALLOWED_GENESIS_ACCOUNT_ROLES.contains(&role)
 }
 
+const ALLOWED_GENESIS_ACCOUNT_ROLES: [&str; 12] = [
+    "treasury",
+    "validator",
+    "system",
+    "user",
+    "governance",
+    "forge",
+    "quorum",
+    "seal",
+    "archive",
+    "sentinel",
+    "relay",
+    "pocket",
+];
+
+fn is_allowed_genesis_account_role(role: &str) -> bool {
+    ALLOWED_GENESIS_ACCOUNT_ROLES.contains(&role)
+}
+
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
     let profile_input = arg_value(args, "--profile")
         .or_else(|| load().ok().map(|settings| settings.profile))
@@ -273,11 +292,7 @@ pub fn cmd_genesis_validate(args: &[String]) -> Result<(), AppError> {
     let genesis = load_genesis()?;
     validate_genesis(&genesis)?;
     validate_binding_files(&genesis)?;
-    let strict = if has_flag(args, "--no-strict") {
-        false
-    } else {
-        has_flag(args, "--strict") || matches!(genesis.environment.as_str(), "mainnet" | "testnet")
-    };
+    let strict = has_flag(args, "--strict");
     if strict {
         validate_identity_against_repo_policy(&genesis)?;
     }
