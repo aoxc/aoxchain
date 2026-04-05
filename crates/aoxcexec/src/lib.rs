@@ -8,6 +8,8 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 
+mod engine;
+
 include!("exec_types.rs");
 include!("exec_orchestrator.rs");
 include!("exec_tests.rs");

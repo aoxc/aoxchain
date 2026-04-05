@@ -557,7 +557,9 @@ fn canonicalize_payloads(payloads: &[ExecutionPayload]) -> Vec<ExecutionPayload>
     ordered
 }
 
-pub(crate) fn validate_registry_checksum(policy: &LaneRegistryPolicy) -> Result<(), ExecutionError> {
+pub(crate) fn validate_registry_checksum(
+    policy: &LaneRegistryPolicy,
+) -> Result<(), ExecutionError> {
     policy.policy.validate()?;
     let expected = hash_struct(
         DOMAIN_EXEC_CONFIG_V1,
