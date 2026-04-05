@@ -17,11 +17,9 @@ quantum_tier = "q2_hybrid_required"
 
 [roles.core_prop]
 enabled = true
-quantum_tier = "q2_hybrid_required"
 
 [roles.core_guard]
 enabled = true
-quantum_tier = "q3_evidence_hardened"
 
 [roles.net_relay]
 enabled = true
@@ -33,11 +31,9 @@ quantum_tier = "q1_classical_compatible"
 
 [roles.data_arch]
 enabled = true
-quantum_tier = "q2_hybrid_required"
 
 [roles.data_da]
 enabled = true
-quantum_tier = "q2_hybrid_required"
 
 [roles.serv_rpc]
 enabled = true
@@ -53,24 +49,18 @@ quantum_tier = "q3_evidence_hardened"
 
 [roles.x_orcl]
 enabled = true
-quantum_tier = "q2_hybrid_required"
 
 [roles.x_bridge]
 enabled = true
-quantum_tier = "q3_evidence_hardened"
 
 [roles.core_qc]
 enabled = true
-quantum_tier = "q4_pqc_anchor"
 
 [roles.core_qv]
 enabled = true
-quantum_tier = "q4_pqc_anchor"
 
 [roles.sec_evd]
 enabled = true
-quantum_tier = "q4_pqc_anchor"
 
 [roles.net_pacer]
 enabled = true
-quantum_tier = "q2_hybrid_required"
