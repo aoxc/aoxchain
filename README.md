@@ -4,22 +4,16 @@
   <img src="./logos/aoxc.png" alt="AOXChain Logo" width="180" />
 </p>
 
-AOXChain is a deterministic Layer-1 engineering program focused on production-grade operations, cryptographic agility, and evidence-backed readiness.
+AOXChain is a deterministic Layer-1 engineering program focused on production-grade operation, cryptographic agility, and evidence-backed readiness.
 
 ## Program Direction
 
 AOXChain follows a two-stage strategy:
 
-1. **Production-Grade Testnet** — build and operate testnet with mainnet discipline.
-2. **PQ-Resilient Mainnet** — activate mainnet only after cryptographic, operational, and rollback controls are proven.
+1. **Production-Grade Testnet** — operate testnet with mainnet discipline.
+2. **PQ-Resilient Mainnet** — activate mainnet only after cryptographic and operational controls are proven.
 
-This repository intentionally avoids unverifiable claims such as “unbreakable.”
-
-## Current Posture
-
-- Active engineering and validation program.
-- Readiness claims are valid only with reproducible evidence.
-- Repository contents are provided under MIT on an “as is” basis.
+The repository intentionally avoids unverifiable claims.
 
 ## Repository Layout
 
@@ -35,15 +29,13 @@ This repository intentionally avoids unverifiable claims such as “unbreakable.
 ## Canonical Documents
 
 - `READ.md` — repository-level technical contract and invariants.
-- `ROADMAP.md` — current strategic roadmap and phase gates.
 - `SCOPE.md` — in-scope/out-of-scope and compatibility posture.
 - `ARCHITECTURE.md` — component boundaries and dependency direction.
 - `SECURITY.md` — security posture and disclosure model.
 - `TESTING.md` — validation policy and readiness gates.
-- `NETWORK_SECURITY_ARCHITECTURE.md` — node, RPC, and host hardening model.
-- `WHITEPAPER.md` — protocol-level architecture narrative.
+- `ROADMAP.md` — strategic roadmap and phase gates.
 
-## Baseline Commands
+## Baseline Engineering Commands
 
 ```bash
 make build
@@ -54,9 +46,49 @@ make testnet-gate
 make testnet-readiness-gate
 ```
 
+## Container Runtime (Docker + Podman)
+
+AOXChain container surfaces are maintained to run on both Docker and Podman.
+
+### Unified Makefile surface
+
+```bash
+make container-check CONTAINER_ENGINE=auto
+make container-check CONTAINER_ENGINE=docker
+make container-check CONTAINER_ENGINE=podman
+make container-build CONTAINER_ENGINE=podman
+make container-config CONTAINER_ENGINE=podman
+```
+
+### Build image
+
+```bash
+docker build -t aoxchain-node:local .
+# or
+podman build -t aoxchain-node:local .
+```
+
+### Run a single node
+
+```bash
+docker run --rm -p 26656:26656 -p 8545:8545 aoxchain-node:local
+# or
+podman run --rm -p 26656:26656 -p 8545:8545 aoxchain-node:local
+```
+
+### Run local multi-node topology
+
+```bash
+docker compose up --build
+# or
+podman compose up --build
+```
+
+Additional Podman notes are documented in `PODMAN.md`.
+
 ## Compatibility and Change Discipline
 
-Breaking changes may be accepted for determinism, safety, or architectural integrity. Compatibility-impacting changes must include explicit rationale, migration guidance when required, and synchronized documentation updates.
+Compatibility-impacting changes must include explicit rationale, migration guidance when required, and synchronized documentation updates.
 
 ## License
 

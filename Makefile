@@ -70,6 +70,9 @@ AWK ?= awk
 LS ?= ls
 SED ?= sed
 CMP ?= cmp
+CONTAINER_ENGINE ?= auto
+CONTAINER_IMAGE ?= aoxchain-node:local
+CONTAINER_COMPOSE_FILE ?= docker-compose.yaml
 
 # --------------------------------------------------------------------
 # Workspace quality flags
@@ -256,7 +259,7 @@ endef
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
-	runtime-bundle-compat-check docker-check production-full \
+	runtime-bundle-compat-check docker-check podman-check container-check container-build container-config container-up container-down production-full \
 	phase1-full quantum-readiness-gate quantum-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
@@ -326,6 +329,14 @@ help:
 	@printf "  make runtime-doctor\n"
 	@printf "  make runtime-reinstall\n"
 	@printf "  make runtime-reset\n\n"
+	@printf "Container runtime\n"
+	@printf "  make container-check CONTAINER_ENGINE=auto\n"
+	@printf "  make container-check CONTAINER_ENGINE=docker\n"
+	@printf "  make container-check CONTAINER_ENGINE=podman\n"
+	@printf "  make container-build\n"
+	@printf "  make container-config\n"
+	@printf "  make container-up\n"
+	@printf "  make container-down\n\n"
 	@printf "Full multi-node provision\n"
 	@printf "  make aoxc-full-4nodes\n"
 	@printf "  make aoxc-full-4nodes-docker\n\n"
@@ -715,6 +726,107 @@ docker-check:
 	else \
 		echo "Missing Docker Compose support (docker compose / docker-compose)."; \
 		exit 1; \
+	fi
+
+podman-check:
+	$(call print_banner,Validating Podman runtime prerequisites)
+	$(call require_command,podman)
+	@podman info >/dev/null 2>&1 || { echo "Podman runtime is not reachable."; exit 1; }
+	@podman compose version >/dev/null 2>&1 || { echo "Missing Podman Compose support (podman compose)."; exit 1; }
+
+container-check:
+	$(call print_banner,Validating container runtime prerequisites for $(CONTAINER_ENGINE))
+	$(call require_file,$(CONTAINER_COMPOSE_FILE))
+	@if [ "$(CONTAINER_ENGINE)" = "auto" ]; then \
+		if command -v podman >/dev/null 2>&1; then \
+			$(MAKE) --no-print-directory podman-check; \
+			echo "Container engine resolved to: podman"; \
+		elif command -v docker >/dev/null 2>&1; then \
+			$(MAKE) --no-print-directory docker-check; \
+			echo "Container engine resolved to: docker"; \
+		else \
+			echo "No supported container engine found (docker/podman)."; \
+			exit 1; \
+		fi; \
+	elif [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
+		$(MAKE) --no-print-directory docker-check; \
+	elif [ "$(CONTAINER_ENGINE)" = "podman" ]; then \
+		$(MAKE) --no-print-directory podman-check; \
+	else \
+		echo "Unsupported CONTAINER_ENGINE=$(CONTAINER_ENGINE). Use auto, docker, or podman."; \
+		exit 1; \
+	fi
+
+container-build: container-check
+	$(call print_banner,Building local AOXChain container image with $(CONTAINER_ENGINE))
+	@if [ "$(CONTAINER_ENGINE)" = "auto" ]; then \
+		if command -v podman >/dev/null 2>&1; then \
+			podman build -t "$(CONTAINER_IMAGE)" .; \
+		else \
+			docker build -t "$(CONTAINER_IMAGE)" .; \
+		fi; \
+	else \
+		"$(CONTAINER_ENGINE)" build -t "$(CONTAINER_IMAGE)" .; \
+	fi
+
+container-config: container-check
+	$(call print_banner,Rendering compose configuration with $(CONTAINER_ENGINE))
+	@if [ "$(CONTAINER_ENGINE)" = "auto" ]; then \
+		if command -v podman >/dev/null 2>&1; then \
+			podman compose -f "$(CONTAINER_COMPOSE_FILE)" config; \
+		elif docker compose version >/dev/null 2>&1; then \
+			docker compose -f "$(CONTAINER_COMPOSE_FILE)" config; \
+		else \
+			docker-compose -f "$(CONTAINER_COMPOSE_FILE)" config; \
+		fi; \
+	elif [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
+		if docker compose version >/dev/null 2>&1; then \
+			docker compose -f "$(CONTAINER_COMPOSE_FILE)" config; \
+		else \
+			docker-compose -f "$(CONTAINER_COMPOSE_FILE)" config; \
+		fi; \
+	else \
+		podman compose -f "$(CONTAINER_COMPOSE_FILE)" config; \
+	fi
+
+container-up: container-check
+	$(call print_banner,Starting AOXChain compose topology with $(CONTAINER_ENGINE))
+	@if [ "$(CONTAINER_ENGINE)" = "auto" ]; then \
+		if command -v podman >/dev/null 2>&1; then \
+			podman compose -f "$(CONTAINER_COMPOSE_FILE)" up --build; \
+		elif docker compose version >/dev/null 2>&1; then \
+			docker compose -f "$(CONTAINER_COMPOSE_FILE)" up --build; \
+		else \
+			docker-compose -f "$(CONTAINER_COMPOSE_FILE)" up --build; \
+		fi; \
+	elif [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
+		if docker compose version >/dev/null 2>&1; then \
+			docker compose -f "$(CONTAINER_COMPOSE_FILE)" up --build; \
+		else \
+			docker-compose -f "$(CONTAINER_COMPOSE_FILE)" up --build; \
+		fi; \
+	else \
+		podman compose -f "$(CONTAINER_COMPOSE_FILE)" up --build; \
+	fi
+
+container-down: container-check
+	$(call print_banner,Stopping AOXChain compose topology with $(CONTAINER_ENGINE))
+	@if [ "$(CONTAINER_ENGINE)" = "auto" ]; then \
+		if command -v podman >/dev/null 2>&1; then \
+			podman compose -f "$(CONTAINER_COMPOSE_FILE)" down; \
+		elif docker compose version >/dev/null 2>&1; then \
+			docker compose -f "$(CONTAINER_COMPOSE_FILE)" down; \
+		else \
+			docker-compose -f "$(CONTAINER_COMPOSE_FILE)" down; \
+		fi; \
+	elif [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
+		if docker compose version >/dev/null 2>&1; then \
+			docker compose -f "$(CONTAINER_COMPOSE_FILE)" down; \
+		else \
+			docker-compose -f "$(CONTAINER_COMPOSE_FILE)" down; \
+		fi; \
+	else \
+		podman compose -f "$(CONTAINER_COMPOSE_FILE)" down; \
 	fi
 
 runtime-install: runtime-source-check bootstrap-paths

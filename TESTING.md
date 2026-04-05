@@ -26,6 +26,9 @@ Unless a stricter control is explicitly required by change scope, the following 
 - `make code-size-gate` (required for changes that add or modify source files; enforces `MAX_CODE_LINES=260` by default on staged/modified files)
 - `make code-size-gate-full` (recommended before major refactors to assess large-file compliance across the full tracked repository surface)
 - `make os-compat-gate` (required when changes affect cross-platform runtime, Docker, or host-tooling contract)
+- `make container-check CONTAINER_ENGINE=docker` (required when changing `Dockerfile`, `docker-compose.yaml`, or container startup semantics)
+- `make container-check CONTAINER_ENGINE=podman` (required when container changes claim Podman compatibility)
+- `make container-config CONTAINER_ENGINE=auto` (recommended to verify compose rendering on the preferred available engine before merge)
 - `make testnet-gate` (required when changes affect `configs/environments/testnet` or testnet operator flow)
 - `make testnet-readiness-gate` (single-command gate for PR-ready testnet validation)
 
