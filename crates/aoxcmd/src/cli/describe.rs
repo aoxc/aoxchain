@@ -104,6 +104,43 @@ struct PortMap<'a> {
     prometheus_port: u16,
 }
 
+/// Unified advanced API/CLI blueprint for operators building automation.
+#[derive(Debug, Clone, Serialize)]
+struct QuantumAutomationBlueprint<'a> {
+    profile_version: &'a str,
+    posture: &'a str,
+    api_controls: Vec<&'a str>,
+    cli_controls: Vec<&'a str>,
+    release_gates: Vec<&'a str>,
+}
+
+/// Effective quantum readiness posture derived from active operator settings.
+#[derive(Debug, Clone, Serialize)]
+struct QuantumOperatorPosture {
+    profile: String,
+    bind_host: String,
+    rpc_port: u16,
+    metrics_enabled: bool,
+    official_peers_enforced: bool,
+    remote_peers_allowed: bool,
+    safety_requirements: QuantumOperatorSafetyRequirements,
+    readiness: QuantumOperatorReadiness,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct QuantumOperatorSafetyRequirements {
+    require_key_material: bool,
+    require_genesis: bool,
+    logging_json: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct QuantumOperatorReadiness {
+    status: &'static str,
+    score: u8,
+    warnings: Vec<String>,
+}
+
 /// Emits JSON for describe-surface commands that intentionally expose a stable
 /// machine-readable contract.
 fn emit_json<T: Serialize>(value: &T) -> Result<(), AppError> {
@@ -228,6 +265,80 @@ pub fn cmd_version() -> Result<(), AppError> {
     emit_json(&build_info())
 }
 
+/// Emits a machine-readable advanced API+CLI blueprint for operator automation.
+pub fn cmd_quantum_blueprint() -> Result<(), AppError> {
+    emit_json(&QuantumAutomationBlueprint {
+        profile_version: "v1",
+        posture: "hybrid-post-quantum-hardening",
+        api_controls: vec![
+            "idempotency-key required on write operations",
+            "request-signature envelope validated before admission",
+            "adaptive rate limit and rejection metrics exported",
+            "strict request/response schema contracts with compatibility versioning",
+        ],
+        cli_controls: vec![
+            "all readiness and gate commands support JSON output for CI",
+            "operator evidence commands are mandatory for release audits",
+            "health and status surfaces are deterministic and script-safe",
+        ],
+        release_gates: vec![
+            "compatibility matrix report must be generated",
+            "full-surface readiness gate must pass",
+            "security evidence bundle must be complete",
+        ],
+    })
+}
+
+/// Emits effective operator quantum posture from current settings.
+pub fn cmd_quantum_posture(args: &[String]) -> Result<(), AppError> {
+    let settings = effective_settings_for_describe_surface()?;
+    let mut warnings = Vec::new();
+
+    if settings.policy.allow_remote_peers && settings.profile == "mainnet" {
+        warnings.push("mainnet profile should not allow remote peers".to_string());
+    }
+
+    if !settings.network.enforce_official_peers {
+        warnings.push("official peer enforcement is disabled".to_string());
+    }
+
+    if !settings.policy.require_key_material {
+        warnings.push("key material requirement is disabled".to_string());
+    }
+
+    if !settings.policy.require_genesis {
+        warnings.push("genesis requirement is disabled".to_string());
+    }
+
+    let score = 100u8.saturating_sub((warnings.len() as u8).saturating_mul(20));
+    let posture = QuantumOperatorPosture {
+        profile: settings.profile,
+        bind_host: settings.network.bind_host,
+        rpc_port: settings.network.rpc_port,
+        metrics_enabled: settings.telemetry.enable_metrics,
+        official_peers_enforced: settings.network.enforce_official_peers,
+        remote_peers_allowed: settings.policy.allow_remote_peers,
+        safety_requirements: QuantumOperatorSafetyRequirements {
+            require_key_material: settings.policy.require_key_material,
+            require_genesis: settings.policy.require_genesis,
+            logging_json: settings.logging.json,
+        },
+        readiness: QuantumOperatorReadiness {
+            status: if warnings.is_empty() {
+                "hardened"
+            } else if score >= 60 {
+                "review-required"
+            } else {
+                "unsafe"
+            },
+            score,
+            warnings,
+        },
+    };
+
+    emit_serialized(&posture, output_format(args))
+}
+
 /// Emits the high-level vision statement for the AOXC operator command plane.
 pub fn cmd_vision() -> Result<(), AppError> {
     let trace = trace_for("vision");
@@ -344,7 +455,9 @@ pub fn cmd_port_map() -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{compatibility_matrix, effective_settings_for_describe_surface};
+    use super::{
+        cmd_quantum_posture, compatibility_matrix, effective_settings_for_describe_surface,
+    };
     use crate::test_support::{AoxcHomeGuard, TestHome, aoxc_home_test_lock};
 
     fn with_test_home<T>(label: &str, test: impl FnOnce(&TestHome) -> T) -> T {
@@ -398,6 +511,14 @@ mod tests {
                 !home.path().join("config").join("settings.json").exists(),
                 "read-only describe surfaces must not create configuration files"
             );
+        });
+    }
+
+    #[test]
+    fn quantum_posture_command_succeeds_with_default_validation_profile() {
+        with_test_home("describe-quantum-posture-default", |_home| {
+            cmd_quantum_posture(&["--format".to_string(), "json".to_string()])
+                .expect("quantum posture should render with default in-memory settings");
         });
     }
 }

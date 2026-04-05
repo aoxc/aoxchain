@@ -98,6 +98,8 @@ DESCRIBE
   sovereign-core
   module-architecture
   compat-matrix
+  quantum-blueprint
+  quantum-posture [--format <json|yaml|text>]
   port-map
   profile-baseline [--enforce]
 
