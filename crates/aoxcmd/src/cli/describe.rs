@@ -378,7 +378,9 @@ pub fn cmd_port_map() -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{compatibility_matrix, effective_settings_for_describe_surface};
+    use super::{
+        cmd_quantum_posture, compatibility_matrix, effective_settings_for_describe_surface,
+    };
     use crate::test_support::{AoxcHomeGuard, TestHome, aoxc_home_test_lock};
 
     fn with_test_home<T>(label: &str, test: impl FnOnce(&TestHome) -> T) -> T {
@@ -432,6 +434,14 @@ mod tests {
                 !home.path().join("config").join("settings.json").exists(),
                 "read-only describe surfaces must not create configuration files"
             );
+        });
+    }
+
+    #[test]
+    fn quantum_posture_command_succeeds_with_default_validation_profile() {
+        with_test_home("describe-quantum-posture-default", |_home| {
+            cmd_quantum_posture(&["--format".to_string(), "json".to_string()])
+                .expect("quantum posture should render with default in-memory settings");
         });
     }
 }
