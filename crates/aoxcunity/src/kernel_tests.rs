@@ -386,4 +386,29 @@ mod tests {
         );
         assert!(second.invariant_status.conflicting_finality_detected);
     }
+
+    #[test]
+    fn operational_snapshot_reports_production_hint_after_finality() {
+        let mut engine = engine();
+        let genesis = make_block([0u8; 32], 0, [1u8; 32], 0);
+        let block = make_block(genesis.hash, 1, [2u8; 32], 1);
+
+        let _ = engine.apply_event(ConsensusEvent::AdmitBlock(genesis));
+        let _ = engine.apply_event(ConsensusEvent::AdmitBlock(block.clone()));
+        for voter in [1u8, 2u8, 3u8] {
+            let _ = engine.apply_event(commit_vote(&engine, voter, &block, 1));
+        }
+        let result = engine.apply_event(ConsensusEvent::EvaluateFinality {
+            block_hash: block.hash,
+        });
+
+        let snapshot = engine.operational_snapshot(result.invariant_status.clone());
+
+        assert!(snapshot.production_ready_hint());
+        assert_eq!(snapshot.current_height, 1);
+        assert_eq!(snapshot.quorum_numerator, 2);
+        assert_eq!(snapshot.quorum_denominator, 3);
+        assert_eq!(snapshot.finalized_head, Some(block.hash));
+        assert!(snapshot.vote_record_count >= 3);
+    }
 }

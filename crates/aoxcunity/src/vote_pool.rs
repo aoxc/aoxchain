@@ -109,6 +109,11 @@ impl VotePool {
             .unwrap_or(0)
     }
 
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.seen.len()
+    }
+
     pub fn prune_blocks<F>(&mut self, mut should_keep: F)
     where
         F: FnMut([u8; 32]) -> bool,

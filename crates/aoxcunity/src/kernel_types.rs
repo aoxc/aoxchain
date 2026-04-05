@@ -98,6 +98,43 @@ impl InvariantStatus {
             replay_diverged: false,
         }
     }
+
+    #[must_use]
+    pub const fn is_healthy(&self) -> bool {
+        !self.conflicting_finality_detected && !self.stale_branch_reactivated && !self.replay_diverged
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KernelOperationalSnapshot {
+    pub current_epoch: u64,
+    pub current_height: u64,
+    pub current_round: u64,
+    pub known_block_count: usize,
+    pub vote_record_count: usize,
+    pub timeout_vote_bucket_count: usize,
+    pub legitimacy_certificate_count: usize,
+    pub continuity_certificate_count: usize,
+    pub evidence_record_count: usize,
+    pub replay_marker_count: usize,
+    pub active_validator_count: usize,
+    pub total_voting_power: u64,
+    pub quorum_numerator: u64,
+    pub quorum_denominator: u64,
+    pub fork_head: Option<[u8; 32]>,
+    pub finalized_head: Option<[u8; 32]>,
+    pub invariant_status: InvariantStatus,
+}
+
+impl KernelOperationalSnapshot {
+    #[must_use]
+    pub fn production_ready_hint(&self) -> bool {
+        self.invariant_status.is_healthy()
+            && self.finalized_head.is_some()
+            && self.active_validator_count > 0
+            && self.total_voting_power > 0
+            && self.known_block_count > 0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -184,4 +221,3 @@ pub struct ConsensusEngine {
     pub evidence_buffer: Vec<ConsensusEvidence>,
     pub replayed_event_hashes: BTreeSet<[u8; 32]>,
 }
-
