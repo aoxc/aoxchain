@@ -288,7 +288,8 @@ pub(in crate::cli::bootstrap::operations) fn write_json_pretty<T: Serialize>(
     write_file(path, &encoded)
 }
 
-pub(in crate::cli::bootstrap::operations) fn load_genesis() -> Result<BootstrapGenesisDocument, AppError> {
+pub(in crate::cli::bootstrap::operations) fn load_genesis()
+-> Result<BootstrapGenesisDocument, AppError> {
     let raw = read_file(&genesis_path()?)?;
     serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|error| {
         AppError::with_source(
@@ -299,7 +300,9 @@ pub(in crate::cli::bootstrap::operations) fn load_genesis() -> Result<BootstrapG
     })
 }
 
-pub(in crate::cli::bootstrap::operations) fn persist_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+pub(in crate::cli::bootstrap::operations) fn persist_genesis(
+    genesis: &BootstrapGenesisDocument,
+) -> Result<(), AppError> {
     write_json_pretty(
         &genesis_path()?,
         genesis,
@@ -307,7 +310,9 @@ pub(in crate::cli::bootstrap::operations) fn persist_genesis(genesis: &Bootstrap
     )
 }
 
-pub(in crate::cli::bootstrap::operations) fn identity_dir_from_genesis(genesis: &BootstrapGenesisDocument) -> Result<PathBuf, AppError> {
+pub(in crate::cli::bootstrap::operations) fn identity_dir_from_genesis(
+    genesis: &BootstrapGenesisDocument,
+) -> Result<PathBuf, AppError> {
     let path = genesis_path()?;
     let root = path.parent().ok_or_else(|| {
         AppError::new(
@@ -329,7 +334,9 @@ pub(in crate::cli::bootstrap::operations) fn identity_dir_from_genesis(genesis: 
     Ok(root.to_path_buf())
 }
 
-pub(in crate::cli::bootstrap::operations) fn sync_optional_accounts_binding(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+pub(in crate::cli::bootstrap::operations) fn sync_optional_accounts_binding(
+    genesis: &BootstrapGenesisDocument,
+) -> Result<(), AppError> {
     let Some(accounts_file) = genesis.bindings.accounts_file.as_deref() else {
         return Ok(());
     };
@@ -433,7 +440,10 @@ pub(in crate::cli::bootstrap::operations) fn load_or_default_bootnodes_binding(
     })
 }
 
-pub(in crate::cli::bootstrap::operations) fn upsert_bootnode_binding(doc: &mut BootstrapBootnodesDocument, record: BootstrapBootnodeRecord) {
+pub(in crate::cli::bootstrap::operations) fn upsert_bootnode_binding(
+    doc: &mut BootstrapBootnodesDocument,
+    record: BootstrapBootnodeRecord,
+) {
     if let Some(existing) = doc
         .bootnodes
         .iter_mut()
@@ -453,7 +463,9 @@ pub(in crate::cli::bootstrap::operations) fn persist_bootnodes_binding(
     write_json_pretty(&path, doc, "Failed to encode bootnodes binding document")
 }
 
-pub(in crate::cli::bootstrap::operations) fn validate_genesis(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+pub(in crate::cli::bootstrap::operations) fn validate_genesis(
+    genesis: &BootstrapGenesisDocument,
+) -> Result<(), AppError> {
     if genesis.schema_version != 1 {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
@@ -609,7 +621,9 @@ struct ValidatorRecord {
     status: String,
 }
 
-pub(in crate::cli::bootstrap::operations) fn validate_binding_files(genesis: &BootstrapGenesisDocument) -> Result<(), AppError> {
+pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
+    genesis: &BootstrapGenesisDocument,
+) -> Result<(), AppError> {
     let genesis_file = genesis_path()?;
     let root = genesis_file.parent().ok_or_else(|| {
         AppError::new(

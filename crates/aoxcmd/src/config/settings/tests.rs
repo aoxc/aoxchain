@@ -80,8 +80,7 @@ fn validate_rejects_conflicting_peer_policy() {
 
 #[test]
 fn validate_rejects_mainnet_without_structured_logging() {
-    let mut settings =
-        Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
+    let mut settings = Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
     settings.logging.json = false;
     settings.network.bind_host = "0.0.0.0".to_string();
 
@@ -107,8 +106,7 @@ fn validate_rejects_mainnet_with_relative_home_dir() {
 
 #[test]
 fn validate_rejects_mainnet_with_debug_logging() {
-    let mut settings =
-        Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
+    let mut settings = Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
     settings.logging.level = "debug".to_string();
 
     assert!(settings.validate().is_err());
@@ -116,8 +114,7 @@ fn validate_rejects_mainnet_with_debug_logging() {
 
 #[test]
 fn validate_rejects_mainnet_with_trace_logging() {
-    let mut settings =
-        Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
+    let mut settings = Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
     settings.logging.level = "trace".to_string();
 
     assert!(settings.validate().is_err());
@@ -125,8 +122,7 @@ fn validate_rejects_mainnet_with_trace_logging() {
 
 #[test]
 fn validate_rejects_mainnet_with_loopback_bind_host() {
-    let mut settings =
-        Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
+    let mut settings = Settings::default_for_profile("/tmp/aoxc".to_string(), "mainnet").unwrap();
     settings.network.bind_host = "127.0.0.1".to_string();
 
     assert!(settings.validate().is_err());
@@ -141,8 +137,7 @@ fn validate_accepts_testnet_defaults() {
 
 #[test]
 fn validate_rejects_testnet_trace_logging() {
-    let mut settings =
-        Settings::default_for_profile("/tmp/aoxc".to_string(), "testnet").unwrap();
+    let mut settings = Settings::default_for_profile("/tmp/aoxc".to_string(), "testnet").unwrap();
     settings.logging.level = "trace".to_string();
 
     assert!(settings.validate().is_err());
@@ -150,8 +145,7 @@ fn validate_rejects_testnet_trace_logging() {
 
 #[test]
 fn validate_accepts_validation_defaults() {
-    let settings =
-        Settings::default_for_profile("/tmp/aoxc".to_string(), "validation").unwrap();
+    let settings = Settings::default_for_profile("/tmp/aoxc".to_string(), "validation").unwrap();
 
     assert!(settings.validate().is_ok());
 }
@@ -183,8 +177,7 @@ fn validate_accepts_localnet_defaults() {
 
 #[test]
 fn validate_rejects_localnet_with_non_loopback_bind_host() {
-    let mut settings =
-        Settings::default_for_profile("/tmp/aoxc".to_string(), "localnet").unwrap();
+    let mut settings = Settings::default_for_profile("/tmp/aoxc".to_string(), "localnet").unwrap();
     settings.network.bind_host = "0.0.0.0".to_string();
 
     assert!(settings.validate().is_err());

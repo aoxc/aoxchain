@@ -1,9 +1,9 @@
+use super::core::canonicalize_payload_type;
 use super::{
     ChainFamily, FeeClass, MessageEnvelope, MessageEnvelopeError, ModuleId, SovereignRoot,
     canonical_chain_families, canonical_message_envelope_fields, canonical_modules,
     canonical_sovereign_roots,
 };
-use super::core::canonicalize_payload_type;
 
 fn sample_envelope() -> MessageEnvelope {
     MessageEnvelope::new(

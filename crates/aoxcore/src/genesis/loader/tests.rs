@@ -1,8 +1,8 @@
+use super::core::DEFAULT_TREASURY;
 use super::*;
 use crate::genesis::{AOXC_FAMILY_ID, NetworkClass};
 use std::fs;
 use std::path::PathBuf;
-use super::core::DEFAULT_TREASURY;
 
 #[test]
 fn load_default_builds_aoxc_mainnet_identity() {
@@ -21,8 +21,7 @@ fn load_default_builds_aoxc_mainnet_identity() {
 
 #[test]
 fn load_default_testnet_builds_aoxc_testnet_identity() {
-    let config =
-        GenesisLoader::load_default_testnet().expect("default testnet genesis must build");
+    let config = GenesisLoader::load_default_testnet().expect("default testnet genesis must build");
 
     assert_eq!(config.identity.family_id, AOXC_FAMILY_ID);
     assert_eq!(config.identity.chain_id, 2626010001);

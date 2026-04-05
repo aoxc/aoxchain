@@ -1,8 +1,8 @@
 // AOXC MIT License
 // Production-oriented protocol message envelope primitive.
 
-pub mod interop;
 mod core;
+pub mod interop;
 
 pub use core::*;
 

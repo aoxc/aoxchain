@@ -106,8 +106,7 @@ fn session_bound_threshold_verification_succeeds() {
         bound_partial("validator-2", "session-001", 1, session.payload_digest),
     ];
 
-    let report =
-        verify_threshold_session_signatures(&policy, &session, &partials, 150).unwrap();
+    let report = verify_threshold_session_signatures(&policy, &session, &partials, 150).unwrap();
 
     assert_eq!(report.threshold_required, 2);
     assert_eq!(report.session_id, "session-001");
@@ -125,8 +124,7 @@ fn unauthorized_signer_is_rejected() {
         bound_partial("attacker-1", "session-001", 1, session.payload_digest),
     ];
 
-    let error =
-        verify_threshold_session_signatures(&policy, &session, &partials, 150).unwrap_err();
+    let error = verify_threshold_session_signatures(&policy, &session, &partials, 150).unwrap_err();
 
     assert_eq!(error, TssError::UnauthorizedSigner);
 }
@@ -142,8 +140,7 @@ fn payload_mismatch_is_rejected() {
         bound_partial("validator-2", "session-001", 1, wrong_digest),
     ];
 
-    let error =
-        verify_threshold_session_signatures(&policy, &session, &partials, 150).unwrap_err();
+    let error = verify_threshold_session_signatures(&policy, &session, &partials, 150).unwrap_err();
 
     assert_eq!(error, TssError::PayloadMismatch);
 }
@@ -157,8 +154,7 @@ fn round_mismatch_is_rejected() {
         bound_partial("validator-2", "session-001", 2, session.payload_digest),
     ];
 
-    let error =
-        verify_threshold_session_signatures(&policy, &session, &partials, 150).unwrap_err();
+    let error = verify_threshold_session_signatures(&policy, &session, &partials, 150).unwrap_err();
 
     assert_eq!(error, TssError::RoundMismatch);
 }
@@ -172,8 +168,7 @@ fn session_mismatch_is_rejected() {
         bound_partial("validator-2", "session-XYZ", 1, session.payload_digest),
     ];
 
-    let error =
-        verify_threshold_session_signatures(&policy, &session, &partials, 150).unwrap_err();
+    let error = verify_threshold_session_signatures(&policy, &session, &partials, 150).unwrap_err();
 
     assert_eq!(error, TssError::SessionMismatch);
 }
@@ -187,8 +182,7 @@ fn session_expiry_is_enforced() {
         bound_partial("validator-2", "session-001", 1, session.payload_digest),
     ];
 
-    let error =
-        verify_threshold_session_signatures(&policy, &session, &partials, 250).unwrap_err();
+    let error = verify_threshold_session_signatures(&policy, &session, &partials, 250).unwrap_err();
 
     assert_eq!(error, TssError::SessionExpired);
 }
@@ -202,8 +196,7 @@ fn session_not_yet_valid_is_enforced() {
         bound_partial("validator-2", "session-001", 1, session.payload_digest),
     ];
 
-    let error =
-        verify_threshold_session_signatures(&policy, &session, &partials, 50).unwrap_err();
+    let error = verify_threshold_session_signatures(&policy, &session, &partials, 50).unwrap_err();
 
     assert_eq!(error, TssError::SessionNotYetValid);
 }
