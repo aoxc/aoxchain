@@ -59,6 +59,17 @@ pub enum GenesisConfigError {
     WeakQuantumPolicy {
         reason: &'static str,
     },
+    InvalidNodePolicy,
+    DuplicateNodeRolePolicy {
+        role: String,
+    },
+    MissingNodeRolePolicy {
+        role: String,
+    },
+    WeakNodeRolePolicy {
+        role: String,
+        reason: &'static str,
+    },
     InvalidSettlementLink,
     InvalidGenesisSeal,
     GenesisNotesTooLong {
@@ -155,6 +166,21 @@ impl fmt::Display for GenesisConfigError {
             Self::WeakQuantumPolicy { reason } => write!(
                 f,
                 "genesis validation failed: quantum policy is too weak; {reason}"
+            ),
+            Self::InvalidNodePolicy => {
+                f.write_str("genesis validation failed: node policy is invalid")
+            }
+            Self::DuplicateNodeRolePolicy { role } => write!(
+                f,
+                "genesis validation failed: duplicate node role policy `{role}` detected"
+            ),
+            Self::MissingNodeRolePolicy { role } => write!(
+                f,
+                "genesis validation failed: missing required node role policy `{role}`"
+            ),
+            Self::WeakNodeRolePolicy { role, reason } => write!(
+                f,
+                "genesis validation failed: node role policy `{role}` is too weak; {reason}"
             ),
             Self::InvalidSettlementLink => {
                 f.write_str("genesis validation failed: settlement link is invalid")

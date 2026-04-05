@@ -243,6 +243,266 @@ impl QuantumPolicy {
     }
 }
 
+/// Canonical node roles for the AOXC seven-role topology.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[serde(rename_all = "kebab-case")]
+pub enum NodeRole {
+    Forge,
+    Quorum,
+    Seal,
+    Archive,
+    Sentinel,
+    Relay,
+    Pocket,
+}
+
+impl NodeRole {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Forge => "forge",
+            Self::Quorum => "quorum",
+            Self::Seal => "seal",
+            Self::Archive => "archive",
+            Self::Sentinel => "sentinel",
+            Self::Relay => "relay",
+            Self::Pocket => "pocket",
+        }
+    }
+
+    #[must_use]
+    const fn all() -> [Self; 7] {
+        [
+            Self::Forge,
+            Self::Quorum,
+            Self::Seal,
+            Self::Archive,
+            Self::Sentinel,
+            Self::Relay,
+            Self::Pocket,
+        ]
+    }
+}
+
+/// Role-specific staking, reward, and slashing policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeRolePolicy {
+    pub role: NodeRole,
+    pub min_stake: u128,
+    pub reward_bps: u16,
+    pub slash_bps: u16,
+    pub multisig_threshold: u8,
+    pub multisig_participants: u8,
+    pub quantum_seal_required: bool,
+}
+
+impl NodeRolePolicy {
+    fn validate(&self) -> Result<(), GenesisConfigError> {
+        if self.reward_bps > 10_000
+            || self.slash_bps > 10_000
+            || self.multisig_threshold == 0
+            || self.multisig_participants == 0
+            || self.multisig_threshold > self.multisig_participants
+        {
+            return Err(GenesisConfigError::InvalidNodePolicy);
+        }
+
+        if self.multisig_threshold < 2 {
+            return Err(GenesisConfigError::WeakNodeRolePolicy {
+                role: self.role.as_str().to_string(),
+                reason: "all node roles must enforce multisig threshold >= 2",
+            });
+        }
+
+        if self.role != NodeRole::Pocket && self.min_stake == 0 {
+            return Err(GenesisConfigError::WeakNodeRolePolicy {
+                role: self.role.as_str().to_string(),
+                reason: "non-pocket roles must require a positive minimum stake",
+            });
+        }
+
+        if self.role == NodeRole::Seal && !self.quantum_seal_required {
+            return Err(GenesisConfigError::WeakNodeRolePolicy {
+                role: self.role.as_str().to_string(),
+                reason: "seal role must require quantum sealing",
+            });
+        }
+
+        Ok(())
+    }
+
+    fn encode_canonical(&self, enc: &mut CanonicalEncoder) {
+        enc.str(self.role.as_str());
+        enc.u128(self.min_stake);
+        enc.u16(self.reward_bps);
+        enc.u16(self.slash_bps);
+        enc.u8(self.multisig_threshold);
+        enc.u8(self.multisig_participants);
+        enc.u8(u8::from(self.quantum_seal_required));
+    }
+}
+
+/// Node policy profile that governs the seven-role AOXC node topology.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodePolicy {
+    pub role_policies: Vec<NodeRolePolicy>,
+    pub treasury_reward_bps: u16,
+    pub governance_epoch_blocks: u64,
+}
+
+impl Default for NodePolicy {
+    fn default() -> Self {
+        Self::for_network_class(NetworkClass::Devnet)
+    }
+}
+
+impl NodePolicy {
+    #[must_use]
+    pub fn for_network_class(network_class: NetworkClass) -> Self {
+        let (stake_multiplier, epoch_blocks) = match network_class {
+            NetworkClass::PublicMainnet => (10_u128, 43_200),
+            NetworkClass::PublicTestnet | NetworkClass::Validation => (3_u128, 14_400),
+            NetworkClass::Devnet
+            | NetworkClass::SovereignPrivate
+            | NetworkClass::Consortium
+            | NetworkClass::RegulatedPrivate => (1_u128, 7_200),
+        };
+
+        Self {
+            role_policies: vec![
+                NodeRolePolicy {
+                    role: NodeRole::Forge,
+                    min_stake: 50_000 * stake_multiplier,
+                    reward_bps: 2_800,
+                    slash_bps: 2_000,
+                    multisig_threshold: 3,
+                    multisig_participants: 5,
+                    quantum_seal_required: false,
+                },
+                NodeRolePolicy {
+                    role: NodeRole::Quorum,
+                    min_stake: 75_000 * stake_multiplier,
+                    reward_bps: 2_400,
+                    slash_bps: 3_500,
+                    multisig_threshold: 4,
+                    multisig_participants: 7,
+                    quantum_seal_required: false,
+                },
+                NodeRolePolicy {
+                    role: NodeRole::Seal,
+                    min_stake: 40_000 * stake_multiplier,
+                    reward_bps: 1_400,
+                    slash_bps: 4_000,
+                    multisig_threshold: 3,
+                    multisig_participants: 5,
+                    quantum_seal_required: true,
+                },
+                NodeRolePolicy {
+                    role: NodeRole::Archive,
+                    min_stake: 10_000 * stake_multiplier,
+                    reward_bps: 900,
+                    slash_bps: 800,
+                    multisig_threshold: 2,
+                    multisig_participants: 3,
+                    quantum_seal_required: false,
+                },
+                NodeRolePolicy {
+                    role: NodeRole::Sentinel,
+                    min_stake: 20_000 * stake_multiplier,
+                    reward_bps: 1_100,
+                    slash_bps: 1_500,
+                    multisig_threshold: 3,
+                    multisig_participants: 5,
+                    quantum_seal_required: false,
+                },
+                NodeRolePolicy {
+                    role: NodeRole::Relay,
+                    min_stake: 5_000 * stake_multiplier,
+                    reward_bps: 800,
+                    slash_bps: 600,
+                    multisig_threshold: 2,
+                    multisig_participants: 3,
+                    quantum_seal_required: false,
+                },
+                NodeRolePolicy {
+                    role: NodeRole::Pocket,
+                    min_stake: 0,
+                    reward_bps: 300,
+                    slash_bps: 200,
+                    multisig_threshold: 2,
+                    multisig_participants: 2,
+                    quantum_seal_required: false,
+                },
+            ],
+            treasury_reward_bps: 300,
+            governance_epoch_blocks: epoch_blocks,
+        }
+    }
+
+    fn validate_for_network_class(
+        &self,
+        network_class: NetworkClass,
+    ) -> Result<(), GenesisConfigError> {
+        if self.role_policies.len() != NodeRole::all().len()
+            || self.treasury_reward_bps > 10_000
+            || self.governance_epoch_blocks == 0
+        {
+            return Err(GenesisConfigError::InvalidNodePolicy);
+        }
+
+        let mut seen = HashSet::with_capacity(self.role_policies.len());
+        for role_policy in &self.role_policies {
+            role_policy.validate()?;
+            if !seen.insert(role_policy.role) {
+                return Err(GenesisConfigError::DuplicateNodeRolePolicy {
+                    role: role_policy.role.as_str().to_string(),
+                });
+            }
+        }
+
+        for role in NodeRole::all() {
+            if !seen.contains(&role) {
+                return Err(GenesisConfigError::MissingNodeRolePolicy {
+                    role: role.as_str().to_string(),
+                });
+            }
+        }
+
+        if network_class == NetworkClass::PublicMainnet {
+            let quorum = self
+                .role_policies
+                .iter()
+                .find(|policy| policy.role == NodeRole::Quorum)
+                .ok_or(GenesisConfigError::MissingNodeRolePolicy {
+                    role: NodeRole::Quorum.as_str().to_string(),
+                })?;
+
+            if quorum.multisig_threshold < 4 {
+                return Err(GenesisConfigError::WeakNodeRolePolicy {
+                    role: NodeRole::Quorum.as_str().to_string(),
+                    reason: "public mainnet quorum threshold must be at least 4-of-N",
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    fn encode_canonical(&self, enc: &mut CanonicalEncoder) -> Result<(), GenesisConfigError> {
+        let mut ordered = self.role_policies.clone();
+        ordered.sort_by_key(|policy| policy.role);
+
+        enc.usize(ordered.len())?;
+        for policy in &ordered {
+            policy.encode_canonical(enc);
+        }
+
+        enc.u16(self.treasury_reward_bps);
+        enc.u64(self.governance_epoch_blocks);
+        Ok(())
+    }
+}
+
 fn validate_identifier(value: &str) -> Result<(), ()> {
     let trimmed = value.trim();
 
