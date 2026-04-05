@@ -29,6 +29,7 @@ IFS=$'\n\t'
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly MODE="${1:-}"
+readonly LOCK_MODE="--locked"
 
 CARGO_BIN="${CARGO:-cargo}"
 
@@ -80,24 +81,31 @@ ensure_audit_available() {
 
 run_quick() {
   run_step "cargo fmt --all --check" "${CARGO_BIN}" fmt --all --check
-  run_step "cargo check --workspace" "${CARGO_BIN}" check --workspace
+  run_step "cargo check --workspace --locked" "${CARGO_BIN}" check --workspace "${LOCK_MODE}"
 }
 
 run_full() {
   run_step "cargo fmt --all --check" "${CARGO_BIN}" fmt --all --check
-  run_step "cargo check --workspace" "${CARGO_BIN}" check --workspace
-  run_step "cargo test --workspace" "${CARGO_BIN}" test --workspace
-  run_step "cargo clippy --workspace --all-targets --all-features" \
-    "${CARGO_BIN}" clippy --workspace --all-targets --all-features
+  run_step "cargo check --workspace --locked" "${CARGO_BIN}" check --workspace "${LOCK_MODE}"
+  run_step "cargo test --workspace --exclude aoxchub --all-targets --locked" \
+    "${CARGO_BIN}" test --workspace --exclude aoxchub --all-targets "${LOCK_MODE}"
+  run_step "cargo clippy --workspace --exclude aoxchub --all-targets --all-features --locked -- -D warnings" \
+    "${CARGO_BIN}" clippy --workspace --exclude aoxchub --all-targets --all-features "${LOCK_MODE}" -- -D warnings
+  run_step "cargo check -p aoxchub --all-targets --locked" \
+    "${CARGO_BIN}" check -p aoxchub --all-targets "${LOCK_MODE}"
   ensure_audit_available
   run_step "cargo audit" cargo audit
 }
 
 run_release() {
   run_step "cargo fmt --all --check" "${CARGO_BIN}" fmt --all --check
-  run_step "cargo check --workspace" "${CARGO_BIN}" check --workspace
-  run_step "cargo test --workspace" "${CARGO_BIN}" test --workspace
-  run_step "cargo build --release --workspace --bins" "${CARGO_BIN}" build --release --workspace --bins
+  run_step "cargo check --workspace --locked" "${CARGO_BIN}" check --workspace "${LOCK_MODE}"
+  run_step "cargo test --workspace --exclude aoxchub --all-targets --locked" \
+    "${CARGO_BIN}" test --workspace --exclude aoxchub --all-targets "${LOCK_MODE}"
+  run_step "cargo check -p aoxchub --all-targets --locked" \
+    "${CARGO_BIN}" check -p aoxchub --all-targets "${LOCK_MODE}"
+  run_step "cargo build --release --workspace --bins --locked" \
+    "${CARGO_BIN}" build --release --workspace --bins "${LOCK_MODE}"
   ensure_audit_available
   run_step "cargo audit" cargo audit
 }
