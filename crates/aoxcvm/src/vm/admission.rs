@@ -4,6 +4,8 @@ use crate::auth::{registry::AuthProfileId, signer::SignerClass};
 use crate::context::{deterministic::DeterminismLimits, execution::ExecutionContext};
 use crate::tx::{envelope::TxEnvelope, validation::ValidationPolicy};
 use aoxcontract::{ContractClass, RuntimeBindingDescriptor};
+use aoxcore::genesis::{GenesisConfigError, KernelOperation, NodePolicy, NodeRole};
+use std::collections::HashSet;
 
 /// Admission errors produced before instruction execution begins.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,6 +21,7 @@ pub enum AdmissionError {
     GovernanceActivationRequired,
     GovernanceSignerClassRequired,
     TxKindForbiddenForClass,
+    KernelPolicy(GenesisConfigError),
 }
 
 /// Registry-backed auth context resolved before execution-time policy checks.
@@ -40,6 +43,24 @@ impl From<crate::tx::validation::ValidationError> for AdmissionError {
     fn from(value: crate::tx::validation::ValidationError) -> Self {
         Self::TxValidation(value)
     }
+}
+
+impl From<GenesisConfigError> for AdmissionError {
+    fn from(value: GenesisConfigError) -> Self {
+        Self::KernelPolicy(value)
+    }
+}
+
+/// Runtime kernel authorization context used to bridge VM admission with
+/// node-role policy enforcement.
+#[derive(Debug, Clone)]
+pub struct KernelAdmissionContext<'a> {
+    pub node_policy: &'a NodePolicy,
+    pub role: NodeRole,
+    pub operation: KernelOperation,
+    pub epoch: u64,
+    pub submitted_signers: &'a [String],
+    pub eligible_signers: &'a HashSet<String>,
 }
 
 /// Binds immutable execution context with envelope-level admission constraints.
@@ -144,6 +165,21 @@ pub fn validate_phase3_admission(
     Ok(())
 }
 
+/// Phase-4 admission checks that wire VM tx flow into kernel-level node policy.
+pub fn validate_phase4_kernel_admission(
+    kernel: &KernelAdmissionContext<'_>,
+) -> Result<(), AdmissionError> {
+    kernel.node_policy.enforce_kernel_operation(
+        kernel.role,
+        kernel.operation,
+        kernel.epoch,
+        kernel.submitted_signers,
+        kernel.eligible_signers,
+    )?;
+
+    Ok(())
+}
+
 fn normalize_auth_profile(value: &str) -> Option<&str> {
     let trimmed = value.trim();
     let valid = !trimmed.is_empty()
@@ -196,14 +232,16 @@ mod tests {
             validation::ValidationError,
         },
         vm::admission::{
-            ActiveAuthProfile, AdmissionError, validate_phase1_admission,
-            validate_phase2_admission, validate_phase3_admission,
+            ActiveAuthProfile, AdmissionError, KernelAdmissionContext, validate_phase1_admission,
+            validate_phase2_admission, validate_phase3_admission, validate_phase4_kernel_admission,
         },
     };
     use aoxcontract::{
         ContractClass, ContractId, ExecutionProfileRef, LaneBinding, RuntimeBindingDescriptor,
         VmTarget,
     };
+    use aoxcore::genesis::{KernelOperation, NodePolicy, NodeRole};
+    use std::collections::HashSet;
 
     fn sample_context(gas_limit: u64) -> ExecutionContext {
         ExecutionContext::new(
@@ -242,6 +280,18 @@ mod tests {
             profile_name: "ops-v1".to_string(),
             signer_class: crate::auth::signer::SignerClass::Governance,
         }
+    }
+
+    fn quorum_signers() -> Vec<String> {
+        vec![
+            "quorum-1".to_string(),
+            "quorum-2".to_string(),
+            "quorum-3".to_string(),
+            "quorum-4".to_string(),
+            "quorum-5".to_string(),
+            "quorum-6".to_string(),
+            "quorum-7".to_string(),
+        ]
     }
 
     #[test]
@@ -380,5 +430,42 @@ mod tests {
         let err = validate_phase3_admission(&binding, &governance_tx, Some(&active))
             .expect_err("application signer should fail");
         assert_eq!(err, AdmissionError::GovernanceSignerClassRequired);
+    }
+
+    #[test]
+    fn phase4_accepts_kernel_authorized_operation() {
+        let policy = NodePolicy::for_network_class(aoxcore::genesis::NetworkClass::PublicMainnet);
+        let signers = quorum_signers();
+        let eligible: HashSet<String> = signers.iter().cloned().collect();
+
+        let kernel = KernelAdmissionContext {
+            node_policy: &policy,
+            role: NodeRole::Quorum,
+            operation: KernelOperation::QuorumVote,
+            epoch: 0,
+            submitted_signers: &signers,
+            eligible_signers: &eligible,
+        };
+
+        assert_eq!(validate_phase4_kernel_admission(&kernel), Ok(()));
+    }
+
+    #[test]
+    fn phase4_rejects_kernel_unauthorized_operation() {
+        let policy = NodePolicy::for_network_class(aoxcore::genesis::NetworkClass::PublicMainnet);
+        let signers = quorum_signers();
+        let eligible: HashSet<String> = signers.iter().cloned().collect();
+
+        let kernel = KernelAdmissionContext {
+            node_policy: &policy,
+            role: NodeRole::Seal,
+            operation: KernelOperation::QuorumVote,
+            epoch: 0,
+            submitted_signers: &signers,
+            eligible_signers: &eligible,
+        };
+
+        let err = validate_phase4_kernel_admission(&kernel).unwrap_err();
+        assert!(matches!(err, AdmissionError::KernelPolicy(_)));
     }
 }

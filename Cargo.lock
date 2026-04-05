@@ -358,6 +358,7 @@ version = "0.2.0-aoxcq"
 dependencies = [
  "aoxconfig",
  "aoxcontract",
+ "aoxcore",
  "aoxcsdk",
  "blake3",
  "serde",
