@@ -346,7 +346,6 @@ impl NodeRolePolicy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NodePolicy {
     pub role_policies: Vec<NodeRolePolicy>,
-    pub seal_layers: Vec<SealLayerPolicy>,
     pub treasury_reward_bps: u16,
     pub governance_epoch_blocks: u64,
 }
@@ -435,108 +434,9 @@ impl NodePolicy {
                     quantum_seal_required: false,
                 },
             ],
-            seal_layers: vec![SealLayerPolicy {
-                layer_id: "seal-v1".to_string(),
-                commitment_hash: "BLAKE3".to_string(),
-                activation_epoch: 0,
-                quantum_hardened: true,
-            }],
             treasury_reward_bps: 300,
             governance_epoch_blocks: epoch_blocks,
         }
-    }
-
-    /// Kernel-level multisig threshold checker for role-scoped authorization paths.
-    pub fn is_multisig_quorum_satisfied(
-        &self,
-        role: NodeRole,
-        observed_signatures: u8,
-        observed_participants: u8,
-    ) -> Result<bool, GenesisConfigError> {
-        let policy = self
-            .role_policies
-            .iter()
-            .find(|policy| policy.role == role)
-            .ok_or(GenesisConfigError::MissingNodeRolePolicy {
-                role: role.as_str().to_string(),
-            })?;
-
-        Ok(observed_participants >= policy.multisig_participants
-            && observed_signatures >= policy.multisig_threshold)
-    }
-
-    /// Kernel-level signer-set verification for role-scoped multisig operations.
-    ///
-    /// This performs deterministic authorization checks before signature-bytes
-    /// verification in downstream cryptographic engines.
-    pub fn validate_multisig_signers(
-        &self,
-        role: NodeRole,
-        submitted_signers: &[String],
-        eligible_signers: &HashSet<String>,
-    ) -> Result<(), GenesisConfigError> {
-        let policy = self
-            .role_policies
-            .iter()
-            .find(|policy| policy.role == role)
-            .ok_or(GenesisConfigError::MissingNodeRolePolicy {
-                role: role.as_str().to_string(),
-            })?;
-
-        let mut seen = HashSet::with_capacity(submitted_signers.len());
-        for signer in submitted_signers {
-            validate_identifier(signer).map_err(|_| GenesisConfigError::InvalidMultisigSigner {
-                signer: signer.clone(),
-            })?;
-
-            if !seen.insert(signer.as_str()) {
-                return Err(GenesisConfigError::DuplicateMultisigSigner {
-                    signer: signer.clone(),
-                });
-            }
-
-            if !eligible_signers.contains(signer) {
-                return Err(GenesisConfigError::InvalidMultisigSigner {
-                    signer: signer.clone(),
-                });
-            }
-        }
-
-        let participant_count = u8::try_from(submitted_signers.len()).unwrap_or(u8::MAX);
-        if participant_count < policy.multisig_participants {
-            return Err(GenesisConfigError::InsufficientMultisigParticipants {
-                role: role.as_str().to_string(),
-                required: policy.multisig_participants,
-                actual: participant_count,
-            });
-        }
-
-        if participant_count < policy.multisig_threshold {
-            return Err(GenesisConfigError::InsufficientMultisigSignatures {
-                role: role.as_str().to_string(),
-                required: policy.multisig_threshold,
-                actual: participant_count,
-            });
-        }
-
-        Ok(())
-    }
-
-    /// Returns all active seal layers for the given epoch.
-    #[must_use]
-    pub fn active_seal_layers(&self, epoch: u64) -> Vec<&SealLayerPolicy> {
-        self.seal_layers
-            .iter()
-            .filter(|layer| layer.activation_epoch <= epoch)
-            .collect()
-    }
-
-    /// Returns whether the current epoch retains at least one quantum-hardened seal layer.
-    #[must_use]
-    pub fn has_quantum_hardened_active_seal(&self, epoch: u64) -> bool {
-        self.active_seal_layers(epoch)
-            .iter()
-            .any(|layer| layer.quantum_hardened)
     }
 
     fn validate_for_network_class(
@@ -544,7 +444,6 @@ impl NodePolicy {
         network_class: NetworkClass,
     ) -> Result<(), GenesisConfigError> {
         if self.role_policies.len() != NodeRole::all().len()
-            || self.seal_layers.is_empty()
             || self.treasury_reward_bps > 10_000
             || self.governance_epoch_blocks == 0
         {
@@ -567,32 +466,6 @@ impl NodePolicy {
                     role: role.as_str().to_string(),
                 });
             }
-        }
-
-        let mut seal_layer_ids = HashSet::with_capacity(self.seal_layers.len());
-        let mut previous_epoch = 0_u64;
-        for (index, layer) in self.seal_layers.iter().enumerate() {
-            layer.validate()?;
-            if !seal_layer_ids.insert(layer.layer_id.as_str()) {
-                return Err(GenesisConfigError::DuplicateSealLayerPolicy {
-                    layer_id: layer.layer_id.clone(),
-                });
-            }
-
-            if index > 0 && layer.activation_epoch < previous_epoch {
-                return Err(GenesisConfigError::InvalidSealLayerPolicy {
-                    layer_id: layer.layer_id.clone(),
-                });
-            }
-
-            previous_epoch = layer.activation_epoch;
-        }
-
-        if !self.has_quantum_hardened_active_seal(0) {
-            return Err(GenesisConfigError::WeakNodeRolePolicy {
-                role: NodeRole::Seal.as_str().to_string(),
-                reason: "at least one quantum-hardened seal layer must be active from genesis",
-            });
         }
 
         if network_class == NetworkClass::PublicMainnet {
@@ -624,49 +497,9 @@ impl NodePolicy {
             policy.encode_canonical(enc);
         }
 
-        let mut ordered_layers = self.seal_layers.clone();
-        ordered_layers.sort_by(|left, right| left.layer_id.cmp(&right.layer_id));
-        enc.usize(ordered_layers.len())?;
-        for layer in &ordered_layers {
-            layer.encode_canonical(enc);
-        }
-
         enc.u16(self.treasury_reward_bps);
         enc.u64(self.governance_epoch_blocks);
         Ok(())
-    }
-}
-
-/// Extensible seal-layer policy for retroactive hardening without history rewrites.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SealLayerPolicy {
-    pub layer_id: String,
-    pub commitment_hash: String,
-    pub activation_epoch: u64,
-    pub quantum_hardened: bool,
-}
-
-impl SealLayerPolicy {
-    fn validate(&self) -> Result<(), GenesisConfigError> {
-        validate_identifier(&self.layer_id).map_err(|_| GenesisConfigError::InvalidSealLayerPolicy {
-            layer_id: self.layer_id.clone(),
-        })?;
-        validate_algorithm_name(&self.commitment_hash)?;
-
-        if self.activation_epoch == 0 && self.layer_id != "seal-v1" {
-            return Err(GenesisConfigError::InvalidSealLayerPolicy {
-                layer_id: self.layer_id.clone(),
-            });
-        }
-
-        Ok(())
-    }
-
-    fn encode_canonical(&self, enc: &mut CanonicalEncoder) {
-        enc.str(&self.layer_id);
-        enc.str(&self.commitment_hash);
-        enc.u64(self.activation_epoch);
-        enc.u8(u8::from(self.quantum_hardened));
     }
 }
 
