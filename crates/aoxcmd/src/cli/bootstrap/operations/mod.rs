@@ -50,7 +50,7 @@ use helpers_core::{
     materialize_binding_documents, persist_bootnodes_binding, persist_genesis,
     persist_validators_binding, sync_optional_accounts_binding, upsert_bootnode_binding,
     upsert_validator_account, upsert_validator_binding, validate_binding_files, validate_genesis,
-    write_json_pretty,
+    validate_identity_against_repo_policy, write_json_pretty,
 };
 
 #[cfg(test)]
@@ -62,8 +62,9 @@ pub use commands_bootstrap::{
 };
 pub use commands_genesis::{
     cmd_consensus_profile_audit, cmd_genesis_add_account, cmd_genesis_add_validator,
-    cmd_genesis_hash, cmd_genesis_init, cmd_genesis_inspect, cmd_genesis_security_audit,
-    cmd_genesis_template_advanced, cmd_genesis_validate, consensus_profile_gate_status,
+    cmd_genesis_hash, cmd_genesis_init, cmd_genesis_inspect, cmd_genesis_production_gate,
+    cmd_genesis_security_audit, cmd_genesis_template_advanced, cmd_genesis_validate,
+    consensus_profile_gate_status,
 };
 pub use commands_identity::{
     cmd_address_create, cmd_key_bootstrap, cmd_key_rotate, cmd_keys_inspect,

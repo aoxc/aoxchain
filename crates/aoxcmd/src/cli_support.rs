@@ -78,12 +78,13 @@ USAGE
 
 GUIDED GROUPS
   chain init|create|start|status|doctor|demo
-  genesis init|add-validator|add-account|build|verify|inspect|fingerprint
+  genesis init|add-validator|add-account|build|verify|inspect|fingerprint|production-gate
   validator create|inspect|status|rotate-key
   wallet create|balance
   account fund
   node init|start|status|doctor
   network create|start|status|verify|doctor
+  role list|status|activate-core7
   api [status|smoke|metrics|health|network]
   query chain|consensus|vm|block|tx|receipt|account|balance|network|state-root|rpc
   tx transfer|stake delegate|stake undelegate
@@ -112,9 +113,10 @@ BOOTSTRAP
   keys-verify [--password <value>]
   address-create --name <validator> --profile <validation|testnet|mainnet|devnet|localnet> --password <value>
   genesis-init
-  genesis-add-account --account-id <id> --balance <amount> [--role <treasury|validator|system|user>]
+  genesis-add-account --account-id <id> --balance <amount> [--role <treasury|validator|system|user|governance|forge|quorum|seal|archive|sentinel|relay|pocket>]
   genesis-add-validator --validator-id <id> --consensus-public-key <hex> --network-public-key <hex> [--consensus-fingerprint <hex>] [--network-fingerprint <hex>] [--bootnode-address <host:port>] [--balance <amount>] [--display-name <label>]
-  genesis-validate
+  genesis-validate [--strict] [--no-strict]
+  genesis-production-gate
   genesis-inspect
   genesis-hash
   config-init [--profile <validation|testnet|mainnet>] [--bind-host <host>] [--json-logs]

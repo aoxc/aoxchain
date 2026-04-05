@@ -4,7 +4,8 @@ mod tests {
         BootstrapBootnodeRecord, BootstrapBootnodesDocument, BootstrapValidatorBindingRecord,
         BootstrapValidatorBindingsDocument, CanonicalIdentity, EnvironmentProfile,
         consensus_profile_gate_status, derive_short_fingerprint, evaluate_consensus_profile_audit,
-        upsert_bootnode_binding, upsert_validator_binding,
+        upsert_bootnode_binding, upsert_validator_binding, validate_genesis,
+        validate_identity_against_repo_policy,
     };
     use std::{
         env, fs,
@@ -212,5 +213,54 @@ mod tests {
         assert!(status.detail.contains("consensus_profile=hybrid"));
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn validate_genesis_rejects_unsupported_account_role() {
+        let mut genesis = EnvironmentProfile::Validation.genesis_document();
+        genesis.state.accounts[0].role = "bridge".to_string();
+
+        let error = validate_genesis(&genesis).expect_err("unsupported role must fail");
+        assert!(
+            error.to_string().contains("unsupported account role"),
+            "error should describe unsupported account role"
+        );
+    }
+
+    #[test]
+    fn validate_genesis_accepts_core7_account_roles() {
+        let mut genesis = EnvironmentProfile::Validation.genesis_document();
+        genesis
+            .state
+            .accounts
+            .push(super::super::BootstrapAccountRecord {
+                account_id: "AOXC_CORE7_FORGE".to_string(),
+                balance: "1000".to_string(),
+                role: "forge".to_string(),
+            });
+
+        validate_genesis(&genesis).expect("core7 roles should be accepted");
+    }
+
+    #[test]
+    fn strict_identity_validation_passes_for_testnet_fixture() {
+        let genesis = EnvironmentProfile::Testnet.genesis_document();
+        validate_identity_against_repo_policy(&genesis)
+            .expect("testnet fixture should match repository identity policy");
+    }
+
+    #[test]
+    fn strict_identity_validation_rejects_identity_drift() {
+        let mut genesis = EnvironmentProfile::Testnet.genesis_document();
+        genesis.identity.network_id = "aoxc-testnet-drifted".to_string();
+
+        let error = validate_identity_against_repo_policy(&genesis)
+            .expect_err("strict validation must reject identity drift");
+        assert!(
+            error
+                .to_string()
+                .contains("Strict identity validation failed"),
+            "error should indicate strict identity mismatch"
+        );
     }
 }

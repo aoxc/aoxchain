@@ -11,5 +11,5 @@ pub use audit::{
 };
 pub use state::{
     cmd_genesis_add_account, cmd_genesis_add_validator, cmd_genesis_hash, cmd_genesis_init,
-    cmd_genesis_inspect, cmd_genesis_validate,
+    cmd_genesis_inspect, cmd_genesis_production_gate, cmd_genesis_validate,
 };

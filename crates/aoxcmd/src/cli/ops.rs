@@ -40,6 +40,7 @@ mod network_read_ops;
 mod node_ops;
 mod readiness_commands;
 mod readiness_core;
+mod role_ops;
 mod rpc_status_ops;
 mod shared_helpers;
 mod tx_account_ops;
@@ -68,6 +69,7 @@ pub use readiness_commands::{
     cmd_full_surface_gate, cmd_full_surface_readiness, cmd_level_score, cmd_load_benchmark,
     cmd_mainnet_readiness, cmd_profile_baseline, cmd_testnet_readiness,
 };
+pub use role_ops::{cmd_role_activate_core7, cmd_role_list, cmd_role_model_status};
 pub use vm_ops::{
     cmd_vm_call, cmd_vm_code_get, cmd_vm_contract_get, cmd_vm_estimate_gas, cmd_vm_simulate,
     cmd_vm_status, cmd_vm_storage_get, cmd_vm_trace,

@@ -53,6 +53,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "account" => route_account_group(&args[2..]),
         "node" => route_node_group(&args[2..]),
         "network" => route_network_group(&args[2..]),
+        "role" => route_role_group(&args[2..]),
         "api" => route_api_group(&args[2..]),
         "query" => route_query_group(&args[2..]),
         "tx" => route_tx_group(&args[2..]),
@@ -98,6 +99,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "genesis-template-advanced" => bootstrap::cmd_genesis_template_advanced(&args[2..]),
         "genesis-security-audit" => bootstrap::cmd_genesis_security_audit(&args[2..]),
         "genesis-hash" => bootstrap::cmd_genesis_hash(&args[2..]),
+        "genesis-production-gate" => bootstrap::cmd_genesis_production_gate(&args[2..]),
         "config-init" => bootstrap::cmd_config_init(&args[2..]),
         "config-validate" => bootstrap::cmd_config_validate(&args[2..]),
         "config-print" => bootstrap::cmd_config_print(&args[2..]),
@@ -198,6 +200,7 @@ fn route_genesis_group(args: &[String]) -> Result<(), AppError> {
         "inspect" => bootstrap::cmd_genesis_inspect(tail),
         "template-advanced" => bootstrap::cmd_genesis_template_advanced(tail),
         "security-audit" => bootstrap::cmd_genesis_security_audit(tail),
+        "production-gate" => bootstrap::cmd_genesis_production_gate(tail),
         "fingerprint" => bootstrap::cmd_genesis_hash(tail),
         _ => invalid_group_usage("genesis", "unsupported subcommand"),
     }
@@ -274,6 +277,19 @@ fn route_network_group(args: &[String]) -> Result<(), AppError> {
         "status" | "verify" => ops::cmd_network_smoke(tail),
         "doctor" => audit::cmd_diagnostics_doctor(tail),
         _ => invalid_group_usage("network", "unsupported subcommand"),
+    }
+}
+
+fn route_role_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return ops::cmd_role_model_status(args);
+    };
+
+    match subcommand.as_str() {
+        "list" => ops::cmd_role_list(tail),
+        "status" | "model-status" => ops::cmd_role_model_status(tail),
+        "activate-core7" => ops::cmd_role_activate_core7(tail),
+        _ => invalid_group_usage("role", "unsupported subcommand"),
     }
 }
 
