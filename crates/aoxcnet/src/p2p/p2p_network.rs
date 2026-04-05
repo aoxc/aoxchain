@@ -433,7 +433,7 @@ fn handshake_policy_for_mode(
     config: &NetworkConfig,
     required_profile: TransportCryptoProfile,
 ) -> HandshakePolicy {
-    let _allowed_peer_classes = match config.security_mode {
+    let allowed_peer_classes = match config.security_mode {
         SecurityMode::Insecure => vec![
             PeerClass::Validator,
             PeerClass::Sentry,
@@ -469,7 +469,7 @@ fn describe_handshake_reject(reason: HandshakeRejectReason) -> &'static str {
         HandshakeRejectReason::ReleaseLineMismatch => "release line mismatch",
         HandshakeRejectReason::ProtocolVersionTooOld => "protocol version too old",
         HandshakeRejectReason::ProfileDowngradeRejected => "transport profile downgrade rejected",
-        HandshakeRejectReason::PeerClassNotAllowed => "peer class not allowed by policy",
+        HandshakeRejectReason::PeerClassNotAllowed => "peer class forbidden by policy",
         HandshakeRejectReason::FrameBudgetExceeded => "declared frame budget exceeds policy",
         HandshakeRejectReason::CompressionForbidden => "compression is forbidden",
         HandshakeRejectReason::RetryTokenMissing => "retry token missing",

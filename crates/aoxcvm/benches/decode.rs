@@ -38,7 +38,7 @@ fn run_case(name: &str, envelope: &AuthEnvelope, iterations: usize) {
 
 fn main() {
     println!("benchmark=decode_auth_envelope_validation");
-    for signer_count in [1usize, 2, 4, 8] {
+    for signer_count in [2usize, 4, 8] {
         let mut signers = Vec::with_capacity(signer_count);
         signers.push(signer(SignatureAlgorithm::Ed25519, "classic-1", 64));
         for i in 1..signer_count {
