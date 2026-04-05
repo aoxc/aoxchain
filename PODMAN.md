@@ -20,12 +20,6 @@ This file defines the supported Podman workflow for AOXChain local runtime usage
 podman build -t aoxchain-node:local .
 ```
 
-Equivalent Makefile target:
-
-```bash
-make container-build CONTAINER_ENGINE=podman
-```
-
 ## Single Node Run
 
 ```bash
@@ -41,23 +35,10 @@ podman run --rm \
 podman compose up --build
 ```
 
-Equivalent Makefile targets:
-
-```bash
-make container-config CONTAINER_ENGINE=podman
-make container-up CONTAINER_ENGINE=podman
-```
-
 Stop and remove containers:
 
 ```bash
 podman compose down
-```
-
-Equivalent Makefile target:
-
-```bash
-make container-down CONTAINER_ENGINE=podman
 ```
 
 ## Rootless Networking Notes
