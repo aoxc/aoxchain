@@ -547,6 +547,12 @@ impl NodePolicy {
                 reason: "submitted signer set does not satisfy multisig threshold",
             });
         }
+        if submitted_signers.len() > usize::from(role_policy.multisig_participants) {
+            return Err(GenesisConfigError::WeakNodeRolePolicy {
+                role: role.as_str().to_string(),
+                reason: "submitted signer set exceeds configured participant bound",
+            });
+        }
 
         let mut unique = HashSet::with_capacity(submitted_signers.len());
         for signer in submitted_signers {
