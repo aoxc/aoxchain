@@ -26,4 +26,4 @@ use crate::vote_pool::VotePool;
 include!("state_core.rs");
 include!("state_voting.rs");
 include!("state_finalization.rs");
-include!("state_tests.rs");
+include!("state_tests/tests.rs");
