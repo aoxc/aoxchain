@@ -2,7 +2,7 @@
 # This file is consumed by tests to ensure release metadata remains synchronized.
 
 [workspace]
-current = "0.1.1-akdeniz"
+current = "0.2.0-aoxcq"
 strategy = "global-workspace-version-with-component-schema-tracks"
 release_channel = "controlled"
 

@@ -172,8 +172,8 @@ fn compatibility_matrix() -> CompatibilityMatrix<'static> {
             migration_guarantee: "state migrations must be deterministic, evidence-backed, and coupled with snapshot recovery rehearsal",
             supported_upgrade_paths: vec![
                 UpgradePath {
-                    from: "0.1.1-akdeniz",
-                    to: "0.1.1-akdeniz+patch",
+                    from: "0.2.0-aoxcq",
+                    to: "0.2.0-aoxcq+patch",
                     status: "supported",
                     guarantee: "no protocol line change; rolling restart permitted",
                 },

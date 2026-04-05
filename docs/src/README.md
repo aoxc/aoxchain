@@ -19,4 +19,5 @@ Use the following root-level documents for authoritative repository policy and a
 - `SECURITY.md` — private disclosure and security handling model.
 - `TESTING.md` — mandatory validation policy and testnet go/no-go criteria.
 - `ROADMAP.md` — execution roadmap.
-- `QUANTUM_ROADMAP.md` and `QUANTUM_CHECKLIST.md` — profile migration execution controls.
+- `READ.md` — technical contract and profile-bound operational controls.
+- `docs/AOXC_Q_CONSENSUS_SPEC.md` — AOXC-Q consensus baseline and rollout controls.
