@@ -82,8 +82,8 @@ AOXChain follows versioned cryptographic profile governance:
 
 Implementation and rollout controls are tracked by:
 
-- `QUANTUM_ROADMAP.md`
-- `QUANTUM_CHECKLIST.md`
+- `ROADMAP.md`
+- `READ.md`
 
 ---
 
