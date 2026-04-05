@@ -7,8 +7,13 @@ default_deny = true
 mode = "policy_gated"
 require_validator_governance = true
 
+# Production node activation:
+# - all roles are defined and enabled,
+# - runtime admission remains policy-gated,
+# - quantum-sensitive roles are assigned explicit assurance tiers.
 [roles.core_val]
 enabled = true
+quantum_tier = "q2_hybrid_required"
 
 [roles.core_prop]
 enabled = true
@@ -18,9 +23,11 @@ enabled = true
 
 [roles.net_relay]
 enabled = true
+quantum_tier = "q1_classical_compatible"
 
 [roles.net_gate]
 enabled = true
+quantum_tier = "q1_classical_compatible"
 
 [roles.data_arch]
 enabled = true
@@ -30,12 +37,15 @@ enabled = true
 
 [roles.serv_rpc]
 enabled = true
+quantum_tier = "q1_classical_compatible"
 
 [roles.serv_idx]
 enabled = true
+quantum_tier = "q1_classical_compatible"
 
 [roles.sec_sent]
 enabled = true
+quantum_tier = "q3_evidence_hardened"
 
 [roles.x_orcl]
 enabled = true
