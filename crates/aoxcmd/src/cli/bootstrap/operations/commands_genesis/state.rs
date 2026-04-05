@@ -1,5 +1,24 @@
 use super::*;
 
+const ALLOWED_GENESIS_ACCOUNT_ROLES: [&str; 12] = [
+    "treasury",
+    "validator",
+    "system",
+    "user",
+    "governance",
+    "forge",
+    "quorum",
+    "seal",
+    "archive",
+    "sentinel",
+    "relay",
+    "pocket",
+];
+
+fn is_allowed_genesis_account_role(role: &str) -> bool {
+    ALLOWED_GENESIS_ACCOUNT_ROLES.contains(&role)
+}
+
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
     let profile_input = arg_value(args, "--profile")
         .or_else(|| load().ok().map(|settings| settings.profile))
@@ -42,6 +61,17 @@ pub fn cmd_genesis_add_account(args: &[String]) -> Result<(), AppError> {
     let account_id = parse_required_text_arg(args, "--account-id", false, "genesis add account")?;
     let balance = parse_required_text_arg(args, "--balance", false, "genesis add account")?;
     let role = parse_required_or_default_text_arg(args, "--role", "user")?;
+    let normalized_role = role.to_ascii_lowercase();
+    if !is_allowed_genesis_account_role(&normalized_role) {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!(
+                "Unsupported genesis account role '{}'. Allowed roles: {}",
+                role,
+                ALLOWED_GENESIS_ACCOUNT_ROLES.join(", ")
+            ),
+        ));
+    }
 
     if !is_decimal_string(&balance) {
         return Err(AppError::new(
@@ -58,12 +88,12 @@ pub fn cmd_genesis_add_account(args: &[String]) -> Result<(), AppError> {
         .find(|entry| entry.account_id == account_id)
     {
         existing.balance = balance.clone();
-        existing.role = role.clone();
+        existing.role = normalized_role.clone();
     } else {
         genesis.state.accounts.push(BootstrapAccountRecord {
             account_id: account_id.clone(),
             balance: balance.clone(),
-            role: role.clone(),
+            role: normalized_role.clone(),
         });
     }
 
@@ -73,7 +103,7 @@ pub fn cmd_genesis_add_account(args: &[String]) -> Result<(), AppError> {
     let mut details = BTreeMap::new();
     details.insert("account_id".to_string(), account_id);
     details.insert("balance".to_string(), balance);
-    details.insert("role".to_string(), role);
+    details.insert("role".to_string(), normalized_role);
     details.insert(
         "accounts_total".to_string(),
         genesis.state.accounts.len().to_string(),
@@ -83,6 +113,36 @@ pub fn cmd_genesis_add_account(args: &[String]) -> Result<(), AppError> {
         &text_envelope("genesis-add-account", "ok", details),
         output_format(args),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_allowed_genesis_account_role;
+
+    #[test]
+    fn genesis_account_role_accepts_core7_and_system_roles() {
+        for role in [
+            "treasury",
+            "validator",
+            "system",
+            "user",
+            "governance",
+            "forge",
+            "quorum",
+            "seal",
+            "archive",
+            "sentinel",
+            "relay",
+            "pocket",
+        ] {
+            assert!(is_allowed_genesis_account_role(role));
+        }
+    }
+
+    #[test]
+    fn genesis_account_role_rejects_unknown_role() {
+        assert!(!is_allowed_genesis_account_role("bridge"));
+    }
 }
 
 pub fn cmd_genesis_add_validator(args: &[String]) -> Result<(), AppError> {

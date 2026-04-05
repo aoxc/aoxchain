@@ -8,6 +8,8 @@ This directory contains the authoritative documentation system for AOXChain engi
 - `testing/` — testing matrix, coverage posture, and critical invariants.
 - `AOXCHUB_FULL_SPEC.md` — AOXCHub product-level specification.
 - `ADVANCED_NODE_ROLE_BLUEPRINT.md` — full role/layer/plane topology with policy-gated activation.
+- `NAMING_VERSIONING_SIMPLIFICATION_PLAN.md` — naming/versioning governance and migration baseline.
+- `GENESIS_IDENTITY_CHECKLIST.md` — deterministic chain identity checklist from registry to genesis/runtime.
 - `OS_COMPATIBILITY.md` — cross-platform host/container compatibility contract (Linux, NixOS, macOS, Windows, Docker).
 - `bootstrap/BOOTSTRAP_RUNBOOK.md` — deterministic bootstrap phases, gate model, failure taxonomy, and closure evidence contract.
 
@@ -16,6 +18,7 @@ This directory contains the authoritative documentation system for AOXChain engi
 - Keep documents implementation-aware and reviewable.
 - Prefer explicit constraints and operational guidance over narrative prose.
 - Update docs in the same change stream when behavior, architecture, or policy changes.
+- Preserve consistent terminology for brand, ticker, release line, workspace version, chain identity, and crypto profile.
 
 ## Build Commands
 
