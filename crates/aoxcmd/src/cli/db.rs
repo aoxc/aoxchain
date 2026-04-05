@@ -16,4 +16,4 @@ use std::{
 
 include!("db_support.rs");
 include!("db_commands.rs");
-include!("db_tests.rs");
+include!("db_tests/tests.rs");
