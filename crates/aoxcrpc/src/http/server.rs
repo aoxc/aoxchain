@@ -63,16 +63,6 @@ impl HttpRpcServer {
             ("GET", "/quantum/profile/full") => {
                 self.ok_json(&crate::http::quantum::quantum_full_profile())
             }
-            ("GET", "/quantum/posture/runtime") => {
-                self.ok_json(&crate::http::quantum::quantum_runtime_posture(
-                    &self.config,
-                    self.uptime_secs,
-                    self.total_requests,
-                    self.rejected_requests,
-                    self.rate_limited_requests,
-                    self.active_rate_limiter_keys,
-                ))
-            }
             ("POST", "/contracts/validate") => {
                 self.contract_post(body, |api, request| api.validate_manifest(request))
             }
@@ -219,21 +209,5 @@ mod tests {
         assert_eq!(response.status, 200);
         assert_eq!(response.content_type, "application/json");
         assert!(response.body.contains("hybrid-post-quantum-hardening"));
-    }
-
-    #[test]
-    fn quantum_runtime_posture_route_returns_runtime_fields() {
-        let mut server = HttpRpcServer::default();
-        server.uptime_secs = 77;
-        server.total_requests = 3;
-
-        let response = server
-            .handle_json("GET", "/quantum/posture/runtime", None)
-            .expect("runtime posture route should return success");
-
-        assert_eq!(response.status, 200);
-        assert_eq!(response.content_type, "application/json");
-        assert!(response.body.contains("\"runtime_counters\""));
-        assert!(response.body.contains("\"chain_id\""));
     }
 }

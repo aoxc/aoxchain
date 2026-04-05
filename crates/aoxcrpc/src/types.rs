@@ -127,33 +127,3 @@ pub struct QuantumFullProfile {
     pub controls: Vec<QuantumControl>,
     pub ops_playbook: QuantumOpsPlaybook,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct QuantumRateLimitPolicy {
-    pub max_requests_per_minute: u64,
-    pub window_secs: u64,
-    pub max_tracked_keys: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct QuantumRuntimePosture {
-    pub generated_at_unix_secs: u64,
-    pub chain_id: String,
-    pub profile: QuantumFullProfile,
-    pub mtls_enabled: bool,
-    pub tls_artifacts_present: bool,
-    pub config_readiness_score: u8,
-    pub config_warnings: Vec<String>,
-    pub config_errors: Vec<String>,
-    pub runtime_counters: QuantumRuntimeCounters,
-    pub rate_limit_policy: QuantumRateLimitPolicy,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct QuantumRuntimeCounters {
-    pub uptime_secs: u64,
-    pub total_requests: u64,
-    pub rejected_requests: u64,
-    pub rate_limited_requests: u64,
-    pub active_rate_limiter_keys: u64,
-}

@@ -114,33 +114,6 @@ struct QuantumAutomationBlueprint<'a> {
     release_gates: Vec<&'a str>,
 }
 
-/// Effective quantum readiness posture derived from active operator settings.
-#[derive(Debug, Clone, Serialize)]
-struct QuantumOperatorPosture {
-    profile: String,
-    bind_host: String,
-    rpc_port: u16,
-    metrics_enabled: bool,
-    official_peers_enforced: bool,
-    remote_peers_allowed: bool,
-    safety_requirements: QuantumOperatorSafetyRequirements,
-    readiness: QuantumOperatorReadiness,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct QuantumOperatorSafetyRequirements {
-    require_key_material: bool,
-    require_genesis: bool,
-    logging_json: bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct QuantumOperatorReadiness {
-    status: &'static str,
-    score: u8,
-    warnings: Vec<String>,
-}
-
 /// Emits JSON for describe-surface commands that intentionally expose a stable
 /// machine-readable contract.
 fn emit_json<T: Serialize>(value: &T) -> Result<(), AppError> {
@@ -287,56 +260,6 @@ pub fn cmd_quantum_blueprint() -> Result<(), AppError> {
             "security evidence bundle must be complete",
         ],
     })
-}
-
-/// Emits effective operator quantum posture from current settings.
-pub fn cmd_quantum_posture(args: &[String]) -> Result<(), AppError> {
-    let settings = effective_settings_for_describe_surface()?;
-    let mut warnings = Vec::new();
-
-    if settings.policy.allow_remote_peers && settings.profile == "mainnet" {
-        warnings.push("mainnet profile should not allow remote peers".to_string());
-    }
-
-    if !settings.network.enforce_official_peers {
-        warnings.push("official peer enforcement is disabled".to_string());
-    }
-
-    if !settings.policy.require_key_material {
-        warnings.push("key material requirement is disabled".to_string());
-    }
-
-    if !settings.policy.require_genesis {
-        warnings.push("genesis requirement is disabled".to_string());
-    }
-
-    let score = 100u8.saturating_sub((warnings.len() as u8).saturating_mul(20));
-    let posture = QuantumOperatorPosture {
-        profile: settings.profile,
-        bind_host: settings.network.bind_host,
-        rpc_port: settings.network.rpc_port,
-        metrics_enabled: settings.telemetry.enable_metrics,
-        official_peers_enforced: settings.network.enforce_official_peers,
-        remote_peers_allowed: settings.policy.allow_remote_peers,
-        safety_requirements: QuantumOperatorSafetyRequirements {
-            require_key_material: settings.policy.require_key_material,
-            require_genesis: settings.policy.require_genesis,
-            logging_json: settings.logging.json,
-        },
-        readiness: QuantumOperatorReadiness {
-            status: if warnings.is_empty() {
-                "hardened"
-            } else if score >= 60 {
-                "review-required"
-            } else {
-                "unsafe"
-            },
-            score,
-            warnings,
-        },
-    };
-
-    emit_serialized(&posture, output_format(args))
 }
 
 /// Emits the high-level vision statement for the AOXC operator command plane.

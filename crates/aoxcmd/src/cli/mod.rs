@@ -70,7 +70,6 @@ pub fn run_cli() -> Result<(), AppError> {
         "module-architecture" => describe::cmd_module_architecture(),
         "compat-matrix" => describe::cmd_compat_matrix(),
         "quantum-blueprint" => describe::cmd_quantum_blueprint(),
-        "quantum-posture" => describe::cmd_quantum_posture(&args[2..]),
         "port-map" => describe::cmd_port_map(),
         "profile-baseline" => ops::cmd_profile_baseline(&args[2..]),
         "testnet-fixture-init" => bootstrap::cmd_testnet_fixture_init(&args[2..]),
