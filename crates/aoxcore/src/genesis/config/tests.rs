@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn builds_public_mainnet_chain_id_correctly() {
@@ -183,5 +184,64 @@ mod tests {
             err,
             GenesisConfigError::InvalidNodePolicy | GenesisConfigError::MissingNodeRolePolicy { .. }
         ));
+    }
+
+    #[test]
+    fn enforce_kernel_operation_accepts_valid_quorum_vote() {
+        let policy = NodePolicy::for_network_class(NetworkClass::PublicMainnet);
+        let submitted = vec![
+            "quorum-1".to_string(),
+            "quorum-2".to_string(),
+            "quorum-3".to_string(),
+            "quorum-4".to_string(),
+        ];
+        let eligible: HashSet<String> = [
+            "quorum-1".to_string(),
+            "quorum-2".to_string(),
+            "quorum-3".to_string(),
+            "quorum-4".to_string(),
+            "quorum-5".to_string(),
+        ]
+        .into_iter()
+        .collect();
+
+        assert_eq!(
+            policy.enforce_kernel_operation(
+                NodeRole::Quorum,
+                KernelOperation::QuorumVote,
+                0,
+                &submitted,
+                &eligible,
+            ),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn enforce_kernel_operation_rejects_excess_signers() {
+        let policy = NodePolicy::for_network_class(NetworkClass::PublicMainnet);
+        let submitted = vec![
+            "quorum-1".to_string(),
+            "quorum-2".to_string(),
+            "quorum-3".to_string(),
+            "quorum-4".to_string(),
+            "quorum-5".to_string(),
+            "quorum-6".to_string(),
+            "quorum-7".to_string(),
+            "quorum-8".to_string(),
+        ];
+        let eligible: HashSet<String> = submitted.iter().cloned().collect();
+
+        let err = policy
+            .enforce_kernel_operation(
+                NodeRole::Quorum,
+                KernelOperation::QuorumVote,
+                0,
+                &submitted,
+                &eligible,
+            )
+            .expect_err("submitted signers above participant bound must fail");
+
+        assert!(matches!(err, GenesisConfigError::WeakNodeRolePolicy { .. }));
     }
 }

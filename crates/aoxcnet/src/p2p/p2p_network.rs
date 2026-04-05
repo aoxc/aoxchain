@@ -452,8 +452,9 @@ fn handshake_policy_for_mode(
 
     HandshakePolicy {
         minimum_protocol_version: 1,
-        required_release_line: "AOXC-Q-v0.2.0".to_string(),
+        required_release_line: AOXC_Q_RELEASE_LINE.to_string(),
         required_profile,
+        allowed_peer_classes,
         max_frame_bytes: config.max_frame_bytes,
         allow_compression: false,
         require_retry_token: config.security_mode != SecurityMode::Insecure,
@@ -468,6 +469,7 @@ fn describe_handshake_reject(reason: HandshakeRejectReason) -> &'static str {
         HandshakeRejectReason::ReleaseLineMismatch => "release line mismatch",
         HandshakeRejectReason::ProtocolVersionTooOld => "protocol version too old",
         HandshakeRejectReason::ProfileDowngradeRejected => "transport profile downgrade rejected",
+        HandshakeRejectReason::PeerClassNotAllowed => "peer class not allowed by policy",
         HandshakeRejectReason::FrameBudgetExceeded => "declared frame budget exceeds policy",
         HandshakeRejectReason::CompressionForbidden => "compression is forbidden",
         HandshakeRejectReason::RetryTokenMissing => "retry token missing",

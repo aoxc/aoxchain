@@ -256,6 +256,22 @@ pub enum NodeRole {
     Pocket,
 }
 
+/// Kernel operations governed by node-role policy admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum KernelOperation {
+    QuorumVote,
+}
+
+impl KernelOperation {
+    #[must_use]
+    pub const fn required_role(self) -> NodeRole {
+        match self {
+            Self::QuorumVote => NodeRole::Quorum,
+        }
+    }
+}
+
 impl NodeRole {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -499,6 +515,62 @@ impl NodePolicy {
 
         enc.u16(self.treasury_reward_bps);
         enc.u64(self.governance_epoch_blocks);
+        Ok(())
+    }
+
+    pub fn enforce_kernel_operation(
+        &self,
+        role: NodeRole,
+        operation: KernelOperation,
+        _epoch: u64,
+        submitted_signers: &[String],
+        eligible_signers: &HashSet<String>,
+    ) -> Result<(), GenesisConfigError> {
+        if role != operation.required_role() {
+            return Err(GenesisConfigError::WeakNodeRolePolicy {
+                role: role.as_str().to_string(),
+                reason: "role is not authorized for the requested kernel operation",
+            });
+        }
+
+        let role_policy = self
+            .role_policies
+            .iter()
+            .find(|policy| policy.role == role)
+            .ok_or_else(|| GenesisConfigError::MissingNodeRolePolicy {
+                role: role.as_str().to_string(),
+            })?;
+
+        if submitted_signers.len() < usize::from(role_policy.multisig_threshold) {
+            return Err(GenesisConfigError::WeakNodeRolePolicy {
+                role: role.as_str().to_string(),
+                reason: "submitted signer set does not satisfy multisig threshold",
+            });
+        }
+
+        if submitted_signers.len() > usize::from(role_policy.multisig_participants) {
+            return Err(GenesisConfigError::WeakNodeRolePolicy {
+                role: role.as_str().to_string(),
+                reason: "submitted signer set exceeds multisig participant bound",
+            });
+        }
+
+        let mut unique = HashSet::with_capacity(submitted_signers.len());
+        for signer in submitted_signers {
+            if !eligible_signers.contains(signer) {
+                return Err(GenesisConfigError::WeakNodeRolePolicy {
+                    role: role.as_str().to_string(),
+                    reason: "submitted signer is not in the eligible signer set",
+                });
+            }
+            if !unique.insert(signer) {
+                return Err(GenesisConfigError::WeakNodeRolePolicy {
+                    role: role.as_str().to_string(),
+                    reason: "duplicate signer detected in submitted signer set",
+                });
+            }
+        }
+
         Ok(())
     }
 }

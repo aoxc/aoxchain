@@ -114,6 +114,11 @@ impl VotePool {
         self.seen.len()
     }
 
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.seen.is_empty()
+    }
+
     pub fn prune_blocks<F>(&mut self, mut should_keep: F)
     where
         F: FnMut([u8; 32]) -> bool,
