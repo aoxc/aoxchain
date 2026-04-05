@@ -131,4 +131,57 @@ mod tests {
     fn default_timestamp_is_deterministic() {
         assert_eq!(default_genesis_timestamp(), DEFAULT_GENESIS_TIMESTAMP_UNIX);
     }
+
+    #[test]
+    fn node_policy_defaults_cover_all_seven_roles() {
+        let policy = NodePolicy::for_network_class(NetworkClass::PublicTestnet);
+        assert_eq!(policy.role_policies.len(), 7);
+        assert!(
+            policy
+                .role_policies
+                .iter()
+                .any(|role| role.role == NodeRole::Seal && role.quantum_seal_required)
+        );
+        assert!(
+            policy
+                .role_policies
+                .iter()
+                .all(|role| role.multisig_threshold >= 2)
+        );
+    }
+
+    #[test]
+    fn rejects_node_policy_missing_required_role() {
+        let identity =
+            ChainIdentity::new(AOXC_FAMILY_ID, NetworkClass::Devnet, 3, 1, "AOXC Kivilcim")
+                .unwrap();
+
+        let mut cfg = GenesisConfig::new(
+            identity,
+            3000,
+            vec![Validator { id: "val-1".into() }],
+            vec![GenesisAccount {
+                address: "acct-1".into(),
+                balance: 10,
+            }],
+            10,
+            SettlementLink {
+                endpoint: "aoxc://settlement/root".into(),
+            },
+            AOXCANDSeal {
+                seal_id: "seal-1".into(),
+            },
+        )
+        .unwrap();
+
+        cfg.node_policy
+            .role_policies
+            .retain(|policy| policy.role != NodeRole::Seal);
+
+        let err = cfg.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            GenesisConfigError::InvalidNodePolicy | GenesisConfigError::MissingNodeRolePolicy { .. }
+        ));
+    }
 }
