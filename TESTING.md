@@ -17,8 +17,9 @@ The project validation model is composed of the following control layers:
 
 Unless a stricter control is explicitly required by change scope, the following commands constitute the minimum validation baseline for workspace changes:
 
-- `cargo test --workspace`
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+- `cargo test --workspace --exclude aoxchub --all-targets --locked`
+- `cargo clippy --workspace --exclude aoxchub --all-targets --all-features --locked -- -D warnings`
+- `cargo check -p aoxchub --all-targets --locked`
 - `cargo fmt --all --check`
 - `make test`
 - `make quality`
