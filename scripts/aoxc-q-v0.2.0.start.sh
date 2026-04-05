@@ -146,9 +146,9 @@ for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
   chmod 600 "${node_root}/operator.password" || true
 
   AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" config-init --profile "${AOXC_Q_PROFILE}" --json-logs > "${run_dir}/config-init.json"
-  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" address-create --name "${operator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" --force > "${run_dir}/address-create-operator.json"
-  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" address-create --name "${validator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" --force > "${run_dir}/address-create-validator.json"
-  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" key-bootstrap --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" --force > "${run_dir}/key-bootstrap.json"
+  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" address-create --name "${operator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-operator.json"
+  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" address-create --name "${validator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-validator.json"
+  AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" key-bootstrap --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
   AOXC_HOME="${node_home}" "${AOXC_BIN_CMD[@]}" keys-verify --password "${password}" > "${run_dir}/keys-verify.json"
   "${AOXC_BIN_CMD[@]}" node-bootstrap --home "${node_home}" > "${run_dir}/node-bootstrap.json"
 
