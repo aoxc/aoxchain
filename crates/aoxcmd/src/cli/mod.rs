@@ -69,6 +69,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "sovereign-core" => describe::cmd_sovereign_core(),
         "module-architecture" => describe::cmd_module_architecture(),
         "compat-matrix" => describe::cmd_compat_matrix(),
+        "quantum-blueprint" => describe::cmd_quantum_blueprint(),
         "port-map" => describe::cmd_port_map(),
         "profile-baseline" => ops::cmd_profile_baseline(&args[2..]),
         "testnet-fixture-init" => bootstrap::cmd_testnet_fixture_init(&args[2..]),

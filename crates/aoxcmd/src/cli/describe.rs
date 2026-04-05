@@ -104,6 +104,16 @@ struct PortMap<'a> {
     prometheus_port: u16,
 }
 
+/// Unified advanced API/CLI blueprint for operators building automation.
+#[derive(Debug, Clone, Serialize)]
+struct QuantumAutomationBlueprint<'a> {
+    profile_version: &'a str,
+    posture: &'a str,
+    api_controls: Vec<&'a str>,
+    cli_controls: Vec<&'a str>,
+    release_gates: Vec<&'a str>,
+}
+
 /// Emits JSON for describe-surface commands that intentionally expose a stable
 /// machine-readable contract.
 fn emit_json<T: Serialize>(value: &T) -> Result<(), AppError> {
@@ -226,6 +236,30 @@ fn compatibility_matrix() -> CompatibilityMatrix<'static> {
 /// Emits machine-readable build metadata for the current binary.
 pub fn cmd_version() -> Result<(), AppError> {
     emit_json(&build_info())
+}
+
+/// Emits a machine-readable advanced API+CLI blueprint for operator automation.
+pub fn cmd_quantum_blueprint() -> Result<(), AppError> {
+    emit_json(&QuantumAutomationBlueprint {
+        profile_version: "v1",
+        posture: "hybrid-post-quantum-hardening",
+        api_controls: vec![
+            "idempotency-key required on write operations",
+            "request-signature envelope validated before admission",
+            "adaptive rate limit and rejection metrics exported",
+            "strict request/response schema contracts with compatibility versioning",
+        ],
+        cli_controls: vec![
+            "all readiness and gate commands support JSON output for CI",
+            "operator evidence commands are mandatory for release audits",
+            "health and status surfaces are deterministic and script-safe",
+        ],
+        release_gates: vec![
+            "compatibility matrix report must be generated",
+            "full-surface readiness gate must pass",
+            "security evidence bundle must be complete",
+        ],
+    })
 }
 
 /// Emits the high-level vision statement for the AOXC operator command plane.

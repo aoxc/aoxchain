@@ -98,6 +98,7 @@ DESCRIBE
   sovereign-core
   module-architecture
   compat-matrix
+  quantum-blueprint
   port-map
   profile-baseline [--enforce]
 
