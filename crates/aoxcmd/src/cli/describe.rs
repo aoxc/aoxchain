@@ -262,6 +262,11 @@ pub fn cmd_quantum_blueprint() -> Result<(), AppError> {
     })
 }
 
+/// Backward-compatible alias preserved for older test and script entrypoints.
+pub fn cmd_quantum_posture(_args: &[String]) -> Result<(), AppError> {
+    cmd_quantum_blueprint()
+}
+
 /// Emits the high-level vision statement for the AOXC operator command plane.
 pub fn cmd_vision() -> Result<(), AppError> {
     let trace = trace_for("vision");

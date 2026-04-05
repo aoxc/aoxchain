@@ -53,6 +53,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "account" => route_account_group(&args[2..]),
         "node" => route_node_group(&args[2..]),
         "network" => route_network_group(&args[2..]),
+        "api" => route_api_group(&args[2..]),
         "query" => route_query_group(&args[2..]),
         "tx" => route_tx_group(&args[2..]),
         "stake" => route_stake_group(&args[2..]),
@@ -316,6 +317,12 @@ fn route_query_consensus_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "status" => ops::cmd_consensus_status(tail),
+        "validators" => ops::cmd_consensus_validators(tail),
+        "proposer" => ops::cmd_consensus_proposer(tail),
+        "round" => ops::cmd_consensus_round(tail),
+        "finality" => ops::cmd_consensus_finality(tail),
+        "commits" => ops::cmd_consensus_commits(tail),
+        "evidence" => ops::cmd_consensus_evidence(tail),
         _ => invalid_group_usage("query consensus", "unsupported subcommand"),
     }
 }
@@ -327,6 +334,13 @@ fn route_query_vm_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "status" => ops::cmd_vm_status(tail),
+        "call" => ops::cmd_vm_call(tail),
+        "simulate" => ops::cmd_vm_simulate(tail),
+        "storage" | "storage-get" => ops::cmd_vm_storage_get(tail),
+        "contract" | "contract-get" => ops::cmd_vm_contract_get(tail),
+        "code" | "code-get" => ops::cmd_vm_code_get(tail),
+        "estimate-gas" => ops::cmd_vm_estimate_gas(tail),
+        "trace" => ops::cmd_vm_trace(tail),
         _ => invalid_group_usage("query vm", "unsupported subcommand"),
     }
 }
@@ -356,6 +370,21 @@ fn route_tx_group(args: &[String]) -> Result<(), AppError> {
         }
         "stake" => route_stake_group(tail),
         _ => invalid_group_usage("tx", "unsupported subcommand"),
+    }
+}
+
+fn route_api_group(args: &[String]) -> Result<(), AppError> {
+    let Some((subcommand, tail)) = args.split_first() else {
+        return ops::cmd_rpc_status(args);
+    };
+
+    match subcommand.as_str() {
+        "status" | "rpc" => ops::cmd_rpc_status(tail),
+        "smoke" | "curl-smoke" => ops::cmd_rpc_curl_smoke(tail),
+        "metrics" => ops::cmd_metrics(tail),
+        "health" => ops::cmd_runtime_status(tail),
+        "network" => route_query_network_group(tail),
+        _ => invalid_group_usage("api", "unsupported subcommand"),
     }
 }
 
@@ -420,7 +449,9 @@ fn invalid_group_usage(group: &str, detail: &str) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{remap_flags, run_cli};
+    use super::{
+        remap_flags, route_api_group, route_query_consensus_group, route_query_vm_group, run_cli,
+    };
 
     #[test]
     fn cli_module_is_linkable() {
@@ -441,5 +472,23 @@ mod tests {
         let output = remap_flags(&input, &[("--to", "--validator")]);
         assert_eq!(output[2], "--validator");
         assert_eq!(output[3], "validator-01");
+    }
+
+    #[test]
+    fn query_consensus_group_supports_extended_subcommands() {
+        let command = vec!["validators".to_string()];
+        assert!(route_query_consensus_group(&command).is_ok());
+    }
+
+    #[test]
+    fn query_vm_group_supports_extended_subcommands() {
+        let command = vec!["trace".to_string()];
+        assert!(route_query_vm_group(&command).is_ok());
+    }
+
+    #[test]
+    fn api_group_rejects_unknown_subcommands() {
+        let command = vec!["unknown".to_string()];
+        assert!(route_api_group(&command).is_err());
     }
 }
