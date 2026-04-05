@@ -84,6 +84,7 @@ GUIDED GROUPS
   account fund
   node init|start|status|doctor
   network create|start|status|verify|doctor
+  role list|status|activate-core7
   api [status|smoke|metrics|health|network]
   query chain|consensus|vm|block|tx|receipt|account|balance|network|state-root|rpc
   tx transfer|stake delegate|stake undelegate
