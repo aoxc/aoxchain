@@ -1,22 +1,33 @@
 # AOXChain consensus hardening profile for mainnet.
-version = 1
+version = 2
 environment = "mainnet"
-policy_name = "advanced-hardened-mainnet"
+policy_name = "advanced-hardened-mainnet-quantum"
 
 [finality]
-algorithm = "bft_deterministic"
+algorithm = "aoxcq_hybrid_bft"
 min_commit_threshold = "2f+1"
 max_reorg_depth = 0
+enable_equivocation_evidence = true
 
 [aoxcq]
 enabled = true
 pipeline = "q_prepare_q_lock_q_commit_q_seal"
 dual_certificate_mode = true
 profile_bound_finality = true
-deterministic_evidence_window_blocks = 8
+deterministic_evidence_window_blocks = 16
 
 [aoxcq.crypto_profiles]
-active = "classical"
+active = "hybrid_pq"
 allow_hybrid = true
-allow_pqc_only = false
+allow_pqc_only = true
 activation_gate = "onchain_governance"
+
+[committee]
+rotation = "epoch"
+entropy_source = "kernel_vrf"
+allow_emergency_freeze = true
+
+[network_guardrails]
+validator_rpc_cohost_forbidden = true
+bridge_with_validator_keys_forbidden = true
+require_plane_isolation = true

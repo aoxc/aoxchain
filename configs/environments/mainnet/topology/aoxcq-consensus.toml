@@ -1,16 +1,54 @@
 # AOXC-Q staged configuration for mainnet.
-version = 1
+version = 2
 environment = "mainnet"
-name = "aoxcq-mainnet"
+name = "aoxcq-mainnet-advanced"
 
 [protocol]
 family = "bft"
+mode = "deterministic_finality"
 phases = ["q_prepare", "q_lock", "q_commit", "q_seal"]
+quantum_consensus_algorithm = "aoxcq_hybrid_bft"
+
+[committee]
+selection = "stake_weighted_vrf"
+rotation = "epoch"
+min_honest_threshold = "2f+1"
+
+[proposal]
+max_block_bytes = 4194304
+max_tx_per_block = 10000
+require_execution_digest = true
+
+[locking]
+require_lock_certificate = true
+lock_certificate_threshold = "2f+1"
+lock_timeout_ms = 1200
+
+[commit]
+require_commit_certificate = true
+commit_certificate_threshold = "2f+1"
+commit_timeout_ms = 1200
 
 [evidence]
-window_blocks = 8
+window_blocks = 16
+enable_equivocation_tracking = true
+enable_invalid_vote_tracking = true
+enable_replay_tracking = true
 
 [crypto]
-active_profile = "classical"
-allowed_profiles = ["classical", "hybrid_pq"]
+profile_negotiation = true
+active_profile = "hybrid_pq"
+allowed_profiles = ["classical", "hybrid_pq", "pqc_only"]
+profile_binding = "block_header"
 downgrade_policy = "fail_closed"
+
+[roles]
+require_core_qc = true
+require_core_qv = true
+require_sec_evd = true
+require_net_pacer = true
+
+[guardrails]
+forbid_validator_rpc_cohost = true
+forbid_bridge_validator_key_sharing = true
+require_plane_isolation = true

@@ -7,50 +7,70 @@ default_deny = true
 mode = "policy_gated"
 require_validator_governance = true
 
+# Production node activation:
+# - all roles are defined and enabled,
+# - runtime admission remains policy-gated,
+# - quantum-sensitive roles are assigned explicit assurance tiers.
 [roles.core_val]
 enabled = true
+quantum_tier = "q2_hybrid_required"
 
 [roles.core_prop]
-enabled = false
+enabled = true
+quantum_tier = "q2_hybrid_required"
 
 [roles.core_guard]
-enabled = false
+enabled = true
+quantum_tier = "q3_evidence_hardened"
 
 [roles.net_relay]
 enabled = true
+quantum_tier = "q1_classical_compatible"
 
 [roles.net_gate]
 enabled = true
+quantum_tier = "q1_classical_compatible"
 
 [roles.data_arch]
-enabled = false
+enabled = true
+quantum_tier = "q2_hybrid_required"
 
 [roles.data_da]
-enabled = false
+enabled = true
+quantum_tier = "q2_hybrid_required"
 
 [roles.serv_rpc]
 enabled = true
+quantum_tier = "q1_classical_compatible"
 
 [roles.serv_idx]
 enabled = true
+quantum_tier = "q1_classical_compatible"
 
 [roles.sec_sent]
 enabled = true
+quantum_tier = "q3_evidence_hardened"
 
 [roles.x_orcl]
-enabled = false
+enabled = true
+quantum_tier = "q2_hybrid_required"
 
 [roles.x_bridge]
-enabled = false
+enabled = true
+quantum_tier = "q3_evidence_hardened"
 
 [roles.core_qc]
-enabled = false
+enabled = true
+quantum_tier = "q4_pqc_anchor"
 
 [roles.core_qv]
-enabled = false
+enabled = true
+quantum_tier = "q4_pqc_anchor"
 
 [roles.sec_evd]
-enabled = false
+enabled = true
+quantum_tier = "q4_pqc_anchor"
 
 [roles.net_pacer]
-enabled = false
+enabled = true
+quantum_tier = "q2_hybrid_required"
