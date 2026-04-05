@@ -70,6 +70,9 @@ AWK ?= awk
 LS ?= ls
 SED ?= sed
 CMP ?= cmp
+CONTAINER_ENGINE ?= auto
+CONTAINER_IMAGE ?= aoxchain-node:local
+CONTAINER_COMPOSE_FILE ?= docker-compose.yaml
 
 # --------------------------------------------------------------------
 # Workspace quality flags
