@@ -165,7 +165,6 @@ impl DeterministicOrchestrator {
 }
 
 
-#[path = "engine/mod.rs"]
 mod engine;
 
 pub use engine::{default_lane_registry, default_lanes};
@@ -173,3 +172,4 @@ pub use engine::{default_lane_registry, default_lanes};
 /// Compatibility alias retained for existing users that still instantiate the
 /// old placeholder orchestrator.
 pub type PlaceholderOrchestrator = DeterministicOrchestrator;
+
