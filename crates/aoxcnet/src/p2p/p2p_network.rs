@@ -142,7 +142,7 @@ impl P2PNetwork {
         let handshake_intent = HandshakeIntent {
             peer_id: peer.id.clone(),
             peer_class: peer_class_for_role(peer.role),
-            release_line: AOXC_Q_RELEASE_LINE.to_string(),
+            release_line: "AOXC-Q-v0.2.0".to_string(),
             transport_profile,
             protocol_version: 1,
             max_frame_bytes: self.config.max_frame_bytes,
@@ -452,8 +452,7 @@ fn handshake_policy_for_mode(
 
     HandshakePolicy {
         minimum_protocol_version: 1,
-        required_release_line: AOXC_Q_RELEASE_LINE.to_string(),
-        allowed_peer_classes,
+        required_release_line: "AOXC-Q-v0.2.0".to_string(),
         required_profile,
         max_frame_bytes: config.max_frame_bytes,
         allow_compression: false,
@@ -467,7 +466,6 @@ fn describe_handshake_reject(reason: HandshakeRejectReason) -> &'static str {
     match reason {
         HandshakeRejectReason::EmptyPeerId => "empty peer identifier",
         HandshakeRejectReason::ReleaseLineMismatch => "release line mismatch",
-        HandshakeRejectReason::PeerClassForbidden => "peer class forbidden by policy",
         HandshakeRejectReason::ProtocolVersionTooOld => "protocol version too old",
         HandshakeRejectReason::ProfileDowngradeRejected => "transport profile downgrade rejected",
         HandshakeRejectReason::FrameBudgetExceeded => "declared frame budget exceeds policy",

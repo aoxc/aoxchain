@@ -41,10 +41,6 @@ Unknown, malformed, or unauthorized profile payloads are rejected before state t
 2. Handshake and peer negotiation must reject downgrade attempts.
 3. Admission pipeline enforces cheap checks before expensive verification.
 4. Profile activation/deprecation is governance-bound and rollback-capable.
-5. Security-mode peer-class policy is enforced at handshake admission:
-   - `insecure`: validator/sentry/archive/observer/bootstrap,
-   - `mutual_auth`: validator/sentry/archive/observer,
-   - `audit_strict`: validator/sentry only.
 
 ## Testnet Rollout Controls
 

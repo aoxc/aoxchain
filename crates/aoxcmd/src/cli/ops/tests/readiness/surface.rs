@@ -36,11 +36,11 @@ fn full_surface_readiness_reports_all_target_surfaces() {
         evaluate_profile_readiness("mainnet", &settings, None, Some("active"), true, true);
     let full = evaluate_full_surface_readiness(&settings, &readiness);
 
-    assert_eq!(full.release_line, AOXC_Q_RELEASE_LINE);
+    assert_eq!(full.release_line, "AOXC-Q-v0.2.0");
     assert!(full.matrix_loaded);
     assert_eq!(
         full.matrix_release_line.as_deref(),
-        Some(AOXC_Q_RELEASE_LINE)
+        Some("AOXC-Q-v0.2.0")
     );
     assert_eq!(full.matrix_surface_count, 7);
     assert!(

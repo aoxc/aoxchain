@@ -56,7 +56,6 @@ pub struct HandshakeIntent {
 pub struct HandshakePolicy {
     pub minimum_protocol_version: u16,
     pub required_release_line: String,
-    pub allowed_peer_classes: Vec<PeerClass>,
     pub required_profile: TransportCryptoProfile,
     pub max_frame_bytes: usize,
     pub allow_compression: bool,
@@ -68,13 +67,7 @@ impl Default for HandshakePolicy {
     fn default() -> Self {
         Self {
             minimum_protocol_version: 1,
-            required_release_line: AOXC_Q_RELEASE_LINE.to_string(),
-            allowed_peer_classes: vec![
-                PeerClass::Validator,
-                PeerClass::Sentry,
-                PeerClass::Archive,
-                PeerClass::Observer,
-            ],
+            required_release_line: "AOXC-Q-v0.2.0".to_string(),
             required_profile: TransportCryptoProfile::HybridV2,
             max_frame_bytes: 256 * 1024,
             allow_compression: false,
@@ -89,7 +82,6 @@ impl Default for HandshakePolicy {
 pub enum HandshakeRejectReason {
     EmptyPeerId,
     ReleaseLineMismatch,
-    PeerClassForbidden,
     ProtocolVersionTooOld,
     ProfileDowngradeRejected,
     FrameBudgetExceeded,
@@ -107,10 +99,6 @@ impl HandshakePolicy {
 
         if intent.release_line.trim() != self.required_release_line {
             return Err(HandshakeRejectReason::ReleaseLineMismatch);
-        }
-
-        if !self.allowed_peer_classes.contains(&intent.peer_class) {
-            return Err(HandshakeRejectReason::PeerClassForbidden);
         }
 
         if intent.protocol_version < self.minimum_protocol_version {
@@ -155,7 +143,7 @@ mod tests {
         HandshakeIntent {
             peer_id: "validator-a".to_string(),
             peer_class: PeerClass::Validator,
-            release_line: AOXC_Q_RELEASE_LINE.to_string(),
+            release_line: "AOXC-Q-v0.2.0".to_string(),
             transport_profile: TransportCryptoProfile::HybridV2,
             protocol_version: 1,
             max_frame_bytes: 128 * 1024,
@@ -192,18 +180,6 @@ mod tests {
         assert_eq!(
             policy.evaluate(&intent),
             Err(HandshakeRejectReason::ReleaseLineMismatch)
-        );
-    }
-
-    #[test]
-    fn rejects_forbidden_peer_class() {
-        let policy = HandshakePolicy::default();
-        let mut intent = base_intent();
-        intent.peer_class = PeerClass::Bootstrap;
-
-        assert_eq!(
-            policy.evaluate(&intent),
-            Err(HandshakeRejectReason::PeerClassForbidden)
         );
     }
 

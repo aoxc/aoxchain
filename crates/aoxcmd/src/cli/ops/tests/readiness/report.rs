@@ -15,7 +15,7 @@ fn full_surface_markdown_report_includes_release_and_surface_summary() {
     let report = full_surface_markdown_report(&full);
 
     assert!(report.contains("# AOXC Full-Surface Readiness Report"));
-    assert!(report.contains(&format!("Release line: `{AOXC_Q_RELEASE_LINE}`")));
+    assert!(report.contains("Release line: `AOXC-Q-v0.2.0`"));
     assert!(report.contains("## Surface summary"));
     assert!(report.contains("**mainnet** / owner `protocol-release`"));
 }
