@@ -17,18 +17,18 @@ fn signer(algorithm: SignatureAlgorithm, key_id: &str, bytes: usize) -> Signatur
 
 fn run_case(name: &str, envelope: &AuthEnvelope, iterations: usize) {
     for _ in 0..WARMUP_ITERS {
-        let is_valid = black_box(envelope)
+        envelope
             .validate(AuthProfile::HybridMandatory, AuthEnvelopeLimits::default())
-            .is_ok();
-        black_box(is_valid);
+            .expect("benchmark envelope must remain valid");
+        black_box(());
     }
 
     let started = Instant::now();
     for _ in 0..iterations {
-        let is_valid = black_box(envelope)
+        envelope
             .validate(AuthProfile::HybridMandatory, AuthEnvelopeLimits::default())
-            .is_ok();
-        black_box(is_valid);
+            .expect("benchmark envelope must remain valid");
+        black_box(());
     }
     let elapsed = started.elapsed();
     let nanos_per_iter = elapsed.as_nanos() / (iterations as u128);
