@@ -272,6 +272,10 @@ pub fn cmd_genesis_validate(args: &[String]) -> Result<(), AppError> {
     let genesis = load_genesis()?;
     validate_genesis(&genesis)?;
     validate_binding_files(&genesis)?;
+    let strict = has_flag(args, "--strict");
+    if strict {
+        validate_identity_against_repo_policy(&genesis)?;
+    }
 
     let mut details = BTreeMap::new();
     details.insert(
@@ -286,6 +290,7 @@ pub fn cmd_genesis_validate(args: &[String]) -> Result<(), AppError> {
         "accounts".to_string(),
         genesis.state.accounts.len().to_string(),
     );
+    details.insert("strict_policy".to_string(), strict.to_string());
 
     emit_serialized(
         &text_envelope("genesis-validate", "ok", details),
