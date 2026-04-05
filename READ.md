@@ -18,6 +18,8 @@ AOXChain is a deterministic Layer-1 system with:
 3. **Boundary integrity:** non-kernel surfaces cannot override consensus truth.
 4. **Profile explicitness:** consensus-critical cryptography is versioned and policy-bound.
 5. **Evidence traceability:** readiness claims require reproducible commands and retained artifacts.
+6. **Identity tuple integrity:** `chain_id`, `network_id`, and `network_serial` must remain registry-derived and mutually consistent.
+7. **Version-axis separation:** brand/ticker, release line, workspace version, and cryptographic profile version are distinct and must not be conflated.
 
 ## 3) Layer Responsibilities
 
@@ -41,7 +43,18 @@ AOXChain is a deterministic Layer-1 system with:
 - runs readiness gates and evidence collection;
 - cannot mutate protocol truth outside approved policy surfaces.
 
-## 4) Required Readiness Gates
+## 4) Layer Extension Rule
+
+When introducing a new layer, role class, or operational plane:
+
+1. update `ARCHITECTURE.md` with responsibility and dependency direction;
+2. update `configs/topology/*` and environment overlays for activation policy;
+3. define trust boundary and validation ownership explicitly;
+4. add readiness evidence requirements in testing and operational runbooks.
+
+No new layer should be introduced through implementation-only changes without synchronized governance and operational documentation.
+
+## 5) Required Readiness Gates
 
 Readiness status is valid only when required gates pass and evidence is retained.
 
@@ -55,7 +68,7 @@ make testnet-gate
 make testnet-readiness-gate
 ```
 
-## 5) High-Sensitivity Change Classes
+## 6) High-Sensitivity Change Classes
 
 The following classes require synchronized implementation, tests, and documentation:
 
@@ -64,12 +77,13 @@ The following classes require synchronized implementation, tests, and documentat
 - cryptographic profile and key lifecycle policy,
 - serialization and storage compatibility,
 - RPC/API/operator control surfaces,
-- release and rollback workflows.
+- release and rollback workflows,
+- network identity and version policy definitions.
 
-## 6) Program Trajectory
+## 7) Program Trajectory
 
 Program trajectory is governed by `ROADMAP.md`: production-grade testnet operation first, then controlled activation of a PQ-resilient mainnet.
 
-## 7) License and Liability Context
+## 8) License and Liability Context
 
 AOXChain is distributed under the MIT License on an **"as is"** basis, without warranty or liability assumptions by maintainers or contributors except where restricted by applicable law.

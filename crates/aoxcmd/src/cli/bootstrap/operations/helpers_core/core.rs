@@ -466,6 +466,21 @@ pub(in crate::cli::bootstrap::operations) fn persist_bootnodes_binding(
 pub(in crate::cli::bootstrap::operations) fn validate_genesis(
     genesis: &BootstrapGenesisDocument,
 ) -> Result<(), AppError> {
+    const ALLOWED_ACCOUNT_ROLES: [&str; 12] = [
+        "treasury",
+        "validator",
+        "system",
+        "user",
+        "governance",
+        "forge",
+        "quorum",
+        "seal",
+        "archive",
+        "sentinel",
+        "relay",
+        "pocket",
+    ];
+
     if genesis.schema_version != 1 {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
@@ -580,6 +595,16 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
                 "Genesis validation failed: duplicate account_id detected",
             ));
         }
+
+        if !ALLOWED_ACCOUNT_ROLES.contains(&account.role.trim().to_ascii_lowercase().as_str()) {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: unsupported account role '{}' for {}",
+                    account.role, account.account_id
+                ),
+            ));
+        }
     }
 
     if genesis.bindings.validators_file.trim().is_empty()
@@ -656,6 +681,23 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
         ));
     }
 
+    if matches!(genesis.environment.as_str(), "mainnet" | "testnet") {
+        let minimum_validators = if genesis.environment == "mainnet" {
+            4
+        } else {
+            3
+        };
+        if validators_doc.validators.len() < minimum_validators {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: {} requires at least {} validators",
+                    genesis.environment, minimum_validators
+                ),
+            ));
+        }
+    }
+
     for validator in &validators_doc.validators {
         if validator.validator_id.trim().is_empty() {
             return Err(AppError::new(
@@ -717,6 +759,27 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
         ));
     }
 
+    if matches!(genesis.environment.as_str(), "mainnet" | "testnet") {
+        let minimum_bootnodes = if genesis.environment == "mainnet" {
+            3
+        } else {
+            2
+        };
+        let bootnode_count = bootnodes_json
+            .get("bootnodes")
+            .and_then(Value::as_array)
+            .map_or(0, Vec::len);
+        if bootnode_count < minimum_bootnodes {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: {} requires at least {} bootnodes",
+                    genesis.environment, minimum_bootnodes
+                ),
+            ));
+        }
+    }
+
     let certificate_path = root.join(&genesis.bindings.certificate_file);
     let certificate_raw = read_file(&certificate_path)?;
     let certificate_json: Value = serde_json::from_str(&certificate_raw).map_err(|error| {
@@ -770,6 +833,243 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
                 ),
             ));
         }
+    }
+
+    Ok(())
+}
+
+pub(in crate::cli::bootstrap::operations) fn validate_identity_against_repo_policy(
+    genesis: &BootstrapGenesisDocument,
+) -> Result<(), AppError> {
+    let repo_root = resolve_repo_root_for_configs()?;
+    let profile_path = repo_root
+        .join("configs")
+        .join("environments")
+        .join(&genesis.environment)
+        .join("profile.toml");
+    let release_path = repo_root
+        .join("configs")
+        .join("environments")
+        .join(&genesis.environment)
+        .join("release-policy.toml");
+    let registry_path = repo_root
+        .join("configs")
+        .join("registry")
+        .join("network-registry.toml");
+
+    let profile = parse_identity_tuple_from_toml_section(&profile_path, "identity")?;
+    let release = parse_identity_tuple_from_toml_section(&release_path, "identity")?;
+    let registry = parse_registry_identity_tuple(&registry_path, &genesis.environment)?;
+
+    ensure_identity_tuple_match(
+        "genesis<->profile",
+        genesis.identity.chain_id,
+        &genesis.identity.network_id,
+        &genesis.identity.network_serial,
+        profile.chain_id,
+        &profile.network_id,
+        &profile.network_serial,
+    )?;
+    ensure_identity_tuple_match(
+        "genesis<->release-policy",
+        genesis.identity.chain_id,
+        &genesis.identity.network_id,
+        &genesis.identity.network_serial,
+        release.chain_id,
+        &release.network_id,
+        &release.network_serial,
+    )?;
+    ensure_identity_tuple_match(
+        "genesis<->registry",
+        genesis.identity.chain_id,
+        &genesis.identity.network_id,
+        &genesis.identity.network_serial,
+        registry.chain_id,
+        &registry.network_id,
+        &registry.network_serial,
+    )?;
+
+    Ok(())
+}
+
+fn resolve_repo_root_for_configs() -> Result<PathBuf, AppError> {
+    let current = std::env::current_dir().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Strict identity validation failed: cannot resolve current directory",
+            error,
+        )
+    })?;
+
+    for candidate in current.ancestors() {
+        if candidate.join("Cargo.toml").exists() && candidate.join("configs").exists() {
+            return Ok(candidate.to_path_buf());
+        }
+    }
+
+    Err(AppError::new(
+        ErrorCode::FilesystemIoFailed,
+        "Strict identity validation failed: repository root with configs/ not found",
+    ))
+}
+
+#[derive(Clone)]
+struct IdentityTuple {
+    chain_id: u64,
+    network_id: String,
+    network_serial: String,
+}
+
+fn parse_identity_tuple_from_toml_section(
+    path: &Path,
+    section: &str,
+) -> Result<IdentityTuple, AppError> {
+    let raw = read_file(path)?;
+    let mut in_section = false;
+    let mut chain_id = None::<u64>;
+    let mut network_id = None::<String>;
+    let mut network_serial = None::<String>;
+
+    for line in raw.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            in_section = line
+                .trim_matches(|ch| ch == '[' || ch == ']')
+                .trim()
+                .eq(section);
+            continue;
+        }
+        if !in_section {
+            continue;
+        }
+
+        if let Some((key, value)) = line.split_once('=') {
+            let key = key.trim();
+            let value = value.trim();
+            match key {
+                "chain_id" => chain_id = value.parse::<u64>().ok(),
+                "network_id" => network_id = Some(value.trim_matches('"').to_string()),
+                "network_serial" => network_serial = Some(value.trim_matches('"').to_string()),
+                _ => {}
+            }
+        }
+    }
+
+    match (chain_id, network_id, network_serial) {
+        (Some(chain_id), Some(network_id), Some(network_serial)) => Ok(IdentityTuple {
+            chain_id,
+            network_id,
+            network_serial,
+        }),
+        _ => Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Strict identity validation failed: {} is missing chain_id/network_id/network_serial in [{}]",
+                path.display(),
+                section
+            ),
+        )),
+    }
+}
+
+fn parse_registry_identity_tuple(
+    path: &Path,
+    environment: &str,
+) -> Result<IdentityTuple, AppError> {
+    let raw = read_file(path)?;
+    let section_name = match environment {
+        "mainnet" => "canonical_networks.mainnet",
+        "testnet" => "canonical_networks.testnet",
+        "validation" => "canonical_networks.validation",
+        "localnet" => "canonical_networks.localnet",
+        other => {
+            return Err(AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                format!(
+                    "Strict identity validation does not support environment '{}'",
+                    other
+                ),
+            ));
+        }
+    };
+
+    let mut in_section = false;
+    let mut chain_id = None::<u64>;
+    let mut network_id = None::<String>;
+    let mut network_serial = None::<String>;
+
+    for line in raw.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            in_section = line
+                .trim_matches(|ch| ch == '[' || ch == ']')
+                .trim()
+                .eq(section_name);
+            continue;
+        }
+        if !in_section {
+            continue;
+        }
+
+        if let Some((key, value)) = line.split_once('=') {
+            let key = key.trim();
+            let value = value.trim();
+            match key {
+                "chain_id" => chain_id = value.parse::<u64>().ok(),
+                "network_id" => network_id = Some(value.trim_matches('"').to_string()),
+                "network_serial" => network_serial = Some(value.trim_matches('"').to_string()),
+                _ => {}
+            }
+        }
+    }
+
+    match (chain_id, network_id, network_serial) {
+        (Some(chain_id), Some(network_id), Some(network_serial)) => Ok(IdentityTuple {
+            chain_id,
+            network_id,
+            network_serial,
+        }),
+        _ => Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Strict identity validation failed: {} is missing identity tuple in [{}]",
+                path.display(),
+                section_name
+            ),
+        )),
+    }
+}
+
+fn ensure_identity_tuple_match(
+    label: &str,
+    chain_id_a: u64,
+    network_id_a: &str,
+    network_serial_a: &str,
+    chain_id_b: u64,
+    network_id_b: &str,
+    network_serial_b: &str,
+) -> Result<(), AppError> {
+    if chain_id_a != chain_id_b
+        || !network_id_a.eq(network_id_b)
+        || !network_serial_a.eq(network_serial_b)
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Strict identity validation failed: {} mismatch (chain_id {} vs {}, network_id {} vs {}, network_serial {} vs {})",
+                label,
+                chain_id_a,
+                chain_id_b,
+                network_id_a,
+                network_id_b,
+                network_serial_a,
+                network_serial_b
+            ),
+        ));
     }
 
     Ok(())

@@ -7,13 +7,14 @@ material. The operational model is **single-system runtime code** with
 ## Goals
 
 - Keep one runtime lifecycle path in scripts/Make targets.
-- Select network identity (`mainnet`/`testnet`/`devnet`) via config, not via
-  divergent operational scripts.
+- Select network identity (`mainnet`/`testnet`/`devnet`/`validation`/`localnet`) via config, not via divergent operational scripts.
 - Keep source material auditable and release-ready.
 
 ## Canonical Structure
 
 - `environments/<network-kind>/` — canonical runtime source bundle.
+- `registry/network-registry.toml` — canonical identity derivation policy.
+- `version-policy.toml` — repository-level version governance contract.
 - `network-matrix.toml` — environment matrix with security/runtime expectations.
 - `mainnet.toml`, `testnet.toml`, `devnet.toml` — legacy compatibility presets.
 
@@ -22,23 +23,6 @@ material. The operational model is **single-system runtime code** with
 Use one code path and set:
 
 ```bash
-AOXC_NETWORK_KIND=mainnet   # or testnet/devnet
-```
-
-`Makefile` and `scripts/runtime_daemon.sh` resolve runtime source from:
-
-```text
-configs/environments/${AOXC_NETWORK_KIND}/
-```
-
-Genesis metadata remains the source of truth for chain type (for example,
-`environment = "mainnet"` in `genesis.v1.json`).
-
-## Single-System Selection
-
-Use one code path and set:
-
-```bash
 AOXC_NETWORK_KIND=mainnet   # or testnet/devnet/localnet/validation
 ```
 
@@ -48,25 +32,42 @@ AOXC_NETWORK_KIND=mainnet   # or testnet/devnet/localnet/validation
 configs/environments/${AOXC_NETWORK_KIND}/
 ```
 
-Genesis metadata remains the source of truth for chain type (for example,
+Genesis metadata remains the source of truth for environment class (for example,
 `environment = "mainnet"` in `genesis.v1.json`).
 
-## Single-System Selection
+## Identity Source of Truth
 
-Use one code path and set:
+Identity tuple fields are policy-controlled and must stay synchronized:
 
-```bash
-AOXC_NETWORK_KIND=mainnet   # or testnet/devnet/localnet/validation
-```
+- `chain_id` (machine identifier),
+- `network_id` (human-readable canonical identifier),
+- `network_serial` (registry serial key).
 
-`Makefile` and `scripts/runtime_daemon.sh` resolve runtime source from:
+Required authority order:
+
+1. `configs/registry/network-registry.toml`
+2. `configs/environments/<env>/release-policy.toml`
+3. `configs/environments/<env>/profile.toml`
+4. `configs/environments/<env>/genesis.v1.json`
+
+Manual identity overrides are not acceptable for governed environments.
+
+## Node Naming Baseline
+
+Environment node labels should follow:
 
 ```text
-configs/environments/${AOXC_NETWORK_KIND}/
+<env>-<role>-<ordinal>
 ```
 
-Genesis metadata remains the source of truth for chain type (for example,
-`environment = "mainnet"` in `genesis.v1.json`).
+Examples:
+
+- `mainnet-validator-01`
+- `testnet-rpc-02`
+- `validation-sentry-01`
+
+If legacy fixture names are retained, document them explicitly as fixture-only and
+non-authoritative for production naming policy.
 
 ## Environment Compatibility Model
 
@@ -90,6 +91,8 @@ for path in [
     'configs/testnet.toml',
     'configs/devnet.toml',
     'configs/network-matrix.toml',
+    'configs/version-policy.toml',
+    'configs/registry/network-registry.toml',
 ]:
     with open(path, 'rb') as f:
         tomllib.load(f)

@@ -50,7 +50,7 @@ use helpers_core::{
     materialize_binding_documents, persist_bootnodes_binding, persist_genesis,
     persist_validators_binding, sync_optional_accounts_binding, upsert_bootnode_binding,
     upsert_validator_account, upsert_validator_binding, validate_binding_files, validate_genesis,
-    write_json_pretty,
+    validate_identity_against_repo_policy, write_json_pretty,
 };
 
 #[cfg(test)]
