@@ -107,7 +107,7 @@ pub fn build_proof(leaves: &[Vec<u8>], leaf_index: usize) -> Result<MerkleProof,
     let mut steps = Vec::new();
 
     for level in &levels[..levels.len() - 1] {
-        let sibling_index = if current_index % 2 == 0 {
+        let sibling_index = if current_index.is_multiple_of(2) {
             if current_index + 1 < level.len() {
                 current_index + 1
             } else {
@@ -117,7 +117,7 @@ pub fn build_proof(leaves: &[Vec<u8>], leaf_index: usize) -> Result<MerkleProof,
             current_index - 1
         };
 
-        let sibling_direction = if current_index % 2 == 0 {
+        let sibling_direction = if current_index.is_multiple_of(2) {
             SiblingDirection::Right
         } else {
             SiblingDirection::Left
@@ -173,7 +173,7 @@ pub fn verify_proof(
     let mut current = leaf_hash;
 
     for step in &proof.steps {
-        if idx % 2 == 0 {
+        if idx.is_multiple_of(2) {
             if step.sibling_direction != SiblingDirection::Right {
                 return Err(MerkleError::InvalidProofShape);
             }

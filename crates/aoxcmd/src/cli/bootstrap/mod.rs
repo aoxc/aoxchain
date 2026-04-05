@@ -10,4 +10,5 @@ mod operations;
 mod types;
 
 pub use operations::*;
+#[allow(unused_imports)]
 pub use types::ConsensusProfileGateStatus;
