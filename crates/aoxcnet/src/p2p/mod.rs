@@ -14,8 +14,7 @@ use crate::error::NetworkError;
 use crate::gossip::peer::Peer;
 use crate::metrics::{NetworkMetrics, NetworkMetricsSnapshot};
 use crate::secure_session::{
-    AOXC_Q_RELEASE_LINE, HandshakeIntent, HandshakePolicy, HandshakeRejectReason, PeerClass,
-    TransportCryptoProfile,
+    HandshakeIntent, HandshakePolicy, HandshakeRejectReason, PeerClass, TransportCryptoProfile,
 };
 
 include!("p2p_envelope.rs");
