@@ -78,7 +78,7 @@ USAGE
 
 GUIDED GROUPS
   chain init|create|start|status|doctor|demo
-  genesis init|add-validator|add-account|build|verify|inspect|fingerprint
+  genesis init|add-validator|add-account|build|verify|inspect|fingerprint|production-gate
   validator create|inspect|status|rotate-key
   wallet create|balance
   account fund

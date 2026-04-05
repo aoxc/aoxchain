@@ -30,3 +30,7 @@ allow_unsigned_release = false
 allow_manifest_identity_override = false
 allow_chain_id_override = false
 allow_network_id_override = false
+
+[topology_minimums]
+minimum_validators = 4
+minimum_bootnodes = 3

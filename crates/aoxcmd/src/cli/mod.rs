@@ -99,6 +99,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "genesis-template-advanced" => bootstrap::cmd_genesis_template_advanced(&args[2..]),
         "genesis-security-audit" => bootstrap::cmd_genesis_security_audit(&args[2..]),
         "genesis-hash" => bootstrap::cmd_genesis_hash(&args[2..]),
+        "genesis-production-gate" => bootstrap::cmd_genesis_production_gate(&args[2..]),
         "config-init" => bootstrap::cmd_config_init(&args[2..]),
         "config-validate" => bootstrap::cmd_config_validate(&args[2..]),
         "config-print" => bootstrap::cmd_config_print(&args[2..]),
@@ -199,6 +200,7 @@ fn route_genesis_group(args: &[String]) -> Result<(), AppError> {
         "inspect" => bootstrap::cmd_genesis_inspect(tail),
         "template-advanced" => bootstrap::cmd_genesis_template_advanced(tail),
         "security-audit" => bootstrap::cmd_genesis_security_audit(tail),
+        "production-gate" => bootstrap::cmd_genesis_production_gate(tail),
         "fingerprint" => bootstrap::cmd_genesis_hash(tail),
         _ => invalid_group_usage("genesis", "unsupported subcommand"),
     }

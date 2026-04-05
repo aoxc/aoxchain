@@ -1,4 +1,24 @@
 use super::*;
+use std::path::PathBuf;
+
+const ALLOWED_GENESIS_ACCOUNT_ROLES: [&str; 12] = [
+    "treasury",
+    "validator",
+    "system",
+    "user",
+    "governance",
+    "forge",
+    "quorum",
+    "seal",
+    "archive",
+    "sentinel",
+    "relay",
+    "pocket",
+];
+
+fn is_allowed_genesis_account_role(role: &str) -> bool {
+    ALLOWED_GENESIS_ACCOUNT_ROLES.contains(&role)
+}
 
 const ALLOWED_GENESIS_ACCOUNT_ROLES: [&str; 12] = [
     "treasury",
@@ -296,6 +316,138 @@ pub fn cmd_genesis_validate(args: &[String]) -> Result<(), AppError> {
         &text_envelope("genesis-validate", "ok", details),
         output_format(args),
     )
+}
+
+pub fn cmd_genesis_production_gate(args: &[String]) -> Result<(), AppError> {
+    let genesis = load_genesis()?;
+    validate_genesis(&genesis)?;
+    validate_binding_files(&genesis)?;
+    validate_identity_against_repo_policy(&genesis)?;
+    let role_report = role_topology_core7_status(&genesis.environment)?;
+
+    if !role_report.missing.is_empty() || !role_report.non_core_active.is_empty() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Production gate failed: missing_core7_roles={} non_core_active_roles={}",
+                if role_report.missing.is_empty() {
+                    "none".to_string()
+                } else {
+                    role_report.missing.join(",")
+                },
+                if role_report.non_core_active.is_empty() {
+                    "none".to_string()
+                } else {
+                    role_report.non_core_active.join(",")
+                }
+            ),
+        ));
+    }
+
+    let mut details = BTreeMap::new();
+    details.insert("environment".to_string(), genesis.environment);
+    details.insert(
+        "chain_id".to_string(),
+        genesis.identity.chain_id.to_string(),
+    );
+    details.insert("network_id".to_string(), genesis.identity.network_id);
+    details.insert("strict_policy".to_string(), "true".to_string());
+    details.insert(
+        "core7_topology".to_string(),
+        "active-and-exclusive".to_string(),
+    );
+    details.insert("production_gate".to_string(), "pass".to_string());
+
+    emit_serialized(
+        &text_envelope("genesis-production-gate", "ok", details),
+        output_format(args),
+    )
+}
+
+struct RoleTopologyCore7Status {
+    missing: Vec<String>,
+    non_core_active: Vec<String>,
+}
+
+fn role_topology_core7_status(environment: &str) -> Result<RoleTopologyCore7Status, AppError> {
+    const CORE7_TOPOLOGY_ROLES: [&str; 7] = [
+        "core_val",
+        "core_prop",
+        "core_guard",
+        "data_arch",
+        "sec_sent",
+        "net_relay",
+        "serv_rpc",
+    ];
+
+    let repo_root = locate_repo_root_for_gate()?;
+    let path = repo_root
+        .join("configs")
+        .join("environments")
+        .join(environment)
+        .join("topology")
+        .join("role-topology.toml");
+    let content = read_file(&path)?;
+
+    let mut states = BTreeMap::<String, bool>::new();
+    let mut current_role: Option<String> = None;
+
+    for raw in content.lines() {
+        let line = raw.trim();
+        if line.starts_with("[roles.") && line.ends_with(']') {
+            let role = line
+                .trim_start_matches("[roles.")
+                .trim_end_matches(']')
+                .to_string();
+            current_role = Some(role.clone());
+            states.entry(role).or_insert(false);
+            continue;
+        }
+
+        if let Some(role) = current_role.as_ref() {
+            if line.starts_with("enabled") {
+                states.insert(role.clone(), line.ends_with("true"));
+            }
+        }
+    }
+
+    let missing = CORE7_TOPOLOGY_ROLES
+        .iter()
+        .filter(|role| !states.get(**role).copied().unwrap_or(false))
+        .map(|role| role.to_string())
+        .collect::<Vec<_>>();
+
+    let non_core_active = states
+        .iter()
+        .filter(|(role, enabled)| **enabled && !CORE7_TOPOLOGY_ROLES.contains(&role.as_str()))
+        .map(|(role, _)| role.clone())
+        .collect::<Vec<_>>();
+
+    Ok(RoleTopologyCore7Status {
+        missing,
+        non_core_active,
+    })
+}
+
+fn locate_repo_root_for_gate() -> Result<PathBuf, AppError> {
+    let current = std::env::current_dir().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Genesis production gate failed: cannot resolve current directory",
+            error,
+        )
+    })?;
+
+    for candidate in current.ancestors() {
+        if candidate.join("Cargo.toml").exists() && candidate.join("configs").exists() {
+            return Ok(candidate.to_path_buf());
+        }
+    }
+
+    Err(AppError::new(
+        ErrorCode::FilesystemIoFailed,
+        "Genesis production gate failed: repository root with configs/ not found",
+    ))
 }
 
 pub fn cmd_genesis_inspect(args: &[String]) -> Result<(), AppError> {
