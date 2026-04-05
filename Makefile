@@ -70,7 +70,9 @@ AWK ?= awk
 LS ?= ls
 SED ?= sed
 CMP ?= cmp
-MK_DIR ?= mk
+CONTAINER_ENGINE ?= auto
+CONTAINER_IMAGE ?= aoxchain-node:local
+CONTAINER_COMPOSE_FILE ?= docker-compose.yaml
 
 # --------------------------------------------------------------------
 # Workspace quality flags
@@ -333,7 +335,6 @@ help:
 	@printf "  make runtime-reinstall\n"
 	@printf "  make runtime-reset\n\n"
 	@printf "Container runtime\n"
-	@printf "  make container-check CONTAINER_ENGINE=auto\n"
 	@printf "  make container-check CONTAINER_ENGINE=docker\n"
 	@printf "  make container-check CONTAINER_ENGINE=podman\n"
 	@printf "  make container-build\n"
@@ -718,6 +719,52 @@ runtime-bundle-compat-check:
 	$(call print_banner,Validating full environment bundle compatibility)
 	@python3 scripts/validate_environment_bundle.py
 
+docker-check:
+	$(call print_banner,Validating Docker runtime prerequisites)
+	$(call require_command,docker)
+	@docker info >/dev/null 2>&1 || { echo "Docker daemon is not reachable. Start Docker and retry."; exit 1; }
+	@if docker compose version >/dev/null 2>&1; then \
+		echo "Docker Compose v2 is available."; \
+	elif command -v docker-compose >/dev/null 2>&1; then \
+		echo "docker-compose is available."; \
+	else \
+		echo "Missing Docker Compose support (docker compose / docker-compose)."; \
+		exit 1; \
+	fi
+
+podman-check:
+	$(call print_banner,Validating Podman runtime prerequisites)
+	$(call require_command,podman)
+	@podman info >/dev/null 2>&1 || { echo "Podman runtime is not reachable."; exit 1; }
+	@podman compose version >/dev/null 2>&1 || { echo "Missing Podman Compose support (podman compose)."; exit 1; }
+
+container-check:
+	$(call print_banner,Validating container runtime prerequisites for $(CONTAINER_ENGINE))
+	@if [ "$(CONTAINER_ENGINE)" = "docker" ]; then \
+		$(MAKE) --no-print-directory docker-check; \
+	elif [ "$(CONTAINER_ENGINE)" = "podman" ]; then \
+		$(MAKE) --no-print-directory podman-check; \
+	else \
+		echo "Unsupported CONTAINER_ENGINE=$(CONTAINER_ENGINE). Use docker or podman."; \
+		exit 1; \
+	fi
+
+container-build: container-check
+	$(call print_banner,Building local AOXChain container image with $(CONTAINER_ENGINE))
+	@"$(CONTAINER_ENGINE)" build -t "$(CONTAINER_IMAGE)" .
+
+container-config: container-check
+	$(call print_banner,Rendering compose configuration with $(CONTAINER_ENGINE))
+	@"$(CONTAINER_ENGINE)" compose -f "$(CONTAINER_COMPOSE_FILE)" config
+
+container-up: container-check
+	$(call print_banner,Starting AOXChain compose topology with $(CONTAINER_ENGINE))
+	@"$(CONTAINER_ENGINE)" compose -f "$(CONTAINER_COMPOSE_FILE)" up --build
+
+container-down: container-check
+	$(call print_banner,Stopping AOXChain compose topology with $(CONTAINER_ENGINE))
+	@"$(CONTAINER_ENGINE)" compose -f "$(CONTAINER_COMPOSE_FILE)" down
+
 runtime-install: runtime-source-check bootstrap-paths
 	$(call print_banner,Installing canonical runtime bundle into AOXC runtime root)
 	@$(CP) "$(AOXC_RUNTIME_SOURCE_ROOT)/$(SRC_MANIFEST_FILE)" "$(AOXC_RUNTIME_IDENTITY_DIR)/$(RUNTIME_MANIFEST_FILE)"
@@ -860,6 +907,9 @@ runtime-show-active:
 AOXC_FULL_ROOT ?= $(AOXC_ROOT)-full-4nodes
 AOXC_FULL_NETWORK_KIND ?= localnet
 AOXC_FULL_ROUNDS ?= 3
+CONTAINER_ENGINE ?= docker
+CONTAINER_IMAGE ?= aoxchain-node:local
+CONTAINER_COMPOSE_FILE ?= docker-compose.yaml
 
 aoxc-full-4nodes:
 	$(call print_banner,Provisioning full AOXC four-node layout)

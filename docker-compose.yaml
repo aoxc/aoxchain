@@ -1,32 +1,44 @@
-x-node-common: &node-common
-  image: aoxchain-node:local
-  build:
-    context: .
-    dockerfile: Dockerfile
-  command: ["node-bootstrap"]
-  init: true
-
 services:
   node1:
-    <<: *node-common
+    image: aoxchain-node:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node-bootstrap"]
     ports:
       - "26656:26656"
       - "8545:8545"
+    init: true
 
   node2:
-    <<: *node-common
+    image: aoxchain-node:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node-bootstrap"]
     ports:
       - "26657:26656"
       - "8546:8545"
+    init: true
 
   node3:
-    <<: *node-common
+    image: aoxchain-node:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node-bootstrap"]
     ports:
       - "26658:26656"
       - "8547:8545"
+    init: true
 
   node4:
-    <<: *node-common
+    image: aoxchain-node:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node-bootstrap"]
     ports:
       - "26659:26656"
       - "8548:8545"
+    init: true

@@ -46,21 +46,9 @@ make testnet-gate
 make testnet-readiness-gate
 ```
 
-Make targets are modularized incrementally under `mk/` while preserving the root `Makefile` as the single entrypoint.
-
 ## Container Runtime (Docker + Podman)
 
 AOXChain container surfaces are maintained to run on both Docker and Podman.
-
-### Unified Makefile surface
-
-```bash
-make container-check CONTAINER_ENGINE=auto
-make container-check CONTAINER_ENGINE=docker
-make container-check CONTAINER_ENGINE=podman
-make container-build CONTAINER_ENGINE=podman
-make container-config CONTAINER_ENGINE=podman
-```
 
 ### Build image
 
