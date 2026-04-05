@@ -1,120 +1,101 @@
-# AOXChain Naming and Versioning Standard (Operational Baseline)
+# AOXChain Naming and Versioning Simplification Plan
 
-## 1. Objective
+## Objective
 
-Provide a permanent, low-ambiguity naming and versioning policy for AOXChain so that:
+Reduce naming and versioning ambiguity across repository docs, runtime configs, and operator workflows while preserving deterministic identity controls.
 
-- operators can identify network and release surfaces without confusion,
-- maintainers can evolve protocol and runtime safely,
-- reviewers can audit identity and compatibility changes deterministically.
+## Problem Summary
 
-## 2. Canonical Terminology
+Current surfaces mix multiple identity forms and version axes:
 
-Use the following terms as non-interchangeable dimensions:
+- repository/workspace versioning (`configs/version-policy.toml`);
+- consensus/profile line naming (`AOXC-Q-*` surfaces);
+- network identity (`chain_id`, `network_id`, `network_serial`);
+- environment-local node fixture identifiers.
 
-1. **Brand name**: `AOXChain` (product/system identity).
-2. **Asset ticker**: `AOXC` (native asset symbol).
-3. **Release line label**: human-facing stream name (for example `AOXC-QTR-V1`).
-4. **Workspace/software version**: repository release metadata (`configs/version-policy.toml`).
-5. **Network identity tuple**: `chain_id`, `network_id`, `network_serial`.
-6. **Crypto profile version**: consensus-visible cryptographic policy stage.
+The model is technically strong but operationally noisy when these are discussed with one shared term (for example, "version").
 
-## 3. Core Rules
+## Recommended Canonical Model
 
-1. Never use brand/ticker as a substitute for network identity.
-2. Never use release-line labels as `chain_id` or `network_id`.
-3. Never rely on Git tags alone as runtime truth.
-4. Keep network identity tuple registry-derived and policy-enforced.
-5. Keep crypto-profile evolution explicit, auditable, and independent from brand naming.
+Treat these as separate, non-interchangeable dimensions:
 
-## 4. Recommended Naming Model
+1. **Brand/Asset Identity**
+   - Chain brand: `AOXChain`
+   - Native asset ticker: `AOXC`
+   - Never encode release line or cryptographic profile into the brand or ticker.
 
-### 4.1 Mainnet/Testnet/Validation
+2. **Protocol/Release Line**
+   - Use a formal line such as `AOXC-QTR-V1` as a release-line label only.
+   - Bind this label to explicit compatibility metadata in `configs/version-policy.toml` and release notes.
+   - Do not use release-line labels as `chain_id` or `network_id` values.
 
-- `network_id` pattern: `aoxc-<network-class>-<family-serial>`
-- `chain_id` pattern source: registry-derived numeric format (`FFFFCCNNNN`)
-- `display_name`: human-facing operational label only
+3. **Network Identity**
+   - Keep `chain_id` numeric and registry-derived.
+   - Keep `network_id` human-readable and class/serial based.
+   - Enforce immutability through release policy and registry checks.
 
-Suggested display labels:
+4. **Execution/Crypto Profile Version**
+   - Track cryptographic profile activation through profile policy files and consensus topology overlays.
+   - Keep profile transitions auditable and independent from brand/network naming.
 
-- `AOXC Mainnet (AKDENIZ)`
-- `AOXC Testnet (PUSULA)`
-- `AOXC Validation (MIZAN)`
+## Mainnet/Testnet Identity Guidance
 
-### 4.2 Node Names
+Prefer one deterministic naming grammar for all environments:
 
-Role-first and environment-scoped naming is mandatory for new assets:
+- `network_id`: `aoxc-<network-class>-<family-serial>`
+- `chain_id`: registry-derived numeric ID (`FFFFCCNNNN`)
+- `display_name`: governance/branding string (human-facing only)
 
-```text
-<env>-<role>-<ordinal>
-```
+Suggested operator-facing naming examples:
 
-Examples:
+- Mainnet display: `AOXC Mainnet (AKDENIZ)`
+- Testnet display: `AOXC Testnet (PUSULA)`
+- Validation display: `AOXC Validation (MIZAN)`
 
-- `mainnet-validator-01`
-- `testnet-rpc-02`
-- `validation-sentry-01`
+This keeps machine identity stable while preserving brand flexibility.
 
-Legacy fixture aliases may remain temporarily, but they must be explicitly documented as fixture compatibility names.
+## Node Naming Guidance
 
-### 4.3 Layer/Role Extensions
+Use role-first, environment-scoped node naming to reduce ambiguity:
 
-If a new layer, role family, or service plane is introduced:
+- Pattern: `<env>-<role>-<ordinal>`
+- Examples: `mainnet-validator-01`, `testnet-rpc-02`, `validation-sentry-01`
 
-1. define canonical role slug,
-2. define activation policy surface,
-3. define trust boundary and validation ownership,
-4. define readiness evidence requirement.
+Avoid mixing fixture names, mythology names, and role names in the same environment unless documented as non-production fixtures.
 
-No new layer/role should ship without synchronized docs and policy files.
+## Repository Documentation Cleanup Proposal
 
-## 5. Source-of-Truth Hierarchy
+Normalize root and config surfaces around one explicit map:
 
-For identity and compatibility decisions, apply this authority order:
+1. `READ.md`: strict invariant language (non-negotiable rules).
+2. `ARCHITECTURE.md`: boundary and dependency model only.
+3. `configs/registry/network-registry.toml`: canonical identity derivation authority.
+4. `configs/version-policy.toml`: compatibility and release-line authority.
+5. `configs/environments/<env>/release-policy.toml`: per-environment enforcement profile.
 
-1. `configs/registry/network-registry.toml` (identity derivation policy),
-2. `configs/version-policy.toml` (workspace/release governance),
-3. `configs/environments/<env>/release-policy.toml` (environment enforcement),
-4. `configs/environments/<env>/profile.toml` (runtime profile tuple),
-5. `configs/environments/<env>/genesis.v1.json` (runtime instantiation artifact),
-6. release notes and Git tags (communication surface only).
+Add one short glossary section to root `README.md` covering:
 
-## 6. Decision Rule for `AOXC-QTR-V1`
+- brand vs ticker,
+- release-line vs workspace version,
+- chain ID vs network ID,
+- profile version vs software version.
 
-Using `AOXC-QTR-V1` is correct and recommended for:
+## Migration Strategy (Low Risk)
 
-- release communication,
-- Git tag strategy,
-- migration narrative.
+1. **Freeze identity policy**
+   - No manual overrides for `chain_id` and `network_id`.
+2. **Introduce glossary and naming policy document**
+   - Keep behavior unchanged; improve interpretation first.
+3. **Standardize node naming in non-production fixtures**
+   - Migrate fixture files to role-first names.
+4. **Gate enforcement**
+   - Add CI checks for naming grammar and identity consistency.
 
-It is **not** sufficient as the only versioning system. In-repo machine-readable policy files remain mandatory for deterministic runtime checks and auditability.
+## Decision Rule for Your Specific Question
 
-## 7. Migration Plan (Low-Risk, Permanent)
+If you want to use `AOXC-QTR-V1` and keep versioning mostly on GitHub:
 
-1. **Terminology freeze**
-   - adopt canonical vocabulary in root docs and operator docs.
-2. **Identity freeze**
-   - preserve registry-derived tuple and override prohibitions.
-3. **Node naming normalization**
-   - apply role-first naming to new environments and fixtures.
-4. **Legacy alias containment**
-   - keep only documented compatibility aliases; prevent new alias families.
-5. **Policy-backed CI checks**
-   - reject naming drift and identity mismatch in validation gates.
+- **Yes** for release communication and tag strategy.
+- **No** as the only versioning system.
 
-## 8. Repository Cleanup Map
-
-- `README.md`: quick glossary and operator-facing naming summary.
-- `READ.md`: invariant-level rules for identity and version-axis separation.
-- `ARCHITECTURE.md`: layer/role dependency and trust boundary rules.
-- `configs/README.md`: runtime configuration authority and naming enforcement.
-- `docs/GENESIS_IDENTITY_CHECKLIST.md`: practical identity verification flow.
-
-## 9. Expected Outcome
-
-This policy keeps the system:
-
-- simple in language,
-- strict in identity,
-- auditable in compatibility,
-- safe for long-lived mainnet/testnet operations.
+You still need in-repo machine-readable version and identity policy files for deterministic runtime validation, operator safety, and auditability.

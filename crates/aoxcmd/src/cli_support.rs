@@ -115,8 +115,7 @@ BOOTSTRAP
   genesis-init
   genesis-add-account --account-id <id> --balance <amount> [--role <treasury|validator|system|user|governance|forge|quorum|seal|archive|sentinel|relay|pocket>]
   genesis-add-validator --validator-id <id> --consensus-public-key <hex> --network-public-key <hex> [--consensus-fingerprint <hex>] [--network-fingerprint <hex>] [--bootnode-address <host:port>] [--balance <amount>] [--display-name <label>]
-  genesis-validate [--strict] [--no-strict]
-  genesis-production-gate
+  genesis-validate [--strict]
   genesis-inspect
   genesis-hash
   config-init [--profile <validation|testnet|mainnet>] [--bind-host <host>] [--json-logs]
