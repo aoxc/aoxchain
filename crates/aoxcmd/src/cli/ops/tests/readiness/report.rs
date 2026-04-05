@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli::ops::AOXC_Q_RELEASE_LINE;
 
 #[test]
 fn full_surface_markdown_report_includes_release_and_surface_summary() {

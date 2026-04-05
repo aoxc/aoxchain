@@ -1,4 +1,5 @@
 use super::*;
+use crate::cli::ops::AOXC_Q_RELEASE_LINE;
 
 #[test]
 fn surface_builder_reports_blocked_surface_when_checks_fail() {

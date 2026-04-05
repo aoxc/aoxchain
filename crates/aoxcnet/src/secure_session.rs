@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub const AOXC_Q_RELEASE_LINE: &str = "AOXC-Q-v0.2.0";
+
 /// Cryptographic transport profile declared during peer handshake.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -133,7 +135,8 @@ impl HandshakePolicy {
 #[cfg(test)]
 mod tests {
     use super::{
-        HandshakeIntent, HandshakePolicy, HandshakeRejectReason, PeerClass, TransportCryptoProfile,
+        AOXC_Q_RELEASE_LINE, HandshakeIntent, HandshakePolicy, HandshakeRejectReason, PeerClass,
+        TransportCryptoProfile,
     };
 
     fn base_intent() -> HandshakeIntent {
