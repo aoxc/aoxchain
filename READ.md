@@ -1,20 +1,20 @@
 # AOXChain Technical Contract
 
-This document defines AOXChain’s non-negotiable engineering contract for deterministic behavior, trust boundaries, and readiness claims.
+This document defines AOXChain’s repository-wide engineering contract for deterministic behavior, trust boundaries, and readiness claims.
 
 ## 1) System Intent
 
-AOXChain is built as a deterministic Layer-1 system with:
+AOXChain is a deterministic Layer-1 system with:
 
 - kernel-owned consensus and settlement policy,
 - deterministic execution with bounded metering,
 - profile-driven cryptographic agility,
 - evidence-governed operational promotion.
 
-## 2) Core Invariants
+## 2) Non-Negotiable Invariants
 
 1. **Determinism:** identical canonical inputs produce identical canonical outputs.
-2. **Fail-closed validation:** malformed or unsupported critical inputs are rejected pre-transition.
+2. **Fail-closed validation:** malformed or unsupported critical inputs are rejected before state transition.
 3. **Boundary integrity:** non-kernel surfaces cannot override consensus truth.
 4. **Profile explicitness:** consensus-critical cryptography is versioned and policy-bound.
 5. **Evidence traceability:** readiness claims require reproducible commands and retained artifacts.
@@ -24,7 +24,7 @@ AOXChain is built as a deterministic Layer-1 system with:
 ### 3.1 Kernel and Consensus (`aoxcore`, `aoxcunity`)
 - owns consensus truth, finality interpretation, and settlement admission;
 - enforces consensus-visible cryptographic policy;
-- preserves replay protection semantics.
+- preserves replay-protection semantics.
 
 ### 3.2 Execution (`aoxcvm`, `aoxcexec`, `aoxcenergy`)
 - executes deterministic state transitions under kernel policy;
@@ -33,7 +33,7 @@ AOXChain is built as a deterministic Layer-1 system with:
 
 ### 3.3 Services (`aoxcnet`, `aoxcrpc`, `aoxcdata`, `aoxconfig`)
 - provides transport, RPC, storage, and config delivery;
-- treats all ingress as untrusted until validated;
+- treats ingress as untrusted until validated;
 - cannot bypass kernel admission rules.
 
 ### 3.4 Operations (`aoxcmd`, `aoxckit`, `aoxchub`, `scripts/`)
@@ -41,11 +41,9 @@ AOXChain is built as a deterministic Layer-1 system with:
 - runs readiness gates and evidence collection;
 - cannot mutate protocol truth outside approved policy surfaces.
 
-## 4) Readiness Contract
+## 4) Required Readiness Gates
 
 Readiness status is valid only when required gates pass and evidence is retained.
-
-Canonical command surfaces:
 
 ```bash
 make build
@@ -59,21 +57,18 @@ make testnet-readiness-gate
 
 ## 5) High-Sensitivity Change Classes
 
-The following changes require synchronized implementation, tests, and documentation:
+The following classes require synchronized implementation, tests, and documentation:
 
 - consensus/finality behavior,
 - execution semantics and metering rules,
 - cryptographic profile and key lifecycle policy,
-- serialization/storage compatibility,
+- serialization and storage compatibility,
 - RPC/API/operator control surfaces,
 - release and rollback workflows.
 
 ## 6) Program Trajectory
 
-Program trajectory is governed by `ROADMAP.md`:
-
-- production-grade testnet operation first,
-- then controlled activation of PQ-resilient mainnet.
+Program trajectory is governed by `ROADMAP.md`: production-grade testnet operation first, then controlled activation of a PQ-resilient mainnet.
 
 ## 7) License and Liability Context
 

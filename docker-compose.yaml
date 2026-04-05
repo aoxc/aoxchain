@@ -1,26 +1,44 @@
-version: "3.9"
 services:
   node1:
-    build: .
+    image: aoxchain-node:local
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: ["node-bootstrap"]
     ports:
       - "26656:26656"
       - "8545:8545"
+    init: true
+
   node2:
-    build: .
+    image: aoxchain-node:local
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: ["node-bootstrap"]
     ports:
       - "26657:26656"
       - "8546:8545"
+    init: true
+
   node3:
-    build: .
+    image: aoxchain-node:local
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: ["node-bootstrap"]
     ports:
       - "26658:26656"
       - "8547:8545"
+    init: true
+
   node4:
-    build: .
+    image: aoxchain-node:local
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: ["node-bootstrap"]
     ports:
       - "26659:26656"
       - "8548:8545"
+    init: true
