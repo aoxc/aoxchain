@@ -24,3 +24,6 @@ mod testnet_readiness_external;
 mod version_governance;
 #[cfg(test)]
 mod vm_production_closure_governance;
+
+#[cfg(test)]
+mod mainnet_readiness_external;
