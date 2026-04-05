@@ -70,6 +70,7 @@ AWK ?= awk
 LS ?= ls
 SED ?= sed
 CMP ?= cmp
+MK_DIR ?= mk
 
 # --------------------------------------------------------------------
 # Workspace quality flags
@@ -244,6 +245,11 @@ $$(TZ=UTC $(DATE) +%Y-%m-%dT%H:%M:%SZ)
 endef
 
 # --------------------------------------------------------------------
+# Modular make surfaces
+# --------------------------------------------------------------------
+-include $(MK_DIR)/container.mk
+
+# --------------------------------------------------------------------
 # Phony targets
 # --------------------------------------------------------------------
 .PHONY: \
@@ -256,7 +262,7 @@ endef
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
-	runtime-bundle-compat-check docker-check production-full \
+	runtime-bundle-compat-check docker-check podman-check container-check container-build container-config container-up container-down production-full \
 	phase1-full quantum-readiness-gate quantum-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
@@ -326,6 +332,14 @@ help:
 	@printf "  make runtime-doctor\n"
 	@printf "  make runtime-reinstall\n"
 	@printf "  make runtime-reset\n\n"
+	@printf "Container runtime\n"
+	@printf "  make container-check CONTAINER_ENGINE=auto\n"
+	@printf "  make container-check CONTAINER_ENGINE=docker\n"
+	@printf "  make container-check CONTAINER_ENGINE=podman\n"
+	@printf "  make container-build\n"
+	@printf "  make container-config\n"
+	@printf "  make container-up\n"
+	@printf "  make container-down\n\n"
 	@printf "Full multi-node provision\n"
 	@printf "  make aoxc-full-4nodes\n"
 	@printf "  make aoxc-full-4nodes-docker\n\n"
@@ -703,19 +717,6 @@ runtime-source-check:
 runtime-bundle-compat-check:
 	$(call print_banner,Validating full environment bundle compatibility)
 	@python3 scripts/validate_environment_bundle.py
-
-docker-check:
-	$(call print_banner,Validating Docker runtime prerequisites)
-	$(call require_command,docker)
-	@docker info >/dev/null 2>&1 || { echo "Docker daemon is not reachable. Start Docker and retry."; exit 1; }
-	@if docker compose version >/dev/null 2>&1; then \
-		echo "Docker Compose v2 is available."; \
-	elif command -v docker-compose >/dev/null 2>&1; then \
-		echo "docker-compose is available."; \
-	else \
-		echo "Missing Docker Compose support (docker compose / docker-compose)."; \
-		exit 1; \
-	fi
 
 runtime-install: runtime-source-check bootstrap-paths
 	$(call print_banner,Installing canonical runtime bundle into AOXC runtime root)
