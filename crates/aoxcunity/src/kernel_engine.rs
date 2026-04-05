@@ -140,6 +140,37 @@ impl ConsensusEngine {
         Ok(())
     }
 
+    #[must_use]
+    pub fn operational_snapshot(&self, invariant_status: InvariantStatus) -> KernelOperationalSnapshot {
+        let active_validator_count = self
+            .state
+            .rotation
+            .validators()
+            .iter()
+            .filter(|validator| validator.is_eligible_for_vote())
+            .count();
+
+        KernelOperationalSnapshot {
+            current_epoch: self.current_epoch,
+            current_height: self.current_height,
+            current_round: self.state.round.round,
+            known_block_count: self.state.blocks.len(),
+            vote_record_count: self.state.vote_pool.len(),
+            timeout_vote_bucket_count: self.timeout_votes.len(),
+            legitimacy_certificate_count: self.legitimacy_by_block.len(),
+            continuity_certificate_count: self.continuity_by_block.len(),
+            evidence_record_count: self.evidence_buffer.len(),
+            replay_marker_count: self.replayed_event_hashes.len(),
+            active_validator_count,
+            total_voting_power: self.state.rotation.total_voting_power(),
+            quorum_numerator: self.state.quorum.numerator,
+            quorum_denominator: self.state.quorum.denominator,
+            fork_head: self.state.fork_choice.get_head(),
+            finalized_head: self.state.fork_choice.finalized_head(),
+            invariant_status,
+        }
+    }
+
     fn apply_admit_block(&mut self, block: Block) -> TransitionResult {
         let block_hash = block.hash;
         let block_height = block.header.height;
@@ -525,4 +556,3 @@ fn prune_state_to_height(state: &mut ConsensusState, finalized_height: u64) -> u
 
     before_blocks.saturating_sub(state.blocks.len())
 }
-
