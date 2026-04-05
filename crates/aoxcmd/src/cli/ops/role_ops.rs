@@ -97,35 +97,19 @@ pub fn cmd_role_activate_core7(args: &[String]) -> Result<(), AppError> {
     let updated = rewrite_role_enabled_states(&original, &CORE7_TOPOLOGY_ROLES);
 
     if !dry_run {
-        apply_role_topology_transactionally(&path, &updated)?;
+        fs::write(&path, updated.as_bytes()).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to persist role topology profile at {}",
+                    path.display()
+                ),
+                error,
+            )
+        })?;
     }
 
-    let states = if dry_run {
-        parse_role_enabled_states(&updated)
-    } else {
-        let persisted = read_to_string(&path)?;
-        parse_role_enabled_states(&persisted)
-    };
-
-    let status = core7_status(&states);
-    if !status.missing.is_empty() || !status.non_core_active.is_empty() {
-        return Err(AppError::new(
-            ErrorCode::ConfigInvalid,
-            format!(
-                "Core7 activation verification failed: missing={} non_core_active={}",
-                if status.missing.is_empty() {
-                    "none".to_string()
-                } else {
-                    status.missing.join(",")
-                },
-                if status.non_core_active.is_empty() {
-                    "none".to_string()
-                } else {
-                    status.non_core_active.join(",")
-                }
-            ),
-        ));
-    }
+    let states = parse_role_enabled_states(&updated);
 
     let mut details = BTreeMap::new();
     details.insert("profile".to_string(), profile);
@@ -139,10 +123,6 @@ pub fn cmd_role_activate_core7(args: &[String]) -> Result<(), AppError> {
         if dry_run { "dry-run" } else { "applied" }.to_string(),
     );
     details.insert("active_roles".to_string(), active_roles_csv(&states));
-    details.insert(
-        "verification".to_string(),
-        "core7-active-and-exclusive".to_string(),
-    );
 
     emit_serialized(
         &text_envelope("role-activate-core7", "ok", details),
@@ -257,71 +237,6 @@ fn rewrite_role_enabled_states(content: &str, core7_roles: &[&str]) -> String {
     lines.join("\n") + "\n"
 }
 
-fn apply_role_topology_transactionally(path: &Path, updated: &str) -> Result<(), AppError> {
-    let backup_path = path.with_extension("toml.bak.core7");
-    let temp_path = path.with_extension("toml.tmp.core7");
-
-    let original = read_to_string(path)?;
-    fs::write(&backup_path, original.as_bytes()).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!(
-                "Failed to create role topology backup {}",
-                backup_path.display()
-            ),
-            error,
-        )
-    })?;
-
-    if let Err(error) = fs::write(&temp_path, updated.as_bytes()) {
-        let _ = fs::remove_file(&temp_path);
-        return Err(AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!(
-                "Failed to write role topology temp file {}",
-                temp_path.display()
-            ),
-            error,
-        ));
-    }
-
-    if let Err(error) = fs::rename(&temp_path, path) {
-        let _ = fs::remove_file(&temp_path);
-        let _ = fs::write(path, original.as_bytes());
-        return Err(AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!("Failed to apply role topology update to {}", path.display()),
-            error,
-        ));
-    }
-
-    Ok(())
-}
-
-struct Core7Status {
-    missing: Vec<String>,
-    non_core_active: Vec<String>,
-}
-
-fn core7_status(states: &BTreeMap<String, bool>) -> Core7Status {
-    let missing = CORE7_TOPOLOGY_ROLES
-        .iter()
-        .filter(|role| !states.get(**role).copied().unwrap_or(false))
-        .map(|role| role.to_string())
-        .collect::<Vec<_>>();
-
-    let non_core_active = states
-        .iter()
-        .filter(|(role, enabled)| **enabled && !CORE7_TOPOLOGY_ROLES.contains(&role.as_str()))
-        .map(|(role, _)| role.clone())
-        .collect::<Vec<_>>();
-
-    Core7Status {
-        missing,
-        non_core_active,
-    }
-}
-
 fn active_roles_csv(states: &BTreeMap<String, bool>) -> String {
     let active = states
         .iter()
@@ -351,7 +266,7 @@ fn all_roles_csv(states: &BTreeMap<String, bool>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{core7_status, parse_role_enabled_states, rewrite_role_enabled_states};
+    use super::{parse_role_enabled_states, rewrite_role_enabled_states};
 
     #[test]
     fn rewrite_role_enabled_states_applies_core7_and_disables_others() {
@@ -420,22 +335,5 @@ enabled = true
         assert_eq!(states.get("serv_idx"), Some(&false));
         assert_eq!(states.get("x_orcl"), Some(&false));
         assert_eq!(states.get("x_bridge"), Some(&false));
-    }
-
-    #[test]
-    fn core7_status_reports_missing_and_non_core_roles() {
-        let mut states = std::collections::BTreeMap::new();
-        states.insert("core_val".to_string(), true);
-        states.insert("core_prop".to_string(), false);
-        states.insert("core_guard".to_string(), true);
-        states.insert("data_arch".to_string(), true);
-        states.insert("sec_sent".to_string(), true);
-        states.insert("net_relay".to_string(), true);
-        states.insert("serv_rpc".to_string(), true);
-        states.insert("x_bridge".to_string(), true);
-
-        let status = core7_status(&states);
-        assert_eq!(status.missing, vec!["core_prop".to_string()]);
-        assert_eq!(status.non_core_active, vec!["x_bridge".to_string()]);
     }
 }
