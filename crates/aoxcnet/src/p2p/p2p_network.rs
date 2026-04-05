@@ -433,7 +433,7 @@ fn handshake_policy_for_mode(
     config: &NetworkConfig,
     required_profile: TransportCryptoProfile,
 ) -> HandshakePolicy {
-    let allowed_peer_classes = match config.security_mode {
+    let _allowed_peer_classes = match config.security_mode {
         SecurityMode::Insecure => vec![
             PeerClass::Validator,
             PeerClass::Sentry,
