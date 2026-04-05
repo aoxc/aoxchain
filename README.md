@@ -15,6 +15,115 @@ AOXChain follows a two-stage strategy:
 
 The repository intentionally avoids unverifiable claims.
 
+---
+
+## 📦 User Path (Binary-First)
+
+This section is for operators who want to use the AOXC binary directly.
+
+### 1) Build the AOXC binary
+
+```bash
+cargo build -p aoxcmd --release
+```
+
+Binary location:
+
+```text
+target/release/aoxc
+```
+
+### 2) Verify CLI surface
+
+```bash
+./target/release/aoxc --help
+./target/release/aoxc version
+```
+
+### 3) Initialize local operator keys and genesis
+
+```bash
+./target/release/aoxc key-bootstrap --profile localnet --password '<strong-password>'
+./target/release/aoxc genesis-init --profile localnet
+./target/release/aoxc genesis-validate --strict
+```
+
+### 4) Run production-style gate checks before promotion
+
+```bash
+./target/release/aoxc genesis-production-gate
+./target/release/aoxc role status --profile localnet
+```
+
+---
+
+## 🛠 Developer Path (Make-First)
+
+This section is for contributors and CI-focused workflows.
+
+### Core quality and readiness targets
+
+```bash
+make build
+make test
+make quality
+make audit
+make testnet-gate
+make testnet-readiness-gate
+```
+
+### Why Make for developers
+
+- keeps repeated engineering checks deterministic,
+- keeps command surfaces aligned with CI,
+- avoids drift between local and pipeline behavior.
+
+---
+
+## 🌐 Local Network Bring-Up (Node Formation + Connectivity)
+
+Use this flow for deterministic local lifecycle checks.
+
+### 1) Choose environment profile
+
+```bash
+export AOXC_NETWORK_KIND=localnet
+```
+
+### 2) Validate identity and bundle consistency
+
+```bash
+./target/release/aoxc genesis-validate --strict
+./target/release/aoxc genesis-production-gate
+```
+
+### 3) Validate role topology before start
+
+```bash
+./target/release/aoxc role status --profile localnet
+# Optional controlled rewrite to core7-only activation:
+./target/release/aoxc role activate-core7 --profile localnet --dry-run
+```
+
+### 4) Start and inspect node/network health
+
+```bash
+./target/release/aoxc node start
+./target/release/aoxc node status
+./target/release/aoxc network status
+./target/release/aoxc network verify
+```
+
+### 5) Query chain/API surfaces
+
+```bash
+./target/release/aoxc query chain status
+./target/release/aoxc query network peers
+./target/release/aoxc api status
+```
+
+---
+
 ## Repository Layout
 
 | Path | Purpose |
@@ -34,19 +143,32 @@ The repository intentionally avoids unverifiable claims.
 - `SECURITY.md` — security posture and disclosure model.
 - `TESTING.md` — validation policy and readiness gates.
 - `ROADMAP.md` — strategic roadmap and phase gates.
+- `docs/NAMING_VERSIONING_SIMPLIFICATION_PLAN.md` — naming/versioning baseline and migration policy.
+- `docs/GENESIS_IDENTITY_CHECKLIST.md` — genesis and environment identity consistency checklist.
 
-## Baseline Engineering Commands
+## Identity and Versioning Quick Reference
 
-```bash
-make build
-make test
-make quality
-make audit
-make testnet-gate
-make testnet-readiness-gate
-```
+Use this vocabulary consistently across code, docs, and operations:
 
-## Container Runtime (Docker + Podman)
+| Term | Meaning | Authority |
+|---|---|---|
+| **Brand** | Product/system name (`AOXChain`) | repository documentation |
+| **Ticker** | Native asset symbol (`AOXC`) | protocol/economic docs |
+| **Release line** | Human-facing release stream label (for example `AOXC-QTR-V1`) | release notes + tags |
+| **Workspace version** | Build/package/release metadata version | `configs/version-policy.toml` |
+| **Chain ID** | Deterministic machine identity (numeric) | `configs/registry/network-registry.toml` |
+| **Network ID** | Human-readable network identity string | `configs/registry/network-registry.toml` |
+| **Crypto profile** | Consensus-visible cryptography mode/version | topology and profile policy |
+
+Rules:
+
+1. Do not use release-line labels as `chain_id` or `network_id`.
+2. Do not derive protocol truth from Git tags alone.
+3. Keep machine identity policy in repository-controlled, reviewable files.
+
+---
+
+## 🧱 Container Runtime (Docker + Podman)
 
 AOXChain container surfaces are maintained to run on both Docker and Podman.
 
