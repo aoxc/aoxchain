@@ -50,16 +50,6 @@ make testnet-readiness-gate
 
 AOXChain container surfaces are maintained to run on both Docker and Podman.
 
-### Unified Makefile surface
-
-```bash
-make container-check CONTAINER_ENGINE=auto
-make container-check CONTAINER_ENGINE=docker
-make container-check CONTAINER_ENGINE=podman
-make container-build CONTAINER_ENGINE=podman
-make container-config CONTAINER_ENGINE=podman
-```
-
 ### Build image
 
 ```bash
