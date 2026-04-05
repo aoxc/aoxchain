@@ -70,5 +70,5 @@ Out of scope for this cycle unless separately approved:
 - hidden fallback paths that bypass profile policy and downgrade protections.
 
 Reference documents:
-- `QUANTUM_ROADMAP.md`
-- `QUANTUM_CHECKLIST.md`
+- `ROADMAP.md`
+- `READ.md`

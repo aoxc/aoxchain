@@ -89,6 +89,7 @@ const FAUCET_DAILY_GLOBAL_LIMIT: u64 = 1_000_000;
 const FAUCET_MIN_RESERVE_BALANCE: u64 = 100_000;
 const FAUCET_AUDIT_RETENTION_HOURS: i64 = 168;
 const TX_INDEX_FILE: &str = "tx-index.v1.json";
+pub(crate) const AOXC_Q_RELEASE_LINE: &str = "AOXC-Q-v0.2.0";
 
 #[cfg(test)]
 mod tests;
