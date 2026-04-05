@@ -47,7 +47,6 @@ Exit criteria:
 Objective: enforce versioned cryptographic profile controls without consensus ambiguity.
 
 Scope:
-- AOXC-Q profile introduction (`AOXC-Q-v0.2.0`) as the canonical release line for hybrid consensus rollout,
 - profile-tagged consensus-visible structures,
 - hybrid transition controls where required,
 - strict fail-closed behavior for unsupported cryptographic profiles,

@@ -20,4 +20,3 @@ Use the following root-level documents for authoritative repository policy and a
 - `TESTING.md` — mandatory validation policy and testnet go/no-go criteria.
 - `ROADMAP.md` — execution roadmap.
 - `READ.md` — technical contract and profile-bound operational controls.
-- `docs/AOXC_Q_CONSENSUS_SPEC.md` — AOXC-Q consensus baseline and rollout controls.
