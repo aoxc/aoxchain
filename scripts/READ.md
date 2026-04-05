@@ -305,11 +305,18 @@ surface.
 - `make aoxc-full-4nodes`
 - `make aoxc-full-4nodes-docker`
 - `scripts/aoxc_full_4nodes.sh --help`
+- `scripts/aoxc-q-v0.2.0.start.sh --help`
 
 The `aoxc_full_4nodes.sh` flow provisions a production-oriented local four-node
 layout under a dedicated root, copies canonical genesis/config materials,
 bootstraps node homes, creates per-node snapshots, and can emit Docker assets
 for isolated node services.
+
+The `aoxc-q-v0.2.0.start.sh` flow provisions a seven-node AOXC-Q v0.2.0 style
+local testnet layout (no Docker/Podman requirement), prepares per-node account
+material, and can run persistent local node loops from generated `start-all.sh`
+and `stop-all.sh` control scripts. Per-node bootstrap command logs are written
+under `nodes/<node>/run/*.log` for failure diagnosis.
 
 ### Quality
 - `make fmt`
