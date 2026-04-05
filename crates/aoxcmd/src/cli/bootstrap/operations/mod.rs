@@ -45,12 +45,12 @@ use helpers_args::{
     parse_required_or_default_text_arg, parse_required_text_arg,
 };
 use helpers_core::{
-    bootstrap_profile_directory, build_profile_settings, derive_short_fingerprint,
-    load_genesis, load_or_default_bootnodes_binding, load_or_default_validators_binding,
+    bootstrap_profile_directory, build_profile_settings, derive_short_fingerprint, load_genesis,
+    load_or_default_bootnodes_binding, load_or_default_validators_binding,
     materialize_binding_documents, persist_bootnodes_binding, persist_genesis,
     persist_validators_binding, sync_optional_accounts_binding, upsert_bootnode_binding,
-    upsert_validator_account, upsert_validator_binding, validate_binding_files,
-    validate_genesis, write_json_pretty,
+    upsert_validator_account, upsert_validator_binding, validate_binding_files, validate_genesis,
+    write_json_pretty,
 };
 
 #[cfg(test)]

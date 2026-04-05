@@ -91,7 +91,12 @@ pub fn build_proof(leaves: &[Vec<u8>], leaf_index: usize) -> Result<MerkleProof,
     }
 
     let mut levels = Vec::new();
-    levels.push(leaves.iter().map(|leaf| hash_leaf(leaf)).collect::<Vec<_>>());
+    levels.push(
+        leaves
+            .iter()
+            .map(|leaf| hash_leaf(leaf))
+            .collect::<Vec<_>>(),
+    );
 
     while levels.last().is_some_and(|level| level.len() > 1) {
         let next = fold_level(levels.last().expect("level exists"));
@@ -242,7 +247,13 @@ mod tests {
     use super::*;
 
     fn sample_leaves() -> Vec<Vec<u8>> {
-        vec![b"a".to_vec(), b"b".to_vec(), b"c".to_vec(), b"d".to_vec(), b"e".to_vec()]
+        vec![
+            b"a".to_vec(),
+            b"b".to_vec(),
+            b"c".to_vec(),
+            b"d".to_vec(),
+            b"e".to_vec(),
+        ]
     }
 
     #[test]

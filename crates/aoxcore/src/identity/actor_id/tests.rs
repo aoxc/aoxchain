@@ -8,8 +8,8 @@ fn sample_pubkey() -> Vec<u8> {
 fn actor_id_generation_is_deterministic() {
     let pk = sample_pubkey();
 
-    let a = generate_actor_id(&pk, "validator", "europe")
-        .expect("actor id generation must succeed");
+    let a =
+        generate_actor_id(&pk, "validator", "europe").expect("actor id generation must succeed");
     let b = generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
 
     assert_eq!(a, b);
@@ -18,8 +18,8 @@ fn actor_id_generation_is_deterministic() {
 #[test]
 fn actor_id_contains_expected_structure() {
     let pk = sample_pubkey();
-    let actor_id = generate_actor_id(&pk, "validator", "europe")
-        .expect("actor id generation must succeed");
+    let actor_id =
+        generate_actor_id(&pk, "validator", "europe").expect("actor id generation must succeed");
 
     let parts: Vec<&str> = actor_id.split('-').collect();
     assert_eq!(parts.len(), 5);
@@ -33,8 +33,7 @@ fn actor_id_contains_expected_structure() {
 #[test]
 fn actor_id_validation_accepts_valid_identifier() {
     let pk = sample_pubkey();
-    let actor_id =
-        generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+    let actor_id = generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
 
     assert_eq!(validate_actor_id(&actor_id), Ok(()));
 }
@@ -57,8 +56,7 @@ fn actor_id_validation_rejects_checksum_mismatch() {
 #[test]
 fn actor_id_binding_verification_accepts_matching_inputs() {
     let pk = sample_pubkey();
-    let actor_id =
-        generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+    let actor_id = generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
 
     assert_eq!(verify_actor_id_binding(&actor_id, &pk, "VAL", "EU"), Ok(()));
 }
@@ -66,8 +64,7 @@ fn actor_id_binding_verification_accepts_matching_inputs() {
 #[test]
 fn actor_id_binding_verification_rejects_wrong_zone() {
     let pk = sample_pubkey();
-    let actor_id =
-        generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+    let actor_id = generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
 
     assert_eq!(
         verify_actor_id_binding(&actor_id, &pk, "VAL", "NA"),
@@ -94,8 +91,7 @@ fn too_short_public_key_is_rejected() {
 #[test]
 fn parse_actor_id_extracts_components() {
     let pk = sample_pubkey();
-    let actor_id =
-        generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+    let actor_id = generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
 
     let parsed = parse_actor_id(&actor_id).expect("actor id parsing must succeed");
     assert_eq!(parsed.prefix, "AOXC");
@@ -108,8 +104,7 @@ fn parse_actor_id_extracts_components() {
 #[test]
 fn validation_rejects_lowercase_actor_id() {
     let pk = sample_pubkey();
-    let actor_id =
-        generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+    let actor_id = generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
 
     assert_eq!(
         validate_actor_id(&actor_id.to_ascii_lowercase()),
@@ -120,8 +115,7 @@ fn validation_rejects_lowercase_actor_id() {
 #[test]
 fn validation_rejects_surrounding_whitespace() {
     let pk = sample_pubkey();
-    let actor_id =
-        generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
+    let actor_id = generate_actor_id(&pk, "VAL", "EU").expect("actor id generation must succeed");
 
     let candidate = format!(" {} ", actor_id);
     assert_eq!(

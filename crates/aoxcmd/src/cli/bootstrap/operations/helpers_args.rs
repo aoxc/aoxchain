@@ -37,7 +37,11 @@ pub(super) fn parse_required_or_default_text_arg(
     }
 }
 
-pub(super) fn parse_optional_text_arg(args: &[String], flag: &str, lowercase: bool) -> Option<String> {
+pub(super) fn parse_optional_text_arg(
+    args: &[String],
+    flag: &str,
+    lowercase: bool,
+) -> Option<String> {
     arg_value(args, flag).and_then(|value| normalize_text(&value, lowercase))
 }
 

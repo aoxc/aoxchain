@@ -44,11 +44,7 @@ impl Host for SpyHost {
         self.inner.rollback(checkpoint)
     }
 
-    fn commit(
-        &mut self,
-        checkpoint: usize,
-        state: crate::state::JournaledState,
-    ) -> Result<(), ()> {
+    fn commit(&mut self, checkpoint: usize, state: crate::state::JournaledState) -> Result<(), ()> {
         self.commit_calls += 1;
         self.inner.commit(checkpoint, state)
     }

@@ -4,9 +4,7 @@ use super::core::{
 };
 use crate::{error::ErrorCode, keys::material::KeyMaterial, node::state::NodeState};
 use aoxcore::identity::key_bundle::NodeKeyRole;
-use aoxcunity::{
-    AuthenticatedVote, ConsensusMessage, Vote, VoteAuthenticationContext, VoteKind,
-};
+use aoxcunity::{AuthenticatedVote, ConsensusMessage, Vote, VoteAuthenticationContext, VoteKind};
 
 #[test]
 fn proposer_key_uses_consensus_public_key_from_bundle() {
@@ -79,13 +77,9 @@ fn apply_block_proposal_rejects_non_sequential_height() {
         .expect("block build should work");
     block.header.height = 9;
 
-    let error = apply_block_proposal_with_message(
-        &mut state,
-        "tx-invalid-height",
-        &block,
-        &key_material,
-    )
-    .expect_err("non-sequential height must fail");
+    let error =
+        apply_block_proposal_with_message(&mut state, "tx-invalid-height", &block, &key_material)
+            .expect_err("non-sequential height must fail");
 
     assert_eq!(error.code(), ErrorCode::NodeStateInvalid.as_str());
 }
@@ -95,13 +89,12 @@ fn apply_block_proposal_rejects_parent_hash_mismatch() {
     let key_material = KeyMaterial::generate("validator-01", "validator", "Test#2026!")
         .expect("key material generation should succeed");
     let mut state = NodeState::bootstrap();
-    let mut block = build_block_for_tx(&state, "tx-parent", &key_material)
-        .expect("block build should work");
+    let mut block =
+        build_block_for_tx(&state, "tx-parent", &key_material).expect("block build should work");
     block.header.parent_hash = [9u8; 32];
 
-    let error =
-        apply_block_proposal_with_message(&mut state, "tx-parent", &block, &key_material)
-            .expect_err("parent hash mismatch must fail");
+    let error = apply_block_proposal_with_message(&mut state, "tx-parent", &block, &key_material)
+        .expect_err("parent hash mismatch must fail");
 
     assert_eq!(error.code(), ErrorCode::NodeStateInvalid.as_str());
 }
@@ -116,8 +109,7 @@ fn decode_hash32_rejects_non_32_byte_payloads() {
 
 #[test]
 fn run_rounds_with_observer_rejects_zero_rounds() {
-    let error =
-        run_rounds_with_observer(0, "AOXC-RUN", |_| {}).expect_err("zero rounds must fail");
+    let error = run_rounds_with_observer(0, "AOXC-RUN", |_| {}).expect_err("zero rounds must fail");
 
     assert_eq!(error.code(), ErrorCode::UsageInvalidArguments.as_str());
 }
@@ -127,8 +119,8 @@ fn snapshot_from_message_tracks_vote_payload() {
     let key_material = KeyMaterial::generate("validator-01", "validator", "Test#2026!")
         .expect("key material generation should succeed");
     let state = NodeState::bootstrap();
-    let block = build_block_for_tx(&state, "vote-source", &key_material)
-        .expect("block build should work");
+    let block =
+        build_block_for_tx(&state, "vote-source", &key_material).expect("block build should work");
     let proposer = proposer_key_from_material(&key_material)
         .expect("proposer key should derive from key material");
     let vote = AuthenticatedVote {

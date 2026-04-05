@@ -1,9 +1,4 @@
 use super::*;
-use aoxcore::identity::{MASTER_SEED_LEN, hd_path::HdPath};
-use crate::{
-    AoxcMobileTransport, ChainHealth, DevicePlatform, DeviceProfile, MobError, MobileConfig,
-    SessionPermit, SignedTaskReceipt, TaskDescriptor, TaskSubmissionResult,
-};
 use crate::security::keystore::SecureStore;
 use crate::security::signer::verify_json_payload;
 use crate::session::protocol::SessionSigningPayload;
@@ -11,6 +6,11 @@ use crate::session::protocol::{SessionChallenge, SessionEnvelope};
 use crate::transport::mock::MockRelayTransport;
 use crate::types::{TaskKind, WitnessDecision};
 use crate::util::now_epoch_secs;
+use crate::{
+    AoxcMobileTransport, ChainHealth, DevicePlatform, DeviceProfile, MobError, MobileConfig,
+    SessionPermit, SignedTaskReceipt, TaskDescriptor, TaskSubmissionResult,
+};
+use aoxcore::identity::{MASTER_SEED_LEN, hd_path::HdPath};
 
 fn sample_seed() -> [u8; MASTER_SEED_LEN] {
     [0x44; MASTER_SEED_LEN]
@@ -61,9 +61,8 @@ fn deterministic_device_provisioning_is_stable_for_same_seed_and_path() {
 async fn open_session_emits_verifiable_signed_envelope() {
     let config = MobileConfig::default();
     let transport = MockRelayTransport::new(config.chain_id.clone());
-    let gateway =
-        NativeGateway::new(config.clone(), transport, crate::InMemorySecureStore::new())
-            .expect("gateway creation must succeed");
+    let gateway = NativeGateway::new(config.clone(), transport, crate::InMemorySecureStore::new())
+        .expect("gateway creation must succeed");
     let profile = gateway
         .provision_from_master_seed(
             sample_seed(),

@@ -394,7 +394,11 @@ pub(super) fn proposer_key_from_material(key_material: &KeyMaterial) -> Result<[
     )
 }
 
-pub(super) fn decode_hash32(value: &str, field: &str, code: ErrorCode) -> Result<[u8; 32], AppError> {
+pub(super) fn decode_hash32(
+    value: &str,
+    field: &str,
+    code: ErrorCode,
+) -> Result<[u8; 32], AppError> {
     let bytes = hex::decode(value)
         .map_err(|error| AppError::with_source(code, format!("Failed to decode {field}"), error))?;
 

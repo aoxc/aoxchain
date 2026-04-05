@@ -1,6 +1,6 @@
+use super::core::{MAX_NONCE_B64_LEN, MAX_SALT_B64_LEN};
 use super::*;
 use base64::{Engine, engine::general_purpose};
-use super::core::{MAX_NONCE_B64_LEN, MAX_SALT_B64_LEN};
 
 #[test]
 fn encrypt_then_decrypt_roundtrip_succeeds() {
@@ -38,8 +38,7 @@ fn password_with_surrounding_whitespace_is_rejected() {
 
 #[test]
 fn envelope_validation_accepts_valid_output() {
-    let envelope =
-        encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
+    let envelope = encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
     assert_eq!(validate_envelope(&envelope), Ok(()));
 }
 
@@ -135,8 +134,7 @@ fn validate_envelope_rejects_empty_ciphertext() {
 
 #[test]
 fn envelope_fingerprint_is_stable() {
-    let envelope =
-        encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
+    let envelope = encrypt_key_to_envelope(b"abc", "password").expect("encryption must succeed");
 
     let a = envelope.fingerprint().expect("fingerprint must succeed");
     let b = envelope.fingerprint().expect("fingerprint must succeed");

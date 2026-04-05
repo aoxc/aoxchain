@@ -2,8 +2,8 @@ use super::*;
 use crate::{
     error::AiError,
     model::OutputLabel,
-    traits::InferenceBackend,
     test_support::{bearer_remote_http_manifest, empty_request, remote_http_manifest},
+    traits::InferenceBackend,
 };
 use httpmock::prelude::*;
 use serde_json::json;
@@ -123,9 +123,7 @@ fn new_rejects_non_https_endpoint_when_tls_enabled() {
     manifest.spec.security.allowed_endpoints = vec!["http://example.com".to_owned()];
 
     let err = RemoteHttpBackendRuntime::new(&manifest).expect_err("must reject non-https");
-    assert!(
-        matches!(err, AiError::ManifestValidation(message) if message.contains("TLS-enabled"))
-    );
+    assert!(matches!(err, AiError::ManifestValidation(message) if message.contains("TLS-enabled")));
 }
 
 #[test]
@@ -142,9 +140,7 @@ fn new_rejects_verify_peer_when_endpoint_is_not_https() {
     manifest.spec.security.allowed_endpoints = vec!["http://example.com".to_owned()];
 
     let err = RemoteHttpBackendRuntime::new(&manifest).expect_err("must reject verify_peer");
-    assert!(
-        matches!(err, AiError::ManifestValidation(message) if message.contains("verify_peer"))
-    );
+    assert!(matches!(err, AiError::ManifestValidation(message) if message.contains("verify_peer")));
 }
 
 #[test]
@@ -308,9 +304,7 @@ async fn infer_rejects_out_of_bounds_confidence_bps() {
         .expect_err("out-of-bounds confidence must fail");
     mock.assert();
 
-    assert!(
-        matches!(err, AiError::BackendSchema(message) if message.contains("confidence_bps"))
-    );
+    assert!(matches!(err, AiError::BackendSchema(message) if message.contains("confidence_bps")));
 }
 
 #[tokio::test]

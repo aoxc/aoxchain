@@ -192,11 +192,8 @@ fn stage_evaluation_reports_constitutional_finality_only_when_all_inputs_exist()
     );
     let continuity = ContinuityCertificate::new([5u8; 32], 11, 3, 4, 4, 20, vec![[1u8; 32]]);
 
-    let report = ConstitutionalSeal::evaluate_stage(
-        Some(&execution),
-        Some(&legitimacy),
-        Some(&continuity),
-    );
+    let report =
+        ConstitutionalSeal::evaluate_stage(Some(&execution), Some(&legitimacy), Some(&continuity));
 
     assert!(report.has_execution);
     assert!(report.has_legitimacy);
