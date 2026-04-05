@@ -7,9 +7,9 @@ mod tests {
     use aoxcunity::messages::ConsensusMessage;
     use aoxcunity::vote::{AuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind};
 
-    fn test_certificate() -> NodeCertificate {
+    fn test_certificate(subject: &str) -> NodeCertificate {
         NodeCertificate {
-            subject: "node-1".to_string(),
+            subject: subject.to_string(),
             issuer: "AOXC-ROOT".to_string(),
             valid_from_unix: 1,
             valid_until_unix: u64::MAX,
@@ -19,15 +19,19 @@ mod tests {
     }
 
     fn test_peer() -> Peer {
+        test_peer_with_role(PeerRole::Validator, "node-1")
+    }
+
+    fn test_peer_with_role(role: PeerRole, node_id: &str) -> Peer {
         Peer::new(
-            "node-1",
+            node_id,
             "10.0.0.1:2727",
             "AOXC-MAINNET",
             ExternalDomainKind::Native,
-            PeerRole::Validator,
+            role,
             3,
             true,
-            test_certificate(),
+            test_certificate(node_id),
         )
     }
 
@@ -211,6 +215,29 @@ mod tests {
         session.expires_at_unix = 0;
 
         assert!(net.broadcast_secure("node-1", test_vote()).is_ok());
+    }
+
+    #[test]
+    fn audit_strict_rejects_observer_session_admission() {
+        let config = NetworkConfig {
+            security_mode: SecurityMode::AuditStrict,
+            ..NetworkConfig::default()
+        };
+        let mut net = P2PNetwork::new(config);
+        let observer_peer = test_peer_with_role(PeerRole::Observer, "observer-1");
+
+        net.register_peer(observer_peer)
+            .expect("observer should register");
+
+        let err = net
+            .establish_session("observer-1")
+            .expect_err("audit strict must reject observer session admission");
+
+        assert!(matches!(err, NetworkError::PeerAdmissionDenied(_)));
+        assert!(
+            err.to_string().contains("peer class forbidden"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]

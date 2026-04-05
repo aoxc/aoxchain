@@ -433,6 +433,23 @@ fn handshake_policy_for_mode(
     config: &NetworkConfig,
     required_profile: TransportCryptoProfile,
 ) -> HandshakePolicy {
+    let allowed_peer_classes = match config.security_mode {
+        SecurityMode::Insecure => vec![
+            PeerClass::Validator,
+            PeerClass::Sentry,
+            PeerClass::Archive,
+            PeerClass::Observer,
+            PeerClass::Bootstrap,
+        ],
+        SecurityMode::MutualAuth => vec![
+            PeerClass::Validator,
+            PeerClass::Sentry,
+            PeerClass::Archive,
+            PeerClass::Observer,
+        ],
+        SecurityMode::AuditStrict => vec![PeerClass::Validator, PeerClass::Sentry],
+    };
+
     HandshakePolicy {
         minimum_protocol_version: 1,
         required_release_line: "AOXC-Q-v0.2.0".to_string(),
