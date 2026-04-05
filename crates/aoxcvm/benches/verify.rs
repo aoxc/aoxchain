@@ -53,7 +53,7 @@ fn main() {
         max_stack_depth: 2_048,
     };
 
-    for steps in [64usize, 256, 1024] {
+    for steps in [64usize, 256, 600] {
         run_case(verifier, steps);
     }
 }
