@@ -100,7 +100,9 @@ DESCRIBE
   module-architecture
   compat-matrix
   quantum-blueprint
+  quantum-posture
   port-map
+  api-contract
   profile-baseline [--enforce]
 
 BOOTSTRAP
