@@ -84,6 +84,7 @@ GUIDED GROUPS
   account fund
   node init|start|status|doctor
   network create|start|status|verify|doctor
+  api [status|smoke|contract|metrics|health|network]
   query chain|consensus|vm|block|tx|receipt|account|balance|network|state-root|rpc
   tx transfer|stake delegate|stake undelegate
   stake delegate|undelegate|validators|rewards
@@ -99,7 +100,9 @@ DESCRIBE
   module-architecture
   compat-matrix
   quantum-blueprint
+  quantum-posture
   port-map
+  api-contract
   profile-baseline [--enforce]
 
 BOOTSTRAP
@@ -157,12 +160,32 @@ NODE AND ECONOMY
   query account --id <account-id>
   query balance --id <account-id>
   query consensus status
+  query consensus validators
+  query consensus proposer
+  query consensus round
+  query consensus finality
+  query consensus commits
+  query consensus evidence
   query vm status
+  query vm call
+  query vm simulate
+  query vm storage
+  query vm contract
+  query vm code
+  query vm estimate-gas
+  query vm trace
   query network status
   query network peers
   query network full
   query state-root
   query rpc
+  api status
+  api smoke
+  api contract
+  api metrics
+  api health
+  api network full
+  api-contract
   block-get --height <latest|n>
   tx-get --hash <tx-hash>
   tx-receipt --hash <tx-hash>
