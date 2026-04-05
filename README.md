@@ -36,7 +36,6 @@ This repository intentionally avoids unverifiable claims such as “unbreakable.
 
 - `READ.md` — repository-level technical contract and invariants.
 - `ROADMAP.md` — current strategic roadmap and phase gates.
-- `docs/AOXC_Q_CONSENSUS_SPEC.md` — AOXC-Q consensus profile, node roles, and rollout controls.
 - `SCOPE.md` — in-scope/out-of-scope and compatibility posture.
 - `ARCHITECTURE.md` — component boundaries and dependency direction.
 - `SECURITY.md` — security posture and disclosure model.
