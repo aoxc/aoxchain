@@ -43,6 +43,10 @@ pub struct GenesisConfig {
     #[serde(default)]
     pub boot_nodes: Vec<BootNode>,
 
+    /// Kernel-level staking, reward, slash, and multisig policy for seven node roles.
+    #[serde(default)]
+    pub node_policy: NodePolicy,
+
     /// Human-readable genesis release notes.
     #[serde(default)]
     pub genesis_notes: String,
@@ -73,6 +77,7 @@ impl GenesisConfig {
             protocol_version: default_protocol_version(),
             quantum_policy: QuantumPolicy::for_network_class(network_class),
             boot_nodes: default_boot_nodes(network_class),
+            node_policy: NodePolicy::for_network_class(network_class),
             genesis_notes: default_genesis_notes(network_class).to_string(),
         };
 
@@ -130,6 +135,8 @@ impl GenesisConfig {
         validate_genesis_notes(&self.genesis_notes)?;
 
         self.quantum_policy
+            .validate_for_network_class(self.identity.network_class)?;
+        self.node_policy
             .validate_for_network_class(self.identity.network_class)?;
 
         self.settlement_link.validate()?;
@@ -197,6 +204,7 @@ impl GenesisConfig {
         for node in &self.boot_nodes {
             node.encode_canonical(&mut enc);
         }
+        self.node_policy.encode_canonical(&mut enc)?;
 
         Ok(enc.finish())
     }
