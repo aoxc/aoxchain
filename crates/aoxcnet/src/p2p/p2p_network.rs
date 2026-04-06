@@ -254,6 +254,12 @@ impl P2PNetwork {
         self.metrics.bytes_out = self.metrics.bytes_out.saturating_add(encoded.len() as u64);
         self.metrics.gossip_messages = self.metrics.gossip_messages.saturating_add(1);
 
+        if self.inbound.len() >= self.config.max_sync_batch {
+            return Err(NetworkError::TransportUnavailable(
+                "inbound queue exceeded configured sync batch capacity".to_string(),
+            ));
+        }
+
         self.inbound.push_back(envelope.clone());
         Ok(envelope)
     }
