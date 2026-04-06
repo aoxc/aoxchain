@@ -30,6 +30,7 @@ Unless a stricter control is explicitly required by change scope, the following 
 - `make container-check CONTAINER_ENGINE=podman` (required when container changes claim Podman compatibility)
 - `make testnet-gate` (required when changes affect `configs/environments/testnet` or testnet operator flow)
 - `make testnet-readiness-gate` (single-command gate for PR-ready testnet validation)
+- `make network-identity-gate` (required when changing `configs/registry/*`, `configs/environments/*/{profile.toml,release-policy.toml,genesis.v1.json,genesis.v1.sha256}`; enforces tuple/hash fail-closed identity consistency)
 
 A change must not be considered validation-complete if any mandatory baseline command fails, is skipped without justification, or produces results inconsistent with the declared change scope.
 

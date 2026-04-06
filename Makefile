@@ -1137,6 +1137,10 @@ testnet-readiness-gate:
 	$(call print_banner,Running testnet readiness quality gate)
 	@./scripts/validation/testnet_readiness_gate.sh
 
+network-identity-gate:
+	$(call print_banner,Running network identity fail-closed gate)
+	@python3 ./scripts/validation/network_identity_gate.py
+
 aoxcvm-phase3-gate:
 	$(call print_banner,Running AOXCVM phase-3 release-grade gate)
 	@./scripts/validation/aoxcvm_phase3_gate.sh

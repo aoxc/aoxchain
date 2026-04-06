@@ -118,7 +118,7 @@ pub fn cmd_genesis_add_account(args: &[String]) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_allowed_genesis_account_role, ALLOWED_GENESIS_ACCOUNT_ROLES};
+    use super::{ALLOWED_GENESIS_ACCOUNT_ROLES, is_allowed_genesis_account_role};
     use std::collections::BTreeSet;
 
     #[test]
