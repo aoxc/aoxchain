@@ -228,12 +228,9 @@ RELEASE_BUNDLE_CHECKSUMS ?= $(RELEASE_BUNDLE_DIR)/SHA256SUMS
 RELEASE_ARCHIVE_BASENAME ?= $(RELEASE_BUNDLE_NAME)-portable
 RELEASE_ARCHIVE_PATH ?= $(AOXC_RELEASES_DIR)/$(RELEASE_ARCHIVE_BASENAME).tar.gz
 RELEASE_BINARIES ?= aoxc aoxchub aoxckit
-RELEASE_SIGNING_DIR ?= $(AOXC_RELEASES_DIR)/signing
+RELEASE_SIGNING_DIR ?= releases/signing
 RELEASE_SIGNING_KEY_PATH ?= $(RELEASE_SIGNING_DIR)/release_signing_key.pem
 RELEASE_SIGNING_CERT_PATH ?= $(RELEASE_SIGNING_DIR)/release_signing_cert.pem
-RELEASE_KEYGEN_FORCE ?= 0
-RELEASE_PLATFORM ?= $(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m | sed -e 's/^x86_64$$/amd64/' -e 's/^aarch64$$/arm64/' | tr '[:upper:]' '[:lower:]')
-REPO_RELEASE_DIR ?= releases/v$(RELEASE_VERSION)/$(RELEASE_PLATFORM)
 
 AOXC_VERSIONED_BIN_PATH ?= $(AOXC_BIN_VERSIONED_DIR)/aoxc-$(RELEASE_TAG)$(AOXC_EXE_SUFFIX)
 AOXCHUB_VERSIONED_BIN_PATH ?= $(AOXC_BIN_VERSIONED_DIR)/aoxchub-$(RELEASE_TAG)$(AOXC_EXE_SUFFIX)
@@ -581,29 +578,19 @@ package-desktop: build-release-all bootstrap-desktop-paths
 repo-release-keygen:
 	$(call print_banner,Generating repository release signing keypair)
 	@$(MKDIR) -p "$(RELEASE_SIGNING_DIR)"
-	@if [ "$(RELEASE_KEYGEN_FORCE)" != "1" ] && { [ -f "$(RELEASE_SIGNING_KEY_PATH)" ] || [ -f "$(RELEASE_SIGNING_CERT_PATH)" ]; }; then \
-		echo "Signing keypair already exists. Refusing to overwrite."; \
-		echo "Set RELEASE_KEYGEN_FORCE=1 to regenerate."; \
-		exit 1; \
-	fi
-	@umask 077 && openssl req -x509 -newkey rsa:4096 -sha256 -keyout "$(RELEASE_SIGNING_KEY_PATH)" -out "$(RELEASE_SIGNING_CERT_PATH)" -days 3650 -nodes -subj "/CN=AOXC Repository Release Signing/" -addext "keyUsage = digitalSignature" -addext "extendedKeyUsage = codeSigning"
+	@openssl req -x509 -newkey rsa:4096 -sha256 -keyout "$(RELEASE_SIGNING_KEY_PATH)" -out "$(RELEASE_SIGNING_CERT_PATH)" -days 3650 -nodes -subj "/CN=AOXC Repository Release Signing/"
 	@chmod 600 "$(RELEASE_SIGNING_KEY_PATH)" 2>/dev/null || true
-	@chmod 644 "$(RELEASE_SIGNING_CERT_PATH)" 2>/dev/null || true
 	@echo "Signing key: $(RELEASE_SIGNING_KEY_PATH)"
 	@echo "Signing cert: $(RELEASE_SIGNING_CERT_PATH)"
 
 repo-release-signed: build-release-all
 	$(call print_banner,Creating signed repository release bundle)
-	@test -f "$(RELEASE_SIGNING_KEY_PATH)" || { echo "Missing signing key: $(RELEASE_SIGNING_KEY_PATH)"; echo "Run: make repo-release-keygen"; exit 1; }
-	@test -f "$(RELEASE_SIGNING_CERT_PATH)" || { echo "Missing signing cert: $(RELEASE_SIGNING_CERT_PATH)"; echo "Run: make repo-release-keygen"; exit 1; }
-	@RELEASE_VERSION="$(RELEASE_VERSION)" RELEASE_PLATFORM="$(RELEASE_PLATFORM)" RELEASE_DIR="$(REPO_RELEASE_DIR)" \
-		RELEASE_SIGNING_KEY="$(RELEASE_SIGNING_KEY_PATH)" RELEASE_SIGNING_CERT="$(RELEASE_SIGNING_CERT_PATH)" \
+	@RELEASE_SIGNING_KEY="$(RELEASE_SIGNING_KEY_PATH)" RELEASE_SIGNING_CERT="$(RELEASE_SIGNING_CERT_PATH)" \
 		./scripts/release/create_signed_release_bundle.sh
 
 repo-release-signed-verify:
 	$(call print_banner,Verifying signed repository release bundle)
-	@test -f "$(RELEASE_SIGNING_CERT_PATH)" || { echo "Missing signing cert: $(RELEASE_SIGNING_CERT_PATH)"; echo "Run: make repo-release-keygen"; exit 1; }
-	@RELEASE_VERSION="$(RELEASE_VERSION)" RELEASE_PLATFORM="$(RELEASE_PLATFORM)" RELEASE_DIR="$(REPO_RELEASE_DIR)" RELEASE_SIGNING_CERT="$(RELEASE_SIGNING_CERT_PATH)" \
+	@RELEASE_SIGNING_CERT="$(RELEASE_SIGNING_CERT_PATH)" \
 		./scripts/release/verify_signed_release_bundle.sh
 
 repo-release-prepare: build-release
