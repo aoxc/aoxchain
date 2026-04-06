@@ -104,6 +104,18 @@ aoxc network-identity-gate --full --enforce --format json
 aoxc node start
 ```
 
+### Re-bootstrap safety (same `--home` path)
+
+If `production-bootstrap` or `node-bootstrap` is re-run against an existing
+home, clear prior runtime DB state before `aoxc node start`:
+
+```bash
+rm -f <home>/runtime/db/main.redb
+```
+
+Reason: stale historical blocks from a previous run can conflict with a newly
+bootstrapped height-0 state and produce `AOXC-LED-001` parent-hash mismatch.
+
 ### Runtime and network health
 
 ```bash

@@ -65,6 +65,31 @@ target/release/aoxc
 ./target/release/aoxc role status --profile localnet
 ```
 
+### 5) `production-bootstrap` first-run vs re-run (important)
+
+When using `production-bootstrap`, use a **clean home directory** for each new bootstrap.
+
+```bash
+read -rsp "AOXC password: " AOXC_PASS; echo
+./bin/aoxc production-bootstrap \
+  --profile testnet \
+  --password "$AOXC_PASS" \
+  --name validator1 \
+  --home /path/to/aoxc/home/testnet
+unset AOXC_PASS
+./bin/aoxc node start --home /path/to/aoxc/home/testnet
+```
+
+If you re-run bootstrap in the same `--home`, clear previous runtime state first:
+
+```bash
+rm -f /path/to/aoxc/home/testnet/runtime/db/main.redb
+```
+
+Otherwise startup can fail with a parent-hash mismatch (`AOXC-LED-001`) because
+historical block rows from a previous run conflict with a newly bootstrapped
+height-0 state.
+
 ---
 
 ## 🛠 Developer Path (Make-First)
@@ -153,6 +178,20 @@ export AOXC_NETWORK_KIND=localnet
 ./target/release/aoxc api status
 ```
 
+### Minimum startup node counts (by environment)
+
+`aoxc genesis-validate --strict` enforces environment-specific topology minimums.
+
+| Environment | Minimum validators | Minimum bootnodes | Source of enforcement |
+|---|---:|---:|---|
+| `localnet` | 1 | 1 | Generic non-empty validator/bootnode checks |
+| `testnet` | 3 | 2 | `testnet` validation guardrails |
+| `mainnet` | 4 | 3 | `mainnet` validation guardrails |
+
+Notes:
+- `role activate-core7` controls role activation policy; it is not a validator-count override.
+- `core7` means seven canonical role classes, not "seven validators required".
+
 ---
 
 ## Repository Layout
@@ -169,6 +208,7 @@ export AOXC_NETWORK_KIND=localnet
 
 ## Canonical Documents
 
+- `README.md` — repository landing page and operator/developer entry path.
 - `READ.md` — repository-level technical contract and invariants.
 - `SCOPE.md` — in-scope/out-of-scope and compatibility posture.
 - `ARCHITECTURE.md` — component boundaries and dependency direction.
