@@ -5,7 +5,7 @@
 use aoxcunity::{
     Block, BlockBody, BlockBuilder, BlockSection, ConsensusError, ConsensusState, LaneCommitment,
     LaneCommitmentSection, LaneType, QuorumThreshold, Validator, ValidatorRole, ValidatorRotation,
-    Vote, VoteKind,
+    VerifiedAuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
 use std::collections::BTreeSet;
@@ -65,6 +65,16 @@ fn vote(voter: [u8; 32], block: &Block, kind: VoteKind) -> Vote {
 fn state_with_validators() -> Result<ConsensusState, ConsensusError> {
     let rotation =
         ValidatorRotation::new(vec![validator(1), validator(2), validator(3), validator(4)])?;
+    Ok(ConsensusState::new(rotation, QuorumThreshold::two_thirds()))
+}
+
+fn weighted_state() -> Result<ConsensusState, ConsensusError> {
+    let rotation = ValidatorRotation::new(vec![
+        Validator::new([1; 32], 8, ValidatorRole::Validator),
+        Validator::new([2; 32], 1, ValidatorRole::Validator),
+        Validator::new([3; 32], 1, ValidatorRole::Validator),
+        Validator::new([4; 32], 1, ValidatorRole::Validator),
+    ])?;
     Ok(ConsensusState::new(rotation, QuorumThreshold::two_thirds()))
 }
 
