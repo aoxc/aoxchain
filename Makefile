@@ -136,12 +136,6 @@ AOXC_Q_ROUNDS ?= 200
 AOXC_Q_SLEEP_MIN_SECS ?= 1
 AOXC_Q_SLEEP_MAX_SECS ?= 6
 AOXC_Q_FORCE ?= 0
-AOXC_Q_SUPPORTS_MODE ?= $(shell if [ -f "$(AOXC_Q_SCRIPT)" ] && grep -q -- "--mode" "$(AOXC_Q_SCRIPT)"; then echo 1; else echo 0; fi)
-AOXC_Q_MODE_ARG := $(if $(filter 1,$(AOXC_Q_SUPPORTS_MODE)),--mode "$(AOXC_Q_MODE)",)
-AOXC_Q_MODE_NOTE := $(if $(filter 1,$(AOXC_Q_SUPPORTS_MODE)),,@echo "[warn] $(AOXC_Q_SCRIPT) does not support --mode yet; skipping mode flag.")
-AOXC_Q_SUPPORTS_SLEEP_RANGE ?= $(shell if [ -f "$(AOXC_Q_SCRIPT)" ] && grep -q -- "--sleep-min-secs" "$(AOXC_Q_SCRIPT)"; then echo 1; else echo 0; fi)
-AOXC_Q_SLEEP_ARGS := $(if $(filter 1,$(AOXC_Q_SUPPORTS_SLEEP_RANGE)),--sleep-min-secs "$(AOXC_Q_SLEEP_MIN_SECS)" --sleep-max-secs "$(AOXC_Q_SLEEP_MAX_SECS)",)
-AOXC_Q_SLEEP_NOTE := $(if $(filter 1,$(AOXC_Q_SUPPORTS_SLEEP_RANGE)),,@echo "[warn] $(AOXC_Q_SCRIPT) does not support --sleep-min-secs/--sleep-max-secs; using script defaults.")
 
 # --------------------------------------------------------------------
 # Executable suffix
@@ -1168,35 +1162,27 @@ chain-status:
 # --------------------------------------------------------------------
 aoxc-q-up:
 	$(call print_banner,AOXC-Q up (provision + start))
-	@$(AOXC_Q_MODE_NOTE)
-	@$(AOXC_Q_SLEEP_NOTE)
-	@$(BASH) "$(AOXC_Q_SCRIPT)" --action up $(AOXC_Q_MODE_ARG) --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --profile "$(AOXC_Q_PROFILE)" --nodes "$(AOXC_Q_NODES)" --rounds "$(AOXC_Q_ROUNDS)" $(AOXC_Q_SLEEP_ARGS) $(if $(filter 1,$(AOXC_Q_FORCE)),--force,)
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action up --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --profile "$(AOXC_Q_PROFILE)" --nodes "$(AOXC_Q_NODES)" --rounds "$(AOXC_Q_ROUNDS)" --sleep-min-secs "$(AOXC_Q_SLEEP_MIN_SECS)" --sleep-max-secs "$(AOXC_Q_SLEEP_MAX_SECS)" $(if $(filter 1,$(AOXC_Q_FORCE)),--force,)
 
 aoxc-q-provision:
 	$(call print_banner,AOXC-Q provision)
-	@$(AOXC_Q_MODE_NOTE)
-	@$(AOXC_Q_SLEEP_NOTE)
-	@$(BASH) "$(AOXC_Q_SCRIPT)" --action provision $(AOXC_Q_MODE_ARG) --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --profile "$(AOXC_Q_PROFILE)" --nodes "$(AOXC_Q_NODES)" --rounds "$(AOXC_Q_ROUNDS)" $(AOXC_Q_SLEEP_ARGS) $(if $(filter 1,$(AOXC_Q_FORCE)),--force,)
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action provision --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --profile "$(AOXC_Q_PROFILE)" --nodes "$(AOXC_Q_NODES)" --rounds "$(AOXC_Q_ROUNDS)" --sleep-min-secs "$(AOXC_Q_SLEEP_MIN_SECS)" --sleep-max-secs "$(AOXC_Q_SLEEP_MAX_SECS)" $(if $(filter 1,$(AOXC_Q_FORCE)),--force,)
 
 aoxc-q-start:
 	$(call print_banner,AOXC-Q start)
-	@$(AOXC_Q_MODE_NOTE)
-	@$(BASH) "$(AOXC_Q_SCRIPT)" --action start $(AOXC_Q_MODE_ARG) --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action start --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
 
 aoxc-q-stop:
 	$(call print_banner,AOXC-Q stop)
-	@$(AOXC_Q_MODE_NOTE)
-	@$(BASH) "$(AOXC_Q_SCRIPT)" --action stop $(AOXC_Q_MODE_ARG) --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action stop --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
 
 aoxc-q-restart:
 	$(call print_banner,AOXC-Q restart)
-	@$(AOXC_Q_MODE_NOTE)
-	@$(BASH) "$(AOXC_Q_SCRIPT)" --action restart $(AOXC_Q_MODE_ARG) --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action restart --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
 
 aoxc-q-status:
 	$(call print_banner,AOXC-Q status)
-	@$(AOXC_Q_MODE_NOTE)
-	@$(BASH) "$(AOXC_Q_SCRIPT)" --action status $(AOXC_Q_MODE_ARG) --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action status --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
 
 # --------------------------------------------------------------------
 # UI surfaces
