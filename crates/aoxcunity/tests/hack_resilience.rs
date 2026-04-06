@@ -5,10 +5,10 @@
 use aoxcunity::{
     Block, BlockBody, BlockBuilder, BlockSection, ConsensusError, ConsensusState, LaneCommitment,
     LaneCommitmentSection, LaneType, QuorumThreshold, Validator, ValidatorRole, ValidatorRotation,
-    Vote, VoteKind,
+    VerifiedAuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn validator(id: u8) -> Validator {
     Validator::new([id; 32], 1, ValidatorRole::Validator)
@@ -65,6 +65,16 @@ fn vote(voter: [u8; 32], block: &Block, kind: VoteKind) -> Vote {
 fn state_with_validators() -> Result<ConsensusState, ConsensusError> {
     let rotation =
         ValidatorRotation::new(vec![validator(1), validator(2), validator(3), validator(4)])?;
+    Ok(ConsensusState::new(rotation, QuorumThreshold::two_thirds()))
+}
+
+fn weighted_state() -> Result<ConsensusState, ConsensusError> {
+    let rotation = ValidatorRotation::new(vec![
+        Validator::new([1; 32], 8, ValidatorRole::Validator),
+        Validator::new([2; 32], 1, ValidatorRole::Validator),
+        Validator::new([3; 32], 1, ValidatorRole::Validator),
+        Validator::new([4; 32], 1, ValidatorRole::Validator),
+    ])?;
     Ok(ConsensusState::new(rotation, QuorumThreshold::two_thirds()))
 }
 
@@ -284,5 +294,740 @@ fn property_prepare_votes_never_finalize() -> Result<(), ConsensusError> {
                 .is_none()
         );
     }
+    Ok(())
+}
+
+#[test]
+fn hack_test_rejects_equivocating_vote_same_round() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 23)?;
+    let branch_a = build_block(genesis.hash, 2, 5, [1; 32], 24)?;
+    let branch_b = build_block(genesis.hash, 2, 5, [2; 32], 25)?;
+
+    assert!(state.admit_block(genesis).is_ok());
+    assert!(state.admit_block(branch_a.clone()).is_ok());
+    assert!(state.admit_block(branch_b.clone()).is_ok());
+    assert!(
+        state
+            .add_vote(vote([1; 32], &branch_a, VoteKind::Commit))
+            .is_ok()
+    );
+    assert!(matches!(
+        state.add_vote(vote([1; 32], &branch_b, VoteKind::Commit)),
+        Err(ConsensusError::EquivocatingVote)
+    ));
+    Ok(())
+}
+
+#[test]
+fn hack_test_rejects_vote_for_conflicting_branch_after_finality() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 26)?;
+    let canonical = build_block(genesis.hash, 2, 1, [1; 32], 27)?;
+    let conflicting = build_block(genesis.hash, 2, 1, [2; 32], 28)?;
+
+    assert!(state.admit_block(genesis).is_ok());
+    assert!(state.admit_block(canonical.clone()).is_ok());
+    assert!(state.admit_block(conflicting.clone()).is_ok());
+
+    for voter in [[1; 32], [2; 32], [3; 32]] {
+        assert!(
+            state
+                .add_vote(vote(voter, &canonical, VoteKind::Commit))
+                .is_ok()
+        );
+    }
+    assert!(
+        state
+            .try_finalize(canonical.hash, canonical.header.round)
+            .is_some()
+    );
+
+    assert!(matches!(
+        state.add_vote(vote([4; 32], &conflicting, VoteKind::Commit)),
+        Err(ConsensusError::StaleVote | ConsensusError::VoteForUnknownBlock)
+    ));
+    Ok(())
+}
+
+#[test]
+fn hack_test_stake_reduction_can_drop_quorum() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 29)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+
+    for voter in [[1; 32], [2; 32], [3; 32]] {
+        assert!(
+            state
+                .add_vote(vote(voter, &genesis, VoteKind::Commit))
+                .is_ok()
+        );
+    }
+    assert!(state.has_quorum(genesis.hash, VoteKind::Commit));
+
+    let _slashed = state.slash_validator([1; 32], 1, 1, aoxcunity::SlashFault::Equivocation)?;
+    let _unbonded = state.unbond_validator([2; 32], 1)?;
+    let _undelegated = state.undelegate_from_validator([3; 32], 1)?;
+
+    assert!(!state.has_quorum(genesis.hash, VoteKind::Commit));
+    Ok(())
+}
+
+#[test]
+fn property_finalize_requires_round_matched_commit_votes() -> Result<(), ConsensusError> {
+    let mut rng = StdRng::seed_from_u64(0xA0C2_9090);
+    for _ in 0..256 {
+        let mut state = state_with_validators()?;
+        let genesis = build_block([0; 32], 1, 0, [7; 32], 30)?;
+        let candidate_round = rng.random_range(1..=8);
+        let candidate = build_block(genesis.hash, 2, candidate_round, [1; 32], 31)?;
+
+        assert!(state.admit_block(genesis).is_ok());
+        assert!(state.admit_block(candidate.clone()).is_ok());
+
+        for voter in [[1; 32], [2; 32], [3; 32]] {
+            let mut forged = vote(voter, &candidate, VoteKind::Commit);
+            if rng.random_bool(0.5) {
+                forged.round = forged.round.saturating_add(1);
+            }
+            assert!(state.add_vote(forged).is_ok());
+        }
+
+        let finalizable = state.finalizable_round(candidate.hash);
+        let finalized = state.try_finalize(candidate.hash, candidate.header.round);
+
+        if finalizable == Some(candidate.header.round) {
+            assert!(finalized.is_some());
+        } else {
+            assert!(finalized.is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn property_randomized_fork_vote_attacks_preserve_safety() -> Result<(), ConsensusError> {
+    let mut rng = StdRng::seed_from_u64(0xA0C2_BEEF);
+    for _ in 0..128 {
+        let mut state = state_with_validators()?;
+        let genesis = build_block([0; 32], 1, 0, [7; 32], 40)?;
+        let a = build_block(genesis.hash, 2, 1, [1; 32], 41)?;
+        let b = build_block(genesis.hash, 2, 1, [2; 32], 42)?;
+
+        assert!(state.admit_block(genesis).is_ok());
+        assert!(state.admit_block(a.clone()).is_ok());
+        assert!(state.admit_block(b.clone()).is_ok());
+
+        for _ in 0..20 {
+            let voter = [rng.random_range(1u8..=4u8); 32];
+            let target = if rng.random_bool(0.5) { &a } else { &b };
+            let kind = if rng.random_bool(0.5) {
+                VoteKind::Prepare
+            } else {
+                VoteKind::Commit
+            };
+            let mut candidate = vote(voter, target, kind);
+            if rng.random_bool(0.2) {
+                candidate.round = candidate.round.saturating_add(1);
+            }
+            let _ = state.add_vote(candidate);
+        }
+
+        let a_finalized = state.try_finalize(a.hash, a.header.round).is_some();
+        let b_finalized = state.try_finalize(b.hash, b.header.round).is_some();
+        assert!(!(a_finalized && b_finalized));
+    }
+    Ok(())
+}
+
+#[test]
+fn hard_test_rejects_tampered_block_integrity_under_forgery_attempts() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 50)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+
+    let mut hash_forged = build_block(genesis.hash, 2, 1, [1; 32], 51)?;
+    hash_forged.hash = [0xAA; 32];
+    assert!(matches!(
+        state.admit_block(hash_forged),
+        Err(ConsensusError::InvalidBlockHash)
+    ));
+
+    let mut commitment_forged = build_block(genesis.hash, 2, 2, [2; 32], 52)?;
+    if let Some(BlockSection::LaneCommitment(section)) = commitment_forged.body.sections.get_mut(0)
+        && let Some(lane) = section.lanes.get_mut(0)
+    {
+        lane.tx_count = lane.tx_count.saturating_add(1);
+    }
+    assert!(matches!(
+        state.admit_block(commitment_forged),
+        Err(ConsensusError::InvalidBlockBodyCommitments)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn hard_property_long_running_attack_campaign_preserves_finality_safety() -> Result<(), ConsensusError>
+{
+    let mut state = state_with_validators()?;
+    let mut rng = StdRng::seed_from_u64(0xA0C2_DADA);
+
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 60)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+    for voter in [[1; 32], [2; 32], [3; 32]] {
+        assert!(
+            state
+                .add_vote(vote(voter, &genesis, VoteKind::Commit))
+                .is_ok()
+        );
+    }
+    assert!(state.try_finalize(genesis.hash, genesis.header.round).is_some());
+
+    let mut finalized_hash = genesis.hash;
+    let mut finalized_height = genesis.header.height;
+    for step in 0..96u8 {
+        let height = finalized_height.saturating_add(1);
+        let round = (step as u64 % 7).saturating_add(1);
+        let branch_a = build_block(
+            finalized_hash,
+            height,
+            round,
+            [1; 32],
+            61u8.saturating_add(step),
+        )?;
+        let branch_b = build_block(
+            finalized_hash,
+            height,
+            round,
+            [2; 32],
+            161u8.saturating_add(step),
+        )?;
+
+        assert!(state.admit_block(branch_a.clone()).is_ok());
+        assert!(state.admit_block(branch_b.clone()).is_ok());
+
+        let preferred = if rng.random_bool(0.5) {
+            branch_a.clone()
+        } else {
+            branch_b.clone()
+        };
+        let alternate = if preferred.hash == branch_a.hash {
+            branch_b
+        } else {
+            branch_a
+        };
+
+        // Malicious actor attempts equivocation on sibling branches.
+        let _ = state.add_vote(vote([4; 32], &preferred, VoteKind::Commit));
+        let _ = state.add_vote(vote([4; 32], &alternate, VoteKind::Commit));
+
+        for voter in [[1; 32], [2; 32], [3; 32]] {
+            assert!(
+                state
+                    .add_vote(vote(voter, &preferred, VoteKind::Commit))
+                    .is_ok()
+            );
+        }
+
+        let preferred_seal = state.try_finalize(preferred.hash, preferred.header.round);
+        let alternate_seal = state.try_finalize(alternate.hash, alternate.header.round);
+        assert!(preferred_seal.is_some());
+        assert!(alternate_seal.is_none());
+
+        finalized_hash = preferred.hash;
+        finalized_height = preferred.header.height;
+
+        let fc_finalized = state.fork_choice.finalized_head();
+        assert_eq!(fc_finalized, Some(finalized_hash));
+        assert!(
+            state
+                .fork_choice
+                .get(finalized_hash)
+                .is_some_and(|meta| meta.height == finalized_height)
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn hard_property_massive_randomized_invalid_block_and_vote_noise() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let mut rng = StdRng::seed_from_u64(0xA0C2_FEED);
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 70)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+    let mut parent = genesis;
+    let mut finalized_height = 1u64;
+
+    for i in 0..128u64 {
+        let valid = build_block(parent.hash, finalized_height + 1, i % 5 + 1, [1; 32], i as u8)?;
+        assert!(state.admit_block(valid.clone()).is_ok());
+
+        // Inject malformed blocks with random corruption patterns.
+        for _ in 0..5 {
+            let mut forged = valid.clone();
+            match rng.random_range(0..4) {
+                0 => forged.hash = [rng.random(); 32],
+                1 => forged.header.parent_hash = [0; 32],
+                2 => forged.header.height = forged.header.height.saturating_add(2),
+                _ => forged.header.lane_root = [rng.random(); 32],
+            }
+            assert!(state.admit_block(forged).is_err());
+        }
+
+        for voter in [[1; 32], [2; 32], [3; 32]] {
+            assert!(
+                state
+                    .add_vote(vote(voter, &valid, VoteKind::Commit))
+                    .is_ok()
+            );
+        }
+        assert!(state.try_finalize(valid.hash, valid.header.round).is_some());
+
+        // Vote noise from unknown/stale/equivocating actors should never break state.
+        for _ in 0..16 {
+            let random_voter = [rng.random(); 32];
+            let _ = state.add_vote(vote(random_voter, &valid, VoteKind::Commit));
+            let _ = state.add_vote(vote([4; 32], &valid, VoteKind::Prepare));
+            let _ = state.add_vote(vote([4; 32], &valid, VoteKind::Commit));
+        }
+
+        parent = valid;
+        finalized_height = parent.header.height;
+        assert_eq!(
+            state.fork_choice.finalized_head(),
+            Some(parent.hash),
+            "finalized head must remain monotonic under heavy malformed traffic"
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn hard_test_rejects_authenticated_vote_replay_from_wrong_context() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 80)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+
+    let vote = VerifiedAuthenticatedVote {
+        vote: vote([1; 32], &genesis, VoteKind::Commit),
+        context: VoteAuthenticationContext {
+            network_id: 1,
+            epoch: 10,
+            validator_set_root: [9; 32],
+            pq_attestation_root: [7; 32],
+            signature_scheme: 1,
+        },
+    };
+
+    let expected = VoteAuthenticationContext {
+        network_id: 1,
+        epoch: 11,
+        validator_set_root: [9; 32],
+        pq_attestation_root: [7; 32],
+        signature_scheme: 1,
+    };
+
+    assert!(matches!(
+        state.add_authenticated_vote(vote, expected),
+        Err(ConsensusError::InvalidAuthenticatedContext)
+    ));
+    Ok(())
+}
+
+#[test]
+fn hard_test_accepts_authenticated_vote_when_context_matches_exactly() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 81)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+
+    let expected = VoteAuthenticationContext {
+        network_id: 42,
+        epoch: 3,
+        validator_set_root: [5; 32],
+        pq_attestation_root: [6; 32],
+        signature_scheme: 1,
+    };
+    let vote = VerifiedAuthenticatedVote {
+        vote: vote([1; 32], &genesis, VoteKind::Commit),
+        context: expected,
+    };
+
+    assert!(state.add_authenticated_vote(vote, expected).is_ok());
+    Ok(())
+}
+
+#[test]
+fn hard_test_weighted_quorum_resists_low_stake_collusion() -> Result<(), ConsensusError> {
+    let mut state = weighted_state()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 82)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+
+    // Three validators vote, but combined power is only 3/11 (< 2/3).
+    for voter in [[2; 32], [3; 32], [4; 32]] {
+        assert!(
+            state
+                .add_vote(vote(voter, &genesis, VoteKind::Commit))
+                .is_ok()
+        );
+    }
+    assert!(!state.has_quorum(genesis.hash, VoteKind::Commit));
+    assert!(state.try_finalize(genesis.hash, genesis.header.round).is_none());
+
+    // Dominant stake validator joins and quorum must be reached immediately.
+    assert!(
+        state
+            .add_vote(vote([1; 32], &genesis, VoteKind::Commit))
+            .is_ok()
+    );
+    assert!(state.has_quorum(genesis.hash, VoteKind::Commit));
+    assert!(state.try_finalize(genesis.hash, genesis.header.round).is_some());
+    Ok(())
+}
+
+#[test]
+fn audit_test_quorum_certificate_signers_are_canonical_under_vote_noise() -> Result<(), ConsensusError>
+{
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 90)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+
+    // Add out-of-order votes and duplicate/equivocation noise.
+    assert!(
+        state
+            .add_vote(vote([3; 32], &genesis, VoteKind::Commit))
+            .is_ok()
+    );
+    assert!(
+        state
+            .add_vote(vote([1; 32], &genesis, VoteKind::Commit))
+            .is_ok()
+    );
+    assert!(
+        state
+            .add_vote(vote([2; 32], &genesis, VoteKind::Commit))
+            .is_ok()
+    );
+    let _ = state.add_vote(vote([2; 32], &genesis, VoteKind::Commit)); // duplicate
+    let _ = state.add_vote(vote([4; 32], &genesis, VoteKind::Prepare)); // other kind
+
+    let Some(seal) = state.try_finalize(genesis.hash, genesis.header.round) else {
+        panic!("expected block to finalize with 3-of-4 commit votes");
+    };
+
+    assert_eq!(seal.certificate.signers, vec![[1; 32], [2; 32], [3; 32]]);
+    assert_eq!(seal.certificate.observed_voting_power, 3);
+    assert_eq!(seal.certificate.total_voting_power, 4);
+    Ok(())
+}
+
+#[test]
+fn audit_test_finalizable_round_tracks_highest_quorum_round_only() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 91)?;
+    let child = build_block(genesis.hash, 2, 2, [1; 32], 92)?;
+    assert!(state.admit_block(genesis).is_ok());
+    assert!(state.admit_block(child.clone()).is_ok());
+
+    // Round 1 has quorum.
+    for voter in [[1; 32], [2; 32], [3; 32]] {
+        let mut v = vote(voter, &child, VoteKind::Commit);
+        v.round = 1;
+        assert!(state.add_vote(v).is_ok());
+    }
+
+    // Round 2 has only partial quorum and must not overwrite round-1 quorum set.
+    let mut round2 = vote([4; 32], &child, VoteKind::Commit);
+    round2.round = 2;
+    assert!(state.add_vote(round2).is_ok());
+
+    assert_eq!(state.finalizable_round(child.hash), Some(1));
+    assert!(state.try_finalize(child.hash, 2).is_none());
+    assert!(state.try_finalize(child.hash, 1).is_some());
+    Ok(())
+}
+
+#[test]
+fn audit_test_authenticated_quorum_certificate_hash_is_context_bound() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 93)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+
+    for voter in [[1; 32], [2; 32], [3; 32]] {
+        assert!(
+            state
+                .add_vote(vote(voter, &genesis, VoteKind::Commit))
+                .is_ok()
+        );
+    }
+
+    let context_a = VoteAuthenticationContext {
+        network_id: 11,
+        epoch: 1,
+        validator_set_root: [4; 32],
+        pq_attestation_root: [5; 32],
+        signature_scheme: 1,
+    };
+    let context_b = VoteAuthenticationContext {
+        epoch: 2,
+        ..context_a
+    };
+
+    let cert_a = state
+        .authenticated_quorum_certificate(genesis.hash, genesis.header.round, context_a)
+        .expect("expected authenticated certificate for quorum-ready block");
+    let cert_b = state
+        .authenticated_quorum_certificate(genesis.hash, genesis.header.round, context_b)
+        .expect("expected authenticated certificate for quorum-ready block");
+
+    assert_ne!(cert_a.authenticated_hash, cert_b.authenticated_hash);
+    assert_eq!(cert_a.certificate.certificate_hash, cert_b.certificate.certificate_hash);
+    Ok(())
+}
+
+#[test]
+fn audit_property_no_double_finalization_at_same_height_under_byzantine_schedule()
+-> Result<(), ConsensusError> {
+    let mut rng = StdRng::seed_from_u64(0xA0C2_A11D);
+    for _campaign in 0..64 {
+        let mut state = state_with_validators()?;
+        let genesis = build_block([0; 32], 1, 0, [7; 32], 100)?;
+        assert!(state.admit_block(genesis.clone()).is_ok());
+        for voter in [[1; 32], [2; 32], [3; 32]] {
+            assert!(
+                state
+                    .add_vote(vote(voter, &genesis, VoteKind::Commit))
+                    .is_ok()
+            );
+        }
+        assert!(state.try_finalize(genesis.hash, genesis.header.round).is_some());
+
+        let mut finalized_per_height = BTreeMap::new();
+        finalized_per_height.insert(genesis.header.height, genesis.hash);
+        let mut parent = genesis;
+
+        for height in 2..=24u64 {
+            let round = rng.random_range(1..=6);
+            let a = build_block(parent.hash, height, round, [1; 32], rng.random())?;
+            let b = build_block(parent.hash, height, round, [2; 32], rng.random())?;
+            assert!(state.admit_block(a.clone()).is_ok());
+            assert!(state.admit_block(b.clone()).is_ok());
+
+            // Byzantine schedule: random vote storms, mixed kinds/targets/rounds.
+            for _ in 0..48 {
+                let target = if rng.random_bool(0.5) { &a } else { &b };
+                let voter = [rng.random_range(1u8..=4u8); 32];
+                let kind = if rng.random_bool(0.45) {
+                    VoteKind::Prepare
+                } else {
+                    VoteKind::Commit
+                };
+                let mut v = vote(voter, target, kind);
+                if rng.random_bool(0.35) {
+                    v.round = v.round.saturating_add(rng.random_range(1..=2));
+                }
+                let _ = state.add_vote(v);
+            }
+
+            let mut finalized_this_height = None;
+            for candidate in [&a, &b] {
+                for round_try in [candidate.header.round, candidate.header.round + 1] {
+                    if state.try_finalize(candidate.hash, round_try).is_some() {
+                        finalized_this_height = Some(candidate.hash);
+                    }
+                }
+            }
+
+            if let Some(h) = finalized_this_height {
+                if let Some(existing) = finalized_per_height.get(&height) {
+                    assert_eq!(
+                        *existing, h,
+                        "safety violation: two different finalized hashes at same height"
+                    );
+                } else {
+                    finalized_per_height.insert(height, h);
+                }
+                parent = state
+                    .blocks
+                    .get(&h)
+                    .cloned()
+                    .expect("finalized block must remain addressable in state");
+            } else {
+                // Force progress with deterministic honest quorum on branch a.
+                let fallback_round = a.header.round.saturating_add(100);
+                for voter in [[1; 32], [2; 32], [3; 32]] {
+                    let mut v = vote(voter, &a, VoteKind::Commit);
+                    v.round = fallback_round;
+                    let _ = state.add_vote(v);
+                }
+                let seal = state
+                    .try_finalize(a.hash, fallback_round)
+                    .expect("honest quorum should finalize fallback branch");
+                finalized_per_height.insert(height, seal.block_hash);
+                parent = a;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn audit_property_finalized_height_is_monotonic_under_heavy_noise() -> Result<(), ConsensusError> {
+    let mut rng = StdRng::seed_from_u64(0xA0C2_6E10);
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 110)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+    for voter in [[1; 32], [2; 32], [3; 32]] {
+        assert!(
+            state
+                .add_vote(vote(voter, &genesis, VoteKind::Commit))
+                .is_ok()
+        );
+    }
+    assert!(state.try_finalize(genesis.hash, genesis.header.round).is_some());
+
+    let mut parent = genesis;
+    let mut last_finalized_height = 1u64;
+    for step in 0..160u64 {
+        let child = build_block(
+            parent.hash,
+            parent.header.height + 1,
+            step % 9 + 1,
+            [1; 32],
+            rng.random(),
+        )?;
+        assert!(state.admit_block(child.clone()).is_ok());
+
+        // Inject malformed blocks and invalid votes continuously.
+        for _ in 0..8 {
+            let mut forged = child.clone();
+            if rng.random_bool(0.5) {
+                forged.header.parent_hash = [0; 32];
+            } else {
+                forged.hash = [rng.random(); 32];
+            }
+            let _ = state.admit_block(forged);
+
+            let mut random_voter = [rng.random(); 32];
+            random_voter[0] = 250;
+            let _ = state.add_vote(vote(random_voter, &child, VoteKind::Commit));
+        }
+
+        for voter in [[1; 32], [2; 32], [3; 32]] {
+            let _ = state.add_vote(vote(voter, &child, VoteKind::Commit));
+        }
+        if state.try_finalize(child.hash, child.header.round).is_none() {
+            let fallback_round = child.header.round.saturating_add(100);
+            for voter in [[1; 32], [2; 32], [3; 32]] {
+                let mut v = vote(voter, &child, VoteKind::Commit);
+                v.round = fallback_round;
+                let _ = state.add_vote(v);
+            }
+            assert!(state.try_finalize(child.hash, fallback_round).is_some());
+        }
+
+        let finalized_hash = state
+            .fork_choice
+            .finalized_head()
+            .expect("finalized head must exist once genesis finalized");
+        let finalized_height = state
+            .fork_choice
+            .get(finalized_hash)
+            .expect("finalized head metadata must exist")
+            .height;
+        assert!(
+            finalized_height >= last_finalized_height,
+            "finalized height regressed under adversarial noise"
+        );
+        last_finalized_height = finalized_height;
+        parent = child;
+    }
+    Ok(())
+}
+
+#[test]
+fn audit_test_equivocation_slash_jails_validator_and_blocks_future_votes() -> Result<(), ConsensusError>
+{
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 120)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+
+    let _ = state.slash_validator([1; 32], 1, 2, aoxcunity::SlashFault::Equivocation)?;
+
+    assert!(matches!(
+        state.add_vote(vote([1; 32], &genesis, VoteKind::Commit)),
+        Err(ConsensusError::InactiveValidator)
+    ));
+    Ok(())
+}
+
+#[test]
+fn audit_test_conflicting_branch_cannot_be_finalized_after_canonical_finality() -> Result<(), ConsensusError>
+{
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 121)?;
+    let canonical = build_block(genesis.hash, 2, 3, [1; 32], 122)?;
+    let conflicting = build_block(genesis.hash, 2, 3, [2; 32], 123)?;
+    assert!(state.admit_block(genesis).is_ok());
+    assert!(state.admit_block(canonical.clone()).is_ok());
+    assert!(state.admit_block(conflicting.clone()).is_ok());
+
+    for voter in [[1; 32], [2; 32], [3; 32]] {
+        assert!(
+            state
+                .add_vote(vote(voter, &canonical, VoteKind::Commit))
+                .is_ok()
+        );
+    }
+    assert!(
+        state
+            .try_finalize(canonical.hash, canonical.header.round)
+            .is_some()
+    );
+
+    // Even with a complete vote set prepared in another round, conflicting branch must not finalize.
+    for voter in [[1; 32], [2; 32], [3; 32]] {
+        let mut v = vote(voter, &conflicting, VoteKind::Commit);
+        v.round = canonical.header.round.saturating_add(10);
+        let _ = state.add_vote(v);
+    }
+    assert!(
+        state
+            .try_finalize(conflicting.hash, canonical.header.round.saturating_add(10))
+            .is_none()
+    );
+    Ok(())
+}
+
+#[test]
+fn audit_test_authenticated_quorum_certificate_requires_commit_quorum() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 124)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+
+    // Insufficient commit voting power (2/4 for 2/3 quorum) must not produce certificate.
+    for voter in [[1; 32], [2; 32]] {
+        assert!(
+            state
+                .add_vote(vote(voter, &genesis, VoteKind::Commit))
+                .is_ok()
+        );
+    }
+
+    let context = VoteAuthenticationContext {
+        network_id: 77,
+        epoch: 8,
+        validator_set_root: [9; 32],
+        pq_attestation_root: [10; 32],
+        signature_scheme: 1,
+    };
+
+    assert!(
+        state
+            .authenticated_quorum_certificate(genesis.hash, genesis.header.round, context)
+            .is_none()
+    );
     Ok(())
 }
