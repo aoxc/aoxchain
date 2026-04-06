@@ -69,7 +69,7 @@ pub use node_ops::{
 pub use query_full_ops::cmd_query_full;
 pub use readiness_commands::{
     cmd_full_surface_gate, cmd_full_surface_readiness, cmd_level_score, cmd_load_benchmark,
-    cmd_mainnet_readiness, cmd_profile_baseline, cmd_testnet_readiness,
+    cmd_mainnet_readiness, cmd_network_identity_gate, cmd_profile_baseline, cmd_testnet_readiness,
 };
 pub use role_ops::{cmd_role_activate_core7, cmd_role_list, cmd_role_model_status};
 pub use vm_ops::{

@@ -82,6 +82,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "testnet-readiness" => ops::cmd_testnet_readiness(&args[2..]),
         "full-surface-readiness" => ops::cmd_full_surface_readiness(&args[2..]),
         "full-surface-gate" => ops::cmd_full_surface_gate(&args[2..]),
+        "network-identity-gate" => ops::cmd_network_identity_gate(&args[2..]),
         "level-score" => ops::cmd_level_score(&args[2..]),
         "operator-evidence-record" => evidence::cmd_operator_evidence_record(&args[2..]),
         "operator-evidence-list" => evidence::cmd_operator_evidence_list(&args[2..]),
@@ -275,6 +276,7 @@ fn route_network_group(args: &[String]) -> Result<(), AppError> {
         "create" => bootstrap::cmd_dual_profile_bootstrap(tail),
         "start" => ops::cmd_real_network(tail),
         "status" | "verify" => ops::cmd_network_smoke(tail),
+        "identity-gate" => ops::cmd_network_identity_gate(tail),
         "doctor" => audit::cmd_diagnostics_doctor(tail),
         _ => invalid_group_usage("network", "unsupported subcommand"),
     }

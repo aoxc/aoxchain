@@ -171,6 +171,26 @@ pub(super) struct PlatformLevelScore {
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
+pub(super) struct NetworkIdentityEnvironmentReport {
+    pub(super) environment: String,
+    pub(super) passed: bool,
+    pub(super) chain_id: Option<u64>,
+    pub(super) network_id: Option<String>,
+    pub(super) network_serial: Option<String>,
+    pub(super) detail: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub(super) struct NetworkIdentityGateReport {
+    pub(super) full_scan: bool,
+    pub(super) enforced: bool,
+    pub(super) passed: bool,
+    pub(super) checked_environments: Vec<String>,
+    pub(super) failure_count: usize,
+    pub(super) environments: Vec<NetworkIdentityEnvironmentReport>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub(super) struct ReadinessAreaProgress {
     pub(super) area: &'static str,
     pub(super) completed_weight: u8,
