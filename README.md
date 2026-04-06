@@ -15,6 +15,16 @@ AOXChain follows a two-stage strategy:
 
 The repository intentionally avoids unverifiable claims.
 
+## Release Channel Model
+
+AOXChain runs one codebase across three operational channels:
+
+1. **Devnet (rolling development)** — continuous integration surface and fast iteration.
+2. **Testnet (candidate validation)** — stabilization and promotion candidate validation.
+3. **Mainnet (stable production)** — promotion target only after evidence-backed gates pass.
+
+Channel transitions are policy-driven; identity is loaded from environment manifests and registry policy, not hardcoded in binaries.
+
 ---
 
 ## 📦 User Path (Binary-First)
@@ -155,26 +165,6 @@ export AOXC_NETWORK_KIND=localnet
 - `ROADMAP.md` — strategic roadmap and phase gates.
 - `docs/NAMING_VERSIONING_SIMPLIFICATION_PLAN.md` — naming/versioning baseline and migration policy.
 - `docs/GENESIS_IDENTITY_CHECKLIST.md` — genesis and environment identity consistency checklist.
-
-## Identity and Versioning Quick Reference
-
-Use this vocabulary consistently across code, docs, and operations:
-
-| Term | Meaning | Authority |
-|---|---|---|
-| **Brand** | Product/system name (`AOXChain`) | repository documentation |
-| **Ticker** | Native asset symbol (`AOXC`) | protocol/economic docs |
-| **Release line** | Human-facing release stream label (for example `AOXC-QTR-V1`) | release notes + tags |
-| **Workspace version** | Build/package/release metadata version | `configs/version-policy.toml` |
-| **Chain ID** | Deterministic machine identity (numeric) | `configs/registry/network-registry.toml` |
-| **Network ID** | Human-readable network identity string | `configs/registry/network-registry.toml` |
-| **Crypto profile** | Consensus-visible cryptography mode/version | topology and profile policy |
-
-Rules:
-
-1. Do not use release-line labels as `chain_id` or `network_id`.
-2. Do not derive protocol truth from Git tags alone.
-3. Keep machine identity policy in repository-controlled, reviewable files.
 
 ## Identity and Versioning Quick Reference
 

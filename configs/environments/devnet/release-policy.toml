@@ -6,6 +6,8 @@ environment = "devnet"
 display_name = "AOXC KIVILCIM"
 release_tier = "development"
 status = "active"
+release_channel = "rolling"
+lifecycle_role = "development-source"
 
 [identity]
 family_id = 2626
@@ -25,7 +27,9 @@ require_signed_artifacts = false
 require_certificate_presence = true
 
 [promotion]
-allow_release = false
+allow_release = true
+allow_promotion_to_testnet = true
+allow_promotion_to_mainnet = false
 allow_unsigned_release = true
 allow_manifest_identity_override = false
 allow_chain_id_override = false

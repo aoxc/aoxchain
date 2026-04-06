@@ -4,7 +4,9 @@
 
 This document defines how AOXChain versions are advanced in a slow, controlled, and reviewable way.
 
-Current active release line target: `AOXC-Q-v0.2.0`.
+Current active release line target: `AOXC-QTR-V1` (communication label only).
+
+Current workspace release version: `0.2.0-alpha.1`.
 
 ## Canonical Sources
 

@@ -64,6 +64,8 @@ chain_id = 2626000001
 network_id = "aoxc-mainnet-2626-001"
 environment_path = "configs/environments/mainnet"
 description = "Canonical AOXC public mainnet."
+lifecycle_role = "stable-production"
+promotion_source = "aoxc-testnet-candidate"
 
 [canonical_networks.testnet]
 enabled = true
@@ -74,6 +76,20 @@ chain_id = 2626010001
 network_id = "aoxc-testnet-2626-002"
 environment_path = "configs/environments/testnet"
 description = "Canonical AOXC public testnet."
+lifecycle_role = "pre-production-candidate"
+promotion_source = "aoxc-devnet-rolling"
+
+
+[canonical_networks.devnet]
+enabled = true
+chain_name = "AOXC KIVILCIM"
+network_class = "devnet"
+network_serial = "2626-003"
+chain_id = 2626020001
+network_id = "aoxc-devnet-2626-003"
+environment_path = "configs/environments/devnet"
+description = "Canonical AOXC rolling development network."
+lifecycle_role = "rolling-development"
 
 [canonical_networks.validation]
 enabled = true
@@ -84,6 +100,8 @@ chain_id = 2626030001
 network_id = "aoxc-validation-2626-004"
 environment_path = "configs/environments/validation"
 description = "Canonical AOXC validation network for pre-production verification."
+lifecycle_role = "staging-verification"
+promotion_source = "aoxc-devnet-rolling"
 
 [canonical_networks.localnet]
 enabled = true
@@ -94,6 +112,7 @@ chain_id = 2626900001
 network_id = "aoxc-localnet-2626-900"
 environment_path = "configs/environments/localnet"
 description = "Canonical AOXC local multi-node deterministic operator network."
+lifecycle_role = "local-operator-sandbox"
 
 [reserved_ranges]
 public_mainnet_serials = "2626-001..2626-009"
