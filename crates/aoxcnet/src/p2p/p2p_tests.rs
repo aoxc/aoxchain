@@ -351,6 +351,28 @@ mod tests {
     }
 
     #[test]
+    fn broadcast_rejects_when_inbound_queue_capacity_is_exhausted() {
+        let config = NetworkConfig {
+            max_sync_batch: 1,
+            ..NetworkConfig::default()
+        };
+        let mut net = P2PNetwork::new(config);
+
+        net.register_peer(test_peer())
+            .expect("peer should register");
+        net.establish_session("node-1")
+            .expect("session should be established");
+
+        net.broadcast_secure("node-1", test_vote())
+            .expect("first broadcast should fit inbound queue");
+
+        let err = net
+            .broadcast_secure("node-1", test_vote())
+            .expect_err("second broadcast should exceed inbound queue limit");
+        assert!(matches!(err, NetworkError::TransportUnavailable(_)));
+    }
+
+    #[test]
     fn protocol_envelope_rejects_empty_chain_id() {
         let ticket = SessionTicket {
             peer_id: "node-1".to_string(),
