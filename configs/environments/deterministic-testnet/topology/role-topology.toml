@@ -11,7 +11,7 @@ require_validator_governance = true
 enabled = true
 
 [roles.core_prop]
-enabled = false
+enabled = true
 
 [roles.core_guard]
 enabled = true
@@ -23,10 +23,10 @@ enabled = true
 enabled = true
 
 [roles.data_arch]
-enabled = false
+enabled = true
 
 [roles.data_da]
-enabled = false
+enabled = true
 
 [roles.serv_rpc]
 enabled = true
@@ -35,22 +35,22 @@ enabled = true
 enabled = true
 
 [roles.sec_sent]
-enabled = false
+enabled = true
 
 [roles.x_orcl]
-enabled = false
+enabled = true
 
 [roles.x_bridge]
-enabled = false
+enabled = true
 
 [roles.core_qc]
-enabled = false
+enabled = true
 
 [roles.core_qv]
-enabled = false
+enabled = true
 
 [roles.sec_evd]
-enabled = false
+enabled = true
 
 [roles.net_pacer]
-enabled = false
+enabled = true
