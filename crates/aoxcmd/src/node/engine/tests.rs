@@ -1,5 +1,5 @@
 use super::core::{
-    apply_block_proposal_with_message, build_block_for_tx, decode_hash32,
+    apply_block_proposal_with_message, block_envelope_hash_hex, build_block_for_tx, decode_hash32,
     proposer_key_from_material, run_rounds_with_observer, snapshot_from_message,
 };
 use crate::{error::ErrorCode, keys::material::KeyMaterial, node::state::NodeState};
@@ -59,7 +59,8 @@ fn apply_block_proposal_updates_runtime_and_consensus_snapshots() {
     assert_eq!(state.produced_blocks, 1);
     assert_eq!(state.last_tx, "tx-apply");
     assert_eq!(state.consensus.last_message_kind, "block_proposal");
-    assert_eq!(state.consensus.last_block_hash_hex, hex::encode(block.hash));
+    let expected_hash = block_envelope_hash_hex(&block).expect("envelope hash should compute");
+    assert_eq!(state.consensus.last_block_hash_hex, expected_hash);
     assert_eq!(state.consensus.last_section_count, 1);
     assert_eq!(
         state.key_material.consensus_public_key_hex.len(),

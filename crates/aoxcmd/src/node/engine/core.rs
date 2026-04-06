@@ -328,16 +328,20 @@ fn snapshot_from_message_kind(
     block_proposal_kind: &str,
 ) -> ConsensusSnapshot {
     match message {
-        ConsensusMessage::BlockProposal { block } => ConsensusSnapshot {
-            network_id: block.header.network_id,
-            last_parent_hash_hex: hex::encode(block.header.parent_hash),
-            last_block_hash_hex: hex::encode(block.hash),
-            last_proposer_hex: hex::encode(block.header.proposer),
-            last_round: block.header.round,
-            last_timestamp_unix: block.header.timestamp,
-            last_message_kind: block_proposal_kind.to_string(),
-            last_section_count: block.body.sections.len(),
-        },
+        ConsensusMessage::BlockProposal { block } => {
+            let last_block_hash_hex =
+                block_envelope_hash_hex(block).unwrap_or_else(|_| hex::encode(block.hash));
+            ConsensusSnapshot {
+                network_id: block.header.network_id,
+                last_parent_hash_hex: hex::encode(block.header.parent_hash),
+                last_block_hash_hex,
+                last_proposer_hex: hex::encode(block.header.proposer),
+                last_round: block.header.round,
+                last_timestamp_unix: block.header.timestamp,
+                last_message_kind: block_proposal_kind.to_string(),
+                last_section_count: block.body.sections.len(),
+            }
+        }
         ConsensusMessage::Vote(vote) => ConsensusSnapshot {
             network_id: vote.context.network_id,
             last_parent_hash_hex: hex::encode([0u8; 32]),
