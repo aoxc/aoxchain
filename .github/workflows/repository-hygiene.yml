@@ -1,0 +1,32 @@
+name: Repository Hygiene
+
+on:
+  pull_request:
+    branches: [main, master, work, develop]
+  push:
+    branches: [main, master, work, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repo-hygiene-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene-gate:
+    name: Prevent local/binary artifacts in git
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run repository hygiene gate
+        run: |
+          set -euo pipefail
+          test -f ./scripts/validation/repository_hygiene_gate.sh
+          chmod +x ./scripts/validation/repository_hygiene_gate.sh
+          ./scripts/validation/repository_hygiene_gate.sh

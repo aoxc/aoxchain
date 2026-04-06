@@ -1,38 +1,37 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
-assignees: ''
-
+about: Report a deterministic, reproducible defect
+labels: [bug]
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Problem Statement
+Describe the observed behavior clearly and precisely.
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+## Environment
+- OS:
+- Rust toolchain (`rustc --version`):
+- Commit/branch:
+- Network/profile (if relevant):
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Reproduction Steps
+1.
+2.
+3.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+## Expected Behavior
+Describe the correct behavior.
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+## Actual Behavior
+Describe what happened instead.
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+## Evidence
+Attach logs, command output, stack traces, or screenshots as applicable.
 
-**Additional context**
-Add any other context about the problem here.
+## Impact
+- [ ] Build/CI blocking
+- [ ] Runtime correctness
+- [ ] Security relevant
+- [ ] Documentation only
+
+## Additional Context
+Any assumptions, constraints, or mitigation attempts.

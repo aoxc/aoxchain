@@ -312,6 +312,7 @@ help:
 	@printf "  make clippy\n"
 	@printf "  make audit\n"
 	@printf "  make code-size-gate\n"
+	@printf "  make repo-hygiene-gate\n"
 	@printf "  make quality\n\n"
 	@printf "  make production-full\n\n"
 	@printf "  make phase1-full\n\n"
@@ -609,6 +610,10 @@ audit:
 code-size-gate:
 	$(call print_banner,Running code file length gate)
 	@./scripts/validation/code_file_length_gate.sh
+
+repo-hygiene-gate:
+	$(call print_banner,Running repository hygiene gate)
+	@./scripts/validation/repository_hygiene_gate.sh
 
 code-size-gate-full:
 	$(call print_banner,Running full repository code file length gate)

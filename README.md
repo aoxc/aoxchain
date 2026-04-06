@@ -67,6 +67,7 @@ This section is for contributors and CI-focused workflows.
 make build
 make test
 make quality
+make repo-hygiene-gate
 make audit
 make testnet-gate
 make testnet-readiness-gate
