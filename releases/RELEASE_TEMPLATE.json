@@ -1,0 +1,25 @@
+{
+  "release_version": "0.2.0-aoxcq",
+  "release_line": "AOXC-Q-v0.2.0",
+  "published_at_utc": "2026-04-06T00:00:00Z",
+  "git": {
+    "tag": "v0.2.0-aoxcq",
+    "commit": "<full-commit-sha>"
+  },
+  "artifacts": [
+    {
+      "name": "aoxc-linux-amd64",
+      "path": "binaries/linux-amd64/aoxc",
+      "sha256": "<sha256>",
+      "signature": "signatures/aoxc-linux-amd64.sig"
+    }
+  ],
+  "compatibility": {
+    "network_id": ["aoxchain-mainnet"],
+    "chain_id": ["1001"],
+    "crypto_profile": "aoxcq-v1",
+    "manifest_schema": 1,
+    "certificate_schema": 1,
+    "native_token_policy_schema": 1
+  }
+}
