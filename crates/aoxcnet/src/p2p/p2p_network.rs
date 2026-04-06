@@ -142,7 +142,7 @@ impl P2PNetwork {
         let handshake_intent = HandshakeIntent {
             peer_id: peer.id.clone(),
             peer_class: peer_class_for_role(peer.role),
-            release_line: "AOXC-Q-v0.2.0".to_string(),
+            release_line: AOXC_Q_RELEASE_LINE.to_string(),
             transport_profile,
             protocol_version: 1,
             max_frame_bytes: self.config.max_frame_bytes,
@@ -238,6 +238,12 @@ impl P2PNetwork {
 
         if encoded.len() > self.config.max_frame_bytes {
             return Err(NetworkError::FrameTooLarge);
+        }
+
+        if self.inbound.len() >= self.config.max_inbound_queue {
+            return Err(NetworkError::TransportUnavailable(
+                "inbound queue exceeded configured capacity".to_string(),
+            ));
         }
 
         self.replay_cache.insert(replay_key.clone());
