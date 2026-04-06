@@ -6,6 +6,8 @@ environment = "mainnet"
 display_name = "AOXC AKDENIZ"
 release_tier = "production"
 status = "active"
+release_channel = "stable"
+lifecycle_role = "production-stable"
 
 [identity]
 family_id = 2626
@@ -26,6 +28,8 @@ require_certificate_presence = true
 
 [promotion]
 allow_release = true
+allow_promotion_from_testnet = true
+allow_promotion_from_devnet = false
 allow_unsigned_release = false
 allow_manifest_identity_override = false
 allow_chain_id_override = false
