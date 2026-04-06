@@ -273,8 +273,8 @@ endef
 	clean-root clean-logs clean-runtime clean-bin clean-audit \
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
-	release-binary-list install-bin package-desktop repo-release-prepare repo-release-validate repo-release-signed repo-release-signed-verify repo-release-keygen \
-	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate repo-hygiene-gate quality quality-quick quality-release ci \
+	release-binary-list install-bin package-desktop repo-release-prepare repo-release-validate \
+	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate quality quality-quick quality-release ci \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
@@ -342,9 +342,6 @@ help:
 	@printf "  make publish-release\n\n"
 	@printf "  make repo-release-prepare\n"
 	@printf "  make repo-release-validate\n\n"
-	@printf "  make repo-release-keygen\n"
-	@printf "  make repo-release-signed\n"
-	@printf "  make repo-release-signed-verify\n\n"
 
 	@printf "Runtime lifecycle\n"
 	@printf "  make runtime-print\n"
@@ -579,27 +576,6 @@ repo-release-prepare: build-release
 repo-release-validate:
 	$(call print_banner,Validating repository release directory under ./releases)
 	@python3 scripts/release/validate_repo_release.py "releases/v$(RELEASE_VERSION)"
-
-repo-release-keygen:
-	$(call print_banner,Generating local release signing key + certificate)
-	@mkdir -p .keys/release
-	@openssl genrsa -out .keys/release/release-signing.key.pem 4096
-	@openssl req -x509 -new -key .keys/release/release-signing.key.pem -sha256 -days 3650 \
-		-subj "/CN=AOXChain Release Signing/O=AOXChain" \
-		-out .keys/release/release-signing.cert.pem
-	@echo "Generated key: .keys/release/release-signing.key.pem"
-	@echo "Generated cert: .keys/release/release-signing.cert.pem"
-
-repo-release-signed: build-release-all
-	$(call print_banner,Building signed repository release bundle)
-	@RELEASE_SIGNING_KEY="$${RELEASE_SIGNING_KEY:-.keys/release/release-signing.key.pem}" \
-	 RELEASE_SIGNING_CERT="$${RELEASE_SIGNING_CERT:-.keys/release/release-signing.cert.pem}" \
-	 ./scripts/release/create_signed_release_bundle.sh
-
-repo-release-signed-verify:
-	$(call print_banner,Verifying signed repository release bundle)
-	@RELEASE_SIGNING_CERT="$${RELEASE_SIGNING_CERT:-.keys/release/release-signing.cert.pem}" \
-	 ./scripts/release/verify_signed_release_bundle.sh
 
 test:
 	$(call print_banner,Running workspace tests)

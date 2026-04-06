@@ -15,9 +15,8 @@
     }
   ],
   "compatibility": {
-    "network": "mainnet",
-    "network_id": ["aoxc-mainnet-2626-001"],
-    "chain_id": ["2626000001"],
+    "network_id": ["aoxchain-mainnet"],
+    "chain_id": ["1001"],
     "crypto_profile": "aoxcq-v1",
     "manifest_schema": 1,
     "certificate_schema": 1,
