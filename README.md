@@ -67,9 +67,18 @@ This section is for contributors and CI-focused workflows.
 make build
 make test
 make quality
+make repo-hygiene-gate
 make audit
 make testnet-gate
 make testnet-readiness-gate
+```
+
+Signed release publication flow:
+
+```bash
+make repo-release-keygen
+make repo-release-signed
+make repo-release-signed-verify
 ```
 
 ### Why Make for developers
@@ -134,6 +143,7 @@ export AOXC_NETWORK_KIND=localnet
 | `scripts/` | Automation and evidence workflows. |
 | `docs/` | Technical and operational documentation surfaces. |
 | `artifacts/` | Generated evidence and release/readiness artifacts. |
+| `releases/` | Versioned, operator-consumable binary release bundles and verification metadata. |
 
 ## Canonical Documents
 

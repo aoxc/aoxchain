@@ -1,20 +1,27 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
-title: ''
-labels: ''
-assignees: ''
-
+about: Propose a scoped, implementation-aware enhancement
+labels: [enhancement]
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Objective
+What concrete capability should be added or improved?
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+## Problem / Motivation
+Which operator, developer, or protocol problem does this solve?
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## Proposed Approach
+Describe the preferred implementation direction and boundaries.
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+## Compatibility and Risk
+- Does this affect consensus, API, storage, or release policy?
+- What migration or guardrails are required?
+
+## Validation Plan
+List commands/tests that will prove correctness.
+
+## Alternatives Considered
+List rejected alternatives and why.
+
+## Additional Context
+References, diagrams, or related issues/PRs.
