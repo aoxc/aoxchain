@@ -113,6 +113,6 @@ The `configs/topology/` folder defines a full-role, multi-plane blueprint for st
 
 - `full-role-topology.toml` — complete role inventory with policy-gated activation flags.
 - `socket-matrix.toml` — explicit role-to-role transport allowances on control/consensus/data/service planes.
-- `consensus-policy.toml` — advanced consensus hardening and crypto-agility policy template.
+- `consensus-policy.toml` — advanced consensus hardening, crypto-agility, and governance multisig policy template.
 
 These templates are intentionally definition-first. They should be adapted per environment before activation in production-like deployments.
