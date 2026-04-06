@@ -20,14 +20,14 @@ planes = ["consensus", "data", "control"]
 name = "Block Proposer Scheduler"
 layer = "L5"
 trust_zone = "kernel"
-enabled = false
+enabled = true
 planes = ["consensus", "control"]
 
 [roles.core_guard]
 name = "Consensus Rule Guard"
 layer = "L5"
 trust_zone = "kernel"
-enabled = false
+enabled = true
 planes = ["consensus", "control", "data"]
 
 [roles.net_relay]
@@ -48,14 +48,14 @@ planes = ["data", "service", "control"]
 name = "Archive Node"
 layer = "L6"
 trust_zone = "data"
-enabled = false
+enabled = true
 planes = ["data", "service", "control"]
 
 [roles.data_da]
 name = "Data Availability Node"
 layer = "L3"
 trust_zone = "data"
-enabled = false
+enabled = true
 planes = ["data", "control"]
 
 [roles.serv_rpc]
@@ -69,26 +69,26 @@ planes = ["service", "control"]
 name = "Index Service Node"
 layer = "L6"
 trust_zone = "service"
-enabled = false
+enabled = true
 planes = ["service", "data", "control"]
 
 [roles.sec_sent]
 name = "Sentinel Security Node"
 layer = "L2"
 trust_zone = "security"
-enabled = false
+enabled = true
 planes = ["control", "data", "service"]
 
 [roles.x_orcl]
 name = "Oracle Attestation Node"
 layer = "L6"
 trust_zone = "interop"
-enabled = false
+enabled = true
 planes = ["service", "control"]
 
 [roles.x_bridge]
 name = "Cross-Chain Bridge Node"
 layer = "L6"
 trust_zone = "interop"
-enabled = false
+enabled = true
 planes = ["service", "data", "control"]
