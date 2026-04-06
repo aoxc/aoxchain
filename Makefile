@@ -124,6 +124,20 @@ AOXC_NEW_ACCOUNT_BALANCE ?= 1000000
 AOXC_NEW_ACCOUNT_ROLE ?= user
 
 # --------------------------------------------------------------------
+# AOXC-Q persistent testnet supervisor defaults
+# --------------------------------------------------------------------
+AOXC_Q_SCRIPT ?= ./scripts/aoxc-q-v0.2.0.start.sh
+AOXC_Q_HOME ?= /mnt/xdbx/aoxc
+AOXC_Q_ENV ?= testnet
+AOXC_Q_PROFILE ?= testnet
+AOXC_Q_MODE ?= local
+AOXC_Q_NODES ?= 7
+AOXC_Q_ROUNDS ?= 200
+AOXC_Q_SLEEP_MIN_SECS ?= 1
+AOXC_Q_SLEEP_MAX_SECS ?= 6
+AOXC_Q_FORCE ?= 0
+
+# --------------------------------------------------------------------
 # Executable suffix
 # --------------------------------------------------------------------
 AOXC_EXE_SUFFIX :=
@@ -270,6 +284,7 @@ endef
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
 	demo localnet devnet testnet testnet-gate testnet-readiness-gate aoxcvm-phase3-gate aoxcvm-production-closure-gate reset doctor audit-chain logs down restart \
 	network-create network-start network-stop network-status genesis-build chain-status \
+	aoxc-q-up aoxc-q-provision aoxc-q-start aoxc-q-stop aoxc-q-restart aoxc-q-status \
 	chain-help chain-init chain-add-account chain-add-validator chain-start-persistent \
 	ui alpha
 
@@ -311,6 +326,9 @@ help:
 	@printf "  make testnet\n"
 	@printf "  make testnet-gate\n"
 	@printf "  make testnet-readiness-gate\n"
+	@printf "  make aoxc-q-up AOXC_Q_MODE=<local|public> AOXC_Q_NODES=<n> AOXC_Q_FORCE=1\n"
+	@printf "  make aoxc-q-status AOXC_Q_MODE=<local|public> AOXC_Q_NODES=<n>\n"
+	@printf "  make aoxc-q-stop AOXC_Q_MODE=<local|public> AOXC_Q_NODES=<n>\n"
 	@printf "  make doctor\n"
 	@printf "  make audit-chain\n"
 	@printf "  make reset\n\n"
@@ -1138,6 +1156,33 @@ genesis-build:
 chain-status:
 	$(call print_banner,Reporting AOXC chain status)
 	@AOXC_HOME="$(AOXC_RUNTIME_ROOT)" "$(AOXC_BIN_PATH)" runtime-status
+
+# --------------------------------------------------------------------
+# AOXC-Q persistent testnet supervisor surfaces
+# --------------------------------------------------------------------
+aoxc-q-up:
+	$(call print_banner,AOXC-Q up (provision + start))
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action up --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --profile "$(AOXC_Q_PROFILE)" --nodes "$(AOXC_Q_NODES)" --rounds "$(AOXC_Q_ROUNDS)" --sleep-min-secs "$(AOXC_Q_SLEEP_MIN_SECS)" --sleep-max-secs "$(AOXC_Q_SLEEP_MAX_SECS)" $(if $(filter 1,$(AOXC_Q_FORCE)),--force,)
+
+aoxc-q-provision:
+	$(call print_banner,AOXC-Q provision)
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action provision --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --profile "$(AOXC_Q_PROFILE)" --nodes "$(AOXC_Q_NODES)" --rounds "$(AOXC_Q_ROUNDS)" --sleep-min-secs "$(AOXC_Q_SLEEP_MIN_SECS)" --sleep-max-secs "$(AOXC_Q_SLEEP_MAX_SECS)" $(if $(filter 1,$(AOXC_Q_FORCE)),--force,)
+
+aoxc-q-start:
+	$(call print_banner,AOXC-Q start)
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action start --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
+
+aoxc-q-stop:
+	$(call print_banner,AOXC-Q stop)
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action stop --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
+
+aoxc-q-restart:
+	$(call print_banner,AOXC-Q restart)
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action restart --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
+
+aoxc-q-status:
+	$(call print_banner,AOXC-Q status)
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action status --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
 
 # --------------------------------------------------------------------
 # UI surfaces

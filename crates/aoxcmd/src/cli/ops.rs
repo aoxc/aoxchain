@@ -38,6 +38,7 @@ mod faucet;
 mod metrics_ops;
 mod network_read_ops;
 mod node_ops;
+mod query_full_ops;
 mod readiness_commands;
 mod readiness_core;
 mod role_ops;
@@ -65,6 +66,7 @@ pub use node_ops::{
     cmd_network_smoke, cmd_node_bootstrap, cmd_node_health, cmd_node_run, cmd_produce_once,
     cmd_real_network, cmd_storage_smoke,
 };
+pub use query_full_ops::cmd_query_full;
 pub use readiness_commands::{
     cmd_full_surface_gate, cmd_full_surface_readiness, cmd_level_score, cmd_load_benchmark,
     cmd_mainnet_readiness, cmd_profile_baseline, cmd_testnet_readiness,
