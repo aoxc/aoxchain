@@ -43,6 +43,7 @@ mod readiness_commands;
 mod readiness_core;
 mod role_ops;
 mod rpc_status_ops;
+mod runtime_snapshot_ops;
 mod shared_helpers;
 mod tx_account_ops;
 mod types;
@@ -72,6 +73,10 @@ pub use readiness_commands::{
     cmd_mainnet_readiness, cmd_network_identity_gate, cmd_profile_baseline, cmd_testnet_readiness,
 };
 pub use role_ops::{cmd_role_activate_core7, cmd_role_list, cmd_role_model_status};
+pub use runtime_snapshot_ops::{
+    cmd_query_runtime, cmd_runtime_restore_latest, cmd_runtime_snapshot, cmd_runtime_snapshot_list,
+    cmd_runtime_snapshot_prune,
+};
 pub use vm_ops::{
     cmd_vm_call, cmd_vm_code_get, cmd_vm_contract_get, cmd_vm_estimate_gas, cmd_vm_simulate,
     cmd_vm_status, cmd_vm_storage_get, cmd_vm_trace,

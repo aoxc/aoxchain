@@ -85,8 +85,8 @@ GUIDED GROUPS
   node init|start|status|doctor
   network create|start|status|verify|identity-gate|doctor
   role list|status|activate-core7
-  api [status|contract|smoke|metrics|health|full|chain|consensus|vm|block|tx|receipt|account|balance|state-root|network]
-  query chain|consensus|vm|full|block|tx|receipt|account|balance|network|state-root|rpc
+  api [status|contract|smoke|metrics|health|full|chain|consensus|vm|block|tx|receipt|account|balance|state-root|network|runtime]
+  query chain|consensus|vm|full|block|tx|receipt|account|balance|network|runtime|state-root|rpc
   tx transfer|stake delegate|stake undelegate
   stake delegate|undelegate|validators|rewards
   doctor [node|network|runtime]
@@ -145,6 +145,10 @@ NODE AND ECONOMY
   faucet-claim --account-id <id> [--amount <n>] [--auto-init] [--force]
   faucet-reset [--keep-config]
   runtime-status
+  runtime-snapshot [--action <snapshot|list|prune|restore-latest>] [--keep <n>] [--runtime-root <path>] [--snapshot-dir <path>]
+  runtime-snapshot-list [--runtime-root <path>] [--snapshot-dir <path>]
+  runtime-snapshot-prune [--keep <n>] [--runtime-root <path>] [--snapshot-dir <path>]
+  runtime-restore-latest [--runtime-root <path>] [--snapshot-dir <path>]
   chain-status
   consensus-status
   consensus-validators
@@ -179,6 +183,7 @@ NODE AND ECONOMY
   query network status
   query network peers
   query network full
+  query runtime [status|snapshot] [--action <snapshot|list|prune|restore-latest>] [--keep <n>] [--runtime-root <path>] [--snapshot-dir <path>]
   query state-root
   query rpc
   api status
@@ -188,6 +193,7 @@ NODE AND ECONOMY
   api health
   api full [--account-id <id>] [--tx-hash <hash>]
   api network full
+  api runtime [status|snapshot] [--action <snapshot|list|prune|restore-latest>] [--keep <n>] [--runtime-root <path>] [--snapshot-dir <path>]
   block-get --height <latest|n>
   tx-get --hash <tx-hash>
   tx-receipt --hash <tx-hash>

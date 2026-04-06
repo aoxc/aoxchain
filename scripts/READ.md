@@ -280,6 +280,14 @@ surface.
 - `make runtime-reinstall`
 - `make runtime-reset`
 - `make runtime-show-active`
+- `make runtime-snapshot`
+- `make runtime-snapshot-list`
+- `make runtime-snapshot-prune`
+- `make runtime-restore-latest`
+
+Runtime snapshot surfaces are implemented by `scripts/runtime_snapshot_guard.sh`.
+These commands create timestamped runtime snapshot archives and can restore the
+latest snapshot into the canonical runtime root.
 
 ### Database and audit
 - `make db-init`
