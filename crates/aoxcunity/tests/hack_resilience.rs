@@ -286,3 +286,146 @@ fn property_prepare_votes_never_finalize() -> Result<(), ConsensusError> {
     }
     Ok(())
 }
+
+#[test]
+fn hack_test_rejects_equivocating_vote_same_round() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 23)?;
+    let branch_a = build_block(genesis.hash, 2, 5, [1; 32], 24)?;
+    let branch_b = build_block(genesis.hash, 2, 5, [2; 32], 25)?;
+
+    assert!(state.admit_block(genesis).is_ok());
+    assert!(state.admit_block(branch_a.clone()).is_ok());
+    assert!(state.admit_block(branch_b.clone()).is_ok());
+    assert!(
+        state
+            .add_vote(vote([1; 32], &branch_a, VoteKind::Commit))
+            .is_ok()
+    );
+    assert!(matches!(
+        state.add_vote(vote([1; 32], &branch_b, VoteKind::Commit)),
+        Err(ConsensusError::EquivocatingVote)
+    ));
+    Ok(())
+}
+
+#[test]
+fn hack_test_rejects_vote_for_conflicting_branch_after_finality() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 26)?;
+    let canonical = build_block(genesis.hash, 2, 1, [1; 32], 27)?;
+    let conflicting = build_block(genesis.hash, 2, 1, [2; 32], 28)?;
+
+    assert!(state.admit_block(genesis).is_ok());
+    assert!(state.admit_block(canonical.clone()).is_ok());
+    assert!(state.admit_block(conflicting.clone()).is_ok());
+
+    for voter in [[1; 32], [2; 32], [3; 32]] {
+        assert!(
+            state
+                .add_vote(vote(voter, &canonical, VoteKind::Commit))
+                .is_ok()
+        );
+    }
+    assert!(
+        state
+            .try_finalize(canonical.hash, canonical.header.round)
+            .is_some()
+    );
+
+    assert!(matches!(
+        state.add_vote(vote([4; 32], &conflicting, VoteKind::Commit)),
+        Err(ConsensusError::StaleVote | ConsensusError::VoteForUnknownBlock)
+    ));
+    Ok(())
+}
+
+#[test]
+fn hack_test_stake_reduction_can_drop_quorum() -> Result<(), ConsensusError> {
+    let mut state = state_with_validators()?;
+    let genesis = build_block([0; 32], 1, 0, [7; 32], 29)?;
+    assert!(state.admit_block(genesis.clone()).is_ok());
+
+    for voter in [[1; 32], [2; 32], [3; 32]] {
+        assert!(
+            state
+                .add_vote(vote(voter, &genesis, VoteKind::Commit))
+                .is_ok()
+        );
+    }
+    assert!(state.has_quorum(genesis.hash, VoteKind::Commit));
+
+    let _slashed = state.slash_validator([1; 32], 1, 1, aoxcunity::SlashFault::Equivocation)?;
+    let _unbonded = state.unbond_validator([2; 32], 1)?;
+    let _undelegated = state.undelegate_from_validator([3; 32], 1)?;
+
+    assert!(!state.has_quorum(genesis.hash, VoteKind::Commit));
+    Ok(())
+}
+
+#[test]
+fn property_finalize_requires_round_matched_commit_votes() -> Result<(), ConsensusError> {
+    let mut rng = StdRng::seed_from_u64(0xA0C2_9090);
+    for _ in 0..256 {
+        let mut state = state_with_validators()?;
+        let genesis = build_block([0; 32], 1, 0, [7; 32], 30)?;
+        let candidate_round = rng.random_range(1..=8);
+        let candidate = build_block(genesis.hash, 2, candidate_round, [1; 32], 31)?;
+
+        assert!(state.admit_block(genesis).is_ok());
+        assert!(state.admit_block(candidate.clone()).is_ok());
+
+        for voter in [[1; 32], [2; 32], [3; 32]] {
+            let mut forged = vote(voter, &candidate, VoteKind::Commit);
+            if rng.random_bool(0.5) {
+                forged.round = forged.round.saturating_add(1);
+            }
+            assert!(state.add_vote(forged).is_ok());
+        }
+
+        let finalizable = state.finalizable_round(candidate.hash);
+        let finalized = state.try_finalize(candidate.hash, candidate.header.round);
+
+        if finalizable == Some(candidate.header.round) {
+            assert!(finalized.is_some());
+        } else {
+            assert!(finalized.is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn property_randomized_fork_vote_attacks_preserve_safety() -> Result<(), ConsensusError> {
+    let mut rng = StdRng::seed_from_u64(0xA0C2_BEEF);
+    for _ in 0..128 {
+        let mut state = state_with_validators()?;
+        let genesis = build_block([0; 32], 1, 0, [7; 32], 40)?;
+        let a = build_block(genesis.hash, 2, 1, [1; 32], 41)?;
+        let b = build_block(genesis.hash, 2, 1, [2; 32], 42)?;
+
+        assert!(state.admit_block(genesis).is_ok());
+        assert!(state.admit_block(a.clone()).is_ok());
+        assert!(state.admit_block(b.clone()).is_ok());
+
+        for _ in 0..20 {
+            let voter = [rng.random_range(1u8..=4u8); 32];
+            let target = if rng.random_bool(0.5) { &a } else { &b };
+            let kind = if rng.random_bool(0.5) {
+                VoteKind::Prepare
+            } else {
+                VoteKind::Commit
+            };
+            let mut candidate = vote(voter, target, kind);
+            if rng.random_bool(0.2) {
+                candidate.round = candidate.round.saturating_add(1);
+            }
+            let _ = state.add_vote(candidate);
+        }
+
+        let a_finalized = state.try_finalize(a.hash, a.header.round).is_some();
+        let b_finalized = state.try_finalize(b.hash, b.header.round).is_some();
+        assert!(!(a_finalized && b_finalized));
+    }
+    Ok(())
+}
