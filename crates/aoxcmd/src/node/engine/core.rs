@@ -128,8 +128,7 @@ fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
     })?;
 
     let parent_hash_hex = hex::encode(block.header.parent_hash);
-    let block_hash_hex =
-        canonical_envelope_hash_hex(block.header.height, &parent_hash_hex, &payload)?;
+    let block_hash_hex = block_envelope_hash_hex(block)?;
 
     let envelope = BlockEnvelope {
         height: block.header.height,
@@ -150,6 +149,18 @@ fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
     })?;
 
     Ok(())
+}
+
+pub(super) fn block_envelope_hash_hex(block: &Block) -> Result<String, AppError> {
+    let parent_hash_hex = hex::encode(block.header.parent_hash);
+    let payload = serde_json::to_vec(block).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to serialize block payload for envelope integrity digest",
+            error,
+        )
+    })?;
+    canonical_envelope_hash_hex(block.header.height, &parent_hash_hex, &payload)
 }
 
 fn canonical_envelope_hash_hex(
@@ -352,16 +363,20 @@ fn snapshot_from_message_kind(
     block_proposal_kind: &str,
 ) -> ConsensusSnapshot {
     match message {
-        ConsensusMessage::BlockProposal { block } => ConsensusSnapshot {
-            network_id: block.header.network_id,
-            last_parent_hash_hex: hex::encode(block.header.parent_hash),
-            last_block_hash_hex: hex::encode(block.hash),
-            last_proposer_hex: hex::encode(block.header.proposer),
-            last_round: block.header.round,
-            last_timestamp_unix: block.header.timestamp,
-            last_message_kind: block_proposal_kind.to_string(),
-            last_section_count: block.body.sections.len(),
-        },
+        ConsensusMessage::BlockProposal { block } => {
+            let last_block_hash_hex =
+                block_envelope_hash_hex(block).unwrap_or_else(|_| hex::encode(block.hash));
+            ConsensusSnapshot {
+                network_id: block.header.network_id,
+                last_parent_hash_hex: hex::encode(block.header.parent_hash),
+                last_block_hash_hex,
+                last_proposer_hex: hex::encode(block.header.proposer),
+                last_round: block.header.round,
+                last_timestamp_unix: block.header.timestamp,
+                last_message_kind: block_proposal_kind.to_string(),
+                last_section_count: block.body.sections.len(),
+            }
+        }
         ConsensusMessage::Vote(vote) => ConsensusSnapshot {
             network_id: vote.context.network_id,
             last_parent_hash_hex: hex::encode([0u8; 32]),
