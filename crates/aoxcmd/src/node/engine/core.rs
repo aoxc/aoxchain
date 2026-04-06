@@ -329,8 +329,8 @@ fn snapshot_from_message_kind(
 ) -> ConsensusSnapshot {
     match message {
         ConsensusMessage::BlockProposal { block } => {
-            let last_block_hash_hex =
-                block_envelope_hash_hex(block).unwrap_or_else(|_| hex::encode(block.hash));
+            let last_block_hash_hex = hex::encode(block.hash);
+
             ConsensusSnapshot {
                 network_id: block.header.network_id,
                 last_parent_hash_hex: hex::encode(block.header.parent_hash),
