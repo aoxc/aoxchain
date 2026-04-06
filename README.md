@@ -65,6 +65,31 @@ target/release/aoxc
 ./target/release/aoxc role status --profile localnet
 ```
 
+### 5) `production-bootstrap` first-run vs re-run (important)
+
+When using `production-bootstrap`, use a **clean home directory** for each new bootstrap.
+
+```bash
+read -rsp "AOXC password: " AOXC_PASS; echo
+./bin/aoxc production-bootstrap \
+  --profile testnet \
+  --password "$AOXC_PASS" \
+  --name validator1 \
+  --home /path/to/aoxc/home/testnet
+unset AOXC_PASS
+./bin/aoxc node start --home /path/to/aoxc/home/testnet
+```
+
+If you re-run bootstrap in the same `--home`, clear previous runtime state first:
+
+```bash
+rm -f /path/to/aoxc/home/testnet/runtime/db/main.redb
+```
+
+Otherwise startup can fail with a parent-hash mismatch (`AOXC-LED-001`) because
+historical block rows from a previous run conflict with a newly bootstrapped
+height-0 state.
+
 ---
 
 ## 🛠 Developer Path (Make-First)
