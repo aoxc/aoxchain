@@ -165,6 +165,8 @@ AOXC_RUNTIME_STATE_DIR ?= $(AOXC_RUNTIME_ROOT)/state
 AOXC_RUNTIME_CONFIG_DIR ?= $(AOXC_RUNTIME_ROOT)/config
 AOXC_RUNTIME_OPERATOR_DIR ?= $(AOXC_RUNTIME_ROOT)/operator
 AOXC_RUNTIME_DB_DIR ?= $(AOXC_RUNTIME_ROOT)/db
+AOXC_RUNTIME_SNAPSHOTS_DIR ?= $(AOXC_RUNTIME_ROOT)/snapshots
+AOXC_RUNTIME_SNAPSHOT_KEEP ?= 12
 
 AOXC_AUDIT_ROOT ?= $(AOXC_ROOT)/audit
 AOXC_ARTIFACTS_ROOT ?= $(AOXC_ROOT)/artifacts
@@ -280,7 +282,7 @@ endef
 	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate quality quality-quick quality-release ci \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
-	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
+	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active runtime-snapshot runtime-snapshot-list runtime-snapshot-prune runtime-restore-latest \
 	runtime-bundle-compat-check docker-check podman-check container-check container-build container-config container-up container-down production-full \
 	phase1-full quantum-readiness-gate quantum-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
@@ -461,6 +463,7 @@ bootstrap-paths:
 	$(call ensure_dir,$(AOXC_RUNTIME_STATE_DIR))
 	$(call ensure_dir,$(AOXC_RUNTIME_OPERATOR_DIR))
 	$(call ensure_dir,$(AOXC_RUNTIME_DB_DIR))
+	$(call ensure_dir,$(AOXC_RUNTIME_SNAPSHOTS_DIR))
 	$(call ensure_dir,$(AOXC_AUDIT_ROOT))
 	$(call ensure_dir,$(AOXC_ARTIFACTS_ROOT))
 	$(call ensure_dir,$(AOXC_CACHE_ROOT))
@@ -957,6 +960,31 @@ runtime-show-active:
 	else \
 		echo "active profile marker is absent"; \
 	fi
+
+runtime-snapshot: bootstrap-paths
+	$(call print_banner,Creating runtime snapshot archive set)
+	@AOXC_RUNTIME_ROOT="$(AOXC_RUNTIME_ROOT)" \
+	AOXC_RUNTIME_SNAPSHOTS_DIR="$(AOXC_RUNTIME_SNAPSHOTS_DIR)" \
+	./scripts/runtime_snapshot_guard.sh snapshot
+
+runtime-snapshot-list: bootstrap-paths
+	$(call print_banner,Listing available runtime snapshots)
+	@AOXC_RUNTIME_ROOT="$(AOXC_RUNTIME_ROOT)" \
+	AOXC_RUNTIME_SNAPSHOTS_DIR="$(AOXC_RUNTIME_SNAPSHOTS_DIR)" \
+	./scripts/runtime_snapshot_guard.sh list
+
+runtime-snapshot-prune: bootstrap-paths
+	$(call print_banner,Pruning old runtime snapshots)
+	@AOXC_RUNTIME_ROOT="$(AOXC_RUNTIME_ROOT)" \
+	AOXC_RUNTIME_SNAPSHOTS_DIR="$(AOXC_RUNTIME_SNAPSHOTS_DIR)" \
+	AOXC_SNAPSHOT_KEEP="$(AOXC_RUNTIME_SNAPSHOT_KEEP)" \
+	./scripts/runtime_snapshot_guard.sh prune
+
+runtime-restore-latest: bootstrap-paths
+	$(call print_banner,Restoring runtime from latest snapshot)
+	@AOXC_RUNTIME_ROOT="$(AOXC_RUNTIME_ROOT)" \
+	AOXC_RUNTIME_SNAPSHOTS_DIR="$(AOXC_RUNTIME_SNAPSHOTS_DIR)" \
+	./scripts/runtime_snapshot_guard.sh restore-latest
 
 # --------------------------------------------------------------------
 # Full four-node provision surface
