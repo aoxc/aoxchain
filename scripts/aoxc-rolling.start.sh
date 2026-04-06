@@ -8,16 +8,15 @@ IFS=$'\n\t'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-AOXC_ROLLING_HOME="${AOXC_ROLLING_HOME:-${AOXC_Q_HOME:-/mnt/xdbx/aoxc}}"
-AOXC_ROLLING_ENV="${AOXC_ROLLING_ENV:-${AOXC_Q_ENV:-devnet}}"
-AOXC_ROLLING_PROFILE="${AOXC_ROLLING_PROFILE:-${AOXC_Q_PROFILE:-devnet}}"
-AOXC_ROLLING_NODE_COUNT="${AOXC_ROLLING_NODE_COUNT:-${AOXC_Q_NODE_COUNT:-7}}"
-AOXC_ROLLING_ROUNDS="${AOXC_ROLLING_ROUNDS:-${AOXC_Q_ROUNDS:-200}}"
-AOXC_ROLLING_START="${AOXC_ROLLING_START:-${AOXC_Q_START:-1}}"
-AOXC_ROLLING_SLEEP_SECS="${AOXC_ROLLING_SLEEP_SECS:-${AOXC_Q_SLEEP_SECS:-1}}"
-AOXC_ROLLING_FORCE="${AOXC_ROLLING_FORCE:-${AOXC_Q_FORCE:-0}}"
-AOXC_ROLLING_ACTION="${AOXC_ROLLING_ACTION:-${AOXC_Q_ACTION:-up}}"
-
+AOXC_Q_HOME="${AOXC_Q_HOME:-/mnt/xdbx/aoxc}"
+AOXC_Q_ENV="${AOXC_Q_ENV:-testnet}"
+AOXC_Q_PROFILE="${AOXC_Q_PROFILE:-testnet}"
+AOXC_Q_NODE_COUNT="${AOXC_Q_NODE_COUNT:-7}"
+AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
+AOXC_Q_START="${AOXC_Q_START:-1}"
+AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-1}"
+AOXC_Q_FORCE="${AOXC_Q_FORCE:-0}"
+AOXC_Q_ACTION="${AOXC_Q_ACTION:-up}"
 
 usage() {
   cat <<USAGE
@@ -28,32 +27,32 @@ AOXC rolling devnet persistent local supervisor.
 Actions:
   up (default)     provision and start persistent node loops
   provision        provision only; do not start loops
-  start            start loops for an existing provisioned devnet root
-  stop             stop loops for an existing provisioned devnet root
+  start            start loops for an existing provisioned testnet root
+  stop             stop loops for an existing provisioned testnet root
   restart          stop then start
   status           show per-node process and height status
 
 Options:
   --action <name>      one of: up|provision|start|stop|restart|status
-  --home <path>        base path for generated devnet root (default: ${AOXC_ROLLING_HOME})
-  --env <name>         configs/environments/<name> source (default: ${AOXC_ROLLING_ENV})
-  --profile <name>     AOXC profile for bootstrap (default: ${AOXC_ROLLING_PROFILE})
-  --nodes <n>          node count (default: ${AOXC_ROLLING_NODE_COUNT}; minimum: 7)
-  --rounds <n>         rounds per node-run cycle (default: ${AOXC_ROLLING_ROUNDS})
-  --sleep-secs <n>     sleep between cycles in daemon loop (default: ${AOXC_ROLLING_SLEEP_SECS})
+  --home <path>        base path for generated testnet root (default: ${AOXC_Q_HOME})
+  --env <name>         configs/environments/<name> source (default: ${AOXC_Q_ENV})
+  --profile <name>     AOXC profile for bootstrap (default: ${AOXC_Q_PROFILE})
+  --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; minimum: 7)
+  --rounds <n>         rounds per node-run cycle (default: ${AOXC_Q_ROUNDS})
+  --sleep-secs <n>     sleep between cycles in daemon loop (default: ${AOXC_Q_SLEEP_SECS})
   --no-start           alias for --action provision
-  --force              recreate existing devnet root during provision
+  --force              recreate existing testnet root during provision
   -h, --help           show this help
 
 Environment overrides:
-  AOXC_ROLLING_HOME, AOXC_ROLLING_ENV, AOXC_ROLLING_PROFILE, AOXC_ROLLING_NODE_COUNT,
-  AOXC_ROLLING_ROUNDS, AOXC_ROLLING_START, AOXC_ROLLING_SLEEP_SECS, AOXC_ROLLING_FORCE, AOXC_ROLLING_ACTION
+  AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_NODE_COUNT,
+  AOXC_Q_ROUNDS, AOXC_Q_START, AOXC_Q_SLEEP_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION
 USAGE
 }
 
-log_info() { printf '[aoxc-rolling][info] %s\n' "$*"; }
-log_warn() { printf '[aoxc-rolling][warn] %s\n' "$*" >&2; }
-log_error() { printf '[aoxc-rolling][error] %s\n' "$*" >&2; }
+log_info() { printf '[aoxc-q][info] %s\n' "$*"; }
+log_warn() { printf '[aoxc-q][warn] %s\n' "$*" >&2; }
+log_error() { printf '[aoxc-q][error] %s\n' "$*" >&2; }
 
 die() {
   local message="$1"
@@ -70,40 +69,48 @@ require_uint() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --action) AOXC_ROLLING_ACTION="$2"; shift 2 ;;
-    --home) AOXC_ROLLING_HOME="$2"; shift 2 ;;
-    --home=*) AOXC_ROLLING_HOME="${1#*=}"; shift ;;
-    --env) AOXC_ROLLING_ENV="$2"; shift 2 ;;
-    --env=*) AOXC_ROLLING_ENV="${1#*=}"; shift ;;
-    --profile) AOXC_ROLLING_PROFILE="$2"; shift 2 ;;
-    --nodes) AOXC_ROLLING_NODE_COUNT="$2"; shift 2 ;;
-    --rounds) AOXC_ROLLING_ROUNDS="$2"; shift 2 ;;
-    --sleep-secs) AOXC_ROLLING_SLEEP_SECS="$2"; shift 2 ;;
-    --no-start) AOXC_ROLLING_ACTION="provision"; AOXC_ROLLING_START=0; shift ;;
-    --force) AOXC_ROLLING_FORCE=1; shift ;;
+    --action) AOXC_Q_ACTION="$2"; shift 2 ;;
+    --home) AOXC_Q_HOME="$2"; shift 2 ;;
+    --home=*) AOXC_Q_HOME="${1#*=}"; shift ;;
+    --env) AOXC_Q_ENV="$2"; shift 2 ;;
+    --env=*) AOXC_Q_ENV="${1#*=}"; shift ;;
+    --profile) AOXC_Q_PROFILE="$2"; shift 2 ;;
+    --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
+    --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
+    --sleep-secs) AOXC_Q_SLEEP_SECS="$2"; shift 2 ;;
+    --no-start) AOXC_Q_ACTION="provision"; AOXC_Q_START=0; shift ;;
+    --force) AOXC_Q_FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown argument: $1" 2 ;;
   esac
 done
 
-require_uint "${AOXC_ROLLING_NODE_COUNT}" "AOXC_ROLLING_NODE_COUNT"
-require_uint "${AOXC_ROLLING_ROUNDS}" "AOXC_ROLLING_ROUNDS"
-require_uint "${AOXC_ROLLING_SLEEP_SECS}" "AOXC_ROLLING_SLEEP_SECS"
+require_uint "${AOXC_Q_NODE_COUNT}" "AOXC_Q_NODE_COUNT"
+require_uint "${AOXC_Q_ROUNDS}" "AOXC_Q_ROUNDS"
+require_uint "${AOXC_Q_SLEEP_SECS}" "AOXC_Q_SLEEP_SECS"
 
-if (( AOXC_ROLLING_NODE_COUNT < 7 )); then
-  die "AOXC_ROLLING_NODE_COUNT must be >= 7 for production-like persistent topology." 2
+if (( AOXC_Q_NODE_COUNT < 7 )); then
+  die "AOXC_Q_NODE_COUNT must be >= 7 for production-like persistent topology." 2
 fi
-if (( AOXC_ROLLING_SLEEP_SECS < 1 )); then
-  die "AOXC_ROLLING_SLEEP_SECS must be >= 1." 2
+if (( AOXC_Q_SLEEP_MIN_SECS < 1 )); then
+  die "AOXC_Q_SLEEP_MIN_SECS must be >= 1." 2
 fi
-case "${AOXC_ROLLING_ACTION}" in
+if (( AOXC_Q_SLEEP_MAX_SECS < AOXC_Q_SLEEP_MIN_SECS )); then
+  die "AOXC_Q_SLEEP_MAX_SECS must be >= AOXC_Q_SLEEP_MIN_SECS." 2
+fi
+
+case "${AOXC_Q_ACTION}" in
   up|provision|start|stop|restart|status) ;;
-  *) die "Invalid --action value: ${AOXC_ROLLING_ACTION}" 2 ;;
+  *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
 esac
 
+case "${AOXC_Q_ACTION}" in
+  up|provision|start|stop|restart|status) ;;
+  *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
+esac
 
-TARGET_ROOT="${AOXC_ROLLING_HOME%/}/aoxc-rolling-${AOXC_ROLLING_ENV}-${AOXC_ROLLING_NODE_COUNT}n"
-SOURCE_ROOT="${REPO_ROOT}/configs/environments/${AOXC_ROLLING_ENV}"
+TARGET_ROOT="${AOXC_Q_HOME%/}/aoxc-rolling-${AOXC_Q_ENV}-${AOXC_Q_NODE_COUNT}n"
+SOURCE_ROOT="${REPO_ROOT}/configs/environments/${AOXC_Q_ENV}"
 
 resolve_aoxc_command() {
   if [[ -x "${REPO_ROOT}/target/release/aoxc" ]]; then
@@ -186,8 +193,8 @@ render_node_runner() {
 set -Eeuo pipefail
 NODE_NAME="${node_name}"
 NODE_HOME="${node_home}"
-ROUNDS="${AOXC_ROLLING_ROUNDS}"
-SLEEP_SECS="${AOXC_ROLLING_SLEEP_SECS}"
+ROUNDS="${AOXC_Q_ROUNDS}"
+SLEEP_SECS="${AOXC_Q_SLEEP_SECS}"
 WRAPPER="${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
 LOG_FILE="${node_log}"
 STATE_FILE="${node_state_file}"
@@ -215,7 +222,7 @@ provision_testnet() {
     [[ -f "${SOURCE_ROOT}/${required}" ]] || die "Missing required source file: ${SOURCE_ROOT}/${required}" 3
   done
 
-  if [[ "${AOXC_ROLLING_FORCE}" == "1" && -e "${TARGET_ROOT}" ]]; then
+  if [[ "${AOXC_Q_FORCE}" == "1" && -e "${TARGET_ROOT}" ]]; then
     chmod -R u+w "${TARGET_ROOT}" 2>/dev/null || true
     chattr -R -i "${TARGET_ROOT}" 2>/dev/null || true
     rm -rf "${TARGET_ROOT}"
@@ -232,7 +239,7 @@ provision_testnet() {
   local accounts_file="${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
   printf 'node\tvalidator_name\toperator_name\n' > "${accounts_file}"
 
-  for i in $(seq 1 "${AOXC_ROLLING_NODE_COUNT}"); do
+  for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
     local validator_name
     local operator_name
@@ -246,7 +253,7 @@ provision_testnet() {
     node_name="node$(printf '%02d' "${i}")"
     validator_name="aoxcdev-val-$(printf '%02d' "${i}")"
     operator_name="aoxcdev-op-$(printf '%02d' "${i}")"
-    password="AOXC-ROLLING-${AOXC_ROLLING_ENV^^}-${node_name^^}-CHANGE-ME"
+    password="AOXC-ROLLING-${AOXC_Q_ENV^^}-${node_name^^}-CHANGE-ME"
 
     node_root="${TARGET_ROOT}/nodes/${node_name}"
     node_home="${node_root}/home"
@@ -264,10 +271,10 @@ provision_testnet() {
     printf '%s\n' "${password}" > "${node_root}/operator.password"
     chmod 600 "${node_root}/operator.password"
 
-    run_aoxc "${node_home}" config-init --profile "${AOXC_ROLLING_PROFILE}" --json-logs > "${run_dir}/config-init.json"
-    run_aoxc "${node_home}" address-create --name "${operator_name}" --profile "${AOXC_ROLLING_PROFILE}" --password "${password}" > "${run_dir}/address-create-operator.json"
-    run_aoxc "${node_home}" address-create --name "${validator_name}" --profile "${AOXC_ROLLING_PROFILE}" --password "${password}" > "${run_dir}/address-create-validator.json"
-    run_aoxc "${node_home}" key-bootstrap --profile "${AOXC_ROLLING_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
+    run_aoxc "${node_home}" config-init --profile "${AOXC_Q_PROFILE}" --json-logs > "${run_dir}/config-init.json"
+    run_aoxc "${node_home}" address-create --name "${operator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-operator.json"
+    run_aoxc "${node_home}" address-create --name "${validator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-validator.json"
+    run_aoxc "${node_home}" key-bootstrap --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
     run_aoxc "${node_home}" keys-verify --password "${password}" > "${run_dir}/keys-verify.json"
     run_aoxc "" node-bootstrap --home "${node_home}" > "${run_dir}/node-bootstrap.json"
 
@@ -283,12 +290,12 @@ provision_testnet() {
 AOXC rolling devnet persistent local bootstrap report
 created_utc=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)
 repo_root=${REPO_ROOT}
-environment=${AOXC_ROLLING_ENV}
-profile=${AOXC_ROLLING_PROFILE}
-mode=${AOXC_ROLLING_ACTION}
-node_count=${AOXC_ROLLING_NODE_COUNT}
-rounds=${AOXC_ROLLING_ROUNDS}
-sleep_secs=${AOXC_ROLLING_SLEEP_SECS}
+environment=${AOXC_Q_ENV}
+profile=${AOXC_Q_PROFILE}
+mode=${AOXC_Q_MODE}
+node_count=${AOXC_Q_NODE_COUNT}
+rounds=${AOXC_Q_ROUNDS}
+sleep_secs=${AOXC_Q_SLEEP_SECS}
 root=${TARGET_ROOT}
 REPORT
 
@@ -298,7 +305,7 @@ REPORT
 start_testnet() {
   [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
 
-  for i in $(seq 1 "${AOXC_ROLLING_NODE_COUNT}"); do
+  for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
     local node_root
     local pid_file
@@ -325,7 +332,7 @@ start_testnet() {
 stop_testnet() {
   [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
 
-  for i in $(seq 1 "${AOXC_ROLLING_NODE_COUNT}"); do
+  for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
     local node_root
     local pid_file
@@ -355,7 +362,7 @@ status_testnet() {
   [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
   printf 'node\tprocess\tpid\theight\tupdated_at\n'
 
-  for i in $(seq 1 "${AOXC_ROLLING_NODE_COUNT}"); do
+  for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
     local node_root
     local pid_file
@@ -394,7 +401,7 @@ status_testnet() {
 main() {
   resolve_aoxc_command
 
-  case "${AOXC_ROLLING_ACTION}" in
+  case "${AOXC_Q_ACTION}" in
     up)
       provision_testnet
       start_testnet
@@ -417,10 +424,10 @@ main() {
       ;;
   esac
 
-  if [[ "${AOXC_ROLLING_ACTION}" == "up" || "${AOXC_ROLLING_ACTION}" == "provision" ]]; then
+  if [[ "${AOXC_Q_ACTION}" == "up" || "${AOXC_Q_ACTION}" == "provision" ]]; then
     log_info "accounts: ${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
     log_info "provision report: ${TARGET_ROOT}/system/audit/provision-report.txt"
-    log_info "control: $(basename "$0") --action start|stop|status --home ${AOXC_ROLLING_HOME} --env ${AOXC_ROLLING_ENV} --nodes ${AOXC_ROLLING_NODE_COUNT}"
+    log_info "control: $(basename "$0") --action start|stop|status --home ${AOXC_Q_HOME} --env ${AOXC_Q_ENV} --nodes ${AOXC_Q_NODE_COUNT}"
   fi
 }
 
