@@ -135,6 +135,10 @@ pub fn run_cli() -> Result<(), AppError> {
         "faucet-claim" => ops::cmd_faucet_claim(&args[2..]),
         "faucet-reset" => ops::cmd_faucet_reset(&args[2..]),
         "runtime-status" => ops::cmd_runtime_status(&args[2..]),
+        "runtime-snapshot" => ops::cmd_runtime_snapshot(&args[2..]),
+        "runtime-snapshot-list" => ops::cmd_runtime_snapshot_list(&args[2..]),
+        "runtime-snapshot-prune" => ops::cmd_runtime_snapshot_prune(&args[2..]),
+        "runtime-restore-latest" => ops::cmd_runtime_restore_latest(&args[2..]),
         "chain-status" => ops::cmd_chain_status(&args[2..]),
         "consensus-status" => ops::cmd_consensus_status(&args[2..]),
         "consensus-validators" => ops::cmd_consensus_validators(&args[2..]),
@@ -311,6 +315,7 @@ fn route_query_group(args: &[String]) -> Result<(), AppError> {
         "account" => ops::cmd_account_get(tail),
         "balance" => ops::cmd_balance_get(tail),
         "network" => route_query_network_group(tail),
+        "runtime" => ops::cmd_query_runtime(tail),
         "state-root" => ops::cmd_state_root(tail),
         "rpc" => ops::cmd_rpc_status(tail),
         _ => invalid_group_usage("query", "unsupported subcommand"),
@@ -416,6 +421,7 @@ fn route_api_group(args: &[String]) -> Result<(), AppError> {
         "balance" => ops::cmd_balance_get(tail),
         "state-root" => ops::cmd_state_root(tail),
         "network" => route_query_network_group(tail),
+        "runtime" => ops::cmd_query_runtime(tail),
         _ => invalid_group_usage("api", "unsupported subcommand"),
     }
 }
