@@ -73,6 +73,14 @@ make testnet-gate
 make testnet-readiness-gate
 ```
 
+Signed release publication flow:
+
+```bash
+make repo-release-keygen
+make repo-release-signed
+make repo-release-signed-verify
+```
+
 ### Why Make for developers
 
 - keeps repeated engineering checks deterministic,
