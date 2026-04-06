@@ -31,3 +31,13 @@ allow_emergency_freeze = true
 validator_rpc_cohost_forbidden = true
 bridge_with_validator_keys_forbidden = true
 require_plane_isolation = true
+
+[governance_multisig]
+enabled = true
+policy = "weighted-threshold"
+approval_threshold = "2f+1"
+min_signers = 3
+require_hardware_backed_keys = true
+require_domain_separated_signatures = true
+rotation_requires_multisig = true
+emergency_override = "forbidden"

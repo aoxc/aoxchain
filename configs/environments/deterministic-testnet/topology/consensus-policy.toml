@@ -20,3 +20,13 @@ active = "classical"
 allow_hybrid = true
 allow_pqc_only = false
 activation_gate = "onchain_governance"
+
+[governance_multisig]
+enabled = true
+policy = "weighted-threshold"
+approval_threshold = "2f+1"
+min_signers = 3
+require_hardware_backed_keys = true
+require_domain_separated_signatures = true
+rotation_requires_multisig = true
+emergency_override = "forbidden"
