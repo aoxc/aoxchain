@@ -4,7 +4,6 @@
 # This file is part of the AOXC pre-release codebase.
 set -Eeuo pipefail
 IFS=$'\n\t'
-umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -14,11 +13,10 @@ AOXC_Q_ENV="${AOXC_Q_ENV:-testnet}"
 AOXC_Q_PROFILE="${AOXC_Q_PROFILE:-testnet}"
 AOXC_Q_NODE_COUNT="${AOXC_Q_NODE_COUNT:-7}"
 AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
-AOXC_Q_SLEEP_MIN_SECS="${AOXC_Q_SLEEP_MIN_SECS:-1}"
-AOXC_Q_SLEEP_MAX_SECS="${AOXC_Q_SLEEP_MAX_SECS:-6}"
+AOXC_Q_START="${AOXC_Q_START:-1}"
+AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-1}"
 AOXC_Q_FORCE="${AOXC_Q_FORCE:-0}"
 AOXC_Q_ACTION="${AOXC_Q_ACTION:-up}"
-AOXC_Q_MODE="${AOXC_Q_MODE:-local}"
 
 usage() {
   cat <<USAGE
@@ -36,23 +34,19 @@ Actions:
 
 Options:
   --action <name>      one of: up|provision|start|stop|restart|status
-  --mode <name>        local or public (default: ${AOXC_Q_MODE})
   --home <path>        base path for generated testnet root (default: ${AOXC_Q_HOME})
   --env <name>         configs/environments/<name> source (default: ${AOXC_Q_ENV})
   --profile <name>     AOXC profile for bootstrap (default: ${AOXC_Q_PROFILE})
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; minimum: 7)
   --rounds <n>         rounds per node-run cycle (default: ${AOXC_Q_ROUNDS})
-  --sleep-secs <n>     fixed sleep between cycles (sets min=max=<n>)
-  --sleep-min-secs <n> adaptive loop minimum sleep (default: ${AOXC_Q_SLEEP_MIN_SECS})
-  --sleep-max-secs <n> adaptive loop maximum sleep (default: ${AOXC_Q_SLEEP_MAX_SECS})
+  --sleep-secs <n>     sleep between cycles in daemon loop (default: ${AOXC_Q_SLEEP_SECS})
   --no-start           alias for --action provision
   --force              recreate existing testnet root during provision
   -h, --help           show this help
 
 Environment overrides:
   AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_NODE_COUNT,
-  AOXC_Q_ROUNDS, AOXC_Q_SLEEP_MIN_SECS, AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION,
-  AOXC_Q_MODE
+  AOXC_Q_ROUNDS, AOXC_Q_START, AOXC_Q_SLEEP_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION
 USAGE
 }
 
@@ -73,63 +67,30 @@ require_uint() {
   [[ "${value}" =~ ^[0-9]+$ ]] || die "${name} must be an unsigned integer (got: ${value})" 2
 }
 
-require_cmd() {
-  local cmd="$1"
-  command -v "${cmd}" >/dev/null 2>&1 || die "Missing required command: ${cmd}" 6
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --action) AOXC_Q_ACTION="$2"; shift 2 ;;
-    --action=*) AOXC_Q_ACTION="${1#*=}"; shift ;;
-    --mode) AOXC_Q_MODE="$2"; shift 2 ;;
-    --mode=*) AOXC_Q_MODE="${1#*=}"; shift ;;
     --home) AOXC_Q_HOME="$2"; shift 2 ;;
     --home=*) AOXC_Q_HOME="${1#*=}"; shift ;;
     --env) AOXC_Q_ENV="$2"; shift 2 ;;
     --env=*) AOXC_Q_ENV="${1#*=}"; shift ;;
     --profile) AOXC_Q_PROFILE="$2"; shift 2 ;;
-    --profile=*) AOXC_Q_PROFILE="${1#*=}"; shift ;;
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
-    --nodes=*) AOXC_Q_NODE_COUNT="${1#*=}"; shift ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
-    --rounds=*) AOXC_Q_ROUNDS="${1#*=}"; shift ;;
-    --sleep-secs)
-      AOXC_Q_SLEEP_MIN_SECS="$2"
-      AOXC_Q_SLEEP_MAX_SECS="$2"
-      shift 2
-      ;;
-    --sleep-min-secs) AOXC_Q_SLEEP_MIN_SECS="$2"; shift 2 ;;
-    --sleep-min-secs=*) AOXC_Q_SLEEP_MIN_SECS="${1#*=}"; shift ;;
-    --sleep-max-secs) AOXC_Q_SLEEP_MAX_SECS="$2"; shift 2 ;;
-    --sleep-max-secs=*) AOXC_Q_SLEEP_MAX_SECS="${1#*=}"; shift ;;
-    --no-start) AOXC_Q_ACTION="provision"; shift ;;
+    --sleep-secs) AOXC_Q_SLEEP_SECS="$2"; shift 2 ;;
+    --no-start) AOXC_Q_ACTION="provision"; AOXC_Q_START=0; shift ;;
     --force) AOXC_Q_FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
-    *)
-      die "Unknown argument: $1 (if --mode is unknown, update to latest scripts/aoxc-q-v0.2.0.start.sh)" 2
-      ;;
+    *) die "Unknown argument: $1" 2 ;;
   esac
 done
 
 require_uint "${AOXC_Q_NODE_COUNT}" "AOXC_Q_NODE_COUNT"
 require_uint "${AOXC_Q_ROUNDS}" "AOXC_Q_ROUNDS"
-require_uint "${AOXC_Q_SLEEP_MIN_SECS}" "AOXC_Q_SLEEP_MIN_SECS"
-require_uint "${AOXC_Q_SLEEP_MAX_SECS}" "AOXC_Q_SLEEP_MAX_SECS"
+require_uint "${AOXC_Q_SLEEP_SECS}" "AOXC_Q_SLEEP_SECS"
 
-case "${AOXC_Q_MODE}" in
-  local|public) ;;
-  *) die "Invalid --mode value: ${AOXC_Q_MODE} (supported: local, public)" 2 ;;
-esac
-
-if [[ "${AOXC_Q_MODE}" == "local" ]]; then
-  if (( AOXC_Q_NODE_COUNT < 7 )); then
-    die "AOXC_Q_NODE_COUNT must be >= 7 for local production-like topology." 2
-  fi
-else
-  if (( AOXC_Q_NODE_COUNT < 1 )); then
-    die "AOXC_Q_NODE_COUNT must be >= 1 for public mode." 2
-  fi
+if (( AOXC_Q_NODE_COUNT < 7 )); then
+  die "AOXC_Q_NODE_COUNT must be >= 7 for production-like persistent topology." 2
 fi
 if (( AOXC_Q_SLEEP_MIN_SECS < 1 )); then
   die "AOXC_Q_SLEEP_MIN_SECS must be >= 1." 2
@@ -137,6 +98,11 @@ fi
 if (( AOXC_Q_SLEEP_MAX_SECS < AOXC_Q_SLEEP_MIN_SECS )); then
   die "AOXC_Q_SLEEP_MAX_SECS must be >= AOXC_Q_SLEEP_MIN_SECS." 2
 fi
+
+case "${AOXC_Q_ACTION}" in
+  up|provision|start|stop|restart|status) ;;
+  *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
+esac
 
 case "${AOXC_Q_ACTION}" in
   up|provision|start|stop|restart|status) ;;
@@ -162,59 +128,6 @@ run_aoxc() {
   else
     "${AOXC_CMD[@]}" "$@"
   fi
-}
-
-json_field() {
-  local json="$1"
-  local field="$2"
-  printf '%s' "${json}" \
-    | tr -d '\n' \
-    | sed -n "s/.*\"${field}\"[[:space:]]*:[[:space:]]*\"\\{0,1\\}\\([^\",}]*\\)\"\\{0,1\\}.*/\\1/p" \
-    | head -n 1
-}
-
-toml_field() {
-  local file="$1"
-  local key="$2"
-  sed -n "s/^${key}[[:space:]]*=[[:space:]]*\"\\([^\"]*\\)\"/\\1/p" "${file}" | head -n 1
-}
-
-validate_public_mode() {
-  require_cmd sha256sum
-
-  local source_genesis="${SOURCE_ROOT}/genesis.v1.json"
-  local source_hash_file="${SOURCE_ROOT}/genesis.v1.sha256"
-  local expected_hash
-  local actual_hash
-  expected_hash="$(awk '{print $1}' "${source_hash_file}" | head -n 1)"
-  actual_hash="$(sha256sum "${source_genesis}" | awk '{print $1}')"
-
-  [[ -n "${expected_hash}" ]] || die "Invalid genesis hash file: ${source_hash_file}" 3
-  [[ "${expected_hash}" == "${actual_hash}" ]] || die "Genesis hash mismatch in public mode." 7
-
-  local genesis_network_id
-  local manifest_network_id
-  local profile_network_id
-  local release_network_id
-  genesis_network_id="$(json_field "$(cat "${source_genesis}")" "network_id")"
-  manifest_network_id="$(json_field "$(cat "${SOURCE_ROOT}/manifest.v1.json")" "network_id")"
-  profile_network_id="$(toml_field "${SOURCE_ROOT}/profile.toml" "network_id")"
-  release_network_id="$(toml_field "${SOURCE_ROOT}/release-policy.toml" "network_id")"
-
-  [[ -n "${genesis_network_id}" ]] || die "Unable to resolve genesis network_id." 7
-  [[ "${genesis_network_id}" == "${manifest_network_id}" ]] || die "Manifest network_id mismatch." 7
-  [[ "${genesis_network_id}" == "${profile_network_id}" ]] || die "Profile network_id mismatch." 7
-  [[ "${genesis_network_id}" == "${release_network_id}" ]] || die "Release policy network_id mismatch." 7
-
-  if [[ -f "${SOURCE_ROOT}/network-metadata.json" ]] && command -v curl >/dev/null 2>&1; then
-    local primary_rpc
-    primary_rpc="$(json_field "$(cat "${SOURCE_ROOT}/network-metadata.json")" "primary")"
-    if [[ -n "${primary_rpc}" ]]; then
-      curl -fsS --max-time 8 "${primary_rpc}" >/dev/null || die "Public RPC probe failed: ${primary_rpc}" 7
-    fi
-  fi
-
-  log_info "public mode integrity checks passed (network_id=${genesis_network_id})"
 }
 
 write_wrapper_script() {
@@ -281,9 +194,7 @@ set -Eeuo pipefail
 NODE_NAME="${node_name}"
 NODE_HOME="${node_home}"
 ROUNDS="${AOXC_Q_ROUNDS}"
-SLEEP_MIN_SECS="${AOXC_Q_SLEEP_MIN_SECS}"
-SLEEP_MAX_SECS="${AOXC_Q_SLEEP_MAX_SECS}"
-CURRENT_SLEEP_SECS="${AOXC_Q_SLEEP_MAX_SECS}"
+SLEEP_SECS="${AOXC_Q_SLEEP_SECS}"
 WRAPPER="${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
 LOG_FILE="${node_log}"
 STATE_FILE="${node_state_file}"
@@ -291,47 +202,18 @@ STATE_FILE="${node_state_file}"
 mkdir -p "\$(dirname "\${LOG_FILE}")"
 
 while true; do
+  ts_start="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
   if AOXC_HOME="\${NODE_HOME}" "\${WRAPPER}" node-run --home "\${NODE_HOME}" --rounds "\${ROUNDS}" --tx-prefix "\${NODE_NAME^^}-TX" --format json --no-live-log >>"\${LOG_FILE}" 2>&1; then
     ts_end="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
-    if (( CURRENT_SLEEP_SECS > SLEEP_MIN_SECS )); then
-      CURRENT_SLEEP_SECS=\$((CURRENT_SLEEP_SECS - 1))
-    fi
-    printf '%s\tstatus=ok\tnode=%s\tsleep_secs=%s\n' "\${ts_end}" "\${NODE_NAME}" "\${CURRENT_SLEEP_SECS}" > "\${STATE_FILE}"
+    printf '%s\tstatus=ok\tnode=%s\n' "\${ts_end}" "\${NODE_NAME}" > "\${STATE_FILE}"
   else
     ts_end="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
-    if (( CURRENT_SLEEP_SECS < SLEEP_MAX_SECS )); then
-      CURRENT_SLEEP_SECS=\$((CURRENT_SLEEP_SECS + 1))
-    fi
-    printf '%s\tstatus=error\tnode=%s\tsleep_secs=%s\n' "\${ts_end}" "\${NODE_NAME}" "\${CURRENT_SLEEP_SECS}" > "\${STATE_FILE}"
+    printf '%s\tstatus=error\tnode=%s\n' "\${ts_end}" "\${NODE_NAME}" > "\${STATE_FILE}"
   fi
-  sleep "\${CURRENT_SLEEP_SECS}"
+  sleep "\${SLEEP_SECS}"
 done
 RUNNER
   chmod +x "${node_root}/run-node.sh"
-}
-
-render_control_scripts() {
-  cat > "${TARGET_ROOT}/system/scripts/start-all.sh" <<STARTALL
-#!/usr/bin/env bash
-set -Eeuo pipefail
-exec "${SCRIPT_DIR}/aoxc-q-v0.2.0.start.sh" --action start --home "${AOXC_Q_HOME}" --env "${AOXC_Q_ENV}" --nodes "${AOXC_Q_NODE_COUNT}"
-STARTALL
-
-  cat > "${TARGET_ROOT}/system/scripts/stop-all.sh" <<STOPALL
-#!/usr/bin/env bash
-set -Eeuo pipefail
-exec "${SCRIPT_DIR}/aoxc-q-v0.2.0.start.sh" --action stop --home "${AOXC_Q_HOME}" --env "${AOXC_Q_ENV}" --nodes "${AOXC_Q_NODE_COUNT}"
-STOPALL
-
-  cat > "${TARGET_ROOT}/system/scripts/status-all.sh" <<STATUSALL
-#!/usr/bin/env bash
-set -Eeuo pipefail
-exec "${SCRIPT_DIR}/aoxc-q-v0.2.0.start.sh" --action status --home "${AOXC_Q_HOME}" --env "${AOXC_Q_ENV}" --nodes "${AOXC_Q_NODE_COUNT}"
-STATUSALL
-
-  chmod +x "${TARGET_ROOT}/system/scripts/start-all.sh" \
-    "${TARGET_ROOT}/system/scripts/stop-all.sh" \
-    "${TARGET_ROOT}/system/scripts/status-all.sh"
 }
 
 provision_testnet() {
@@ -339,9 +221,6 @@ provision_testnet() {
   for required in "${required_source_files[@]}"; do
     [[ -f "${SOURCE_ROOT}/${required}" ]] || die "Missing required source file: ${SOURCE_ROOT}/${required}" 3
   done
-  if [[ "${AOXC_Q_MODE}" == "public" ]]; then
-    validate_public_mode
-  fi
 
   if [[ "${AOXC_Q_FORCE}" == "1" && -e "${TARGET_ROOT}" ]]; then
     chmod -R u+w "${TARGET_ROOT}" 2>/dev/null || true
@@ -356,7 +235,6 @@ provision_testnet() {
   prepare_directories
   copy_environment_files
   write_wrapper_script "${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
-  render_control_scripts
 
   local accounts_file="${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
   printf 'node\tvalidator_name\toperator_name\n' > "${accounts_file}"
@@ -417,8 +295,7 @@ profile=${AOXC_Q_PROFILE}
 mode=${AOXC_Q_MODE}
 node_count=${AOXC_Q_NODE_COUNT}
 rounds=${AOXC_Q_ROUNDS}
-sleep_min_secs=${AOXC_Q_SLEEP_MIN_SECS}
-sleep_max_secs=${AOXC_Q_SLEEP_MAX_SECS}
+sleep_secs=${AOXC_Q_SLEEP_SECS}
 root=${TARGET_ROOT}
 REPORT
 
@@ -513,10 +390,8 @@ status_testnet() {
     height="-"
     updated_at="-"
     if state_json="$(run_aoxc "${node_root}/home" chain-status --format json 2>/dev/null)"; then
-      height="$(json_field "${state_json}" "current_height")"
-      updated_at="$(json_field "${state_json}" "updated_at")"
-      [[ -n "${height}" ]] || height="-"
-      [[ -n "${updated_at}" ]] || updated_at="-"
+      height="$(printf '%s' "${state_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("current_height","-"))' 2>/dev/null || echo '-')"
+      updated_at="$(printf '%s' "${state_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("updated_at","-"))' 2>/dev/null || echo '-')"
     fi
 
     printf '%s\t%s\t%s\t%s\t%s\n' "${node_name}" "${process_state}" "${pid_text}" "${height}" "${updated_at}"
@@ -524,12 +399,6 @@ status_testnet() {
 }
 
 main() {
-  require_cmd seq
-  require_cmd nohup
-  require_cmd sed
-  require_cmd tr
-  require_cmd date
-
   resolve_aoxc_command
 
   case "${AOXC_Q_ACTION}" in
