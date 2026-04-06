@@ -8,7 +8,7 @@ use aoxcunity::{
     VerifiedAuthenticatedVote, Vote, VoteAuthenticationContext, VoteKind,
 };
 use rand::{RngExt, SeedableRng, rngs::StdRng};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn validator(id: u8) -> Validator {
     Validator::new([id; 32], 1, ValidatorRole::Validator)
