@@ -596,9 +596,9 @@ repo-release-signed-verify:
 	@RELEASE_SIGNING_CERT="$(RELEASE_SIGNING_CERT_PATH)" \
 		./scripts/release/verify_signed_release_bundle.sh
 
-repo-release-prepare: build-release
+repo-release-prepare: build-release-all
 	$(call print_banner,Preparing repository release directory under ./releases)
-	@python3 scripts/release/prepare_repo_release.py --binary target/release/aoxc --network mainnet
+	@python3 scripts/release/prepare_repo_release.py --network mainnet --allow-existing
 
 repo-release-validate:
 	$(call print_banner,Validating repository release directory under ./releases)
