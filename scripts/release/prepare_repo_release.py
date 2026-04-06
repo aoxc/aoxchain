@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import re
 import shutil
@@ -71,6 +72,28 @@ def detect_git_commit(repo_root: Path) -> str:
     return result.stdout.strip()
 
 
+def detect_workspace_binary_names(repo_root: Path) -> list[str]:
+    result = subprocess.run(
+        ["cargo", "metadata", "--format-version", "1", "--no-deps"],
+        cwd=repo_root,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    metadata = json.loads(result.stdout)
+    workspace_members = set(metadata.get("workspace_members", []))
+    names: set[str] = set()
+    for package in metadata.get("packages", []):
+        if package.get("id") not in workspace_members:
+            continue
+        for target in package.get("targets", []):
+            kinds = target.get("kind", [])
+            if "bin" in kinds:
+                names.add(target["name"])
+    return sorted(names)
+
+
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -107,7 +130,15 @@ def write_compatibility_toml(path: Path, identity: NetworkIdentity, tracks: dict
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Prepare repository release directory under releases/v<version>.")
     parser.add_argument("--repo-root", default=".", help="Repository root path (default: current directory).")
-    parser.add_argument("--binary", default="target/release/aoxc", help="Source binary path.")
+    parser.add_argument(
+        "--binary",
+        action="append",
+        dest="binaries",
+        help=(
+            "Source binary path. Repeat --binary for multiple artifacts. "
+            "If omitted, workspace binary targets are discovered via cargo metadata and mapped to target/release/<bin>."
+        ),
+    )
     parser.add_argument("--network", default="mainnet", help="Network key from canonical_networks in network-registry.")
     parser.add_argument("--target-label", default=default_target_label(), help="Artifact target label under binaries/.")
     parser.add_argument("--release-line", default="AOXC-Q-v0.2.0", help="Human-facing release line label.")
@@ -146,22 +177,48 @@ def main() -> int:
             f"Release directory already exists: {release_dir}. Use --allow-existing to update metadata intentionally."
         )
 
-    source_binary = (repo_root / args.binary).resolve() if not Path(args.binary).is_absolute() else Path(args.binary)
-    if not source_binary.exists() or not source_binary.is_file():
-        raise FileNotFoundError(f"Source binary missing: {source_binary}")
+    binary_args = args.binaries
+    if not binary_args:
+        exe_suffix = ".exe" if os.name == "nt" else ""
+        workspace_bins = detect_workspace_binary_names(repo_root)
+        binary_args = [f"target/release/{name}{exe_suffix}" for name in workspace_bins]
+        if not binary_args:
+            raise ValueError("No workspace binaries discovered from cargo metadata.")
+    source_binaries: list[Path] = []
+    for binary_arg in binary_args:
+        source_binary = (repo_root / binary_arg).resolve() if not Path(binary_arg).is_absolute() else Path(binary_arg)
+        if not source_binary.exists() or not source_binary.is_file():
+            raise FileNotFoundError(f"Source binary missing: {source_binary}")
+        source_binaries.append(source_binary)
 
     binaries_dir = release_dir / "binaries" / args.target_label
     signatures_dir = release_dir / "signatures"
+    if binaries_dir.exists() and args.allow_existing:
+        shutil.rmtree(binaries_dir)
     binaries_dir.mkdir(parents=True, exist_ok=True)
     signatures_dir.mkdir(parents=True, exist_ok=True)
 
-    destination_binary = binaries_dir / "aoxc"
-    shutil.copy2(source_binary, destination_binary)
-    destination_binary.chmod(0o755)
+    artifacts: list[dict[str, str]] = []
+    checksum_lines: list[str] = []
+    for source_binary in source_binaries:
+        binary_name = source_binary.name
+        destination_binary = binaries_dir / binary_name
+        shutil.copy2(source_binary, destination_binary)
+        destination_binary.chmod(0o755)
+        checksum_value = file_sha256(destination_binary)
+        rel_binary_path = f"binaries/{args.target_label}/{binary_name}"
+        checksum_lines.append(f"{checksum_value}  {rel_binary_path}")
+        artifacts.append(
+            {
+                "name": f"{binary_name}-{args.target_label}",
+                "path": rel_binary_path,
+                "sha256": checksum_value,
+                "signature": f"signatures/{binary_name}-{args.target_label}.sig",
+            }
+        )
 
-    checksum_value = file_sha256(destination_binary)
     checksum_file = release_dir / "checksums.sha256"
-    checksum_file.write_text(f"{checksum_value}  binaries/{args.target_label}/aoxc\n", encoding="utf-8")
+    checksum_file.write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
 
     compatibility_file = release_dir / "compatibility.toml"
     write_compatibility_toml(compatibility_file, identity, tracks, args.crypto_profile)
@@ -171,14 +228,7 @@ def main() -> int:
         "release_line": args.release_line,
         "published_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "git": {"tag": f"v{release_version}", "commit": detect_git_commit(repo_root)},
-        "artifacts": [
-            {
-                "name": f"aoxc-{args.target_label}",
-                "path": f"binaries/{args.target_label}/aoxc",
-                "sha256": checksum_value,
-                "signature": f"signatures/aoxc-{args.target_label}.sig",
-            }
-        ],
+        "artifacts": artifacts,
         "compatibility": {
             "network": args.network,
             "network_id": [identity.network_id],
@@ -194,7 +244,8 @@ def main() -> int:
     manifest_file.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
     print(f"Prepared repository release directory: {release_dir}")
-    print(f"- binary: {destination_binary.relative_to(repo_root)}")
+    for artifact in artifacts:
+        print(f"- binary: {(release_dir / artifact['path']).relative_to(repo_root)}")
     print(f"- manifest: {manifest_file.relative_to(repo_root)}")
     print(f"- checksums: {checksum_file.relative_to(repo_root)}")
     print(f"- compatibility: {compatibility_file.relative_to(repo_root)}")

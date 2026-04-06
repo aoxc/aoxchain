@@ -12,6 +12,18 @@
       "path": "binaries/linux-amd64/aoxc",
       "sha256": "<sha256>",
       "signature": "signatures/aoxc-linux-amd64.sig"
+    },
+    {
+      "name": "aoxchub-linux-amd64",
+      "path": "binaries/linux-amd64/aoxchub",
+      "sha256": "<sha256>",
+      "signature": "signatures/aoxchub-linux-amd64.sig"
+    },
+    {
+      "name": "aoxckit-linux-amd64",
+      "path": "binaries/linux-amd64/aoxckit",
+      "sha256": "<sha256>",
+      "signature": "signatures/aoxckit-linux-amd64.sig"
     }
   ],
   "compatibility": {
