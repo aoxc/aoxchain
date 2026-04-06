@@ -353,6 +353,11 @@ pub struct NetworkConfig {
     /// Replay protection window size.
     pub replay_window_size: usize,
 
+    /// Maximum number of protocol envelopes that may remain buffered in the
+    /// in-memory inbound queue before backpressure rejects new frames.
+    #[serde(default = "default_max_inbound_queue")]
+    pub max_inbound_queue: usize,
+
     /// Maximum tolerated peer clock skew in seconds.
     pub allowed_clock_skew_secs: u64,
 
@@ -388,6 +393,7 @@ impl Default for NetworkConfig {
             max_gossip_batch: 128,
             max_sync_batch: 256,
             replay_window_size: 4_096,
+            max_inbound_queue: default_max_inbound_queue(),
             allowed_clock_skew_secs: 30,
             peer_ban_secs: 900,
             transport_preference: TransportPreference::Hybrid,
@@ -396,6 +402,11 @@ impl Default for NetworkConfig {
             inspection: InspectionLanePolicy::default(),
         }
     }
+}
+
+#[must_use]
+const fn default_max_inbound_queue() -> usize {
+    1_024
 }
 
 impl NetworkConfig {
@@ -458,6 +469,10 @@ impl NetworkConfig {
 
         if self.replay_window_size == 0 {
             return Err("NETWORK_CONFIG_REPLAY_WINDOW_INVALID");
+        }
+
+        if self.max_inbound_queue == 0 {
+            return Err("NETWORK_CONFIG_INBOUND_QUEUE_INVALID");
         }
 
         if self.max_gossip_batch == 0 {

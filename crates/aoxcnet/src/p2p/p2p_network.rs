@@ -240,6 +240,12 @@ impl P2PNetwork {
             return Err(NetworkError::FrameTooLarge);
         }
 
+        if self.inbound.len() >= self.config.max_inbound_queue {
+            return Err(NetworkError::TransportUnavailable(
+                "inbound queue exceeded configured capacity".to_string(),
+            ));
+        }
+
         self.replay_cache.insert(replay_key.clone());
         self.replay_order.push_back(replay_key);
         self.trim_replay_cache();

@@ -108,6 +108,19 @@ fn secure_modes_require_domain_attestation() {
 }
 
 #[test]
+fn validation_rejects_zero_inbound_queue_capacity() {
+    let config = NetworkConfig {
+        max_inbound_queue: 0,
+        ..NetworkConfig::default()
+    };
+
+    assert_eq!(
+        config.validate(),
+        Err("NETWORK_CONFIG_INBOUND_QUEUE_INVALID")
+    );
+}
+
+#[test]
 fn serde_roundtrip_preserves_serial_identity_fields() {
     let config = NetworkConfig::default();
 
