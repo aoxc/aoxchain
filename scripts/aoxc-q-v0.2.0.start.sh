@@ -290,6 +290,7 @@ created_utc=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)
 repo_root=${REPO_ROOT}
 environment=${AOXC_Q_ENV}
 profile=${AOXC_Q_PROFILE}
+mode=${AOXC_Q_MODE}
 node_count=${AOXC_Q_NODE_COUNT}
 rounds=${AOXC_Q_ROUNDS}
 sleep_secs=${AOXC_Q_SLEEP_SECS}
