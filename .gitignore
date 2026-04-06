@@ -253,3 +253,28 @@ desktop.ini
 # =============================================================================
 !**/.gitkeep
 !**/README.md
+
+# =============================================================================
+# Repository release publication hygiene (generated bundles must not be committed)
+# =============================================================================
+/releases/v*/manifest.json
+/releases/v*/checksums.sha256
+/releases/v*/compatibility.toml
+/releases/v*/sbom.spdx.json
+/releases/v*/provenance.intoto.jsonl
+/releases/v*/binaries/
+/releases/v*/signatures/
+
+# Keep governance documents tracked
+!releases/README.md
+!releases/RELEASE_TEMPLATE.json
+
+# =============================================================================
+# Python virtualenv and local Python tooling (root + nested)
+# =============================================================================
+/.venv/
+/venv/
+/.python-version
+**/.coverage
+**/.hypothesis/
+**/pip-wheel-metadata/

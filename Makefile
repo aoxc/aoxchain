@@ -273,8 +273,8 @@ endef
 	clean-root clean-logs clean-runtime clean-bin clean-audit \
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
-	release-binary-list install-bin package-desktop \
-	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate quality quality-quick quality-release ci \
+	release-binary-list install-bin package-desktop repo-release-prepare repo-release-validate \
+	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate repo-hygiene-gate quality quality-quick quality-release ci \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
@@ -312,6 +312,7 @@ help:
 	@printf "  make clippy\n"
 	@printf "  make audit\n"
 	@printf "  make code-size-gate\n"
+	@printf "  make repo-hygiene-gate\n"
 	@printf "  make quality\n\n"
 	@printf "  make production-full\n\n"
 	@printf "  make phase1-full\n\n"
@@ -339,6 +340,8 @@ help:
 	@printf "  make package-versioned-bin\n"
 	@printf "  make package-versioned-archive\n"
 	@printf "  make publish-release\n\n"
+	@printf "  make repo-release-prepare\n"
+	@printf "  make repo-release-validate\n\n"
 
 	@printf "Runtime lifecycle\n"
 	@printf "  make runtime-print\n"
@@ -566,6 +569,14 @@ package-desktop: build-release-all bootstrap-desktop-paths
 	done
 	@echo "Desktop binaries installed under: $(AOXC_DESKTOP_BIN_DIR)"
 
+repo-release-prepare: build-release
+	$(call print_banner,Preparing repository release directory under ./releases)
+	@python3 scripts/release/prepare_repo_release.py --binary target/release/aoxc --network mainnet
+
+repo-release-validate:
+	$(call print_banner,Validating repository release directory under ./releases)
+	@python3 scripts/release/validate_repo_release.py "releases/v$(RELEASE_VERSION)"
+
 test:
 	$(call print_banner,Running workspace tests)
 	$(CARGO) test $(TEST_FLAGS)
@@ -599,6 +610,10 @@ audit:
 code-size-gate:
 	$(call print_banner,Running code file length gate)
 	@./scripts/validation/code_file_length_gate.sh
+
+repo-hygiene-gate:
+	$(call print_banner,Running repository hygiene gate)
+	@./scripts/validation/repository_hygiene_gate.sh
 
 code-size-gate-full:
 	$(call print_banner,Running full repository code file length gate)
