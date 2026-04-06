@@ -71,7 +71,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --action) AOXC_Q_ACTION="$2"; shift 2 ;;
     --home) AOXC_Q_HOME="$2"; shift 2 ;;
+    --home=*) AOXC_Q_HOME="${1#*=}"; shift ;;
     --env) AOXC_Q_ENV="$2"; shift 2 ;;
+    --env=*) AOXC_Q_ENV="${1#*=}"; shift ;;
     --profile) AOXC_Q_PROFILE="$2"; shift 2 ;;
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
