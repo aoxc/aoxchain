@@ -24,7 +24,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.0-aoxcq"
+version = "0.2.0-alpha.1"
 edition = "2024"
 authors = ["aoxchain@gmail.com"]
 license = "MIT"
