@@ -20,25 +20,6 @@ fn is_allowed_genesis_account_role(role: &str) -> bool {
     ALLOWED_GENESIS_ACCOUNT_ROLES.contains(&role)
 }
 
-const ALLOWED_GENESIS_ACCOUNT_ROLES: [&str; 12] = [
-    "treasury",
-    "validator",
-    "system",
-    "user",
-    "governance",
-    "forge",
-    "quorum",
-    "seal",
-    "archive",
-    "sentinel",
-    "relay",
-    "pocket",
-];
-
-fn is_allowed_genesis_account_role(role: &str) -> bool {
-    ALLOWED_GENESIS_ACCOUNT_ROLES.contains(&role)
-}
-
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
     let profile_input = arg_value(args, "--profile")
         .or_else(|| load().ok().map(|settings| settings.profile))
