@@ -1,68 +1,74 @@
-# Release Artifact Layout
+# Releases Surface (Repository-Governed)
 
-## Purpose
+This directory is the canonical release publication surface for AOXChain.
 
-This directory is the repository-governed release surface for operator-consumable binaries and verification metadata.
+It is intentionally split into:
 
-Its goals are:
+1. **Permanent repository-level assets** (`releases/` root)
+2. **Version-scoped release payloads** (`releases/v<workspace-version>/`)
 
-- deterministic binary distribution,
-- explicit version-to-network compatibility controls,
-- reproducible verification and rollback posture.
+---
 
-## Directory Contract
+## 1) Permanent Assets (`releases/` root)
 
-Each shipped release must use one versioned directory:
+These files/directories are long-lived and version-agnostic:
 
-- `releases/v<workspace-version>/`
+- `README.md` (this contract)
+- `RELEASE_TEMPLATE.json` (manifest shape template)
+- `CERTIFICATE_TEMPLATE.json` (release certificate shape template)
+- `SBOM_TEMPLATE.spdx.json` (SPDX document template)
+- `PROVENANCE_TEMPLATE.intoto.jsonl` (in-toto provenance template)
+- `signing/` (repository release signing material and policies)
 
-Example:
+These assets define format contracts and process policy, not a specific shipped version.
+
+---
+
+## 2) Versioned Assets (`releases/v<workspace-version>/`)
+
+Each published version must have exactly one version directory, for example:
 
 - `releases/v0.2.0-alpha.1/`
 
-A release directory should contain:
+A prepared version directory contains:
 
-- `manifest.json` (machine-readable release index)
-- `checksums.sha256` (hashes for every published artifact)
-- `sbom.spdx.json` (SBOM for supply-chain review)
-- `provenance.intoto.jsonl` (build provenance/attestation)
-- `compatibility.toml` (declared chain/profile compatibility)
-- `binaries/` (target-specific binaries)
-- `signatures/` (detached signatures for manifest + binaries)
+- `README.md`
+- `manifest.json`
+- `checksums.sha256`
+- `compatibility.toml`
+- `sbom.spdx.json`
+- `provenance.intoto.jsonl`
+- `binaries/`
+  - `README.md`
+  - `<target-label>/...` binary files
+- `signatures/`
+  - `README.md`
+  - `*.sig` detached signatures (publication-time material)
+- `certificates/`
+  - `README.md`
+  - `release-certificate.json`
 
-## Compatibility Rules
+---
 
-Release metadata must stay aligned with:
+## Operational Rules
 
-- `Cargo.toml` workspace version,
-- `configs/version-policy.toml`,
-- `configs/environments/<env>/release-policy.toml`,
-- `configs/registry/network-registry.toml` identity values.
+- Prepare with `make repo-release-prepare`.
+- Validate with `make repo-release-validate`.
+- Do not mutate a published version after release finalization.
+- If fixes are required after publication, publish a new version directory.
+- Always verify:
+  1. signature status,
+  2. checksum integrity,
+  3. compatibility constraints,
+  4. runtime `aoxc version` parity with manifest.
 
-A release must not claim compatibility unless `compatibility.toml` explicitly maps:
-
-- allowed `network_id` set,
-- allowed `chain_id` set,
-- required crypto/profile baseline,
-- minimum/maximum manifest and certificate schema versions.
-
-## Operator Consumption Guidance
-
-Normal operators should install from this release surface (or mirrored immutable object storage) rather than building from source.
-
-For a full repository-independent startup procedure, see:
-
-- `docs/TESTNET_RELEASE_RUNBOOK.md`
-
-Minimum validation before install:
-
-1. verify signature of `manifest.json`,
-2. verify binary checksum against `checksums.sha256`,
-3. verify `compatibility.toml` matches target network/profile,
-4. run `aoxc version` and compare with manifest metadata.
+---
 
 ## Governance Notes
 
-- Do not rewrite an existing version directory after publication.
-- Publish fix-only respins as a new version.
-- Keep release evidence immutable and reviewable.
+- Release metadata must remain aligned with:
+  - `Cargo.toml` workspace version
+  - `configs/version-policy.toml`
+  - `configs/registry/network-registry.toml`
+- Compatibility declarations must be explicit and auditable.
+- Generated release surfaces are engineering artifacts, not placeholder documentation.
