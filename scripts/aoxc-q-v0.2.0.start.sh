@@ -90,6 +90,17 @@ require_uint "${AOXC_Q_SLEEP_SECS}" "AOXC_Q_SLEEP_SECS"
 if (( AOXC_Q_NODE_COUNT < 7 )); then
   die "AOXC_Q_NODE_COUNT must be >= 7 for production-like persistent topology." 2
 fi
+if (( AOXC_Q_SLEEP_MIN_SECS < 1 )); then
+  die "AOXC_Q_SLEEP_MIN_SECS must be >= 1." 2
+fi
+if (( AOXC_Q_SLEEP_MAX_SECS < AOXC_Q_SLEEP_MIN_SECS )); then
+  die "AOXC_Q_SLEEP_MAX_SECS must be >= AOXC_Q_SLEEP_MIN_SECS." 2
+fi
+
+case "${AOXC_Q_ACTION}" in
+  up|provision|start|stop|restart|status) ;;
+  *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
+esac
 
 case "${AOXC_Q_ACTION}" in
   up|provision|start|stop|restart|status) ;;
