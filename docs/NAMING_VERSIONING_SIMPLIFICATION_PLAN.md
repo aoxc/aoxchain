@@ -38,6 +38,16 @@ Treat these as separate, non-interchangeable dimensions:
    - Track cryptographic profile activation through profile policy files and consensus topology overlays.
    - Keep profile transitions auditable and independent from brand/network naming.
 
+## Lifecycle Channel Policy (Adopted)
+
+To remove ambiguity around "testnet" semantics, AOXChain uses three explicit lifecycle channels:
+
+- **Devnet**: rolling development surface (continuous integration and fast iteration).
+- **Testnet**: pre-production candidate validation and stabilization.
+- **Mainnet**: stable production release target.
+
+Promotion order is strict: `devnet -> testnet -> mainnet`.
+
 ## Mainnet/Testnet Identity Guidance
 
 Prefer one deterministic naming grammar for all environments:

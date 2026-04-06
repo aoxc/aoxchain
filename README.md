@@ -15,6 +15,16 @@ AOXChain follows a two-stage strategy:
 
 The repository intentionally avoids unverifiable claims.
 
+## Release Channel Model
+
+AOXChain runs one codebase across three operational channels:
+
+1. **Devnet (rolling development)** — continuous integration surface and fast iteration.
+2. **Testnet (candidate validation)** — stabilization and promotion candidate validation.
+3. **Mainnet (stable production)** — promotion target only after evidence-backed gates pass.
+
+Channel transitions are policy-driven; identity is loaded from environment manifests and registry policy, not hardcoded in binaries.
+
 ---
 
 ## 📦 User Path (Binary-First)
