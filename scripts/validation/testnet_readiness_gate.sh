@@ -22,6 +22,8 @@ run_step "cargo clippy --workspace --all-targets --all-features -- -D warnings" 
   cargo clippy --workspace --all-targets --all-features -- -D warnings
 run_step "cargo test -p aoxcai" cargo test -p aoxcai
 run_step "cargo test -p tests" cargo test -p tests
+run_step "python3 scripts/validation/network_identity_gate.py --env testnet --env mainnet --env devnet" \
+  python3 scripts/validation/network_identity_gate.py --env testnet --env mainnet --env devnet
 run_step "make testnet-gate" make --no-print-directory testnet-gate
 
 log "all readiness checks passed"

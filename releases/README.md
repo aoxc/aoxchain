@@ -18,7 +18,7 @@ Each shipped release must use one versioned directory:
 
 Example:
 
-- `releases/v0.2.0-aoxcq/`
+- `releases/v0.2.0-alpha.1/`
 
 A release directory should contain:
 
@@ -49,6 +49,10 @@ A release must not claim compatibility unless `compatibility.toml` explicitly ma
 ## Operator Consumption Guidance
 
 Normal operators should install from this release surface (or mirrored immutable object storage) rather than building from source.
+
+For a full repository-independent startup procedure, see:
+
+- `docs/TESTNET_RELEASE_RUNBOOK.md`
 
 Minimum validation before install:
 

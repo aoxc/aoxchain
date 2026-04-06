@@ -83,7 +83,7 @@ GUIDED GROUPS
   wallet create|balance
   account fund
   node init|start|status|doctor
-  network create|start|status|verify|doctor
+  network create|start|status|verify|identity-gate|doctor
   role list|status|activate-core7
   api [status|contract|smoke|metrics|health|full|chain|consensus|vm|block|tx|receipt|account|balance|state-root|network]
   query chain|consensus|vm|full|block|tx|receipt|account|balance|network|state-root|rpc
@@ -219,6 +219,7 @@ VALIDATION AND AUDIT
   mainnet-readiness [--enforce] [--write-report <path>]
   testnet-readiness [--enforce] [--write-report <path>]
   full-surface-readiness [--enforce] [--write-report <path>]
+  network-identity-gate [--full] [--env <name>] [--enforce]
   level-score [--enforce]
   operator-evidence-record --action <name> --reason <text> [--subject <id>] [--profile <name>] [--command <text>]
   operator-evidence-list [--limit <n>] [--category <name>]
