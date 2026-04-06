@@ -20,6 +20,7 @@ AOXChain is a deterministic Layer-1 system with:
 5. **Evidence traceability:** readiness claims require reproducible commands and retained artifacts.
 6. **Identity tuple integrity:** `chain_id`, `network_id`, and `network_serial` must remain registry-derived and mutually consistent.
 7. **Version-axis separation:** brand/ticker, release line, workspace version, and cryptographic profile version are distinct and must not be conflated.
+8. **Environment topology minimums:** bootstrap inputs must satisfy environment minimum validator/bootnode thresholds; stricter thresholds apply to `testnet` and `mainnet`.
 
 ## 3) Layer Responsibilities
 
