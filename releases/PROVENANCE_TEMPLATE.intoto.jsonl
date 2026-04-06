@@ -1,0 +1,1 @@
+{"_type":"https://in-toto.io/Statement/v1","subject":[],"predicateType":"https://slsa.dev/provenance/v1","predicate":{"buildType":"aoxchain/release/prepare_repo_release","buildStartedOn":"2026-04-06T00:00:00Z","buildFinishedOn":"2026-04-06T00:00:00Z","invocation":{"parameters":{}}}}
