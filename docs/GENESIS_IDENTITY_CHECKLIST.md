@@ -54,6 +54,9 @@ PY
 
 # 2) Run bundle-level validation
 python3 scripts/validate_environment_bundle.py
+
+# 3) Enforce fail-closed tuple/hash consistency gate
+python3 scripts/validation/network_identity_gate.py
 ```
 
 ## Pre-Promotion Gate
