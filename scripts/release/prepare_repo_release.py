@@ -218,32 +218,15 @@ def main() -> int:
             raise FileNotFoundError(f"Source binary missing: {source_binary}")
         source_binaries.append(source_binary)
 
-    binaries_dir = release_dir / "binaries" / args.target_label
+    binaries_root = release_dir / "binaries"
+    binaries_dir = binaries_root / args.target_label
     signatures_dir = release_dir / "signatures"
+    certificates_dir = release_dir / "certificates"
     if binaries_dir.exists() and args.allow_existing:
         shutil.rmtree(binaries_dir)
     binaries_dir.mkdir(parents=True, exist_ok=True)
     signatures_dir.mkdir(parents=True, exist_ok=True)
     certificates_dir.mkdir(parents=True, exist_ok=True)
-
-    artifacts: list[dict[str, str]] = []
-    checksum_lines: list[str] = []
-    for source_binary in source_binaries:
-        binary_name = source_binary.name
-        destination_binary = binaries_dir / binary_name
-        shutil.copy2(source_binary, destination_binary)
-        destination_binary.chmod(0o755)
-        checksum_value = file_sha256(destination_binary)
-        rel_binary_path = f"binaries/{args.target_label}/{binary_name}"
-        checksum_lines.append(f"{checksum_value}  {rel_binary_path}")
-        artifacts.append(
-            {
-                "name": f"{binary_name}-{args.target_label}",
-                "path": rel_binary_path,
-                "sha256": checksum_value,
-                "signature": f"signatures/{binary_name}-{args.target_label}.sig",
-            }
-        )
 
     artifacts: list[dict[str, str]] = []
     checksum_lines: list[str] = []
@@ -275,8 +258,8 @@ def main() -> int:
     manifest = {
         "release_version": release_version,
         "release_line": args.release_line,
-        "published_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "git": {"tag": f"v{release_version}", "commit": detect_git_commit(repo_root)},
+        "published_at_utc": published_at_utc,
+        "git": {"tag": f"v{release_version}", "commit": git_commit},
         "artifacts": artifacts,
         "compatibility": {
             "network": args.network,
