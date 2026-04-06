@@ -273,7 +273,7 @@ endef
 	clean-root clean-logs clean-runtime clean-bin clean-audit \
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
-	release-binary-list install-bin package-desktop \
+	release-binary-list install-bin package-desktop repo-release-prepare repo-release-validate \
 	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate quality quality-quick quality-release ci \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
@@ -339,6 +339,8 @@ help:
 	@printf "  make package-versioned-bin\n"
 	@printf "  make package-versioned-archive\n"
 	@printf "  make publish-release\n\n"
+	@printf "  make repo-release-prepare\n"
+	@printf "  make repo-release-validate\n\n"
 
 	@printf "Runtime lifecycle\n"
 	@printf "  make runtime-print\n"
@@ -565,6 +567,14 @@ package-desktop: build-release-all bootstrap-desktop-paths
 		chmod +x "$(AOXC_DESKTOP_BIN_DIR)/$$bin$(AOXC_EXE_SUFFIX)" 2>/dev/null || true; \
 	done
 	@echo "Desktop binaries installed under: $(AOXC_DESKTOP_BIN_DIR)"
+
+repo-release-prepare: build-release
+	$(call print_banner,Preparing repository release directory under ./releases)
+	@python3 scripts/release/prepare_repo_release.py --binary target/release/aoxc --network mainnet
+
+repo-release-validate:
+	$(call print_banner,Validating repository release directory under ./releases)
+	@python3 scripts/release/validate_repo_release.py "releases/v$(RELEASE_VERSION)"
 
 test:
 	$(call print_banner,Running workspace tests)
