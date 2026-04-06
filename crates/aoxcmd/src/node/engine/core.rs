@@ -16,7 +16,6 @@ use aoxcunity::{
     Block, BlockBody, BlockSection, ConsensusMessage, LaneCommitment, LaneCommitmentSection,
     LaneType, Proposer,
 };
-use sha2::Sha256;
 use sha3::{Digest, Sha3_256};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -128,7 +127,7 @@ fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
     })?;
 
     let parent_hash_hex = hex::encode(block.header.parent_hash);
-    let block_hash_hex = block_envelope_hash_hex(block)?;
+    let block_hash_hex = hex::encode(block.hash);
 
     let envelope = BlockEnvelope {
         height: block.header.height,
@@ -149,40 +148,6 @@ fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
     })?;
 
     Ok(())
-}
-
-pub(super) fn block_envelope_hash_hex(block: &Block) -> Result<String, AppError> {
-    let parent_hash_hex = hex::encode(block.header.parent_hash);
-    let payload = serde_json::to_vec(block).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::OutputEncodingFailed,
-            "Failed to serialize block payload for envelope integrity digest",
-            error,
-        )
-    })?;
-    canonical_envelope_hash_hex(block.header.height, &parent_hash_hex, &payload)
-}
-
-fn canonical_envelope_hash_hex(
-    height: u64,
-    parent_hash_hex: &str,
-    payload: &[u8],
-) -> Result<String, AppError> {
-    let parent_hash = hex::decode(parent_hash_hex).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::UsageInvalidArguments,
-            "Failed to decode parent hash for envelope integrity digest",
-            error,
-        )
-    })?;
-
-    let mut hasher = Sha256::new();
-    hasher.update(b"AOXC_BLOCK_V1");
-    hasher.update(height.to_le_bytes());
-    hasher.update(parent_hash);
-    hasher.update((payload.len() as u64).to_le_bytes());
-    hasher.update(payload);
-    Ok(hex::encode(hasher.finalize()))
 }
 
 fn runtime_db_root() -> Result<PathBuf, AppError> {

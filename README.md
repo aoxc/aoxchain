@@ -80,16 +80,15 @@ unset AOXC_PASS
 ./bin/aoxc node start --home /path/to/aoxc/home/testnet
 ```
 
-If you re-run bootstrap in the same `--home`, clear previous chain state first:
+If you re-run bootstrap in the same `--home`, clear previous runtime state first:
 
 ```bash
-rm -rf /path/to/aoxc/home/testnet/runtime/db \
-       /path/to/aoxc/home/testnet/ledger/db
+rm -f /path/to/aoxc/home/testnet/runtime/db/main.redb
 ```
 
 Otherwise startup can fail with a parent-hash mismatch (`AOXC-LED-001`) because
-historical block/index data from a previous run can conflict with a newly
-bootstrapped height-0 runtime state.
+historical block rows from a previous run conflict with a newly bootstrapped
+height-0 state.
 
 ---
 
