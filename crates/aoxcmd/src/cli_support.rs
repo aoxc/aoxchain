@@ -85,8 +85,8 @@ GUIDED GROUPS
   node init|start|status|doctor
   network create|start|status|verify|doctor
   role list|status|activate-core7
-  api [status|smoke|metrics|health|network]
-  query chain|consensus|vm|block|tx|receipt|account|balance|network|state-root|rpc
+  api [status|contract|smoke|metrics|health|full|chain|consensus|vm|block|tx|receipt|account|balance|state-root|network]
+  query chain|consensus|vm|full|block|tx|receipt|account|balance|network|state-root|rpc
   tx transfer|stake delegate|stake undelegate
   stake delegate|undelegate|validators|rewards
   doctor [node|network|runtime]
@@ -175,15 +175,18 @@ NODE AND ECONOMY
   query vm code
   query vm estimate-gas
   query vm trace
+  query full [--account-id <id>] [--tx-hash <hash>]
   query network status
   query network peers
   query network full
   query state-root
   query rpc
   api status
+  api contract
   api smoke
   api metrics
   api health
+  api full [--account-id <id>] [--tx-hash <hash>]
   api network full
   block-get --height <latest|n>
   tx-get --hash <tx-hash>

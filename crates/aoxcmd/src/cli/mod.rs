@@ -302,6 +302,7 @@ fn route_query_group(args: &[String]) -> Result<(), AppError> {
         "chain" => route_query_chain_group(tail),
         "consensus" => route_query_consensus_group(tail),
         "vm" => route_query_vm_group(tail),
+        "full" => ops::cmd_query_full(tail),
         "block" => ops::cmd_block_get(tail),
         "tx" => ops::cmd_tx_get(tail),
         "receipt" => ops::cmd_tx_receipt(tail),
@@ -398,9 +399,20 @@ fn route_api_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "status" | "rpc" => ops::cmd_rpc_status(tail),
+        "contract" | "api-contract" => ops::cmd_api_contract(tail),
         "smoke" | "curl-smoke" => ops::cmd_rpc_curl_smoke(tail),
         "metrics" => ops::cmd_metrics(tail),
         "health" => ops::cmd_runtime_status(tail),
+        "full" => ops::cmd_query_full(tail),
+        "chain" => route_query_chain_group(tail),
+        "consensus" => route_query_consensus_group(tail),
+        "vm" => route_query_vm_group(tail),
+        "block" => ops::cmd_block_get(tail),
+        "tx" => ops::cmd_tx_get(tail),
+        "receipt" => ops::cmd_tx_receipt(tail),
+        "account" => ops::cmd_account_get(tail),
+        "balance" => ops::cmd_balance_get(tail),
+        "state-root" => ops::cmd_state_root(tail),
         "network" => route_query_network_group(tail),
         _ => invalid_group_usage("api", "unsupported subcommand"),
     }
@@ -468,7 +480,8 @@ fn invalid_group_usage(group: &str, detail: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        remap_flags, route_api_group, route_query_consensus_group, route_query_vm_group, run_cli,
+        remap_flags, route_api_group, route_query_consensus_group, route_query_group,
+        route_query_vm_group, run_cli,
     };
 
     #[test]
@@ -508,5 +521,17 @@ mod tests {
     fn api_group_rejects_unknown_subcommands() {
         let command = vec!["unknown".to_string()];
         assert!(route_api_group(&command).is_err());
+    }
+
+    #[test]
+    fn query_group_supports_full_subcommand() {
+        let command = vec!["full".to_string()];
+        assert!(route_query_group(&command).is_ok());
+    }
+
+    #[test]
+    fn api_group_supports_full_subcommand() {
+        let command = vec!["full".to_string()];
+        assert!(route_api_group(&command).is_ok());
     }
 }
