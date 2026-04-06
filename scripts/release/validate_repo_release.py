@@ -10,11 +10,19 @@ import sys
 from pathlib import Path
 
 REQUIRED_FILES = [
+    "README.md",
     "manifest.json",
     "checksums.sha256",
     "compatibility.toml",
+    "sbom.spdx.json",
+    "provenance.intoto.jsonl",
     "binaries",
+    "binaries/README.md",
     "signatures",
+    "signatures/README.md",
+    "certificates",
+    "certificates/README.md",
+    "certificates/release-certificate.json",
 ]
 
 
@@ -78,6 +86,27 @@ def main() -> int:
             raise ValueError(
                 f"checksums.sha256 mismatch for {rel_path}: listed {checksum_file_value}, computed {actual}"
             )
+
+    certificate = json.loads((release_dir / "certificates/release-certificate.json").read_text(encoding="utf-8"))
+    cert_artifacts = certificate.get("artifacts", [])
+    cert_map = {entry.get("path"): entry.get("sha256") for entry in cert_artifacts}
+    for artifact in artifacts:
+        cert_sha = cert_map.get(artifact["path"])
+        if cert_sha is None:
+            raise ValueError(f"Certificate missing artifact entry: {artifact['path']}")
+        if cert_sha != artifact["sha256"]:
+            raise ValueError(
+                f"Certificate checksum mismatch for {artifact['path']}: certificate {cert_sha}, manifest {artifact['sha256']}"
+            )
+
+    sbom = json.loads((release_dir / "sbom.spdx.json").read_text(encoding="utf-8"))
+    if sbom.get("spdxVersion") != "SPDX-2.3":
+        raise ValueError("sbom.spdx.json must declare SPDX-2.3")
+
+    provenance_lines = (release_dir / "provenance.intoto.jsonl").read_text(encoding="utf-8").strip().splitlines()
+    if not provenance_lines:
+        raise ValueError("provenance.intoto.jsonl is empty")
+    json.loads(provenance_lines[0])
 
     print(f"Release directory is valid: {release_dir}")
     print(f"Artifacts verified: {len(artifacts)}")

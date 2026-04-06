@@ -1,0 +1,23 @@
+{
+  "certificate_schema": 1,
+  "certificate_type": "release-artifact-certificate",
+  "issued_at_utc": "2026-04-06T00:00:00Z",
+  "issuer": "repository-release-automation",
+  "release": {
+    "version": "0.2.0-aoxcq",
+    "tag": "v0.2.0-aoxcq",
+    "commit": "<full-commit-sha>",
+    "network": "mainnet",
+    "network_id": "aoxchain-mainnet",
+    "chain_id": "1001",
+    "target": "linux-amd64"
+  },
+  "artifacts": [
+    {
+      "name": "aoxc-linux-amd64",
+      "path": "binaries/linux-amd64/aoxc",
+      "sha256": "<sha256>"
+    }
+  ],
+  "signature_status": "unsigned"
+}
