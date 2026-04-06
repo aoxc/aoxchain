@@ -274,7 +274,7 @@ endef
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
 	release-binary-list install-bin package-desktop repo-release-prepare repo-release-validate \
-	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate repo-hygiene-gate quality quality-quick quality-release ci \
+	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate quality quality-quick quality-release ci \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active \
