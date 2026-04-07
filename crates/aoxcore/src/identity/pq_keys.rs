@@ -380,6 +380,15 @@ mod tests {
     }
 
     #[test]
+    fn detached_signature_size_matches_expected_constant() {
+        let (_, sk) = generate_keypair();
+        let signature = sign(&sk, b"AOXC size check", ML_DSA_CONTEXT, random())
+            .expect("ML-DSA signing must succeed for valid key material");
+
+        assert_eq!(signature.as_ref().len(), ML_DSA_65_SIGNATURE_SIZE);
+    }
+
+    #[test]
     fn invalid_public_key_hex_is_rejected() {
         let result = public_key_from_hex("ZZ_NOT_HEX");
         assert!(matches!(result, Err(err) if err == "INVALID_PUBLIC_KEY_HEX"));

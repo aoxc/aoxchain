@@ -473,6 +473,17 @@ mod tests {
     }
 
     #[test]
+    fn detached_signature_size_matches_expected_constant() {
+        let ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let cert = sample_certificate();
+        let signed = ca
+            .sign_certificate(cert)
+            .expect("certificate signing must succeed");
+
+        assert_eq!(signed.signature.len(), ML_DSA_65_SIGNATURE_SIZE);
+    }
+
+    #[test]
     fn verification_fails_when_signature_is_missing() {
         let ca = CertificateAuthority::new("AOXC-ROOT-CA");
         let cert = sample_certificate();
