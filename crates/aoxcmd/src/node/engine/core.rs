@@ -243,7 +243,8 @@ pub(super) fn apply_block_proposal_with_message(
     state.produced_blocks = state.produced_blocks.saturating_add(1);
     state.last_tx = tx.to_string();
     state.key_material = snapshot_from_key_material(key_material)?;
-    state.consensus = snapshot_from_message_kind(&message, BLOCK_PROPOSAL_MESSAGE_KIND)?;
+    state.consensus = snapshot_from_message_kind(&message, BLOCK_PROPOSAL_MESSAGE_KIND);
+    state.consensus.last_block_hash_hex = block_envelope_hash_hex(block)?;
     state.touch();
 
     Ok(())
@@ -330,17 +331,17 @@ fn snapshot_from_message_kind(
     block_proposal_kind: &str,
 ) -> Result<ConsensusSnapshot, AppError> {
     match message {
-        ConsensusMessage::BlockProposal { block } => Ok(ConsensusSnapshot {
+        ConsensusMessage::BlockProposal { block } => ConsensusSnapshot {
             network_id: block.header.network_id,
             last_parent_hash_hex: hex::encode(block.header.parent_hash),
-            last_block_hash_hex: block_envelope_hash_hex(block)?,
+            last_block_hash_hex: hex::encode(block.hash),
             last_proposer_hex: hex::encode(block.header.proposer),
             last_round: block.header.round,
             last_timestamp_unix: block.header.timestamp,
             last_message_kind: block_proposal_kind.to_string(),
             last_section_count: block.body.sections.len(),
-        }),
-        ConsensusMessage::Vote(vote) => Ok(ConsensusSnapshot {
+        },
+        ConsensusMessage::Vote(vote) => ConsensusSnapshot {
             network_id: vote.context.network_id,
             last_parent_hash_hex: hex::encode([0u8; 32]),
             last_block_hash_hex: hex::encode(vote.vote.block_hash),
