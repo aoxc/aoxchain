@@ -1,44 +1,60 @@
+version: '3.8'
+
+# Common configurations for reusability
+x-node-base: &node-base
+  image: aoxchain-node:local
+  build:
+    context: .
+    dockerfile: Dockerfile
+  command: ["node-bootstrap"]
+  init: true
+  restart: always
+  networks:
+    - aox-network
+
 services:
   node1:
-    image: aoxchain-node:local
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["node-bootstrap"]
+    <<: *node-base
+    container_name: aox-node-1
     ports:
       - "26656:26656"
       - "8545:8545"
-    init: true
+    volumes:
+      - node1_data:/root/.aoxchain
 
   node2:
-    image: aoxchain-node:local
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["node-bootstrap"]
+    <<: *node-base
+    container_name: aox-node-2
     ports:
       - "26657:26656"
       - "8546:8545"
-    init: true
+    volumes:
+      - node2_data:/root/.aoxchain
 
   node3:
-    image: aoxchain-node:local
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["node-bootstrap"]
+    <<: *node-base
+    container_name: aox-node-3
     ports:
       - "26658:26656"
       - "8547:8545"
-    init: true
+    volumes:
+      - node3_data:/root/.aoxchain
 
   node4:
-    image: aoxchain-node:local
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["node-bootstrap"]
+    <<: *node-base
+    container_name: aox-node-4
     ports:
       - "26659:26656"
       - "8548:8545"
-    init: true
+    volumes:
+      - node4_data:/root/.aoxchain
+
+networks:
+  aox-network:
+    driver: bridge
+
+volumes:
+  node1_data:
+  node2_data:
+  node3_data:
+  node4_data:
