@@ -69,6 +69,16 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
         ));
     }
 
+    if !has_flag(args, "--no-rpc-serve") {
+        if let Ok(settings) = effective_settings_for_ops() {
+            let _ = super::rpc_serve_ops::spawn_rpc_and_metrics_listeners(
+                &settings.network.bind_host,
+                settings.network.rpc_port,
+                settings.telemetry.prometheus_port,
+            );
+        }
+    }
+
     if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
         print_node_live_log_header(
             rounds,

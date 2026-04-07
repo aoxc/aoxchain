@@ -42,6 +42,7 @@ mod query_full_ops;
 mod readiness_commands;
 mod readiness_core;
 mod role_ops;
+mod rpc_serve_ops;
 mod rpc_status_ops;
 mod runtime_snapshot_ops;
 mod shared_helpers;
@@ -88,6 +89,7 @@ pub use economy_runtime_ops::{
 };
 pub use metrics_ops::cmd_metrics;
 pub use network_read_ops::{cmd_network_full, cmd_network_status, cmd_peer_list, cmd_state_root};
+pub use rpc_serve_ops::cmd_rpc_serve;
 pub use rpc_status_ops::{cmd_api_contract, cmd_rpc_curl_smoke, cmd_rpc_status};
 pub use tx_account_ops::{cmd_account_get, cmd_balance_get, cmd_tx_get, cmd_tx_receipt};
 
