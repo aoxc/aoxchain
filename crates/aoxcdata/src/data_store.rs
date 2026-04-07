@@ -275,7 +275,7 @@ fn validate_hash_hex(field: &str, value: &str) -> Result<(), DataError> {
     Ok(())
 }
 
-fn canonical_block_hash_hex(
+pub fn canonical_block_envelope_hash_hex(
     height: u64,
     parent_hash_hex: &str,
     payload: &[u8],
@@ -451,4 +451,3 @@ fn load_index_state(snapshot_path: &Path, journal_path: &Path) -> Result<IndexSt
 
     Ok(state)
 }
-

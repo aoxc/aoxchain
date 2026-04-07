@@ -14,7 +14,7 @@ mod tests {
     }
 
     fn make_block(height: u64, parent_hash_hex: &str, payload: &[u8]) -> BlockEnvelope {
-        let block_hash_hex = canonical_block_hash_hex(height, parent_hash_hex, payload)
+        let block_hash_hex = canonical_block_envelope_hash_hex(height, parent_hash_hex, payload)
             .expect("block hash computation must succeed");
 
         BlockEnvelope {
