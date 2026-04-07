@@ -126,8 +126,8 @@ BOOTSTRAP
 
 NODE AND ECONOMY
   node-bootstrap
-  produce-once
-  node-run [--rounds <n>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log]
+  produce-once --tx <payload>
+  node-run [--rounds <n>] [--continuous] [--interval-secs <2..600>] [--tx <payload> | --tx-file <path> | --tx-prefix <value> --allow-synthetic-tx] [--log-level <info|debug>] [--no-live-log]
   node-health
   economy-init
   treasury-transfer
