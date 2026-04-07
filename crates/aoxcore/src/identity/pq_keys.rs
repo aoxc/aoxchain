@@ -15,9 +15,8 @@
 //! - enforces explicit key decoding boundaries,
 //! - uses deterministic domain-separated public-key fingerprints.
 
-use libcrux_ml_dsa::ml_dsa_65::{
-    MLDSA65Signature as Signature, MLDSA65SigningKey as SecretKey,
-    MLDSA65VerificationKey as PublicKey, generate_key_pair, sign, verify,
+use pqcrypto_mldsa::mldsa65::{
+    PublicKey, SecretKey, SignedMessage, keypair, open, public_key_bytes, secret_key_bytes, sign,
 };
 use rand::random;
 

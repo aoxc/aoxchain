@@ -4,9 +4,8 @@
 
 use crate::identity::certificate::Certificate;
 
-use libcrux_ml_dsa::ml_dsa_65::{
-    MLDSA65Signature as DetachedSignature, MLDSA65SigningKey as SecretKey,
-    MLDSA65VerificationKey as PublicKey, generate_key_pair, sign, verify,
+use pqcrypto_mldsa::mldsa65::{
+    DetachedSignature, PublicKey, SecretKey, detached_sign, keypair, verify_detached_signature,
 };
 use rand::random;
 

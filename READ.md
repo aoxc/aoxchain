@@ -98,8 +98,6 @@ Production-grade claims require:
 - full execution of mandatory readiness gates listed in `TESTING.md`,
 - environment-track consistency checks for the target deployment channel,
 - retained evidence (commands, artifacts, and identifiers) linked to the candidate commit.
-- required gate toolchain availability in CI/validation environments (for example, `cargo-audit` for security gate execution).
-- explicit closure or risk acceptance for active security advisories affecting consensus-critical dependency paths.
 
 Point-in-time closure gaps and pending actions are tracked in:
 

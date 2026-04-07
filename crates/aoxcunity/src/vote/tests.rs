@@ -1,7 +1,7 @@
 use crate::block::PQ_MANDATORY_START_EPOCH;
 use ed25519_dalek::{Signer, SigningKey};
-use libcrux_ml_dsa::ml_dsa_65::{generate_key_pair as mldsa_generate_key_pair, sign as mldsa_sign};
-use rand::random;
+use pqcrypto_mldsa::mldsa65::{keypair as dilithium_keypair, sign as dilithium_sign};
+use pqcrypto_traits::sign::{PublicKey as _, SignedMessage as _};
 
 use super::{
     AuthenticatedVote, ConsensusIdentityProfile, SIGNATURE_SCHEME_DILITHIUM3,

@@ -3,9 +3,8 @@
 // This file is part of the AOXC pre-release codebase.
 
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-use libcrux_ml_dsa::ml_dsa_65::{
-    MLDSA65Signature as MldsaSignature, MLDSA65VerificationKey as MldsaVerificationKey, verify,
-};
+use pqcrypto_mldsa::mldsa65::{PublicKey as DilithiumPublicKey, SignedMessage, open};
+use pqcrypto_traits::sign::{PublicKey as _, SignedMessage as _};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

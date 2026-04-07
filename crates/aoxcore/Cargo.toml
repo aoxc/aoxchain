@@ -18,7 +18,7 @@ base64 = { workspace = true }
 ed25519-dalek = { workspace = true }
 chrono = { workspace = true }
 hex = { workspace = true }
-libcrux-ml-dsa = { workspace = true }
+pqcrypto-mldsa = { workspace = true }
 pqcrypto-traits = { workspace = true }
 
 aoxcunity = { path = "../aoxcunity" }

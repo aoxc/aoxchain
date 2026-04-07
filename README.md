@@ -10,7 +10,6 @@ AOXChain is a deterministic Layer-1 engineering program focused on production-gr
 
 - `cargo check --workspace --locked`: pass
 - `cargo test --workspace --exclude aoxchub --all-targets --locked`: pass
-- `cargo audit` (operator evidence from Arch Linux on 2026-04-07): warning `RUSTSEC-2024-0380` for `pqcrypto-dilithium` (unmaintained; replacement `pqcrypto-mldsa`)
 - Current production-gap status and closure actions are tracked in `docs/REPOSITORY_PRODUCTION_GAP_REPORT.md`.
 
 This snapshot is a point-in-time engineering status, not a standing production guarantee.
