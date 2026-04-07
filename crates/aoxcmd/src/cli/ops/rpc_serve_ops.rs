@@ -1,10 +1,7 @@
 use super::*;
 use serde_json::json;
-use std::io::ErrorKind;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::thread;
-use std::time::Duration;
 
 pub fn cmd_rpc_serve(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
@@ -15,49 +12,34 @@ pub fn cmd_rpc_serve(args: &[String]) -> Result<(), AppError> {
     let metrics_port = parse_optional_port_arg(args, "--metrics-port")?
         .unwrap_or(settings.telemetry.prometheus_port);
 
-    spawn_rpc_and_metrics_listeners(&host, rpc_port, metrics_port)?;
-    println!(
-        "RPC_SERVE | rpc=http://{}:{} | metrics=http://{}:{}/metrics",
-        host, rpc_port, host, metrics_port
-    );
-    loop {
-        thread::sleep(Duration::from_secs(60));
-    }
-}
-
-pub(super) fn spawn_rpc_and_metrics_listeners(
-    host: &str,
-    rpc_port: u16,
-    metrics_port: u16,
-) -> Result<(), AppError> {
-    let rpc_listener = TcpListener::bind((host, rpc_port)).map_err(|error| {
+    let rpc_listener = TcpListener::bind((host.as_str(), rpc_port)).map_err(|error| {
         AppError::new(
             ErrorCode::RuntimeUnavailable,
             format!("Failed to bind RPC listener on {host}:{rpc_port}: {error}"),
         )
     })?;
-    let metrics_listener = TcpListener::bind((host, metrics_port)).map_err(|error| {
+
+    let metrics_listener = TcpListener::bind((host.as_str(), metrics_port)).map_err(|error| {
         AppError::new(
             ErrorCode::RuntimeUnavailable,
             format!("Failed to bind metrics listener on {host}:{metrics_port}: {error}"),
         )
     })?;
 
-    rpc_listener.set_nonblocking(true).map_err(|error| {
-        AppError::new(
-            ErrorCode::RuntimeUnavailable,
-            format!("Failed to configure RPC listener as non-blocking: {error}"),
-        )
-    })?;
-    metrics_listener.set_nonblocking(true).map_err(|error| {
-        AppError::new(
-            ErrorCode::RuntimeUnavailable,
-            format!("Failed to configure metrics listener as non-blocking: {error}"),
-        )
-    })?;
+    println!(
+        "RPC_SERVE | rpc=http://{}:{} | metrics=http://{}:{}/metrics",
+        host, rpc_port, host, metrics_port
+    );
 
-    thread::spawn(move || run_listener_loop(metrics_listener, true));
-    thread::spawn(move || run_listener_loop(rpc_listener, false));
+    std::thread::spawn(move || {
+        for stream in metrics_listener.incoming().flatten() {
+            let _ = handle_connection(stream, true);
+        }
+    });
+
+    for stream in rpc_listener.incoming().flatten() {
+        let _ = handle_connection(stream, false);
+    }
 
     Ok(())
 }
@@ -112,22 +94,6 @@ fn handle_connection(mut stream: TcpStream, metrics_only: bool) -> std::io::Resu
     stream.write_all(response.as_bytes())?;
     stream.flush()?;
     Ok(())
-}
-
-fn run_listener_loop(listener: TcpListener, metrics_only: bool) {
-    loop {
-        match listener.accept() {
-            Ok((stream, _)) => {
-                let _ = handle_connection(stream, metrics_only);
-            }
-            Err(error) if error.kind() == ErrorKind::WouldBlock => {
-                thread::sleep(Duration::from_millis(25));
-            }
-            Err(_) => {
-                thread::sleep(Duration::from_millis(100));
-            }
-        }
-    }
 }
 
 fn route_rpc(method: &str, target: &str, body: &str) -> String {
