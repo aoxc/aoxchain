@@ -15,15 +15,26 @@
 //! - enforces explicit key decoding boundaries,
 //! - uses deterministic domain-separated public-key fingerprints.
 
-use libcrux_ml_dsa::constants::{SIGNATURE_SIZE, SIGNING_KEY_SIZE, VERIFICATION_KEY_SIZE};
 use libcrux_ml_dsa::ml_dsa_65::{
-    MLDSA65Signature as Signature, MLDSA65SigningKey as SecretKey,
-    MLDSA65VerificationKey as PublicKey, generate_key_pair, sign, verify,
+    generate_key_pair, sign, verify, MLDSA65Signature as Signature,
+    MLDSA65SigningKey as SecretKey, MLDSA65VerificationKey as PublicKey,
 };
 use rand::random;
-
 use sha3::{Digest, Sha3_256};
 use std::fmt;
+
+/// Canonical serialized detached signature size in bytes for ML-DSA-65.
+///
+/// Operational note:
+/// - AOXC currently uses detached signatures concatenated with the message
+///   to preserve the existing signed-message transport shape.
+const ML_DSA_65_SIGNATURE_SIZE: usize = 3309;
+
+/// Canonical serialized signing-key size in bytes for ML-DSA-65.
+const ML_DSA_65_SIGNING_KEY_SIZE: usize = 4032;
+
+/// Canonical serialized verification-key size in bytes for ML-DSA-65.
+const ML_DSA_65_VERIFICATION_KEY_SIZE: usize = 1952;
 
 /// Domain separator for AOXC PQ fingerprint derivation.
 const AOXC_PQ_FINGERPRINT_DOMAIN: &[u8] = b"AOXC/IDENTITY/PQ_KEYS/FINGERPRINT/V1";
@@ -35,7 +46,14 @@ const AOXC_PQ_FINGERPRINT_DOMAIN: &[u8] = b"AOXC/IDENTITY/PQ_KEYS/FINGERPRINT/V1
 /// avoid surprising existing callers. New code should prefer the domain-
 /// separated helpers below where protocol binding matters.
 const AOXC_PQ_SIGNING_DOMAIN: &[u8] = b"AOXC/IDENTITY/PQ_KEYS/SIGNED_MESSAGE/V1";
+
+/// AOXC currently holds the ML-DSA context empty by policy.
+///
+/// Security rationale:
+/// - protocol separation is enforced through explicit AOXC message domains,
+/// - a fixed context reduces the risk of verifier drift between call sites.
 const ML_DSA_CONTEXT: &[u8] = b"";
+
 /// Short fingerprint output length in bytes.
 const PQ_FINGERPRINT_LEN: usize = 8;
 
@@ -87,14 +105,20 @@ pub fn generate_keypair() -> (PublicKey, SecretKey) {
 
 /// Returns the expected serialized public-key length in bytes.
 #[must_use]
-pub fn expected_public_key_len() -> usize {
-    VERIFICATION_KEY_SIZE
+pub const fn expected_public_key_len() -> usize {
+    ML_DSA_65_VERIFICATION_KEY_SIZE
 }
 
 /// Returns the expected serialized secret-key length in bytes.
 #[must_use]
-pub fn expected_secret_key_len() -> usize {
-    SIGNING_KEY_SIZE
+pub const fn expected_secret_key_len() -> usize {
+    ML_DSA_65_SIGNING_KEY_SIZE
+}
+
+/// Returns the expected serialized detached-signature length in bytes.
+#[must_use]
+pub const fn expected_signature_len() -> usize {
+    ML_DSA_65_SIGNATURE_SIZE
 }
 
 /// Signs a message using a ML-DSA-65 secret key.
@@ -183,21 +207,25 @@ pub fn serialize_secret_key_hex(sk: &SecretKey) -> String {
 
 /// Restores a public key from raw bytes.
 pub fn public_key_from_bytes(bytes: &[u8]) -> Result<PublicKey, String> {
-    if bytes.len() != VERIFICATION_KEY_SIZE {
+    if bytes.len() != ML_DSA_65_VERIFICATION_KEY_SIZE {
         return Err(PqKeyError::InvalidPublicKey.code().to_string());
     }
-    let mut key = [0u8; VERIFICATION_KEY_SIZE];
+
+    let mut key = [0u8; ML_DSA_65_VERIFICATION_KEY_SIZE];
     key.copy_from_slice(bytes);
+
     Ok(PublicKey::new(key))
 }
 
 /// Restores a secret key from raw bytes.
 pub fn secret_key_from_bytes(bytes: &[u8]) -> Result<SecretKey, String> {
-    if bytes.len() != SIGNING_KEY_SIZE {
+    if bytes.len() != ML_DSA_65_SIGNING_KEY_SIZE {
         return Err(PqKeyError::InvalidSecretKey.code().to_string());
     }
-    let mut key = [0u8; SIGNING_KEY_SIZE];
+
+    let mut key = [0u8; ML_DSA_65_SIGNING_KEY_SIZE];
     key.copy_from_slice(bytes);
+
     Ok(SecretKey::new(key))
 }
 
@@ -254,7 +282,8 @@ fn unwrap_verified_message(wrapped: &[u8]) -> Result<Vec<u8>, PqKeyError> {
         return Err(PqKeyError::InvalidWrappedMessageDomain);
     }
 
-    if !wrapped.starts_with(AOXC_PQ_SIGNING_DOMAIN) || wrapped[AOXC_PQ_SIGNING_DOMAIN.len()] != 0x00
+    if !wrapped.starts_with(AOXC_PQ_SIGNING_DOMAIN)
+        || wrapped[AOXC_PQ_SIGNING_DOMAIN.len()] != 0x00
     {
         return Err(PqKeyError::InvalidWrappedMessageDomain);
     }
@@ -263,20 +292,21 @@ fn unwrap_verified_message(wrapped: &[u8]) -> Result<Vec<u8>, PqKeyError> {
 }
 
 fn encode_signed_message(signature: &Signature, message: &[u8]) -> Vec<u8> {
-    let mut encoded = Vec::with_capacity(SIGNATURE_SIZE + message.len());
+    let mut encoded = Vec::with_capacity(ML_DSA_65_SIGNATURE_SIZE + message.len());
     encoded.extend_from_slice(signature.as_ref());
     encoded.extend_from_slice(message);
     encoded
 }
 
 fn decode_signed_message(signed: &[u8]) -> Result<(Signature, &[u8]), PqKeyError> {
-    if signed.len() < SIGNATURE_SIZE {
+    if signed.len() < ML_DSA_65_SIGNATURE_SIZE {
         return Err(PqKeyError::InvalidSignedMessage);
     }
 
-    let (signature_bytes, message) = signed.split_at(SIGNATURE_SIZE);
-    let mut signature = [0u8; SIGNATURE_SIZE];
+    let (signature_bytes, message) = signed.split_at(ML_DSA_65_SIGNATURE_SIZE);
+    let mut signature = [0u8; ML_DSA_65_SIGNATURE_SIZE];
     signature.copy_from_slice(signature_bytes);
+
     Ok((Signature::new(signature), message))
 }
 
@@ -293,12 +323,25 @@ mod tests {
     }
 
     #[test]
+    fn detached_signature_size_matches_expected_constant() {
+        let (_, sk) = generate_keypair();
+
+        let message = b"AOXC detached signature size test";
+        let signed = sign_message(message, &sk);
+
+        assert_eq!(
+            signed.len(),
+            expected_signature_len() + message.len()
+        );
+    }
+
+    #[test]
     fn sign_and_verify_roundtrip() {
         let (pk, sk) = generate_keypair();
 
         let message = b"AOXC test message";
         let signed = sign_message(message, &sk);
-        let opened = verify_message(&signed, &pk).unwrap();
+        let opened = verify_message(&signed, &pk).expect("verification must succeed");
 
         assert_eq!(opened, message);
     }
@@ -309,7 +352,8 @@ mod tests {
 
         let message = b"AOXC domain separated message";
         let signed = sign_message_domain_separated(message, &sk);
-        let opened = verify_message_domain_separated(&signed, &pk).unwrap();
+        let opened = verify_message_domain_separated(&signed, &pk)
+            .expect("domain-separated verification must succeed");
 
         assert_eq!(opened, message);
     }
@@ -330,7 +374,7 @@ mod tests {
         let (pk, _) = generate_keypair();
 
         let bytes = serialize_public_key(&pk);
-        let restored = public_key_from_bytes(&bytes).unwrap();
+        let restored = public_key_from_bytes(&bytes).expect("public key restore must succeed");
 
         assert_eq!(bytes, restored.as_ref());
     }
@@ -340,7 +384,7 @@ mod tests {
         let (_, sk) = generate_keypair();
 
         let bytes = serialize_secret_key(&sk);
-        let restored = secret_key_from_bytes(&bytes).unwrap();
+        let restored = secret_key_from_bytes(&bytes).expect("secret key restore must succeed");
 
         assert_eq!(bytes, restored.as_ref());
     }
@@ -350,7 +394,7 @@ mod tests {
         let (pk, _) = generate_keypair();
 
         let encoded = serialize_public_key_hex(&pk);
-        let restored = public_key_from_hex(&encoded).unwrap();
+        let restored = public_key_from_hex(&encoded).expect("public key hex restore must succeed");
 
         assert_eq!(pk.as_ref(), restored.as_ref());
     }
@@ -360,7 +404,7 @@ mod tests {
         let (_, sk) = generate_keypair();
 
         let encoded = serialize_secret_key_hex(&sk);
-        let restored = secret_key_from_hex(&encoded).unwrap();
+        let restored = secret_key_from_hex(&encoded).expect("secret key hex restore must succeed");
 
         assert_eq!(sk.as_ref(), restored.as_ref());
     }
@@ -393,11 +437,11 @@ mod tests {
     fn fingerprint_is_stable() {
         let (pk, _) = generate_keypair();
 
-        let a = fingerprint(&pk);
-        let b = fingerprint(&pk);
+        let first = fingerprint(&pk);
+        let second = fingerprint(&pk);
 
-        assert_eq!(a, b);
-        assert_eq!(a.len(), PQ_FINGERPRINT_LEN * 2);
+        assert_eq!(first, second);
+        assert_eq!(first.len(), PQ_FINGERPRINT_LEN * 2);
     }
 
     #[test]
