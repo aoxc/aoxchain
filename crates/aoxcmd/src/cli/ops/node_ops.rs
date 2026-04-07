@@ -5,9 +5,9 @@ use std::time::Duration;
 /// Terminal presentation constants.
 ///
 /// Audit Note:
-/// ANSI sequences are intentionally isolated in a compact constant block so that
-/// terminal styling remains explicit, reviewable, and easy to disable or replace
-/// in future operator-console revisions.
+/// ANSI sequences are isolated in a compact constant block so that styling
+/// remains explicit, reviewable, and easy to adjust without affecting runtime
+/// control flow.
 const ANSI_RESET: &str = "\x1b[0m";
 const ANSI_BOLD: &str = "\x1b[1m";
 const ANSI_DIM: &str = "\x1b[2m";
@@ -16,17 +16,14 @@ const ANSI_YELLOW: &str = "\x1b[33m";
 const ANSI_BLUE: &str = "\x1b[34m";
 const ANSI_MAGENTA: &str = "\x1b[35m";
 const ANSI_CYAN: &str = "\x1b[36m";
-const ANSI_RED: &str = "\x1b[31m";
 const ANSI_BORDER: &str = "\x1b[38;5;239m";
 
 /// Human-readable event codes used in the live execution stream.
 ///
 /// Audit Note:
-/// These codes are chosen to prevent semantic ambiguity. In particular, the code
-/// avoids using a generic success checkmark that could be misread as block
-/// finalization or irreversible confirmation.
+/// `PRD` is intentionally used instead of a generic success symbol in order to
+/// avoid implying consensus finality or irreversible settlement.
 const EVENT_PRODUCED: &str = "PRD";
-const EVENT_ERROR: &str = "ERR";
 
 pub fn cmd_node_bootstrap(args: &[String]) -> Result<(), AppError> {
     bootstrap_operator_home()?;
@@ -103,9 +100,9 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
         )?
     } else {
         // Corporate/Audit Note:
-        // The bounded execution path intentionally reuses the engine-owned observer
-        // pipeline so that live terminal output and machine telemetry derive from
-        // the same execution source of truth.
+        // The bounded execution path intentionally reuses the engine-owned
+        // observer pipeline so that terminal output and machine-readable
+        // telemetry derive from the same execution source of truth.
         engine::run_rounds_with_observer(rounds, &tx_prefix, |entry| {
             if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
                 print_node_round_line(entry, &log_level);
@@ -130,10 +127,9 @@ fn default_runtime_tx_id() -> String {
 /// Prints the operator-facing startup banner.
 ///
 /// Audit Note:
-/// This banner is intentionally compact, deterministic, and text-oriented. Its
-/// purpose is to present a high-signal operator snapshot without requiring the
-/// reader to inspect multiple independent commands before understanding runtime
-/// posture.
+/// This banner is intentionally compact and deterministic. It presents a
+/// high-signal runtime snapshot for operators without overstating readiness,
+/// finality, or network-level guarantees.
 fn print_node_live_log_header(
     rounds: u64,
     tx_prefix: &str,
@@ -169,15 +165,11 @@ fn print_node_live_log_header(
 
     let execution_mode = if continuous { "continuous" } else { "bounded" };
     let log_mode = if log_level == "debug" { "debug" } else { "info" };
-
     let assessment = startup_assessment(rpc_reachable, key_state, state.current_height);
 
     println!();
     print_border_top();
-    print_box_line(
-        "🚀 AOXC OPERATOR SESSION",
-        &format!("[{}]", now),
-    );
+    print_box_line("🚀 AOXC OPERATOR SESSION", &format!("[{}]", now));
     print_separator();
 
     print_box_kv(
@@ -276,9 +268,8 @@ fn parse_block_interval_secs(args: &[String]) -> Result<u64, AppError> {
 /// Runs unbounded production until external termination.
 ///
 /// Audit Note:
-/// The loop emits a live line only after a successful production step. This
-/// avoids displaying optimistic terminal events for operations that did not
-/// actually advance state.
+/// A live line is emitted only after a successful production step. This avoids
+/// optimistic terminal output for operations that did not actually advance state.
 fn run_continuous_rounds(
     interval_secs: u64,
     tx_prefix: &str,
@@ -317,9 +308,8 @@ fn run_continuous_rounds(
 /// Prints a single live execution line.
 ///
 /// Audit Note:
-/// The event code is intentionally explicit. `PRD` means the engine produced a
-/// new block-related state transition for this round. It does not claim economic
-/// finality unless the underlying engine explicitly exposes such a state.
+/// `PRD` means a new block-related production step was observed. It does not
+/// assert consensus finality unless the engine explicitly exposes that state.
 fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
     let timestamp = chrono::DateTime::<chrono::Utc>::from_timestamp(entry.timestamp_unix as i64, 0)
         .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
@@ -356,7 +346,7 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
 /// Prints the end-of-session summary.
 ///
 /// Audit Note:
-/// The footer is concise by design. It provides terminal evidence of the final
+/// The footer is concise by design and provides terminal evidence of the final
 /// observed runtime posture without duplicating the startup snapshot.
 fn print_node_live_log_footer(state: &crate::node::state::NodeState) {
     println!(
@@ -378,7 +368,7 @@ fn print_node_live_log_footer(state: &crate::node::state::NodeState) {
     println!();
 }
 
-/// Produces a compact hash representation suitable for console use.
+/// Produces a compact hash representation suitable for console output.
 fn short_hash(value: &str) -> String {
     if value.is_empty() {
         return "unavailable".to_string();
@@ -391,7 +381,7 @@ fn short_hash(value: &str) -> String {
     format!("{}…{}", &value[..8], &value[value.len() - 8..])
 }
 
-/// Returns a fallback string if the source string is empty after inspection.
+/// Returns a fallback string if the input is empty.
 fn non_empty_or<'a>(value: &'a str, fallback: &'a str) -> &'a str {
     if value.is_empty() {
         fallback
@@ -403,8 +393,8 @@ fn non_empty_or<'a>(value: &'a str, fallback: &'a str) -> &'a str {
 /// Derives a coarse startup assessment for operator visibility.
 ///
 /// Audit Note:
-/// This function intentionally avoids overstating health. It provides a coarse
-/// readiness indicator rather than an assertion of finality or economic safety.
+/// This function intentionally avoids overstating health. It is a coarse
+/// readiness indicator, not a claim of economic safety or final settlement.
 fn startup_assessment(rpc_reachable: bool, key_state: &str, height: u64) -> &'static str {
     if !rpc_reachable {
         "degraded-rpc"
@@ -461,20 +451,30 @@ fn print_border_bottom() {
 fn print_box_line(title: &str, suffix: &str) {
     println!(
         "{}{}│{} {} {}{}",
-        ANSI_BOLD, ANSI_BORDER, ANSI_RESET, title, suffix, pad_box_end(title, suffix)
+        ANSI_BOLD,
+        ANSI_BORDER,
+        ANSI_RESET,
+        title,
+        suffix,
+        pad_box_end(title, suffix)
     );
 }
 
 fn print_box_kv(label: &str, value: &str) {
     println!(
         "{}{}│{} {} {}{}",
-        ANSI_BOLD, ANSI_BORDER, ANSI_RESET, paint_label(label), value, pad_box_kv_end(label, value)
+        ANSI_BOLD,
+        ANSI_BORDER,
+        ANSI_RESET,
+        paint_label(label),
+        value,
+        pad_box_kv_end(label, value)
     );
 }
 
 fn print_table_header() {
     println!(
-        "{}{}│{} {:>3} │ {:>5} │ {:<19} │ {:>7} │ {:>7} │ {:>4} │ {:>7} │ {:<17} │ {:<16} {}{}│{}",
+        "{}{}│{} {:>3} │ {:>5} │ {:<19} │ {:>7} │ {:>7} │ {:>4} │ {:>7} │ {:<17} │ {:<16} {}│{}",
         ANSI_BOLD,
         ANSI_BORDER,
         ANSI_RESET,
@@ -487,10 +487,8 @@ fn print_table_header() {
         "CROUND",
         "BLOCK",
         "TX",
-        ANSI_RESET,
         ANSI_BOLD,
         ANSI_BORDER,
-        ANSI_RESET
     );
 }
 
@@ -502,7 +500,6 @@ fn paint_label(label: &str) -> String {
         "🧱 CHAIN" => ANSI_MAGENTA,
         "🔐 IDENTITY" => ANSI_GREEN,
         "🗄 STORAGE" => ANSI_DIM,
-        "📈 HEAD" => ANSI_RESET,
         "🛡 ASSESSMENT" => ANSI_GREEN,
         "📝 NOTE" => ANSI_YELLOW,
         _ => ANSI_RESET,
@@ -529,12 +526,11 @@ fn pad_box_kv_end(label: &str, value: &str) -> String {
     format!("{}│", " ".repeat(padding))
 }
 
-/// Approximates visible width for simple terminal layout.
+/// Approximates visible width for terminal layout.
 ///
 /// Audit Note:
-/// This helper intentionally uses a conservative character-count approximation.
-/// It is sufficient for stable internal operator tooling, but it should not be
-/// treated as full Unicode display-width accounting.
+/// This helper uses a conservative character-count approximation. It is suitable
+/// for internal operator tooling, but it is not full Unicode display-width logic.
 fn visible_width(value: &str) -> usize {
     value.chars().count()
 }
@@ -557,12 +553,11 @@ pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key()?;
-    let rpc_reachable =
-        rpc_http_get_probe(
-            &settings.network.bind_host,
-            settings.network.rpc_port,
-            "/health",
-        ) || rpc_jsonrpc_status_probe(&settings.network.bind_host, settings.network.rpc_port);
+    let rpc_reachable = rpc_http_get_probe(
+        &settings.network.bind_host,
+        settings.network.rpc_port,
+        "/health",
+    ) || rpc_jsonrpc_status_probe(&settings.network.bind_host, settings.network.rpc_port);
 
     let mut details = BTreeMap::new();
     details.insert("bind_host".to_string(), settings.network.bind_host.clone());
@@ -603,12 +598,11 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_real_network(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key()?;
-    let rpc_reachable =
-        rpc_http_get_probe(
-            &settings.network.bind_host,
-            settings.network.rpc_port,
-            "/health",
-        ) || rpc_jsonrpc_status_probe(&settings.network.bind_host, settings.network.rpc_port);
+    let rpc_reachable = rpc_http_get_probe(
+        &settings.network.bind_host,
+        settings.network.rpc_port,
+        "/health",
+    ) || rpc_jsonrpc_status_probe(&settings.network.bind_host, settings.network.rpc_port);
 
     let mut details = BTreeMap::new();
     details.insert("mode".to_string(), "runtime-network".to_string());
