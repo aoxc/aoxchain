@@ -222,6 +222,10 @@ pub(super) struct DualProfileBootstrapResult {
 pub(super) struct TopologyBootstrapNodeSummary {
     pub(super) topology_role: String,
     pub(super) bootstrap: ProfileBootstrapSummary,
+    pub(super) rpc_url: String,
+    pub(super) metrics_url: String,
+    pub(super) start_command: String,
+    pub(super) query_commands: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

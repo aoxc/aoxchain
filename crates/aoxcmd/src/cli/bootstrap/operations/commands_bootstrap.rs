@@ -276,10 +276,7 @@ pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
             )?;
             (
                 profile,
-                vec![TopologyBootstrapNodeSummary {
-                    topology_role: "single-node".to_string(),
-                    bootstrap,
-                }],
+                vec![node_runtime_summary("single-node".to_string(), bootstrap)],
                 "Single-node topology generated. Use `aoxc node start --home <node-home>` to launch.",
             )
         }
@@ -294,10 +291,10 @@ pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
                     &password,
                     (ordinal - 1) * 10,
                 )?;
-                nodes.push(TopologyBootstrapNodeSummary {
-                    topology_role: format!("mainchain-validator-{ordinal}"),
+                nodes.push(node_runtime_summary(
+                    format!("mainchain-validator-{ordinal}"),
                     bootstrap,
-                });
+                ));
             }
             (
                 EnvironmentProfile::Mainnet,
