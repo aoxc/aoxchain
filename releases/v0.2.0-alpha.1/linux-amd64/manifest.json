@@ -1,0 +1,11 @@
+{
+  "release_version": "0.2.0-alpha.1",
+  "platform": "linux-amd64",
+  "generated_at_utc": "2026-04-07T09:10:00Z",
+  "git_commit": "bff7039b3bde51e0b36e68be91f7c6306b867dd7",
+  "artifacts": [
+    {"name":"aoxc","path":"bin/aoxc","sha256":"7101d96a3eec8995fb4f4e1044d9942e7718d90f937070b5a592bb30a793eaab"},
+    {"name":"aoxchub","path":"bin/aoxchub","sha256":"09e74c47952bda20f52dad138c0e9bb023b2cc99aa5b3647bc2824b8e945f57a"},
+    {"name":"aoxckit","path":"bin/aoxckit","sha256":"75fd4f6fba8b4630b14aff990d54d3f9bfb89bff7788a8cf6f6a5dfadbfb0c46"}
+  ]
+}
