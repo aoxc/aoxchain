@@ -8,7 +8,7 @@ pub fn cmd_node_bootstrap(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_produce_once(args: &[String]) -> Result<(), AppError> {
-    let tx = parse_required_or_default_text_arg(args, "--tx", "boot-sequence-1", false)?;
+    let tx = parse_required_or_default_text_arg(args, "--tx", &default_runtime_tx_id(), false)?;
     let state = engine::produce_once(&tx)?;
     let _ = refresh_runtime_metrics().ok();
     emit_serialized(&state, output_format(args))
@@ -16,10 +16,12 @@ pub fn cmd_produce_once(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     let rounds = parse_positive_u64_arg(args, "--rounds", 10, "node run")?;
-    let tx_prefix = parse_required_or_default_text_arg(args, "--tx-prefix", "AOXC-RUN", false)?;
+    let tx_prefix = parse_required_or_default_text_arg(args, "--tx-prefix", "runtime-tx", false)?;
     let format = output_format(args);
     let live_log_enabled = !has_flag(args, "--no-live-log");
     let log_level = parse_required_or_default_text_arg(args, "--log-level", "info", true)?;
+    let interval_secs = parse_block_interval_secs(args)?;
+    let continuous = has_flag(args, "--continuous");
 
     if !matches!(log_level.as_str(), "info" | "debug") {
         return Err(AppError::new(
@@ -29,10 +31,18 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     }
 
     if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
-        print_node_live_log_header(rounds, &tx_prefix, &log_level)?;
+        print_node_live_log_header(rounds, &tx_prefix, &log_level, interval_secs, continuous)?;
     }
 
-    let state = if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
+    let state = if continuous {
+        run_continuous_rounds(
+            interval_secs,
+            &tx_prefix,
+            format,
+            live_log_enabled,
+            &log_level,
+        )?
+    } else if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
         engine::run_rounds_with_observer(rounds, &tx_prefix, |entry| {
             print_node_round_line(entry, &log_level);
         })?
@@ -50,18 +60,24 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&state, format)
 }
 
+fn default_runtime_tx_id() -> String {
+    format!("runtime-tx-{}", chrono::Utc::now().timestamp())
+}
+
 fn print_node_live_log_header(
     rounds: u64,
     tx_prefix: &str,
     log_level: &str,
+    interval_secs: u64,
+    continuous: bool,
 ) -> Result<(), AppError> {
     let now = chrono::Utc::now().to_rfc3339();
     let db_path = lifecycle::state_path()?;
 
     println!("🚀 [{}] node-run startup", now);
     println!(
-        "🧭 mode=live rounds={} tx_prefix={} log_level={}",
-        rounds, tx_prefix, log_level
+        "🧭 mode=live rounds={} continuous={} interval_secs={} tx_prefix={} log_level={}",
+        rounds, continuous, interval_secs, tx_prefix, log_level
     );
     println!("🗄️  state_db={}", db_path.display());
     println!(
@@ -72,6 +88,54 @@ fn print_node_live_log_header(
         "────────────────────────────────────────────────────────────────────────────────────────"
     );
     Ok(())
+}
+
+fn parse_block_interval_secs(args: &[String]) -> Result<u64, AppError> {
+    let interval_secs = match arg_value(args, "--interval-secs") {
+        Some(value) => parse_positive_u64_value(&value, "--interval-secs", "node run")?,
+        None => 6,
+    };
+
+    if !(2..=600).contains(&interval_secs) {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Flag --interval-secs must be between 2 and 600",
+        ));
+    }
+
+    Ok(interval_secs)
+}
+
+fn run_continuous_rounds(
+    interval_secs: u64,
+    tx_prefix: &str,
+    format: crate::cli_support::OutputFormat,
+    live_log_enabled: bool,
+    log_level: &str,
+) -> Result<crate::node::state::NodeState, AppError> {
+    let mut round_index = 0_u64;
+    loop {
+        round_index = round_index.saturating_add(1);
+        let tx = format!("{tx_prefix}-{round_index}");
+        let state = engine::produce_once(&tx)?;
+
+        if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
+            let telemetry = engine::RoundTelemetry {
+                round_index,
+                tx_id: tx,
+                height: state.current_height,
+                produced_blocks: state.produced_blocks,
+                consensus_round: state.consensus.last_round,
+                section_count: state.consensus.last_section_count,
+                block_hash_hex: state.consensus.last_block_hash_hex.clone(),
+                parent_hash_hex: state.consensus.last_parent_hash_hex.clone(),
+                timestamp_unix: state.consensus.last_timestamp_unix,
+            };
+            print_node_round_line(&telemetry, log_level);
+        }
+
+        std::thread::sleep(Duration::from_secs(interval_secs));
+    }
 }
 
 fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
@@ -131,6 +195,12 @@ pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key()?;
+    let rpc_reachable =
+        rpc_http_get_probe(
+            &settings.network.bind_host,
+            settings.network.rpc_port,
+            "/health",
+        ) || rpc_jsonrpc_status_probe(&settings.network.bind_host, settings.network.rpc_port);
 
     let mut details = BTreeMap::new();
     details.insert("bind_host".to_string(), settings.network.bind_host);
@@ -140,7 +210,11 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
     );
     details.insert(
         "probe".to_string(),
-        "local-listener-simulated-ok".to_string(),
+        if rpc_reachable {
+            "rpc-reachable".to_string()
+        } else {
+            "rpc-unreachable".to_string()
+        },
     );
     details.insert(
         "transport_public_key".to_string(),
@@ -160,9 +234,16 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_real_network(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key()?;
+    let rpc_reachable =
+        rpc_http_get_probe(
+            &settings.network.bind_host,
+            settings.network.rpc_port,
+            "/health",
+        ) || rpc_jsonrpc_status_probe(&settings.network.bind_host, settings.network.rpc_port);
 
     let mut details = BTreeMap::new();
-    details.insert("mode".to_string(), "deterministic-local".to_string());
+    details.insert("mode".to_string(), "runtime-network".to_string());
+    details.insert("rpc_reachable".to_string(), rpc_reachable.to_string());
     details.insert(
         "enforce_official_peers".to_string(),
         settings.network.enforce_official_peers.to_string(),
