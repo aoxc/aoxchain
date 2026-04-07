@@ -146,3 +146,78 @@ pub fn cmd_dual_profile_bootstrap(args: &[String]) -> Result<(), AppError> {
 
     emit_serialized(&result, output_format(args))
 }
+
+pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
+    let topology_mode = arg_value(args, "--mode").unwrap_or_else(|| "single".to_string());
+    let password = parse_required_text_arg(args, "--password", false, "topology bootstrap")?;
+    let name_prefix = parse_required_or_default_text_arg(args, "--name-prefix", "validator")?;
+    let output_dir = arg_value(args, "--output-dir")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| bootstrap_root().join("topology-bootstrap"));
+
+    let (profile, nodes, launch_hint): (
+        EnvironmentProfile,
+        Vec<TopologyBootstrapNodeSummary>,
+        &'static str,
+    ) = match topology_mode.as_str() {
+        "single" => {
+            let profile = EnvironmentProfile::parse(
+                &arg_value(args, "--profile").unwrap_or_else(|| "testnet".to_string()),
+            )?;
+            let operator_name = format!("{name_prefix}-01");
+            let bootstrap = bootstrap_profile_directory(
+                &output_dir.join("node-01"),
+                profile,
+                &operator_name,
+                &password,
+            )?;
+            (
+                profile,
+                vec![TopologyBootstrapNodeSummary {
+                    topology_role: "single-node".to_string(),
+                    bootstrap,
+                }],
+                "Single-node topology generated. Use `aoxc node start --home <node-home>` to launch.",
+            )
+        }
+        "mainchain-4" => {
+            let mut nodes = Vec::with_capacity(4);
+            for ordinal in 1..=4u16 {
+                let operator_name = format!("{name_prefix}-{:02}", ordinal);
+                let bootstrap = bootstrap_profile_directory_with_port_offset(
+                    &output_dir.join(format!("node-{:02}", ordinal)),
+                    EnvironmentProfile::Mainnet,
+                    &operator_name,
+                    &password,
+                    (ordinal - 1) * 10,
+                )?;
+                nodes.push(TopologyBootstrapNodeSummary {
+                    topology_role: format!("mainchain-validator-{ordinal}"),
+                    bootstrap,
+                });
+            }
+            (
+                EnvironmentProfile::Mainnet,
+                nodes,
+                "Four-node mainchain topology generated. Start each node with its dedicated --home directory.",
+            )
+        }
+        _ => {
+            return Err(AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Unsupported --mode. Use --mode single or --mode mainchain-4.",
+            ));
+        }
+    };
+
+    let result = TopologyBootstrapResult {
+        topology_mode,
+        output_dir: output_dir.display().to_string(),
+        profile: profile.as_str().to_string(),
+        node_count: nodes.len(),
+        nodes,
+        launch_hint,
+    };
+
+    emit_serialized(&result, output_format(args))
+}
