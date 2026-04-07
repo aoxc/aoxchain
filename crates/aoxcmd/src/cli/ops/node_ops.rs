@@ -190,9 +190,7 @@ fn print_node_live_log_header(
     let parent = short_hash(&state.consensus.last_parent_hash_hex);
 
     let listener_line = match listener_status {
-        ListenerBootstrapStatus::NotRequested => {
-            "🧩 Listener   : not-requested".to_string()
-        }
+        ListenerBootstrapStatus::NotRequested => "🧩 Listener   : not-requested".to_string(),
         ListenerBootstrapStatus::Started {
             bind_host,
             rpc_port,
@@ -354,10 +352,7 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
     if log_level == "debug" {
         println!(
             "DBG | round={} | kind={} | unix_ts={} | produced_blocks={}",
-            entry.round_index,
-            entry.message_kind,
-            entry.timestamp_unix,
-            entry.produced_blocks
+            entry.round_index, entry.message_kind, entry.timestamp_unix, entry.produced_blocks
         );
     }
 }
@@ -368,7 +363,9 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
 /// The footer is intentionally concise and suitable for release/operator
 /// evidence capture.
 fn print_node_live_log_footer(state: &crate::node::state::NodeState) {
-    println!("------------------------------------------------------------------------------------------------------------------------------------------------");
+    println!(
+        "------------------------------------------------------------------------------------------------------------------------------------------------"
+    );
     println!(
         "SUMMARY | final_height={} | produced_blocks={} | consensus_round={} | block={} | updated_at={}",
         state.current_height,
@@ -382,21 +379,16 @@ fn print_node_live_log_footer(state: &crate::node::state::NodeState) {
 }
 
 fn print_event_table_header() {
-    println!("------------------------------------------------------------------------------------------------------------------------------------------------");
+    println!(
+        "------------------------------------------------------------------------------------------------------------------------------------------------"
+    );
     println!(
         "{:>3} | {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:<17} | {:<17} | {:<17} | {:<18}",
-        "EVT",
-        "ROUND",
-        "TIMESTAMP",
-        "HEIGHT",
-        "CROUND",
-        "SEC",
-        "BLOCK",
-        "PARENT",
-        "PROPOSER",
-        "TX"
+        "EVT", "ROUND", "TIMESTAMP", "HEIGHT", "CROUND", "SEC", "BLOCK", "PARENT", "PROPOSER", "TX"
     );
-    println!("------------------------------------------------------------------------------------------------------------------------------------------------");
+    println!(
+        "------------------------------------------------------------------------------------------------------------------------------------------------"
+    );
 }
 
 /// Renders a centered, bounded-width operator banner.
@@ -470,11 +462,7 @@ fn short_hash(value: &str) -> String {
 
 /// Returns a fallback string if the input is empty.
 fn non_empty_or<'a>(value: &'a str, fallback: &'a str) -> &'a str {
-    if value.is_empty() {
-        fallback
-    } else {
-        value
-    }
+    if value.is_empty() { fallback } else { value }
 }
 
 /// Returns a probe host suitable for local reachability checks.
@@ -508,11 +496,7 @@ fn startup_assessment(rpc_reachable: bool, key_state: &str, height: u64) -> &'st
 }
 
 fn status_word(value: bool) -> &'static str {
-    if value {
-        "reachable"
-    } else {
-        "unreachable"
-    }
+    if value { "reachable" } else { "unreachable" }
 }
 
 fn health_hint_from_height(height: u64) -> &'static str {
@@ -587,7 +571,10 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
 
     let mut details = BTreeMap::new();
     details.insert("bind_host".to_string(), settings.network.bind_host.clone());
-    details.insert("rpc_port".to_string(), settings.network.rpc_port.to_string());
+    details.insert(
+        "rpc_port".to_string(),
+        settings.network.rpc_port.to_string(),
+    );
     details.insert(
         "probe".to_string(),
         if rpc_reachable {

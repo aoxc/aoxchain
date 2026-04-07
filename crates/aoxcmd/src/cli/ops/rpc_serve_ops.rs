@@ -216,9 +216,10 @@ fn route_rpc(method: &str, target: &str, body: &str) -> String {
             http_ok("application/json", &network_status_json().to_string())
         }
         ("GET", "/peer/list") => http_ok("application/json", &peer_list_json().to_string()),
-        ("GET", "/state/root") => {
-            http_ok("application/json", &json!({"state_root":state_root_hex()}).to_string())
-        }
+        ("GET", "/state/root") => http_ok(
+            "application/json",
+            &json!({"state_root":state_root_hex()}).to_string(),
+        ),
         _ => {
             if method == "GET" && target.starts_with("/block/get") {
                 return http_ok("application/json", &block_view_json(target).to_string());
