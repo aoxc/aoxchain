@@ -15,7 +15,7 @@
 //! - enforces explicit key decoding boundaries,
 //! - uses deterministic domain-separated public-key fingerprints.
 
-use pqcrypto_dilithium::dilithium3::{
+use pqcrypto_mldsa::mldsa65::{
     PublicKey, SecretKey, SignedMessage, keypair, open, public_key_bytes, secret_key_bytes, sign,
 };
 
