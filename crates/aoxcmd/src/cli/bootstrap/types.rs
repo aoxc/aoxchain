@@ -341,7 +341,7 @@ impl EnvironmentProfile {
                 engine: "aoxcunity".to_string(),
                 mode: "bft".to_string(),
                 genesis_epoch: 0,
-                block_time_ms: 3_000,
+                block_time_ms: 6_000,
                 validator_quorum_policy,
                 consensus_identity_profile: default_consensus_identity_profile(),
             },
