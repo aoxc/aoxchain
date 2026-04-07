@@ -6,6 +6,16 @@ pub(in crate::cli::bootstrap::operations) fn bootstrap_profile_directory(
     operator_name: &str,
     password: &str,
 ) -> Result<ProfileBootstrapSummary, AppError> {
+    bootstrap_profile_directory_with_port_offset(output_dir, profile, operator_name, password, 0)
+}
+
+pub(in crate::cli::bootstrap::operations) fn bootstrap_profile_directory_with_port_offset(
+    output_dir: &Path,
+    profile: EnvironmentProfile,
+    operator_name: &str,
+    password: &str,
+    port_offset: u16,
+) -> Result<ProfileBootstrapSummary, AppError> {
     fs::create_dir_all(output_dir).map_err(|error| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
@@ -22,7 +32,42 @@ pub(in crate::cli::bootstrap::operations) fn bootstrap_profile_directory(
 
     let _home_override = ScopedHomeOverride::install(&home_dir);
 
-    let settings = build_profile_settings(home_dir.display().to_string(), profile, None)?;
+    let mut settings = build_profile_settings(home_dir.display().to_string(), profile, None)?;
+    if port_offset > 0 {
+        settings.network.p2p_port = settings
+            .network
+            .p2p_port
+            .checked_add(port_offset)
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::UsageInvalidArguments,
+                    "Requested topology port offset exceeds u16 port range for p2p_port",
+                )
+            })?;
+        settings.network.rpc_port = settings
+            .network
+            .rpc_port
+            .checked_add(port_offset)
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::UsageInvalidArguments,
+                    "Requested topology port offset exceeds u16 port range for rpc_port",
+                )
+            })?;
+        settings.telemetry.prometheus_port = settings
+            .telemetry
+            .prometheus_port
+            .checked_add(port_offset)
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::UsageInvalidArguments,
+                    "Requested topology port offset exceeds u16 port range for prometheus_port",
+                )
+            })?;
+        settings
+            .validate()
+            .map_err(|error| AppError::new(ErrorCode::ConfigInvalid, error))?;
+    }
     persist(&settings)?;
 
     let mut genesis = profile.genesis_document();
