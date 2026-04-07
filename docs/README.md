@@ -12,6 +12,8 @@ This directory contains the authoritative documentation system for AOXChain engi
 - `GENESIS_IDENTITY_CHECKLIST.md` — deterministic chain identity checklist from registry to genesis/runtime.
 - `OS_COMPATIBILITY.md` — cross-platform host/container compatibility contract (Linux, NixOS, macOS, Windows, Docker).
 - `bootstrap/BOOTSTRAP_RUNBOOK.md` — deterministic bootstrap phases, gate model, failure taxonomy, and closure evidence contract.
+- `FULL_NODE_GUIDE.md` — step-by-step full-node setup, join flow, and re-bootstrap safety guidance.
+- `API_REFERENCE.md` — implementation-aligned HTTP/gRPC API surface and usage examples.
 
 ## Documentation Rules
 

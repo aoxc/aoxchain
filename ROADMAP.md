@@ -85,6 +85,25 @@ Exit criteria:
 - hardening backlog is continuously prioritized by measured impact,
 - periodic revalidation artifacts remain current.
 
+## Product Surface Track (Parallel to Phase Gates)
+
+The following capability track defines operator and ecosystem surfaces expected to mature alongside phase execution:
+
+### Near-term
+- repository-level API reference hardening and schema stabilization,
+- full-node onboarding and deterministic bootstrap documentation,
+- CI evidence visibility and release-gate artifact publication consistency.
+
+### Mid-term
+- operator wallet ergonomics (CLI-first, deterministic key workflow preservation),
+- explorer-oriented indexed query surfaces for block/tx/address observability,
+- stronger integration-network simulations with adversarial topology permutations.
+
+### Long-term
+- contract platform maturity under AOX VM governance (policy-constrained, deterministic),
+- broader compatibility shims where they do not violate kernel trust boundaries,
+- formalized ecosystem governance hooks for operator and contributor decision flow.
+
 ## Non-Negotiable Program Rules
 
 1. No unverifiable “absolute security” claims.

@@ -6,6 +6,16 @@
 
 AOXChain is a deterministic Layer-1 engineering program focused on operational discipline, cryptographic agility, and evidence-backed readiness.
 
+## Why AOXChain and How It Differs
+
+AOXChain is intentionally positioned as an engineering-first protocol program rather than a throughput-marketing project. The design center differs from common L1 narratives in three ways:
+
+- **Determinism before velocity:** consensus, execution, and release claims are governed by reproducible gates and retained artifacts.
+- **Crypto-agility by policy:** cryptographic profile evolution (including post-quantum migration) is treated as a governed protocol surface, not an implicit library upgrade.
+- **Operational evidence as a release requirement:** channel promotion is bound to explicit readiness criteria, not informal confidence.
+
+This repository does not claim to replace Ethereum, Solana, or other ecosystems by slogan. Instead, it focuses on building a conservative, audit-oriented L1 posture where trust boundaries, failure modes, and activation conditions are explicit.
+
 ## ⚠️ Experimental Program Notice (Read First)
 
 AOXChain is currently an **experimental engineering system** under active development.
@@ -264,10 +274,13 @@ Notes:
 
 - `README.md` — repository landing page and operator/developer entry path.
 - `READ.md` — repository-level technical contract and invariants.
+- `WHITEPAPER.md` — engineering whitepaper with architecture and cryptographic-agility posture.
 - `SCOPE.md` — in-scope/out-of-scope and compatibility posture.
 - `ARCHITECTURE.md` — component boundaries and dependency direction.
 - `SECURITY.md` — security posture and disclosure model.
 - `TESTING.md` — validation policy and readiness gates.
+- `docs/FULL_NODE_GUIDE.md` — step-by-step full-node installation, bootstrap, and network join guide.
+- `docs/API_REFERENCE.md` — current HTTP and gRPC RPC surfaces with request/response examples.
 - `docs/REPOSITORY_PRODUCTION_GAP_REPORT.md` — point-in-time production gap register and closure actions.
 - `ROADMAP.md` — strategic roadmap and phase gates.
 - `docs/NAMING_VERSIONING_SIMPLIFICATION_PLAN.md` — naming/versioning baseline and migration policy.
