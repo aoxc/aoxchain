@@ -6,6 +6,14 @@
 //!
 //! This crate currently focuses on typed contract-manifest composition helpers
 //! that keep client-side integration deterministic and validation-first.
+//!
+//! # Examples
+//! ```rust
+//! use aoxcsdk::{sdk_version, SDK_VERSION};
+//!
+//! assert_eq!(sdk_version(), SDK_VERSION);
+//! assert!(!sdk_version().is_empty());
+//! ```
 
 pub mod contracts;
 
@@ -13,6 +21,12 @@ pub mod contracts;
 pub const SDK_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Returns the SDK version string.
+///
+/// # Examples
+/// ```rust
+/// let version = aoxcsdk::sdk_version();
+/// assert!(!version.trim().is_empty());
+/// ```
 pub fn sdk_version() -> &'static str {
     SDK_VERSION
 }

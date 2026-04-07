@@ -268,3 +268,27 @@ fn consensus_peer() -> Peer {
         },
     )
 }
+
+#[test]
+fn decode_hex32_accepts_exact_32_byte_payloads() {
+    let parsed = decode_hex32(
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "test hex",
+    );
+    assert_eq!(parsed, [0xaa; 32]);
+}
+
+#[test]
+#[should_panic(expected = "must be exactly 32 bytes")]
+fn decode_hex32_rejects_non_32_byte_payloads() {
+    let _ = decode_hex32("aa", "invalid hex");
+}
+
+#[test]
+fn consensus_peer_has_validator_identity_fields() {
+    let peer = consensus_peer();
+    assert_eq!(peer.id, "validator-1");
+    assert_eq!(peer.address, "10.0.0.1:2727");
+    assert_eq!(peer.kyc_tier, 3);
+    assert!(peer.ai_inspection_ready);
+}
