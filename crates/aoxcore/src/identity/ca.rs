@@ -34,11 +34,8 @@ const CA_SELF_TEST_DOMAIN: &[u8] = b"AOXC/IDENTITY/CA/SELF_TEST/V1";
 /// Domain used for CA key identifier derivation.
 const CA_KEY_ID_DOMAIN: &[u8] = b"AOXC/IDENTITY/CA/KEY_ID/V1";
 const ML_DSA_CONTEXT: &[u8] = b"";
-/// FIPS 204 ML-DSA-65 detached signature size (bytes).
 const ML_DSA_65_SIGNATURE_SIZE: usize = 3309;
-/// FIPS 204 ML-DSA-65 signing key size (bytes).
 const ML_DSA_65_SIGNING_KEY_SIZE: usize = 4032;
-/// FIPS 204 ML-DSA-65 verification key size (bytes).
 const ML_DSA_65_VERIFICATION_KEY_SIZE: usize = 1952;
 
 /// Maximum accepted issuer identifier length.

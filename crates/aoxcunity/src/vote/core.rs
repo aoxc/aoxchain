@@ -13,14 +13,10 @@ use crate::validator::ValidatorId;
 const VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_VOTE_SIGNING_V1";
 const AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_AUTHENTICATED_VOTE_V1";
 pub const SIGNATURE_SCHEME_ED25519: u16 = 1;
-pub const SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65: u16 = 2;
-pub const SIGNATURE_SCHEME_MLDSA65: u16 = 3;
-pub const SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3: u16 = SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65;
-pub const SIGNATURE_SCHEME_DILITHIUM3: u16 = SIGNATURE_SCHEME_MLDSA65;
+pub const SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3: u16 = 2;
+pub const SIGNATURE_SCHEME_DILITHIUM3: u16 = 3;
 const ML_DSA_CONTEXT: &[u8] = b"";
-/// FIPS 204 ML-DSA-65 detached signature size (bytes).
 const ML_DSA_65_SIGNATURE_SIZE: usize = 3309;
-/// FIPS 204 ML-DSA-65 verification key size (bytes).
 const ML_DSA_65_VERIFICATION_KEY_SIZE: usize = 1952;
 
 /// Vote kind classification.
@@ -76,9 +72,9 @@ pub enum ConsensusIdentityProfile {
 impl VoteAuthenticationContext {
     pub fn identity_profile(&self) -> Result<ConsensusIdentityProfile, VoteAuthenticationError> {
         match self.signature_scheme {
-            self::SIGNATURE_SCHEME_ED25519 => Ok(ConsensusIdentityProfile::Classical),
-            self::SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 => Ok(ConsensusIdentityProfile::Hybrid),
-            self::SIGNATURE_SCHEME_MLDSA65 => Ok(ConsensusIdentityProfile::PostQuantum),
+            SIGNATURE_SCHEME_ED25519 => Ok(ConsensusIdentityProfile::Classical),
+            SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 => Ok(ConsensusIdentityProfile::Hybrid),
+            SIGNATURE_SCHEME_MLDSA65 => Ok(ConsensusIdentityProfile::PostQuantum),
             _ => Err(VoteAuthenticationError::UnknownSignatureScheme),
         }
     }
@@ -202,12 +198,12 @@ impl AuthenticatedVote {
 
         let signing_bytes = self.signing_bytes();
         match self.context.signature_scheme {
-            self::SIGNATURE_SCHEME_ED25519 => self.verify_ed25519_only(&signing_bytes)?,
-            self::SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 => {
+            SIGNATURE_SCHEME_ED25519 => self.verify_ed25519_only(&signing_bytes)?,
+            SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 => {
                 self.verify_ed25519_only(&signing_bytes)?;
                 self.verify_mldsa65_only(&signing_bytes)?;
             }
-            self::SIGNATURE_SCHEME_MLDSA65 => self.verify_mldsa65_only(&signing_bytes)?,
+            SIGNATURE_SCHEME_MLDSA65 => self.verify_mldsa65_only(&signing_bytes)?,
             _ => return Err(VoteAuthenticationError::UnsupportedVerifierForSignatureScheme),
         }
 
@@ -242,7 +238,7 @@ impl AuthenticatedVote {
             .pq_signature
             .as_deref()
             .or({
-                if self.context.signature_scheme == self::SIGNATURE_SCHEME_MLDSA65 {
+                if self.context.signature_scheme == SIGNATURE_SCHEME_MLDSA65 {
                     Some(self.signature.as_slice())
                 } else {
                     None
@@ -270,16 +266,16 @@ fn is_zero_hash32(value: &[u8; 32]) -> bool {
 fn is_known_signature_scheme(signature_scheme: u16) -> bool {
     matches!(
         signature_scheme,
-        self::SIGNATURE_SCHEME_ED25519
-            | self::SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65
-            | self::SIGNATURE_SCHEME_MLDSA65
+        SIGNATURE_SCHEME_ED25519
+            | SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65
+            | SIGNATURE_SCHEME_MLDSA65
     )
 }
 
 fn is_post_quantum_hardened_scheme(signature_scheme: u16) -> bool {
     matches!(
         signature_scheme,
-        self::SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 | self::SIGNATURE_SCHEME_MLDSA65
+        SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 | SIGNATURE_SCHEME_MLDSA65
     )
 }
 
