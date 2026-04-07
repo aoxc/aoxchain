@@ -11,7 +11,7 @@ use crate::{
         state::{ConsensusSnapshot, KeyMaterialSnapshot, NodeState},
     },
 };
-use aoxcdata::{BlockEnvelope, HybridDataStore, IndexBackend};
+use aoxcdata::{BlockEnvelope, HybridDataStore, IndexBackend, canonical_block_envelope_hash_hex};
 use aoxcunity::{
     Block, BlockBody, BlockSection, ConsensusMessage, LaneCommitment, LaneCommitmentSection,
     LaneType, Proposer,
@@ -127,7 +127,7 @@ fn persist_block_envelope(block: &Block) -> Result<(), AppError> {
     })?;
 
     let parent_hash_hex = hex::encode(block.header.parent_hash);
-    let block_hash_hex = hex::encode(block.hash);
+    let block_hash_hex = block_envelope_hash_hex(block)?;
 
     let envelope = BlockEnvelope {
         height: block.header.height,
@@ -244,6 +244,7 @@ pub(super) fn apply_block_proposal_with_message(
     state.last_tx = tx.to_string();
     state.key_material = snapshot_from_key_material(key_material)?;
     state.consensus = snapshot_from_message_kind(&message, BLOCK_PROPOSAL_MESSAGE_KIND);
+    state.consensus.last_block_hash_hex = block_envelope_hash_hex(block)?;
     state.touch();
 
     Ok(())
@@ -328,20 +329,16 @@ fn snapshot_from_message_kind(
     block_proposal_kind: &str,
 ) -> ConsensusSnapshot {
     match message {
-        ConsensusMessage::BlockProposal { block } => {
-            let last_block_hash_hex = hex::encode(block.hash);
-
-            ConsensusSnapshot {
-                network_id: block.header.network_id,
-                last_parent_hash_hex: hex::encode(block.header.parent_hash),
-                last_block_hash_hex,
-                last_proposer_hex: hex::encode(block.header.proposer),
-                last_round: block.header.round,
-                last_timestamp_unix: block.header.timestamp,
-                last_message_kind: block_proposal_kind.to_string(),
-                last_section_count: block.body.sections.len(),
-            }
-        }
+        ConsensusMessage::BlockProposal { block } => ConsensusSnapshot {
+            network_id: block.header.network_id,
+            last_parent_hash_hex: hex::encode(block.header.parent_hash),
+            last_block_hash_hex: hex::encode(block.hash),
+            last_proposer_hex: hex::encode(block.header.proposer),
+            last_round: block.header.round,
+            last_timestamp_unix: block.header.timestamp,
+            last_message_kind: block_proposal_kind.to_string(),
+            last_section_count: block.body.sections.len(),
+        },
         ConsensusMessage::Vote(vote) => ConsensusSnapshot {
             network_id: vote.context.network_id,
             last_parent_hash_hex: hex::encode([0u8; 32]),
@@ -363,6 +360,31 @@ fn snapshot_from_message_kind(
             last_section_count: 0,
         },
     }
+}
+
+pub(super) fn block_envelope_hash_hex(block: &Block) -> Result<String, AppError> {
+    let payload = serde_json::to_vec(block).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::OutputEncodingFailed,
+            "Failed to serialize block payload for historical hash derivation",
+            error,
+        )
+    })?;
+    canonical_block_envelope_hash_hex(
+        block.header.height,
+        &hex::encode(block.header.parent_hash),
+        &payload,
+    )
+    .map_err(|error| {
+        AppError::with_source(
+            ErrorCode::LedgerInvalid,
+            format!(
+                "Failed to derive historical block hash at height {}",
+                block.header.height
+            ),
+            error,
+        )
+    })
 }
 
 pub(super) fn proposer_key_from_material(key_material: &KeyMaterial) -> Result<[u8; 32], AppError> {

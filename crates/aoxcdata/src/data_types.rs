@@ -24,7 +24,11 @@ impl BlockEnvelope {
         validate_hash_hex("block_hash_hex", &self.block_hash_hex)?;
         validate_hash_hex("parent_hash_hex", &self.parent_hash_hex)?;
 
-        let expected = canonical_block_hash_hex(self.height, &self.parent_hash_hex, &self.payload)?;
+        let expected = canonical_block_envelope_hash_hex(
+            self.height,
+            &self.parent_hash_hex,
+            &self.payload,
+        )?;
         if self.block_hash_hex != expected {
             return Err(DataError::Integrity(format!(
                 "block hash mismatch: expected '{}', got '{}'",
@@ -207,4 +211,3 @@ impl BlobStore for FsCasBlobStore {
         Ok(block)
     }
 }
-
