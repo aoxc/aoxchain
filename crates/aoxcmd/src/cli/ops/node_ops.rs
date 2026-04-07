@@ -92,6 +92,7 @@ fn print_node_live_log_header(
     );
 
     println!("🚀 [{}] node-run startup", now);
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━ NODE BOOT CONTEXT ━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!(
         "🧭 mode=live rounds={} continuous={} interval_secs={} tx_prefix={} log_level={}",
         rounds, continuous, interval_secs, tx_prefix, log_level
@@ -131,6 +132,8 @@ fn print_node_live_log_header(
         "📋 {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:>7} | {:<17} | {:<12}",
         "round", "timestamp", "height", "blocks", "sec", "c_round", "block", "tx"
     );
+    println!("💡 tip: use --log-level debug for parent hash and unix timestamp details");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━ LIVE ROUND STREAM ━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!(
         "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
     );
@@ -228,6 +231,10 @@ fn short_hash(value: &str) -> String {
         return value.to_string();
     }
     format!("{}…{}", &value[..8], &value[value.len() - 8..])
+}
+
+fn format_status(enabled: bool) -> &'static str {
+    if enabled { "enabled" } else { "disabled" }
 }
 
 pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
