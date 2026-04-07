@@ -4,7 +4,6 @@
 
 use crate::identity::certificate::Certificate;
 
-use libcrux_ml_dsa::constants::{SIGNATURE_SIZE, SIGNING_KEY_SIZE, VERIFICATION_KEY_SIZE};
 use libcrux_ml_dsa::ml_dsa_65::{
     MLDSA65Signature as DetachedSignature, MLDSA65SigningKey as SecretKey,
     MLDSA65VerificationKey as PublicKey, generate_key_pair, sign, verify,
@@ -35,6 +34,12 @@ const CA_SELF_TEST_DOMAIN: &[u8] = b"AOXC/IDENTITY/CA/SELF_TEST/V1";
 /// Domain used for CA key identifier derivation.
 const CA_KEY_ID_DOMAIN: &[u8] = b"AOXC/IDENTITY/CA/KEY_ID/V1";
 const ML_DSA_CONTEXT: &[u8] = b"";
+/// FIPS 204 ML-DSA-65 detached signature size (bytes).
+const ML_DSA_65_SIGNATURE_SIZE: usize = 3309;
+/// FIPS 204 ML-DSA-65 signing key size (bytes).
+const ML_DSA_65_SIGNING_KEY_SIZE: usize = 4032;
+/// FIPS 204 ML-DSA-65 verification key size (bytes).
+const ML_DSA_65_VERIFICATION_KEY_SIZE: usize = 1952;
 
 /// Maximum accepted issuer identifier length.
 ///
@@ -405,28 +410,28 @@ fn validate_issuer_identifier(value: &str) -> Result<(), String> {
 }
 
 fn public_key_from_bytes(bytes: &[u8]) -> Result<PublicKey, String> {
-    if bytes.len() != VERIFICATION_KEY_SIZE {
+    if bytes.len() != ML_DSA_65_VERIFICATION_KEY_SIZE {
         return Err("CA_PUBLIC_KEY_INVALID: stored public key bytes are invalid".to_string());
     }
-    let mut key = [0u8; VERIFICATION_KEY_SIZE];
+    let mut key = [0u8; ML_DSA_65_VERIFICATION_KEY_SIZE];
     key.copy_from_slice(bytes);
     Ok(PublicKey::new(key))
 }
 
 fn secret_key_from_bytes(bytes: &[u8]) -> Result<SecretKey, String> {
-    if bytes.len() != SIGNING_KEY_SIZE {
+    if bytes.len() != ML_DSA_65_SIGNING_KEY_SIZE {
         return Err("CA_SECRET_KEY_INVALID: stored secret key bytes are invalid".to_string());
     }
-    let mut key = [0u8; SIGNING_KEY_SIZE];
+    let mut key = [0u8; ML_DSA_65_SIGNING_KEY_SIZE];
     key.copy_from_slice(bytes);
     Ok(SecretKey::new(key))
 }
 
 fn signature_from_bytes(bytes: &[u8]) -> Result<DetachedSignature, String> {
-    if bytes.len() != SIGNATURE_SIZE {
+    if bytes.len() != ML_DSA_65_SIGNATURE_SIZE {
         return Err("invalid detached signature length".to_string());
     }
-    let mut signature = [0u8; SIGNATURE_SIZE];
+    let mut signature = [0u8; ML_DSA_65_SIGNATURE_SIZE];
     signature.copy_from_slice(bytes);
     Ok(DetachedSignature::new(signature))
 }
@@ -468,6 +473,17 @@ mod tests {
             .expect("certificate signing must succeed");
 
         assert!(ca.verify_certificate(&signed));
+    }
+
+    #[test]
+    fn detached_signature_size_matches_expected_constant() {
+        let ca = CertificateAuthority::new("AOXC-ROOT-CA");
+        let cert = sample_certificate();
+        let signed = ca
+            .sign_certificate(cert)
+            .expect("certificate signing must succeed");
+
+        assert_eq!(signed.signature.len(), ML_DSA_65_SIGNATURE_SIZE);
     }
 
     #[test]

@@ -3,8 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-use pqcrypto_mldsa::mldsa65::{PublicKey as DilithiumPublicKey, SignedMessage, open};
-use pqcrypto_traits::sign::{PublicKey as _, SignedMessage as _};
+use libcrux_ml_dsa::ml_dsa_65::{MLDSA65Signature, MLDSA65VerificationKey, verify};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -14,8 +13,15 @@ use crate::validator::ValidatorId;
 const VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_VOTE_SIGNING_V1";
 const AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_AUTHENTICATED_VOTE_V1";
 pub const SIGNATURE_SCHEME_ED25519: u16 = 1;
-pub const SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3: u16 = 2;
-pub const SIGNATURE_SCHEME_DILITHIUM3: u16 = 3;
+pub const SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65: u16 = 2;
+pub const SIGNATURE_SCHEME_MLDSA65: u16 = 3;
+pub const SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3: u16 = SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65;
+pub const SIGNATURE_SCHEME_DILITHIUM3: u16 = SIGNATURE_SCHEME_MLDSA65;
+const ML_DSA_CONTEXT: &[u8] = b"";
+/// FIPS 204 ML-DSA-65 detached signature size (bytes).
+const ML_DSA_65_SIGNATURE_SIZE: usize = 3309;
+/// FIPS 204 ML-DSA-65 verification key size (bytes).
+const ML_DSA_65_VERIFICATION_KEY_SIZE: usize = 1952;
 
 /// Vote kind classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -70,9 +76,9 @@ pub enum ConsensusIdentityProfile {
 impl VoteAuthenticationContext {
     pub fn identity_profile(&self) -> Result<ConsensusIdentityProfile, VoteAuthenticationError> {
         match self.signature_scheme {
-            SIGNATURE_SCHEME_ED25519 => Ok(ConsensusIdentityProfile::Classical),
-            SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 => Ok(ConsensusIdentityProfile::Hybrid),
-            SIGNATURE_SCHEME_DILITHIUM3 => Ok(ConsensusIdentityProfile::PostQuantum),
+            self::SIGNATURE_SCHEME_ED25519 => Ok(ConsensusIdentityProfile::Classical),
+            self::SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 => Ok(ConsensusIdentityProfile::Hybrid),
+            self::SIGNATURE_SCHEME_MLDSA65 => Ok(ConsensusIdentityProfile::PostQuantum),
             _ => Err(VoteAuthenticationError::UnknownSignatureScheme),
         }
     }
@@ -196,12 +202,12 @@ impl AuthenticatedVote {
 
         let signing_bytes = self.signing_bytes();
         match self.context.signature_scheme {
-            SIGNATURE_SCHEME_ED25519 => self.verify_ed25519_only(&signing_bytes)?,
-            SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 => {
+            self::SIGNATURE_SCHEME_ED25519 => self.verify_ed25519_only(&signing_bytes)?,
+            self::SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 => {
                 self.verify_ed25519_only(&signing_bytes)?;
-                self.verify_dilithium_only(&signing_bytes)?;
+                self.verify_mldsa65_only(&signing_bytes)?;
             }
-            SIGNATURE_SCHEME_DILITHIUM3 => self.verify_dilithium_only(&signing_bytes)?,
+            self::SIGNATURE_SCHEME_MLDSA65 => self.verify_mldsa65_only(&signing_bytes)?,
             _ => return Err(VoteAuthenticationError::UnsupportedVerifierForSignatureScheme),
         }
 
@@ -220,19 +226,23 @@ impl AuthenticatedVote {
             .map_err(|_| VoteAuthenticationError::InvalidSignature)
     }
 
-    fn verify_dilithium_only(&self, signing_bytes: &[u8]) -> Result<(), VoteAuthenticationError> {
+    fn verify_mldsa65_only(&self, signing_bytes: &[u8]) -> Result<(), VoteAuthenticationError> {
         let public_key_bytes = self
             .pq_public_key
             .as_deref()
             .ok_or(VoteAuthenticationError::MissingPostQuantumPublicKey)?;
-        let public_key = DilithiumPublicKey::from_bytes(public_key_bytes)
-            .map_err(|_| VoteAuthenticationError::MalformedPublicKey)?;
+        if public_key_bytes.len() != ML_DSA_65_VERIFICATION_KEY_SIZE {
+            return Err(VoteAuthenticationError::MalformedPublicKey);
+        }
+        let mut public_key_array = [0u8; ML_DSA_65_VERIFICATION_KEY_SIZE];
+        public_key_array.copy_from_slice(public_key_bytes);
+        let public_key = MLDSA65VerificationKey::new(public_key_array);
 
         let signature_bytes = self
             .pq_signature
             .as_deref()
             .or({
-                if self.context.signature_scheme == SIGNATURE_SCHEME_DILITHIUM3 {
+                if self.context.signature_scheme == self::SIGNATURE_SCHEME_MLDSA65 {
                     Some(self.signature.as_slice())
                 } else {
                     None
@@ -240,18 +250,14 @@ impl AuthenticatedVote {
             })
             .ok_or(VoteAuthenticationError::MissingPostQuantumSignature)?;
 
-        let mut signed_message_bytes =
-            Vec::with_capacity(signature_bytes.len() + signing_bytes.len());
-        signed_message_bytes.extend_from_slice(signature_bytes);
-        signed_message_bytes.extend_from_slice(signing_bytes);
-        let signed_message = SignedMessage::from_bytes(&signed_message_bytes)
-            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
-
-        let opened = open(&signed_message, &public_key)
-            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
-        if opened.as_slice() != signing_bytes {
+        if signature_bytes.len() != ML_DSA_65_SIGNATURE_SIZE {
             return Err(VoteAuthenticationError::InvalidSignature);
         }
+        let mut signature_array = [0u8; ML_DSA_65_SIGNATURE_SIZE];
+        signature_array.copy_from_slice(signature_bytes);
+        let signature = MLDSA65Signature::new(signature_array);
+        verify(&public_key, signing_bytes, ML_DSA_CONTEXT, &signature)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
 
         Ok(())
     }
@@ -264,16 +270,16 @@ fn is_zero_hash32(value: &[u8; 32]) -> bool {
 fn is_known_signature_scheme(signature_scheme: u16) -> bool {
     matches!(
         signature_scheme,
-        SIGNATURE_SCHEME_ED25519
-            | SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3
-            | SIGNATURE_SCHEME_DILITHIUM3
+        self::SIGNATURE_SCHEME_ED25519
+            | self::SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65
+            | self::SIGNATURE_SCHEME_MLDSA65
     )
 }
 
 fn is_post_quantum_hardened_scheme(signature_scheme: u16) -> bool {
     matches!(
         signature_scheme,
-        SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 | SIGNATURE_SCHEME_DILITHIUM3
+        self::SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 | self::SIGNATURE_SCHEME_MLDSA65
     )
 }
 
