@@ -1,4 +1,99 @@
 use super::*;
+use std::io::{self, Write};
+
+fn prompt_password_twice(context: &str) -> Result<String, AppError> {
+    let mut first = String::new();
+    let mut second = String::new();
+
+    print!("Enter password for {context}: ");
+    io::stdout().flush().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to flush stdout for password prompt",
+            error,
+        )
+    })?;
+    io::stdin().read_line(&mut first).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to read password input",
+            error,
+        )
+    })?;
+
+    print!("Confirm password for {context}: ");
+    io::stdout().flush().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to flush stdout for password confirmation prompt",
+            error,
+        )
+    })?;
+    io::stdin().read_line(&mut second).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to read password confirmation input",
+            error,
+        )
+    })?;
+
+    let first = first.trim().to_string();
+    let second = second.trim().to_string();
+    if first.is_empty() {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Password must not be empty.",
+        ));
+    }
+    if first != second {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Password confirmation mismatch.",
+        ));
+    }
+    Ok(first)
+}
+
+fn resolve_or_prompt_password(args: &[String], context: &str) -> Result<String, AppError> {
+    if let Some(value) = arg_value(args, "--password") {
+        let password = value.trim().to_string();
+        if password.is_empty() {
+            return Err(AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Password must not be empty.",
+            ));
+        }
+        Ok(password)
+    } else {
+        prompt_password_twice(context)
+    }
+}
+
+fn node_runtime_summary(
+    topology_role: String,
+    bootstrap: ProfileBootstrapSummary,
+) -> TopologyBootstrapNodeSummary {
+    let rpc_url = format!("http://{}:{}", bootstrap.bind_host, bootstrap.rpc_port);
+    let metrics_url = format!(
+        "http://{}:{}/metrics",
+        bootstrap.bind_host, bootstrap.prometheus_port
+    );
+    let start_command = format!("aoxc node start --home {}", bootstrap.home_dir);
+    let query_commands = vec![
+        format!("aoxc query network peers --home {}", bootstrap.home_dir),
+        format!("aoxc query chain status --home {}", bootstrap.home_dir),
+        format!("aoxc api status --home {}", bootstrap.home_dir),
+    ];
+
+    TopologyBootstrapNodeSummary {
+        topology_role,
+        bootstrap,
+        rpc_url,
+        metrics_url,
+        start_command,
+        query_commands,
+    }
+}
 
 pub fn cmd_config_init(args: &[String]) -> Result<(), AppError> {
     let home = resolve_home()?;
@@ -142,6 +237,81 @@ pub fn cmd_dual_profile_bootstrap(args: &[String]) -> Result<(), AppError> {
         output_dir: output_dir.display().to_string(),
         profiles: vec![mainnet, testnet],
         launch_hint: "Use the generated profile directories with AOXC runtime launch surfaces.",
+    };
+
+    emit_serialized(&result, output_format(args))
+}
+
+pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
+    let topology_mode = arg_value(args, "--mode").unwrap_or_else(|| "single".to_string());
+    let password = parse_required_text_arg(args, "--password", false, "topology bootstrap")?;
+    let name_prefix = parse_required_or_default_text_arg(args, "--name-prefix", "validator")?;
+    let output_dir = arg_value(args, "--output-dir")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| bootstrap_root().join("topology-bootstrap"));
+
+    let (profile, nodes, launch_hint): (
+        EnvironmentProfile,
+        Vec<TopologyBootstrapNodeSummary>,
+        &'static str,
+    ) = match topology_mode.as_str() {
+        "single" => {
+            let profile = EnvironmentProfile::parse(
+                &arg_value(args, "--profile").unwrap_or_else(|| "testnet".to_string()),
+            )?;
+            let operator_name = format!("{name_prefix}-01");
+            let bootstrap = bootstrap_profile_directory(
+                &output_dir.join("node-01"),
+                profile,
+                &operator_name,
+                &password,
+            )?;
+            (
+                profile,
+                vec![TopologyBootstrapNodeSummary {
+                    topology_role: "single-node".to_string(),
+                    bootstrap,
+                }],
+                "Single-node topology generated. Use `aoxc node start --home <node-home>` to launch.",
+            )
+        }
+        "mainchain-4" => {
+            let mut nodes = Vec::with_capacity(4);
+            for ordinal in 1..=4u16 {
+                let operator_name = format!("{name_prefix}-{:02}", ordinal);
+                let bootstrap = bootstrap_profile_directory_with_port_offset(
+                    &output_dir.join(format!("node-{:02}", ordinal)),
+                    EnvironmentProfile::Mainnet,
+                    &operator_name,
+                    &password,
+                    (ordinal - 1) * 10,
+                )?;
+                nodes.push(TopologyBootstrapNodeSummary {
+                    topology_role: format!("mainchain-validator-{ordinal}"),
+                    bootstrap,
+                });
+            }
+            (
+                EnvironmentProfile::Mainnet,
+                nodes,
+                "Four-node mainchain topology generated. Start each node with its dedicated --home directory.",
+            )
+        }
+        _ => {
+            return Err(AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Unsupported --mode. Use --mode single or --mode mainchain-4.",
+            ));
+        }
+    };
+
+    let result = TopologyBootstrapResult {
+        topology_mode,
+        output_dir: output_dir.display().to_string(),
+        profile: profile.as_str().to_string(),
+        node_count: nodes.len(),
+        nodes,
+        launch_hint,
     };
 
     emit_serialized(&result, output_format(args))
