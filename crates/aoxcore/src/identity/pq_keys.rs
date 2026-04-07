@@ -35,11 +35,8 @@ const AOXC_PQ_FINGERPRINT_DOMAIN: &[u8] = b"AOXC/IDENTITY/PQ_KEYS/FINGERPRINT/V1
 /// separated helpers below where protocol binding matters.
 const AOXC_PQ_SIGNING_DOMAIN: &[u8] = b"AOXC/IDENTITY/PQ_KEYS/SIGNED_MESSAGE/V1";
 const ML_DSA_CONTEXT: &[u8] = b"";
-/// FIPS 204 ML-DSA-65 detached signature size (bytes).
 const ML_DSA_65_SIGNATURE_SIZE: usize = 3309;
-/// FIPS 204 ML-DSA-65 signing key size (bytes).
 const ML_DSA_65_SIGNING_KEY_SIZE: usize = 4032;
-/// FIPS 204 ML-DSA-65 verification key size (bytes).
 const ML_DSA_65_VERIFICATION_KEY_SIZE: usize = 1952;
 /// Short fingerprint output length in bytes.
 const PQ_FINGERPRINT_LEN: usize = 8;
