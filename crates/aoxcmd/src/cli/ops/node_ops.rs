@@ -80,19 +80,59 @@ fn print_node_live_log_header(
 ) -> Result<(), AppError> {
     let now = chrono::Utc::now().to_rfc3339();
     let db_path = lifecycle::state_path()?;
+    let settings = effective_settings_for_ops()?;
+    let state = lifecycle::load_state()?;
+    let rpc_url = format!(
+        "http://{}:{}",
+        settings.network.bind_host, settings.network.rpc_port
+    );
+    let metrics_url = format!(
+        "http://{}:{}/metrics",
+        settings.network.bind_host, settings.telemetry.prometheus_port
+    );
 
     println!("🚀 [{}] node-run startup", now);
     println!(
         "🧭 mode=live rounds={} continuous={} interval_secs={} tx_prefix={} log_level={}",
         rounds, continuous, interval_secs, tx_prefix, log_level
     );
-    println!("🗄️  state_db={}", db_path.display());
     println!(
-        "📋 {:>5} | {:<25} | {:>8} | {:>8} | {:>8} | {:<12}",
-        "round", "timestamp", "height", "blocks", "sections", "tx"
+        "🌐 profile={} bind_host={} p2p={} rpc={} metrics={}",
+        settings.profile,
+        settings.network.bind_host,
+        settings.network.p2p_port,
+        settings.network.rpc_port,
+        settings.telemetry.prometheus_port
     );
     println!(
-        "────────────────────────────────────────────────────────────────────────────────────────"
+        "🧱 boot height={} produced_blocks={} network_id={} last_round={}",
+        state.current_height,
+        state.produced_blocks,
+        state.consensus.network_id,
+        state.consensus.last_round
+    );
+    println!(
+        "🔐 key_state={} fingerprint={}",
+        if state.key_material.operational_state.is_empty() {
+            "unknown"
+        } else {
+            state.key_material.operational_state.as_str()
+        },
+        if state.key_material.bundle_fingerprint.is_empty() {
+            "unavailable"
+        } else {
+            state.key_material.bundle_fingerprint.as_str()
+        }
+    );
+    println!("🔌 rpc_url={} metrics_url={}", rpc_url, metrics_url);
+    println!("🗄️  state_db={}", db_path.display());
+    println!("💡 tip: canlı akışta parent hash için --log-level debug kullanabilirsiniz");
+    println!(
+        "📋 {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:>7} | {:<17} | {:<12}",
+        "round", "timestamp", "height", "blocks", "sec", "c_round", "block", "tx"
+    );
+    println!(
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
     );
     Ok(())
 }
@@ -147,33 +187,35 @@ fn run_continuous_rounds(
 
 fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
     let timestamp = chrono::DateTime::<chrono::Utc>::from_timestamp(entry.timestamp_unix as i64, 0)
-        .map(|dt| dt.to_rfc3339())
-        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+        .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string());
 
+    let block_hash = short_hash(&entry.block_hash_hex);
     println!(
-        "✅ {:>5} | {:<25} | {:>8} | {:>8} | {:>8} | {:<12}",
+        "✅ {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:>7} | {:<17} | {:<12}",
         entry.round_index,
         timestamp,
         entry.height,
         entry.produced_blocks,
         entry.section_count,
+        entry.consensus_round,
+        block_hash,
         entry.tx_id
     );
 
     if log_level == "debug" {
         println!(
-            "    🔍 round={} consensus_round={} block={} parent={}",
+            "    🔍 round={} parent={} timestamp_unix={}",
             entry.round_index,
-            entry.consensus_round,
-            short_hash(&entry.block_hash_hex),
-            short_hash(&entry.parent_hash_hex)
+            short_hash(&entry.parent_hash_hex),
+            entry.timestamp_unix
         );
     }
 }
 
 fn print_node_live_log_footer(state: &crate::node::state::NodeState) {
     println!(
-        "────────────────────────────────────────────────────────────────────────────────────────"
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
     );
     println!(
         "🏁 completed height={} produced_blocks={} updated_at={}",
