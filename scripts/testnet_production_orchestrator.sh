@@ -8,8 +8,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 AOXC_BIN="${AOXC_BIN:-${REPO_ROOT}/target/release/aoxc}"
 ROOT_DIR="${AOXC_TESTNET_ROOT:-${HOME}/.aoxc-testnet-prod}"
-HOME_ROOT="${AOXC_TESTNET_HOME_ROOT:-}"
-DATA_ROOT="${AOXC_TESTNET_DATA_ROOT:-}"
 PROFILE="testnet"
 VALIDATORS="${AOXC_TESTNET_VALIDATORS:-7}"
 BOOTNODES="${AOXC_TESTNET_BOOTNODES:-3}"
@@ -31,8 +29,6 @@ Use --execute to run bootstrap/start commands locally for all generated nodes.
 
 Options:
   --root <path>                 Testnet root directory (default: ${ROOT_DIR})
-  --home-root <path>            Base directory for per-node AOXC home paths
-  --data-root <path>            Base directory for per-node runtime data paths
   --validators <n>              Validator count, minimum 3 for testnet (default: ${VALIDATORS})
   --bootnodes <n>               Bootnode count, minimum 2 for testnet (default: ${BOOTNODES})
   --rpc <n>                     RPC node count (default: ${RPC_NODES})
@@ -59,8 +55,6 @@ require_uint() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --root) ROOT_DIR="$2"; shift 2 ;;
-    --home-root) HOME_ROOT="$2"; shift 2 ;;
-    --data-root) DATA_ROOT="$2"; shift 2 ;;
     --validators) VALIDATORS="$2"; shift 2 ;;
     --bootnodes) BOOTNODES="$2"; shift 2 ;;
     --rpc) RPC_NODES="$2"; shift 2 ;;
@@ -102,13 +96,6 @@ fi
 
 mkdir -p "${ROOT_DIR}/nodes" "${ROOT_DIR}/plans" "${ROOT_DIR}/logs"
 
-if [[ -n "${HOME_ROOT}" ]]; then
-  mkdir -p "${HOME_ROOT}"
-fi
-if [[ -n "${DATA_ROOT}" ]]; then
-  mkdir -p "${DATA_ROOT}"
-fi
-
 node_file="${ROOT_DIR}/plans/nodes.csv"
 command_file="${ROOT_DIR}/plans/commands.sh"
 summary_file="${ROOT_DIR}/plans/summary.txt"
@@ -126,28 +113,14 @@ create_node() {
   local name="$1"
   local role="$2"
   local home="${ROOT_DIR}/nodes/${name}"
-  local data_home=""
-
-  if [[ -n "${HOME_ROOT}" ]]; then
-    home="${HOME_ROOT}/${name}"
-  fi
-  if [[ -n "${DATA_ROOT}" ]]; then
-    data_home="${DATA_ROOT}/${name}"
-  fi
 
   mkdir -p "${home}"
-  if [[ -n "${data_home}" ]]; then
-    mkdir -p "${data_home}/runtime" "${data_home}/logs"
-    rm -rf "${home}/runtime" "${home}/logs"
-    ln -sfn "${data_home}/runtime" "${home}/runtime"
-    ln -sfn "${data_home}/logs" "${home}/logs"
-  fi
   printf '%s,%s,%s\n' "${name}" "${role}" "${home}" >> "${node_file}"
 
   cat >> "${command_file}" <<SCRIPT
 mkdir -p "${home}"
-AOXC_HOME="${home}" "${AOXC_BIN}" --home "${home}" production-bootstrap --profile "${PROFILE}" --password "${PASSWORD}" --name "${name}" --bind-host "${BIND_HOST}"
-AOXC_HOME="${home}" "${AOXC_BIN}" --home "${home}" node start --home "${home}"
+AOXC_HOME="${home}" "${AOXC_BIN}" production-bootstrap --profile "${PROFILE}" --password "${PASSWORD}" --name "${name}" --bind-host "${BIND_HOST}"
+AOXC_HOME="${home}" "${AOXC_BIN}" node start --home "${home}"
 SCRIPT
 }
 
@@ -177,8 +150,6 @@ cat > "${summary_file}" <<SUMMARY
 AOXC production-grade testnet plan
 created_utc=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)
 root=${ROOT_DIR}
-home_root=${HOME_ROOT}
-data_root=${DATA_ROOT}
 profile=${PROFILE}
 validators=${VALIDATORS}
 bootnodes=${BOOTNODES}

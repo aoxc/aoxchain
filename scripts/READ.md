@@ -117,7 +117,6 @@ This script supports:
 
 - fail-closed testnet topology sizing (`validators >= 3`, `bootnodes >= 2`),
 - production-oriented default topology generation (validators, sentries, bootnodes, RPC, archive),
-- explicit home/data placement (`--home-root`, `--data-root`) for mounted storage layouts,
 - deterministic node inventory output (`plans/nodes.csv`),
 - deterministic command generation (`plans/commands.sh`) for bootstrap and start,
 - optional local execution mode (`--execute`) when an AOXC binary is available.
