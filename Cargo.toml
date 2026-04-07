@@ -28,7 +28,7 @@ version = "0.2.0-alpha.1"
 edition = "2024"
 authors = ["aoxchain@gmail.com"]
 license = "MIT"
-rust-version = "1.85"
+rust-version = "1.94.1"
 repository = "https://github.com/aoxchain/aoxchain"
 description = "AOXChain institutional-grade Rust workspace for deterministic blockchain execution and operator tooling."
 

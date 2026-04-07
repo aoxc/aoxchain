@@ -16,9 +16,7 @@ pub const SIGNATURE_SCHEME_ED25519: u16 = 1;
 pub const SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3: u16 = 2;
 pub const SIGNATURE_SCHEME_DILITHIUM3: u16 = 3;
 const ML_DSA_CONTEXT: &[u8] = b"";
-/// FIPS 204 ML-DSA-65 detached signature size (bytes).
 const ML_DSA_65_SIGNATURE_SIZE: usize = 3309;
-/// FIPS 204 ML-DSA-65 verification key size (bytes).
 const ML_DSA_65_VERIFICATION_KEY_SIZE: usize = 1952;
 
 /// Vote kind classification.
