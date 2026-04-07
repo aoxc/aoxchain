@@ -130,13 +130,19 @@ Use `topology-bootstrap` when you want one-command generation for single-node or
   --password '<strong-password>' \
   --allocation-preset validator-heavy \
   --output-dir /tmp/aoxc-topology-mainchain4
+
+# Devnet four-node layout:
+./target/release/aoxc topology-bootstrap \
+  --mode devnet-4 \
+  --password '<strong-password>' \
+  --output-dir /tmp/aoxc-topology-devnet4
 ```
 
 What this provides:
 - deterministic per-node home directories and identity materials,
 - per-node RPC/metrics/start/query hints in output,
 - preset-based genesis allocation plans (`minimal`, `balanced`, `validator-heavy`),
-- mainchain-4 port-offset handling for same-host multi-node runs.
+- mainchain-4 and devnet-4 port-offset handling for same-host multi-node runs.
 
 ---
 
