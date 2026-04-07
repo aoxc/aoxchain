@@ -1,11 +1,11 @@
 use crate::block::PQ_MANDATORY_START_EPOCH;
 use ed25519_dalek::{Signer, SigningKey};
-use pqcrypto_mldsa::mldsa65::{keypair as dilithium_keypair, sign as dilithium_sign};
-use pqcrypto_traits::sign::{PublicKey as _, SignedMessage as _};
+use libcrux_ml_dsa::ml_dsa_65::{generate_key_pair, sign as mldsa_sign};
+use rand::random;
 
 use super::{
-    AuthenticatedVote, ConsensusIdentityProfile, SIGNATURE_SCHEME_DILITHIUM3,
-    SIGNATURE_SCHEME_ED25519, SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3, SignedVote, Vote,
+    AuthenticatedVote, ConsensusIdentityProfile, SIGNATURE_SCHEME_ED25519,
+    SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65, SIGNATURE_SCHEME_MLDSA65, SignedVote, Vote,
     VoteAuthenticationContext, VoteAuthenticationError, VoteKind,
 };
 
@@ -193,7 +193,7 @@ fn authenticated_vote_requires_pq_hardened_scheme_after_cutover_epoch() {
 #[test]
 fn authenticated_vote_accepts_hybrid_scheme_after_cutover_epoch() {
     let signing_key = SigningKey::from_bytes(&[7u8; 32]);
-    let (pq_public_key, pq_secret_key) = dilithium_keypair();
+    let pq_keys = generate_key_pair(random());
     let vote = Vote {
         voter: signing_key.verifying_key().to_bytes(),
         block_hash: [1u8; 32],
@@ -208,14 +208,20 @@ fn authenticated_vote_accepts_hybrid_scheme_after_cutover_epoch() {
             epoch: PQ_MANDATORY_START_EPOCH,
             validator_set_root: [5u8; 32],
             pq_attestation_root: [11u8; 32],
-            signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
+            signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65,
         },
         signature: Vec::new(),
-        pq_public_key: Some(pq_public_key.as_bytes().to_vec()),
+        pq_public_key: Some(pq_keys.verification_key.as_ref().to_vec()),
         pq_signature: None,
     };
-    let pq_signature = dilithium_sign(&authenticated.signing_bytes(), &pq_secret_key);
-    authenticated.pq_signature = Some(pq_signature.as_bytes().to_vec());
+    let pq_signature = mldsa_sign(
+        &pq_keys.signing_key,
+        &authenticated.signing_bytes(),
+        b"",
+        random(),
+    )
+    .expect("ML-DSA sign should work for valid key");
+    authenticated.pq_signature = Some(pq_signature.as_ref().to_vec());
     authenticated.signature = signing_key
         .sign(&authenticated.signing_bytes())
         .to_bytes()
@@ -241,7 +247,7 @@ fn authenticated_vote_rejects_hybrid_without_pq_signature() {
             epoch: PQ_MANDATORY_START_EPOCH,
             validator_set_root: [5u8; 32],
             pq_attestation_root: [11u8; 32],
-            signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
+            signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65,
         },
         signature: Vec::new(),
         pq_public_key: None,
@@ -260,7 +266,7 @@ fn authenticated_vote_rejects_hybrid_without_pq_signature() {
 
 #[test]
 fn authenticated_vote_accepts_dilithium_only_scheme() {
-    let (pq_public_key, pq_secret_key) = dilithium_keypair();
+    let pq_keys = generate_key_pair(random());
     let vote = Vote {
         voter: [7u8; 32],
         block_hash: [1u8; 32],
@@ -275,15 +281,21 @@ fn authenticated_vote_accepts_dilithium_only_scheme() {
             epoch: PQ_MANDATORY_START_EPOCH,
             validator_set_root: [5u8; 32],
             pq_attestation_root: [11u8; 32],
-            signature_scheme: SIGNATURE_SCHEME_DILITHIUM3,
+            signature_scheme: SIGNATURE_SCHEME_MLDSA65,
         },
         signature: Vec::new(),
-        pq_public_key: Some(pq_public_key.as_bytes().to_vec()),
+        pq_public_key: Some(pq_keys.verification_key.as_ref().to_vec()),
         pq_signature: None,
     };
 
-    let pq_signature = dilithium_sign(&authenticated.signing_bytes(), &pq_secret_key);
-    authenticated.signature = pq_signature.as_bytes().to_vec();
+    let pq_signature = mldsa_sign(
+        &pq_keys.signing_key,
+        &authenticated.signing_bytes(),
+        b"",
+        random(),
+    )
+    .expect("ML-DSA sign should work for valid key");
+    authenticated.signature = pq_signature.as_ref().to_vec();
 
     assert!(authenticated.verify().is_ok());
 }
@@ -297,11 +309,11 @@ fn vote_auth_context_maps_scheme_to_identity_profile() {
         signature_scheme: SIGNATURE_SCHEME_ED25519,
     };
     let hybrid = VoteAuthenticationContext {
-        signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
+        signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65,
         ..classical
     };
     let post_quantum = VoteAuthenticationContext {
-        signature_scheme: SIGNATURE_SCHEME_DILITHIUM3,
+        signature_scheme: SIGNATURE_SCHEME_MLDSA65,
         ..classical
     };
 
@@ -337,7 +349,7 @@ fn authenticated_vote_rejects_hybrid_profile_without_pq_attestation_root() {
             epoch: 0,
             validator_set_root: [5u8; 32],
             pq_attestation_root: [0u8; 32],
-            signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
+            signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65,
         },
         signature: Vec::new(),
         pq_public_key: None,
