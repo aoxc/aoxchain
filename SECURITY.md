@@ -1,73 +1,50 @@
-# Security Policy
+# AOXChain Protocol: Vulnerability Disclosure & Security Governance Policy
 
-## Purpose
+## 1. Executive Summary
+This document delineates the formal framework for the **Coordinated Vulnerability Disclosure (CVD)** process within the AOXChain ecosystem. It defines the mandatory protocols for the identification, private reporting, and remediation of security-critical anomalies to ensure the integrity of the decentralized ledger and its operational stakeholders.
 
-This policy defines the private reporting process, triage expectations, and disclosure handling model for security issues affecting the AOXChain repository and its associated operational components.
+## 2. Mandatory Private Disclosure Protocol
+To mitigate systemic risk and prevent the premature weaponization of security findings, all suspected vulnerabilities must be sequestered from public discourse. Public disclosure via issue trackers, pull requests, or social channels prior to containment is strictly prohibited.
 
-## Private Reporting Requirement
+**Authorized Communication Channel:**
+> **Security Liaison:** [admin@aoxcore.com](mailto:admin@aoxcore.com)  
+> *For high-sensitivity telemetry, researchers are encouraged to request an encrypted communication channel.*
 
-Suspected vulnerabilities must not be disclosed through public issue trackers, pull requests, discussions, or other public communication channels prior to coordinated review and containment.
+## 3. Reporting Standards & Evidence Requirements
+To facilitate high-fidelity technical triage, submissions should adhere to the following **Structural Reporting Schema**:
 
-All security findings must be reported privately to:
+*   **Locus of Vulnerability:** Identification of the specific subsystem, interface, or consensus boundary (e.g., `aoxcvm`, `aoxcnet`).
+*   **Exploit Narrative & PoC:** A deterministic reproduction procedure or a high-fidelity proof-of-concept.
+*   **Behavioral Divergence:** A comparative analysis of expected protocol behavior versus the observed anomaly.
+*   **Impact Taxonomy:** Assessment of risks pertaining to **Economic Safety, Liveness, Data Integrity, or Consensus Convergence.**
+*   **Environmental Metadata:** Commit hashes, dependency trees, and network topology assumptions relevant to the finding.
 
-**admin@aoxcore.com**
+## 4. Response Objectives & Service Level Expectations (SLE)
+The AOXChain maintainers operate under a **Good-Faith Execution** model with the following targeted milestones:
 
-## Required Report Contents
+| Phase | Milestone | Target Latency |
+| :--- | :--- | :--- |
+| **Acknowledgment** | Initial receipt confirmation and triage tracking. | < 24 Hours |
+| **Verification** | Technical validation and severity classification. | Prompt Effort |
+| **Containment** | Development of patches, hotfixes, or operational mitigations. | Impact-Weighted |
+| **Disclosure** | Publication of Coordinated Advisory Notes. | Post-Remediation |
 
-To support efficient triage and reproducibility, security reports should include, at minimum:
+## 5. Priority Security Domains (High-Criticality)
+The following vectors are categorized as **Protocol-Critical** and receive expedited review:
+*   **Consensus Integrity:** Violations of safety, liveness, or finality properties.
+*   **Execution Determinism:** State transition failures or VM escape primitives.
+*   **Cryptographic Security:** Vulnerabilities in signature schemes or key rotation lifecycles.
+*   **Network Resilience:** Eclipse attacks, P2P partitioning, or RPC-based DoS vectors.
+*   **Incentive Alignment:** Vulnerabilities affecting governance, funds, or validator trust.
 
-- the affected component, subsystem, interface, or operational boundary;
-- a clear reproduction procedure, proof-of-concept, or exploit narrative;
-- the expected behavior versus the observed behavior;
-- an impact statement covering, where applicable, safety, funds, availability, integrity, confidentiality, or consensus risk;
-- environmental assumptions, version details, commit references, configuration dependencies, or network conditions relevant to reproduction;
-- suggested mitigations or containment options, if known.
+## 6. Coordinated Disclosure & Containment Model
+AOXChain adheres to an **Evidence-Driven Disclosure Philosophy.** Public dissemination of vulnerability data is contingent upon:
+1. Validated reproduction of the reported anomaly.
+2. Availability of verifiable mitigation or containment guidance.
+3. Reasonable opportunity for node operators and stakeholders to implement security updates.
 
-Incomplete reports may still be reviewed, but report quality directly affects triage speed and remediation efficiency.
+## 7. Scope & Inherited Risk Attribution
+This policy encompasses the source code, operational workflows, and trust-sensitive paths maintained within the AOXChain repository. While third-party dependencies and upstream components are outside the project's direct remediation authority, inherited risks will be triaged for ecosystem impact and containment relevance.
 
-## Response Objectives
-
-AOXChain will make a good-faith effort to:
-
-- acknowledge receipt of a security report within 24 hours;
-- perform initial technical triage and severity assessment as promptly as practical;
-- validate impact, affected scope, and exploitability before public disclosure;
-- coordinate remediation, operational containment, and release strategy according to impact class;
-- publish advisory or disclosure notes after reasonable containment has been achieved.
-
-Response timing may vary depending on report complexity, reproducibility, operational exposure, and maintainer availability.
-
-## Priority Security Areas
-
-The following classes of issues are treated as high-priority review areas:
-
-- consensus safety or liveness violations;
-- deterministic execution or state transition failures;
-- signature, key management, or authorization boundary vulnerabilities;
-- RPC, peer-to-peer, or network abuse pathways;
-- privilege escalation, persistence boundary bypass, or integrity compromise;
-- denial-of-service vectors with material operational impact;
-- vulnerabilities that can affect funds, governance, validator trust, or chain continuity.
-
-## Disclosure and Coordination Model
-
-AOXChain follows an evidence-driven and coordinated disclosure approach. Public disclosure may be delayed until one or more of the following conditions are satisfied:
-
-- the issue has been reproduced and validated;
-- practical mitigation or containment guidance is available;
-- affected operators or stakeholders have had a reasonable opportunity to respond where applicable;
-- public disclosure is judged not to create disproportionate additional risk.
-
-## Security Assurance Statement
-
-Security assurance in AOXChain is iterative, evidence-driven, and continuously improved over time. No system, repository, or release should be interpreted as providing an absolute security guarantee.
-
-## Scope and Repository Context
-
-This policy applies to security-relevant issues affecting this repository, including source code, operational workflows, release procedures, and trust-sensitive execution paths directly maintained within the AOXChain project scope.
-
-Third-party dependencies, external infrastructure, and upstream components may introduce inherited risk outside the direct remediation authority of this repository, although such issues may still be triaged for impact and containment relevance.
-
-## License and Liability Context
-
-This repository is provided under the MIT License on an **"as is"** basis, without warranties, guarantees, or liability assumptions by maintainers or contributors, except where required by applicable law.
+## 8. Legal Disclaimer & Liability Limitation
+This repository is provided under the **MIT License** on an **"as is"** basis. This policy does not constitute a contractual warranty or an assumption of liability. Participants interact with the AOXChain protocol at their own risk, subject to the iterative nature of cryptographic security assurance.
