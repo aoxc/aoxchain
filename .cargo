@@ -1,3 +1,17 @@
 [alias]
-# Başına '!' koyduğumuzda Cargo bunun dış bir terminal komutu zinciri olduğunu anlar
-check-all = "!cargo fmt && cargo clippy && cargo deny check && cargo tarpaulin --ignore-tests"
+# --- Full Spectrum Verification (FSV) Pipeline ---
+# Sequence: 
+# 1. Syntactic Consistency (fmt) 
+# 2. Static Analysis & Linting (clippy) 
+# 3. Supply Chain Audit (deny) 
+# 4. Dynamic Analysis & Coverage (tarpaulin)
+check-all = [
+    "!cargo fmt --all --check",
+    "!cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    "!cargo deny check",
+    "!cargo tarpaulin --workspace --timeout 120 --out html"
+]
+
+# --- Rapid Iteration Gate (RIG) ---
+# Optimized for high-frequency local development cycles.
+verify = "!cargo fmt && cargo clippy --workspace -- -D warnings"
