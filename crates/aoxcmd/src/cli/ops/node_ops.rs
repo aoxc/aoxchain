@@ -1,4 +1,6 @@
 use super::*;
+use std::collections::BTreeMap;
+use std::time::Duration;
 
 pub fn cmd_node_bootstrap(args: &[String]) -> Result<(), AppError> {
     bootstrap_operator_home()?;
@@ -42,12 +44,13 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
             live_log_enabled,
             &log_level,
         )?
-    } else if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
-        engine::run_rounds_with_observer(rounds, &tx_prefix, |entry| {
-            print_node_round_line(entry, &log_level);
-        })?
     } else {
-        run_bounded_rounds(rounds, format, live_log_enabled, &log_level, &mut tx_source)?
+        // run_bounded_rounds yerine engine üzerindeki standart observer yapısı kullanılır
+        engine::run_rounds_with_observer(rounds, &tx_prefix, |entry| {
+            if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
+                print_node_round_line(entry, &log_level);
+            }
+        })?
     };
 
     let _ = refresh_runtime_metrics().ok();
@@ -66,7 +69,7 @@ fn default_runtime_tx_id() -> String {
 
 fn print_node_live_log_header(
     rounds: u64,
-    tx_source: &str,
+    tx_prefix: &str, // tx_source yerine tx_prefix olarak düzeltildi
     log_level: &str,
     interval_secs: u64,
     continuous: bool,
@@ -115,7 +118,7 @@ fn run_continuous_rounds(
 ) -> Result<crate::node::state::NodeState, AppError> {
     let mut round_index = 0_u64;
     loop {
-        round_index = round_indexr.saturating_add(1);
+        round_index = round_index.saturating_add(1); // round_indexr hatası düzeltildi
         let tx = format!("{tx_prefix}-{round_index}");
         let state = engine::produce_once(&tx)?;
 
@@ -155,7 +158,7 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
 
     if log_level == "debug" {
         println!(
-            "   🔍 round={} consensus_round={} block={} parent={}",
+            "    🔍 round={} consensus_round={} block={} parent={}",
             entry.round_index,
             entry.consensus_round,
             short_hash(&entry.block_hash_hex),
