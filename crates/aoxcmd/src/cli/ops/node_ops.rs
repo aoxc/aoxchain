@@ -49,7 +49,9 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
             &log_level,
         )?
     } else {
-        // run_bounded_rounds yerine engine üzerindeki standart observer yapısı kullanılır
+        // Corporate/Audit Note:
+        // The bounded execution path intentionally reuses the engine-owned observer
+        // pipeline in order to preserve a single telemetry source of truth.
         engine::run_rounds_with_observer(rounds, &tx_prefix, |entry| {
             if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
                 print_node_round_line(entry, &log_level);
@@ -71,6 +73,13 @@ fn default_runtime_tx_id() -> String {
     format!("runtime-tx-{}", chrono::Utc::now().timestamp())
 }
 
+/// Prints the operator-facing startup banner for `node run`.
+///
+/// Audit Note:
+/// This function is intentionally text-only and side-effect free except for console
+/// emission. It consolidates the node execution posture, endpoint topology, key
+/// readiness, persisted chain state, and runtime mode into a compact operator
+/// summary optimized for incident handling and fast visual inspection.
 fn print_node_live_log_header(
     rounds: u64,
     tx_prefix: &str,
@@ -82,6 +91,7 @@ fn print_node_live_log_header(
     let db_path = lifecycle::state_path()?;
     let settings = effective_settings_for_ops()?;
     let state = lifecycle::load_state()?;
+
     let rpc_url = format!(
         "http://{}:{}",
         settings.network.bind_host, settings.network.rpc_port
@@ -91,52 +101,84 @@ fn print_node_live_log_header(
         settings.network.bind_host, settings.telemetry.prometheus_port
     );
 
-    println!("🚀 [{}] node-run startup", now);
-    println!("━━━━━━━━━━━━━━━━━━━━━━━━━ NODE BOOT CONTEXT ━━━━━━━━━━━━━━━━━━━━━━━━━");
+    let key_state = if state.key_material.operational_state.is_empty() {
+        "unknown"
+    } else {
+        state.key_material.operational_state.as_str()
+    };
+
+    let key_fingerprint = if state.key_material.bundle_fingerprint.is_empty() {
+        "unavailable"
+    } else {
+        state.key_material.bundle_fingerprint.as_str()
+    };
+
+    let execution_mode = if continuous { "continuous" } else { "bounded" };
+    let log_mode = if log_level == "debug" { "debug" } else { "info" };
+    let profile = settings.profile.as_str();
+    let block_hash = short_hash(&state.consensus.last_block_hash_hex);
+    let parent_hash = short_hash(&state.consensus.last_parent_hash_hex);
+
+    println!();
+    println!("🚀 AOXC NODE LIVE SESSION [{}]", now);
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!(
-        "🧭 mode=live rounds={} continuous={} interval_secs={} tx_prefix={} log_level={}",
-        rounds, continuous, interval_secs, tx_prefix, log_level
+        "🧭 mode={} | rounds={} | interval={}s | tx_prefix={} | log={} | live_log={}",
+        execution_mode,
+        rounds,
+        interval_secs,
+        tx_prefix,
+        log_mode,
+        bool_label(true)
     );
     println!(
-        "🌐 profile={} bind_host={} p2p={} rpc={} metrics={}",
-        settings.profile,
+        "🌐 profile={} | bind={} | p2p={} | rpc={} | metrics={}",
+        profile,
         settings.network.bind_host,
         settings.network.p2p_port,
         settings.network.rpc_port,
         settings.telemetry.prometheus_port
     );
     println!(
-        "🧱 boot height={} produced_blocks={} network_id={} last_round={}",
+        "🔌 rpc_url={} | metrics_url={}",
+        rpc_url, metrics_url
+    );
+    println!(
+        "🧱 height={} | produced={} | network_id={} | consensus_round={} | sections={}",
         state.current_height,
         state.produced_blocks,
         state.consensus.network_id,
-        state.consensus.last_round
+        state.consensus.last_round,
+        state.consensus.last_section_count
     );
     println!(
-        "🔐 key_state={} fingerprint={}",
-        if state.key_material.operational_state.is_empty() {
-            "unknown"
+        "🪪 key_state={} | fingerprint={} | proposer={}",
+        key_state,
+        key_fingerprint,
+        short_hash(&state.consensus.last_proposer_hex)
+    );
+    println!(
+        "⛓️  head={} | parent={} | updated_at={}",
+        block_hash,
+        parent_hash,
+        state.updated_at
+    );
+    println!("🗄️  state_db={}", db_path.display());
+    println!(
+        "💡 debug_hint={} | shutdown_model=graceful | persistence=enabled",
+        if log_level == "debug" {
+            "parent-hash+unix-ts visible"
         } else {
-            state.key_material.operational_state.as_str()
-        },
-        if state.key_material.bundle_fingerprint.is_empty() {
-            "unavailable"
-        } else {
-            state.key_material.bundle_fingerprint.as_str()
+            "use --log-level debug for extended trace fields"
         }
     );
-    println!("🔌 rpc_url={} metrics_url={}", rpc_url, metrics_url);
-    println!("🗄️  state_db={}", db_path.display());
-    println!("💡 tip: canlı akışta parent hash için --log-level debug kullanabilirsiniz");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ LIVE ROUND STREAM ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!(
         "📋 {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:>7} | {:<17} | {:<12}",
         "round", "timestamp", "height", "blocks", "sec", "c_round", "block", "tx"
     );
-    println!("💡 tip: use --log-level debug for parent hash and unix timestamp details");
-    println!("━━━━━━━━━━━━━━━━━━━━━━━━━ LIVE ROUND STREAM ━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!(
-        "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
-    );
+    println!("────────────────────────────────────────────────────────────────────────────────────────────────────────────");
+
     Ok(())
 }
 
@@ -156,6 +198,12 @@ fn parse_block_interval_secs(args: &[String]) -> Result<u64, AppError> {
     Ok(interval_secs)
 }
 
+/// Runs unbounded block production until external termination.
+///
+/// Audit Note:
+/// This loop is intentionally simple and deterministic. Per-round telemetry is
+/// emitted only after successful production, preventing misleading operator output
+/// for rounds that did not commit state.
 fn run_continuous_rounds(
     interval_secs: u64,
     tx_prefix: &str,
@@ -164,6 +212,7 @@ fn run_continuous_rounds(
     log_level: &str,
 ) -> Result<crate::node::state::NodeState, AppError> {
     let mut round_index = 0_u64;
+
     loop {
         round_index = round_index.saturating_add(1);
         let tx = format!("{tx_prefix}-{round_index}");
@@ -190,12 +239,16 @@ fn run_continuous_rounds(
     }
 }
 
+/// Prints a single round line for the live execution stream.
+///
+/// Audit Note:
+/// The line is intentionally columnar and stable so that operators can visually
+/// compare progression across rounds and parse output with lightweight tooling.
 fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
     let timestamp = chrono::DateTime::<chrono::Utc>::from_timestamp(entry.timestamp_unix as i64, 0)
         .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
         .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string());
 
-    let block_hash = short_hash(&entry.block_hash_hex);
     println!(
         "✅ {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:>7} | {:<17} | {:<12}",
         entry.round_index,
@@ -204,39 +257,55 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
         entry.produced_blocks,
         entry.section_count,
         entry.consensus_round,
-        block_hash,
+        short_hash(&entry.block_hash_hex),
         entry.tx_id
     );
 
     if log_level == "debug" {
         println!(
-            "    🔍 round={} parent={} timestamp_unix={}",
-            entry.round_index,
+            "   🔍 kind={} | parent={} | proposer={} | timestamp_unix={}",
+            entry.message_kind,
             short_hash(&entry.parent_hash_hex),
+            short_hash(&entry.proposer_hex),
             entry.timestamp_unix
         );
     }
 }
 
+/// Prints the end-of-session summary.
+///
+/// Audit Note:
+/// The footer provides a concise terminal state snapshot suitable for human
+/// confirmation and release/operator evidence capture.
 fn print_node_live_log_footer(state: &crate::node::state::NodeState) {
+    println!("────────────────────────────────────────────────────────────────────────────────────────────────────────────");
     println!(
-        "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+        "🏁 final_height={} | produced_blocks={} | consensus_round={} | updated_at={}",
+        state.current_height,
+        state.produced_blocks,
+        state.consensus.last_round,
+        state.updated_at
     );
-    println!(
-        "🏁 completed height={} produced_blocks={} updated_at={}",
-        state.current_height, state.produced_blocks, state.updated_at
-    );
+    println!("✅ node session completed");
+    println!();
 }
 
+/// Produces a compact hash representation suitable for console output.
 fn short_hash(value: &str) -> String {
+    if value.is_empty() {
+        return "unavailable".to_string();
+    }
+
     if value.len() <= 16 {
         return value.to_string();
     }
+
     format!("{}…{}", &value[..8], &value[value.len() - 8..])
 }
 
-fn format_status(enabled: bool) -> &'static str {
-    if enabled { "enabled" } else { "disabled" }
+/// Returns a stable textual label for boolean fields used in operator output.
+fn bool_label(value: bool) -> &'static str {
+    if value { "enabled" } else { "disabled" }
 }
 
 pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
