@@ -47,7 +47,7 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
             print_node_round_line(entry, &log_level);
         })?
     } else {
-        engine::run_rounds(rounds, &tx_prefix)?
+        run_bounded_rounds(rounds, format, live_log_enabled, &log_level, &mut tx_source)?
     };
 
     let _ = refresh_runtime_metrics().ok();
@@ -66,7 +66,7 @@ fn default_runtime_tx_id() -> String {
 
 fn print_node_live_log_header(
     rounds: u64,
-    tx_prefix: &str,
+    tx_source: &str,
     log_level: &str,
     interval_secs: u64,
     continuous: bool,
@@ -115,7 +115,7 @@ fn run_continuous_rounds(
 ) -> Result<crate::node::state::NodeState, AppError> {
     let mut round_index = 0_u64;
     loop {
-        round_index = round_index.saturating_add(1);
+        round_index = round_indexr.saturating_add(1);
         let tx = format!("{tx_prefix}-{round_index}");
         let state = engine::produce_once(&tx)?;
 
