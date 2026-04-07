@@ -1,35 +1,11 @@
 use super::*;
 use std::io::{self, Write};
-use std::process::Command;
 
-fn wipe_string(secret: &mut String) {
-    // SAFETY: zero bytes are valid UTF-8, therefore replacing all bytes with 0 is valid.
-    unsafe {
-        secret.as_mut_vec().fill(0);
-    }
-    secret.clear();
-}
+fn prompt_password_twice(context: &str) -> Result<String, AppError> {
+    let mut first = String::new();
+    let mut second = String::new();
 
-struct SensitiveString(String);
-
-impl SensitiveString {
-    fn new(value: String) -> Self {
-        Self(value)
-    }
-
-    fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl Drop for SensitiveString {
-    fn drop(&mut self) {
-        wipe_string(&mut self.0);
-    }
-}
-
-fn read_password_hidden(prompt: &str) -> Result<String, AppError> {
-    print!("{prompt}");
+    print!("Enter password for {context}: ");
     io::stdout().flush().map_err(|error| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
@@ -37,14 +13,7 @@ fn read_password_hidden(prompt: &str) -> Result<String, AppError> {
             error,
         )
     })?;
-
-    let _ = Command::new("stty").arg("-echo").status();
-    let mut value = String::new();
-    let read_result = io::stdin().read_line(&mut value);
-    let _ = Command::new("stty").arg("echo").status();
-    println!();
-
-    read_result.map_err(|error| {
+    io::stdin().read_line(&mut first).map_err(|error| {
         AppError::with_source(
             ErrorCode::FilesystemIoFailed,
             "Failed to read password input",
@@ -52,34 +21,40 @@ fn read_password_hidden(prompt: &str) -> Result<String, AppError> {
         )
     })?;
 
-    Ok(value.trim().to_string())
-}
+    print!("Confirm password for {context}: ");
+    io::stdout().flush().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to flush stdout for password confirmation prompt",
+            error,
+        )
+    })?;
+    io::stdin().read_line(&mut second).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to read password confirmation input",
+            error,
+        )
+    })?;
 
-fn prompt_password_twice(context: &str) -> Result<SensitiveString, AppError> {
-    let mut first = read_password_hidden(&format!("Enter password for {context}: "))?;
-    let mut second = read_password_hidden(&format!("Confirm password for {context}: "))?;
-
-    if first.trim().is_empty() {
-        wipe_string(&mut first);
-        wipe_string(&mut second);
+    let first = first.trim().to_string();
+    let second = second.trim().to_string();
+    if first.is_empty() {
         return Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             "Password must not be empty.",
         ));
     }
     if first != second {
-        wipe_string(&mut first);
-        wipe_string(&mut second);
         return Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             "Password confirmation mismatch.",
         ));
     }
-    wipe_string(&mut second);
-    Ok(SensitiveString::new(first))
+    Ok(first)
 }
 
-fn resolve_or_prompt_password(args: &[String], context: &str) -> Result<SensitiveString, AppError> {
+fn resolve_or_prompt_password(args: &[String], context: &str) -> Result<String, AppError> {
     if let Some(value) = arg_value(args, "--password") {
         let password = value.trim().to_string();
         if password.is_empty() {
@@ -88,7 +63,7 @@ fn resolve_or_prompt_password(args: &[String], context: &str) -> Result<Sensitiv
                 "Password must not be empty.",
             ));
         }
-        Ok(SensitiveString::new(password))
+        Ok(password)
     } else {
         prompt_password_twice(context)
     }
@@ -96,9 +71,6 @@ fn resolve_or_prompt_password(args: &[String], context: &str) -> Result<Sensitiv
 
 fn node_runtime_summary(
     topology_role: String,
-    allocation_preset: &str,
-    genesis_accounts_preview: Vec<BootstrapAccountRecord>,
-    genesis_accounts_total: usize,
     bootstrap: ProfileBootstrapSummary,
 ) -> TopologyBootstrapNodeSummary {
     let rpc_url = format!("http://{}:{}", bootstrap.bind_host, bootstrap.rpc_port);
@@ -120,90 +92,7 @@ fn node_runtime_summary(
         metrics_url,
         start_command,
         query_commands,
-        allocation_preset: allocation_preset.to_string(),
-        genesis_accounts_total,
-        genesis_accounts_preview,
     }
-}
-
-fn upsert_named_account(
-    genesis: &mut BootstrapGenesisDocument,
-    account_id: String,
-    balance: &str,
-    role: &str,
-) {
-    if let Some(existing) = genesis
-        .state
-        .accounts
-        .iter_mut()
-        .find(|entry| entry.account_id == account_id)
-    {
-        existing.balance = balance.to_string();
-        existing.role = role.to_string();
-    } else {
-        genesis.state.accounts.push(BootstrapAccountRecord {
-            account_id,
-            balance: balance.to_string(),
-            role: role.to_string(),
-        });
-    }
-}
-
-fn apply_allocation_preset(
-    home_dir: &str,
-    allocation_preset: &str,
-    topology_role: &str,
-    ordinal: usize,
-) -> Result<(usize, Vec<BootstrapAccountRecord>), AppError> {
-    let _home_override = ScopedHomeOverride::install(Path::new(home_dir));
-    let mut genesis = load_genesis()?;
-
-    let stem = topology_role
-        .replace('-', "_")
-        .to_ascii_uppercase()
-        .chars()
-        .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
-        .collect::<String>();
-    let operator = format!("AOXC_OP_{stem}_{ordinal:02}");
-    let treasury = format!("AOXC_TREASURY_{stem}_{ordinal:02}");
-    let governance = format!("AOXC_GOV_{stem}_{ordinal:02}");
-    let system = format!("AOXC_SYS_{stem}_{ordinal:02}");
-    let user = format!("AOXC_USER_{stem}_{ordinal:02}");
-    let pocket = format!("AOXC_POCKET_{stem}_{ordinal:02}");
-
-    match allocation_preset {
-        "minimal" => {
-            upsert_named_account(&mut genesis, treasury, "500000", "treasury");
-            upsert_named_account(&mut genesis, operator, "50000", "validator");
-            upsert_named_account(&mut genesis, user, "10000", "user");
-        }
-        "balanced" => {
-            upsert_named_account(&mut genesis, treasury, "5000000", "treasury");
-            upsert_named_account(&mut genesis, operator, "1000000", "validator");
-            upsert_named_account(&mut genesis, governance, "250000", "governance");
-            upsert_named_account(&mut genesis, system, "150000", "system");
-            upsert_named_account(&mut genesis, user, "75000", "user");
-        }
-        "validator-heavy" => {
-            upsert_named_account(&mut genesis, treasury, "3000000", "treasury");
-            upsert_named_account(&mut genesis, operator, "4000000", "validator");
-            upsert_named_account(&mut genesis, governance, "350000", "governance");
-            upsert_named_account(&mut genesis, system, "200000", "system");
-            upsert_named_account(&mut genesis, pocket, "125000", "pocket");
-        }
-        _ => {
-            return Err(AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                "Unsupported --allocation-preset. Use minimal, balanced, or validator-heavy.",
-            ));
-        }
-    }
-
-    persist_genesis(&genesis)?;
-    sync_optional_accounts_binding(&genesis)?;
-
-    let preview = genesis.state.accounts.iter().take(8).cloned().collect();
-    Ok((genesis.state.accounts.len(), preview))
 }
 
 pub fn cmd_config_init(args: &[String]) -> Result<(), AppError> {
@@ -363,10 +252,8 @@ pub fn cmd_dual_profile_bootstrap(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
     let topology_mode = arg_value(args, "--mode").unwrap_or_else(|| "single".to_string());
-    let password = resolve_or_prompt_password(args, "topology bootstrap")?;
+    let password = parse_required_text_arg(args, "--password", false, "topology bootstrap")?;
     let name_prefix = parse_required_or_default_text_arg(args, "--name-prefix", "validator")?;
-    let allocation_preset =
-        arg_value(args, "--allocation-preset").unwrap_or_else(|| "balanced".to_string());
     let output_dir = arg_value(args, "--output-dir")
         .map(PathBuf::from)
         .unwrap_or_else(|| bootstrap_root().join("topology-bootstrap"));
@@ -385,19 +272,14 @@ pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
                 &output_dir.join("node-01"),
                 profile,
                 &operator_name,
-                password.as_str(),
+                &password,
             )?;
-            let (genesis_accounts_total, genesis_accounts_preview) =
-                apply_allocation_preset(&bootstrap.home_dir, &allocation_preset, "single-node", 1)?;
             (
                 profile,
-                vec![node_runtime_summary(
-                    "single-node".to_string(),
-                    &allocation_preset,
-                    genesis_accounts_preview,
-                    genesis_accounts_total,
+                vec![TopologyBootstrapNodeSummary {
+                    topology_role: "single-node".to_string(),
                     bootstrap,
-                )],
+                }],
                 "Single-node topology generated. Use `aoxc node start --home <node-home>` to launch.",
             )
         }
@@ -405,27 +287,17 @@ pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
             let mut nodes = Vec::with_capacity(4);
             for ordinal in 1..=4u16 {
                 let operator_name = format!("{name_prefix}-{:02}", ordinal);
-                let topology_role = format!("mainchain-validator-{ordinal}");
                 let bootstrap = bootstrap_profile_directory_with_port_offset(
                     &output_dir.join(format!("node-{:02}", ordinal)),
                     EnvironmentProfile::Mainnet,
                     &operator_name,
-                    password.as_str(),
+                    &password,
                     (ordinal - 1) * 10,
                 )?;
-                let (genesis_accounts_total, genesis_accounts_preview) = apply_allocation_preset(
-                    &bootstrap.home_dir,
-                    &allocation_preset,
-                    &topology_role,
-                    ordinal as usize,
-                )?;
-                nodes.push(node_runtime_summary(
-                    topology_role,
-                    &allocation_preset,
-                    genesis_accounts_preview,
-                    genesis_accounts_total,
+                nodes.push(TopologyBootstrapNodeSummary {
+                    topology_role: format!("mainchain-validator-{ordinal}"),
                     bootstrap,
-                ));
+                });
             }
             (
                 EnvironmentProfile::Mainnet,
@@ -447,20 +319,6 @@ pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
         profile: profile.as_str().to_string(),
         node_count: nodes.len(),
         nodes,
-        genesis_consistency: vec![
-            "Use the exact generated genesis.json, validators.json, bootnodes.json, and certificate.json for every node in the topology.".to_string(),
-            "Do not mix identity bundles across different topology-bootstrap runs.".to_string(),
-        ],
-        rpc_api_runbook: vec![
-            "Run `aoxc network-identity-gate --enforce --env <profile>` before startup.".to_string(),
-            "Start each node with its dedicated home directory using the generated start_command value.".to_string(),
-            "Validate API/RPC with `aoxc api status`, `aoxc query chain status`, and `aoxc query network peers` for every node.".to_string(),
-        ],
-        economics_summary: vec![
-            format!("allocation_preset={allocation_preset}"),
-            "Preset adds deterministic treasury/system/governance/user-style accounts into genesis.".to_string(),
-            "Use `aoxc genesis-validate --strict` after bootstrap to enforce deterministic genesis integrity.".to_string(),
-        ],
         launch_hint,
     };
 
