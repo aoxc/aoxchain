@@ -10,8 +10,6 @@ AOXChain is a deterministic Layer-1 engineering program focused on production-gr
 
 - `cargo check --workspace --locked`: pass
 - `cargo test --workspace --exclude aoxchub --all-targets --locked`: pass
-- `make quality`: partial pass (stopped at `cargo-audit` availability check)
-- `make audit`: blocked (`cargo-audit` not installed in the current environment)
 - Current production-gap status and closure actions are tracked in `docs/REPOSITORY_PRODUCTION_GAP_REPORT.md`.
 
 This snapshot is a point-in-time engineering status, not a standing production guarantee.
