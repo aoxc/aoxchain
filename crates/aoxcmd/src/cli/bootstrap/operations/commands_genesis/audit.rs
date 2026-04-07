@@ -425,6 +425,30 @@ pub(in super::super) fn evaluate_consensus_profile_audit(
         passed.push("validator-quorum-policy".to_string());
     }
 
+    if genesis.vm.block_gas_limit > 0
+        && genesis.vm.tx_gas_limit > 0
+        && genesis.vm.tx_gas_limit <= genesis.vm.block_gas_limit
+    {
+        passed.push("vm-gas-limits".to_string());
+    } else {
+        blockers.push(format!(
+            "invalid vm gas limits: block_gas_limit={} tx_gas_limit={}",
+            genesis.vm.block_gas_limit, genesis.vm.tx_gas_limit
+        ));
+    }
+
+    if genesis.vm.min_gas_price.trim().is_empty() || genesis.vm.min_gas_price == "0" {
+        blockers.push("vm min_gas_price must be a non-zero decimal string".to_string());
+    } else {
+        passed.push("vm-min-gas-price".to_string());
+    }
+
+    if genesis.vm.vm_engine.trim().is_empty() || genesis.vm.gas_model.trim().is_empty() {
+        blockers.push("vm engine/model must not be empty".to_string());
+    } else {
+        passed.push("vm-engine-model".to_string());
+    }
+
     if genesis.integrity.deterministic_serialization_required {
         passed.push("deterministic-serialization".to_string());
     } else {

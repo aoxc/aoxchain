@@ -34,6 +34,8 @@ pub(super) struct BootstrapGenesisDocument {
     pub(super) family_code: String,
     pub(super) identity: CanonicalIdentity,
     pub(super) consensus: BootstrapConsensusConfig,
+    #[serde(default)]
+    pub(super) vm: BootstrapVmConfig,
     pub(super) economics: BootstrapEconomicsConfig,
     pub(super) state: BootstrapStateConfig,
     pub(super) bindings: BootstrapBindingsConfig,
@@ -50,6 +52,33 @@ pub(super) struct BootstrapConsensusConfig {
     pub(super) validator_quorum_policy: String,
     #[serde(default = "default_consensus_identity_profile")]
     pub(super) consensus_identity_profile: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub(super) struct BootstrapVmConfig {
+    pub(super) vm_engine: String,
+    pub(super) gas_model: String,
+    pub(super) block_gas_limit: u64,
+    pub(super) tx_gas_limit: u64,
+    pub(super) min_gas_price: String,
+    pub(super) max_contract_size_bytes: u64,
+    pub(super) max_call_depth: u16,
+    pub(super) enable_parallel_execution: bool,
+}
+
+impl Default for BootstrapVmConfig {
+    fn default() -> Self {
+        Self {
+            vm_engine: "aoxcvm".to_string(),
+            gas_model: "aoxc-gas-v1".to_string(),
+            block_gas_limit: 120_000_000,
+            tx_gas_limit: 15_000_000,
+            min_gas_price: "1".to_string(),
+            max_contract_size_bytes: 256 * 1024,
+            max_call_depth: 64,
+            enable_parallel_execution: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -341,10 +370,11 @@ impl EnvironmentProfile {
                 engine: "aoxcunity".to_string(),
                 mode: "bft".to_string(),
                 genesis_epoch: 0,
-                block_time_ms: 3_000,
+                block_time_ms: 6_000,
                 validator_quorum_policy,
                 consensus_identity_profile: default_consensus_identity_profile(),
             },
+            vm: BootstrapVmConfig::default(),
             economics: BootstrapEconomicsConfig {
                 native_symbol: "AOXC".to_string(),
                 native_decimals: 18,

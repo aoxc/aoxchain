@@ -556,6 +556,41 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
         ));
     }
 
+    if genesis.vm.vm_engine.trim().is_empty() || genesis.vm.gas_model.trim().is_empty() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: vm engine and gas model must not be empty",
+        ));
+    }
+
+    if genesis.vm.block_gas_limit == 0 || genesis.vm.tx_gas_limit == 0 {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: VM gas limits must be non-zero",
+        ));
+    }
+
+    if genesis.vm.tx_gas_limit > genesis.vm.block_gas_limit {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: tx_gas_limit cannot exceed block_gas_limit",
+        ));
+    }
+
+    if !is_non_zero_decimal_string(&genesis.vm.min_gas_price) {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: min_gas_price must be a non-zero decimal string",
+        ));
+    }
+
+    if genesis.vm.max_contract_size_bytes == 0 || genesis.vm.max_call_depth == 0 {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: VM execution bounds must be non-zero",
+        ));
+    }
+
     if genesis.economics.native_symbol.trim().is_empty() {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
