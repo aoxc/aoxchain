@@ -1,4 +1,99 @@
 use super::*;
+use std::io::{self, Write};
+
+fn prompt_password_twice(context: &str) -> Result<String, AppError> {
+    let mut first = String::new();
+    let mut second = String::new();
+
+    print!("Enter password for {context}: ");
+    io::stdout().flush().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to flush stdout for password prompt",
+            error,
+        )
+    })?;
+    io::stdin().read_line(&mut first).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to read password input",
+            error,
+        )
+    })?;
+
+    print!("Confirm password for {context}: ");
+    io::stdout().flush().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to flush stdout for password confirmation prompt",
+            error,
+        )
+    })?;
+    io::stdin().read_line(&mut second).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            "Failed to read password confirmation input",
+            error,
+        )
+    })?;
+
+    let first = first.trim().to_string();
+    let second = second.trim().to_string();
+    if first.is_empty() {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Password must not be empty.",
+        ));
+    }
+    if first != second {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Password confirmation mismatch.",
+        ));
+    }
+    Ok(first)
+}
+
+fn resolve_or_prompt_password(args: &[String], context: &str) -> Result<String, AppError> {
+    if let Some(value) = arg_value(args, "--password") {
+        let password = value.trim().to_string();
+        if password.is_empty() {
+            return Err(AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Password must not be empty.",
+            ));
+        }
+        Ok(password)
+    } else {
+        prompt_password_twice(context)
+    }
+}
+
+fn node_runtime_summary(
+    topology_role: String,
+    bootstrap: ProfileBootstrapSummary,
+) -> TopologyBootstrapNodeSummary {
+    let rpc_url = format!("http://{}:{}", bootstrap.bind_host, bootstrap.rpc_port);
+    let metrics_url = format!(
+        "http://{}:{}/metrics",
+        bootstrap.bind_host, bootstrap.prometheus_port
+    );
+    let start_command = format!("aoxc node start --home {}", bootstrap.home_dir);
+    let query_commands = vec![
+        format!("aoxc query network peers --home {}", bootstrap.home_dir),
+        format!("aoxc query chain status --home {}", bootstrap.home_dir),
+        format!("aoxc api status --home {}", bootstrap.home_dir),
+    ];
+
+    TopologyBootstrapNodeSummary {
+        topology_role,
+        bootstrap,
+        rpc_url,
+        metrics_url,
+        start_command,
+        query_commands,
+    }
+}
 
 pub fn cmd_config_init(args: &[String]) -> Result<(), AppError> {
     let home = resolve_home()?;
