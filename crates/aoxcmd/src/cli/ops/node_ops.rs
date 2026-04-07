@@ -69,14 +69,18 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
         ));
     }
 
+    if !has_flag(args, "--no-rpc-serve") {
+        if let Ok(settings) = effective_settings_for_ops() {
+            let _ = crate::cli::ops::rpc_serve_ops::spawn_rpc_and_metrics_listeners(
+                &settings.network.bind_host,
+                settings.network.rpc_port,
+                settings.telemetry.prometheus_port,
+            );
+        }
+    }
+
     if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
-        print_node_live_log_header(
-            rounds,
-            &tx_prefix,
-            &log_level,
-            interval_secs,
-            continuous,
-        )?;
+        print_node_live_log_header(rounds, &tx_prefix, &log_level, interval_secs, continuous)?;
     }
 
     let state = if continuous {
@@ -168,10 +172,7 @@ fn print_node_live_log_header(
         format!("🕒 Started    : {}", now),
         format!("🌐 Profile    : {}", settings.profile),
         format!("⚙️ Mode       : {}", execution_mode),
-        format!(
-            "🏠 Home       : {}",
-            shorten_middle(&settings.home_dir, 74)
-        ),
+        format!("🏠 Home       : {}", shorten_middle(&settings.home_dir, 74)),
         format!(
             "📡 Network    : bind={} | p2p={} | rpc={} | metrics={}",
             settings.network.bind_host,
@@ -190,19 +191,13 @@ fn print_node_live_log_header(
         ),
         format!(
             "🔐 Identity   : key={} | fingerprint={} | proposer={}",
-            key_state,
-            fingerprint,
-            proposer
+            key_state, fingerprint, proposer
         ),
         format!(
             "🗄 Storage    : db={} | persistence=enabled",
             shorten_middle(&db_path.display().to_string(), 62)
         ),
-        format!(
-            "📈 Head       : block={} | parent={}",
-            head,
-            parent
-        ),
+        format!("📈 Head       : block={} | parent={}", head, parent),
         format!(
             "✅ Status     : {} | rpc={} | health={}",
             assessment,
@@ -317,10 +312,7 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
     if log_level == "debug" {
         println!(
             "DBG | round={} | kind={} | unix_ts={} | produced_blocks={}",
-            entry.round_index,
-            entry.message_kind,
-            entry.timestamp_unix,
-            entry.produced_blocks
+            entry.round_index, entry.message_kind, entry.timestamp_unix, entry.produced_blocks
         );
     }
 }
@@ -348,16 +340,7 @@ fn print_event_table_header() {
     println!("------------------------------------------------------------------------------------------------------------------------------------------------");
     println!(
         "{:>3} | {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:<17} | {:<17} | {:<17} | {:<18}",
-        "EVT",
-        "ROUND",
-        "TIMESTAMP",
-        "HEIGHT",
-        "CROUND",
-        "SEC",
-        "BLOCK",
-        "PARENT",
-        "PROPOSER",
-        "TX"
+        "EVT", "ROUND", "TIMESTAMP", "HEIGHT", "CROUND", "SEC", "BLOCK", "PARENT", "PROPOSER", "TX"
     );
     println!("------------------------------------------------------------------------------------------------------------------------------------------------");
 }
@@ -547,7 +530,10 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
 
     let mut details = BTreeMap::new();
     details.insert("bind_host".to_string(), settings.network.bind_host.clone());
-    details.insert("rpc_port".to_string(), settings.network.rpc_port.to_string());
+    details.insert(
+        "rpc_port".to_string(),
+        settings.network.rpc_port.to_string(),
+    );
     details.insert(
         "probe".to_string(),
         if rpc_reachable {
