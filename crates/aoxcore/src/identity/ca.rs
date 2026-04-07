@@ -4,8 +4,10 @@
 
 use crate::identity::certificate::Certificate;
 
-use pqcrypto_mldsa::mldsa65::{
-    DetachedSignature, PublicKey, SecretKey, detached_sign, keypair, verify_detached_signature,
+use libcrux_ml_dsa::constants::{SIGNATURE_SIZE, SIGNING_KEY_SIZE, VERIFICATION_KEY_SIZE};
+use libcrux_ml_dsa::ml_dsa_65::{
+    MLDSA65Signature as DetachedSignature, MLDSA65SigningKey as SecretKey,
+    MLDSA65VerificationKey as PublicKey, generate_key_pair, sign, verify,
 };
 use rand::random;
 
@@ -109,8 +111,8 @@ impl CertificateAuthority {
 
         let authority = Self {
             issuer: name.into(),
-            sk_bytes: key_pair.signing_key.as_slice().to_vec(),
-            pk_bytes: key_pair.verification_key.as_slice().to_vec(),
+            sk_bytes: key_pair.signing_key.as_ref().to_vec(),
+            pk_bytes: key_pair.verification_key.as_ref().to_vec(),
         };
 
         debug_assert!(authority.validate_key_material_pair().is_ok());
@@ -304,7 +306,7 @@ impl CertificateAuthority {
         let signature = sign(&sk, &message, ML_DSA_CONTEXT, random())
             .map_err(|_| "CERT_SIGN_ERROR: detached signature generation failed".to_string())?;
 
-        cert.signature = hex::encode_upper(signature.as_slice());
+        cert.signature = hex::encode_upper(signature.as_ref());
 
         cert.validate_signed()
             .map_err(|error| format!("CERT_VALIDATE_ERROR: {}", error.code()))?;
@@ -403,30 +405,30 @@ fn validate_issuer_identifier(value: &str) -> Result<(), String> {
 }
 
 fn public_key_from_bytes(bytes: &[u8]) -> Result<PublicKey, String> {
-    if bytes.len() != PublicKey::len() {
+    if bytes.len() != VERIFICATION_KEY_SIZE {
         return Err("CA_PUBLIC_KEY_INVALID: stored public key bytes are invalid".to_string());
     }
-    let mut key = PublicKey::zero();
-    key.as_mut_slice().copy_from_slice(bytes);
-    Ok(key)
+    let mut key = [0u8; VERIFICATION_KEY_SIZE];
+    key.copy_from_slice(bytes);
+    Ok(PublicKey::new(key))
 }
 
 fn secret_key_from_bytes(bytes: &[u8]) -> Result<SecretKey, String> {
-    if bytes.len() != SecretKey::len() {
+    if bytes.len() != SIGNING_KEY_SIZE {
         return Err("CA_SECRET_KEY_INVALID: stored secret key bytes are invalid".to_string());
     }
-    let mut key = SecretKey::zero();
-    key.as_mut_slice().copy_from_slice(bytes);
-    Ok(key)
+    let mut key = [0u8; SIGNING_KEY_SIZE];
+    key.copy_from_slice(bytes);
+    Ok(SecretKey::new(key))
 }
 
 fn signature_from_bytes(bytes: &[u8]) -> Result<DetachedSignature, String> {
-    if bytes.len() != DetachedSignature::len() {
+    if bytes.len() != SIGNATURE_SIZE {
         return Err("invalid detached signature length".to_string());
     }
-    let mut signature = DetachedSignature::zero();
-    signature.as_mut_slice().copy_from_slice(bytes);
-    Ok(signature)
+    let mut signature = [0u8; SIGNATURE_SIZE];
+    signature.copy_from_slice(bytes);
+    Ok(DetachedSignature::new(signature))
 }
 
 #[cfg(test)]
