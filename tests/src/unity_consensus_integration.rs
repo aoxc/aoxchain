@@ -289,6 +289,6 @@ fn consensus_peer_has_validator_identity_fields() {
     let peer = consensus_peer();
     assert_eq!(peer.id, "validator-1");
     assert_eq!(peer.address, "10.0.0.1:2727");
-    assert_eq!(peer.power, 3);
-    assert!(peer.is_trusted);
+    assert_eq!(peer.kyc_tier, 3);
+    assert!(peer.ai_inspection_ready);
 }
