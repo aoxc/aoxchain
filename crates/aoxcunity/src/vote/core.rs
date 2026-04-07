@@ -225,8 +225,11 @@ impl AuthenticatedVote {
             .pq_public_key
             .as_deref()
             .ok_or(VoteAuthenticationError::MissingPostQuantumPublicKey)?;
-        let public_key = DilithiumPublicKey::from_bytes(public_key_bytes)
-            .map_err(|_| VoteAuthenticationError::MalformedPublicKey)?;
+        if public_key_bytes.len() != MldsaVerificationKey::len() {
+            return Err(VoteAuthenticationError::MalformedPublicKey);
+        }
+        let mut public_key = MldsaVerificationKey::zero();
+        public_key.as_mut_slice().copy_from_slice(public_key_bytes);
 
         let signature_bytes = self
             .pq_signature
@@ -240,13 +243,14 @@ impl AuthenticatedVote {
             })
             .ok_or(VoteAuthenticationError::MissingPostQuantumSignature)?;
 
-        let signed_message = SignedMessage::from_bytes(signature_bytes)
-            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
-        let opened = open(&signed_message, &public_key)
-            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
-        if opened.as_slice() != signing_bytes {
+        if signature_bytes.len() != MldsaSignature::len() {
             return Err(VoteAuthenticationError::InvalidSignature);
         }
+        let mut signature = MldsaSignature::zero();
+        signature.as_mut_slice().copy_from_slice(signature_bytes);
+
+        verify(&public_key, signing_bytes, b"", &signature)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
 
         Ok(())
     }
