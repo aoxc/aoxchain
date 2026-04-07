@@ -8,12 +8,7 @@ pub fn cmd_node_bootstrap(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_produce_once(args: &[String]) -> Result<(), AppError> {
-    let tx = parse_optional_text_arg(args, "--tx", false).ok_or_else(|| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "produce-once requires --tx with a real transaction payload",
-        )
-    })?;
+    let tx = parse_required_or_default_text_arg(args, "--tx", &default_runtime_tx_id(), false)?;
     let state = engine::produce_once(&tx)?;
     let _ = refresh_runtime_metrics().ok();
     emit_serialized(&state, output_format(args))
@@ -21,12 +16,12 @@ pub fn cmd_produce_once(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     let rounds = parse_positive_u64_arg(args, "--rounds", 10, "node run")?;
+    let tx_prefix = parse_required_or_default_text_arg(args, "--tx-prefix", "runtime-tx", false)?;
     let format = output_format(args);
     let live_log_enabled = !has_flag(args, "--no-live-log");
     let log_level = parse_required_or_default_text_arg(args, "--log-level", "info", true)?;
     let interval_secs = parse_block_interval_secs(args)?;
     let continuous = has_flag(args, "--continuous");
-    let mut tx_source = parse_round_tx_source(args)?;
 
     if !matches!(log_level.as_str(), "info" | "debug") {
         return Err(AppError::new(
@@ -36,23 +31,21 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     }
 
     if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
-        print_node_live_log_header(
-            rounds,
-            tx_source.describe(),
-            &log_level,
-            interval_secs,
-            continuous,
-        )?;
+        print_node_live_log_header(rounds, &tx_prefix, &log_level, interval_secs, continuous)?;
     }
 
     let state = if continuous {
         run_continuous_rounds(
             interval_secs,
+            &tx_prefix,
             format,
             live_log_enabled,
             &log_level,
-            &mut tx_source,
         )?
+    } else if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
+        engine::run_rounds_with_observer(rounds, &tx_prefix, |entry| {
+            print_node_round_line(entry, &log_level);
+        })?
     } else {
         run_bounded_rounds(rounds, format, live_log_enabled, &log_level, &mut tx_source)?
     };
@@ -67,103 +60,8 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&state, format)
 }
 
-enum RoundTxSource {
-    Static(String),
-    File {
-        entries: Vec<String>,
-        next_index: usize,
-    },
-    SyntheticPrefix(String),
-}
-
-impl RoundTxSource {
-    fn describe(&self) -> &'static str {
-        match self {
-            Self::Static(_) => "static-tx",
-            Self::File { .. } => "tx-file",
-            Self::SyntheticPrefix(_) => "synthetic-prefix",
-        }
-    }
-
-    fn next_tx(&mut self, round_index: u64) -> String {
-        match self {
-            Self::Static(tx) => tx.clone(),
-            Self::File {
-                entries,
-                next_index,
-            } => {
-                let idx = *next_index % entries.len();
-                *next_index = next_index.saturating_add(1);
-                entries[idx].clone()
-            }
-            Self::SyntheticPrefix(prefix) => format!("{prefix}-{round_index}"),
-        }
-    }
-}
-
-fn parse_round_tx_source(args: &[String]) -> Result<RoundTxSource, AppError> {
-    let tx = parse_optional_text_arg(args, "--tx", false);
-    let tx_file = parse_optional_text_arg(args, "--tx-file", false);
-    let tx_prefix = parse_optional_text_arg(args, "--tx-prefix", false);
-    let allow_synthetic = has_flag(args, "--allow-synthetic-tx");
-
-    if tx.is_some() && tx_file.is_some() {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Use only one of --tx or --tx-file",
-        ));
-    }
-
-    if let Some(value) = tx {
-        return Ok(RoundTxSource::Static(value));
-    }
-
-    if let Some(path) = tx_file {
-        let entries = load_tx_file_entries(&path)?;
-        return Ok(RoundTxSource::File {
-            entries,
-            next_index: 0,
-        });
-    }
-
-    if let Some(prefix) = tx_prefix {
-        if !allow_synthetic {
-            return Err(AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                "Synthetic transaction generation requires --allow-synthetic-tx",
-            ));
-        }
-        return Ok(RoundTxSource::SyntheticPrefix(prefix));
-    }
-
-    Err(AppError::new(
-        ErrorCode::UsageInvalidArguments,
-        "node-run requires --tx or --tx-file (or --tx-prefix with --allow-synthetic-tx)",
-    ))
-}
-
-fn load_tx_file_entries(path: &str) -> Result<Vec<String>, AppError> {
-    let raw = fs::read_to_string(path).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::FilesystemIoFailed,
-            format!("Failed to read tx file: {path}"),
-            error,
-        )
-    })?;
-
-    let entries = raw
-        .lines()
-        .filter_map(|line| normalize_text(line, false))
-        .collect::<Vec<_>>();
-
-    if entries.is_empty() {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            format!("tx file is empty: {path}"),
-        ));
-    }
-
-    Ok(entries)
+fn default_runtime_tx_id() -> String {
+    format!("runtime-tx-{}", chrono::Utc::now().timestamp())
 }
 
 fn print_node_live_log_header(
@@ -178,8 +76,8 @@ fn print_node_live_log_header(
 
     println!("🚀 [{}] node-run startup", now);
     println!(
-        "🧭 mode=live rounds={} continuous={} interval_secs={} tx_source={} log_level={}",
-        rounds, continuous, interval_secs, tx_source, log_level
+        "🧭 mode=live rounds={} continuous={} interval_secs={} tx_prefix={} log_level={}",
+        rounds, continuous, interval_secs, tx_prefix, log_level
     );
     println!("🗄️  state_db={}", db_path.display());
     println!(
@@ -210,15 +108,15 @@ fn parse_block_interval_secs(args: &[String]) -> Result<u64, AppError> {
 
 fn run_continuous_rounds(
     interval_secs: u64,
+    tx_prefix: &str,
     format: crate::cli_support::OutputFormat,
     live_log_enabled: bool,
     log_level: &str,
-    tx_source: &mut RoundTxSource,
 ) -> Result<crate::node::state::NodeState, AppError> {
     let mut round_index = 0_u64;
     loop {
-        round_index = round_index.saturating_add(1);
-        let tx = tx_source.next_tx(round_index);
+        round_index = round_indexr.saturating_add(1);
+        let tx = format!("{tx_prefix}-{round_index}");
         let state = engine::produce_once(&tx)?;
 
         if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
@@ -238,44 +136,6 @@ fn run_continuous_rounds(
 
         std::thread::sleep(Duration::from_secs(interval_secs));
     }
-}
-
-fn run_bounded_rounds(
-    rounds: u64,
-    format: crate::cli_support::OutputFormat,
-    live_log_enabled: bool,
-    log_level: &str,
-    tx_source: &mut RoundTxSource,
-) -> Result<crate::node::state::NodeState, AppError> {
-    let mut last_state = None;
-    for round_index in 1..=rounds {
-        let tx = tx_source.next_tx(round_index);
-        let state = engine::produce_once(&tx)?;
-
-        if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
-            let telemetry = engine::RoundTelemetry {
-                round_index,
-                tx_id: tx,
-                height: state.current_height,
-                produced_blocks: state.produced_blocks,
-                consensus_round: state.consensus.last_round,
-                section_count: state.consensus.last_section_count,
-                block_hash_hex: state.consensus.last_block_hash_hex.clone(),
-                parent_hash_hex: state.consensus.last_parent_hash_hex.clone(),
-                timestamp_unix: state.consensus.last_timestamp_unix,
-            };
-            print_node_round_line(&telemetry, log_level);
-        }
-
-        last_state = Some(state);
-    }
-
-    last_state.ok_or_else(|| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Round count must be greater than zero",
-        )
-    })
 }
 
 fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
