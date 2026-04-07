@@ -110,6 +110,18 @@ This gate validates:
 - testnet runtime-source integrity through the Make runtime surface,
 - `network-metadata.json` identity alignment with `manifest.v1.json`.
 
+### `scripts/testnet_production_orchestrator.sh`
+Production-oriented testnet topology planner and orchestrator.
+
+This script supports:
+
+- fail-closed testnet topology sizing (`validators >= 3`, `bootnodes >= 2`),
+- production-oriented default topology generation (validators, sentries, bootnodes, RPC, archive),
+- explicit home/data placement (`--home-root`, `--data-root`) for mounted storage layouts,
+- deterministic node inventory output (`plans/nodes.csv`),
+- deterministic command generation (`plans/commands.sh`) for bootstrap and start,
+- optional local execution mode (`--execute`) when an AOXC binary is available.
+
 ### `scripts/validation/os_compatibility_gate.sh`
 Cross-platform compatibility gate used by `make os-compat-gate`.
 
