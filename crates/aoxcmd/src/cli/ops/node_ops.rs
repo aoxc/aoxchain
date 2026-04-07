@@ -23,7 +23,11 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     let live_log_enabled = !has_flag(args, "--no-live-log");
     let log_level = parse_required_or_default_text_arg(args, "--log-level", "info", true)?;
     let interval_secs = parse_block_interval_secs(args)?;
-    let continuous = has_flag(args, "--continuous");
+    let continuous = if has_flag(args, "--bounded") {
+        false
+    } else {
+        has_flag(args, "--continuous") || arg_value(args, "--rounds").is_none()
+    };
 
     if !matches!(log_level.as_str(), "info" | "debug") {
         return Err(AppError::new(
