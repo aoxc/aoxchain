@@ -63,8 +63,8 @@ pub fn cmd_consensus_validators(args: &[String]) -> Result<(), AppError> {
         validators: Vec<ValidatorView>,
     }
 
-    let state = lifecycle::load_state()
-        .unwrap_or_else(|_| crate::node::state::NodeState::bootstrap());
+    let state =
+        lifecycle::load_state().unwrap_or_else(|_| crate::node::state::NodeState::bootstrap());
     let validators = vec![ValidatorView {
         validator_id: state.consensus.last_proposer_hex.clone(),
         voting_power: 1,
