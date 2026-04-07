@@ -4,11 +4,11 @@
 
 use crate::identity::certificate::Certificate;
 
-use pqcrypto_dilithium::dilithium3::{
-    DetachedSignature, PublicKey, SecretKey, detached_sign, keypair, verify_detached_signature,
+use libcrux_ml_dsa::ml_dsa_65::{
+    MLDSA65Signature as DetachedSignature, MLDSA65SigningKey as SecretKey,
+    MLDSA65VerificationKey as PublicKey, generate_key_pair, sign, verify,
 };
-
-use pqcrypto_traits::sign::{DetachedSignature as _, PublicKey as _, SecretKey as _};
+use rand::random;
 
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
@@ -33,6 +33,7 @@ const CA_SELF_TEST_DOMAIN: &[u8] = b"AOXC/IDENTITY/CA/SELF_TEST/V1";
 
 /// Domain used for CA key identifier derivation.
 const CA_KEY_ID_DOMAIN: &[u8] = b"AOXC/IDENTITY/CA/KEY_ID/V1";
+const ML_DSA_CONTEXT: &[u8] = b"";
 
 /// Maximum accepted issuer identifier length.
 ///
@@ -41,7 +42,7 @@ const CA_KEY_ID_DOMAIN: &[u8] = b"AOXC/IDENTITY/CA/KEY_ID/V1";
 const MAX_ISSUER_LEN: usize = 128;
 
 /// CertificateAuthority represents a post-quantum certificate authority
-/// capable of issuing and verifying certificates using Dilithium3.
+/// capable of issuing and verifying certificates using ML-DSA-65.
 ///
 /// Compatibility notes:
 /// - Key material remains stored as raw bytes in order to preserve the
@@ -92,7 +93,7 @@ impl Drop for CertificateAuthority {
 
 impl CertificateAuthority {
     /// Creates a new certificate authority with a freshly generated
-    /// Dilithium3 keypair.
+    /// ML-DSA-65 keypair.
     ///
     /// Construction policy:
     /// - issuer identifier must satisfy AOXC issuer validation rules,
@@ -105,12 +106,12 @@ impl CertificateAuthority {
     /// verification paths still enforce strict issuer validation.
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
-        let (pk, sk) = keypair();
+        let key_pair = generate_key_pair(random());
 
         let authority = Self {
             issuer: name.into(),
-            sk_bytes: sk.as_bytes().to_vec(),
-            pk_bytes: pk.as_bytes().to_vec(),
+            sk_bytes: key_pair.signing_key.as_slice().to_vec(),
+            pk_bytes: key_pair.verification_key.as_slice().to_vec(),
         };
 
         debug_assert!(authority.validate_key_material_pair().is_ok());
@@ -169,8 +170,7 @@ impl CertificateAuthority {
 
     /// Reconstructs and returns the CA public key.
     pub fn public_key(&self) -> Result<PublicKey, String> {
-        PublicKey::from_bytes(&self.pk_bytes)
-            .map_err(|_| "CA_PUBLIC_KEY_INVALID: stored public key bytes are invalid".to_string())
+        public_key_from_bytes(&self.pk_bytes)
     }
 
     /// Returns the CA public key as uppercase hexadecimal.
@@ -214,8 +214,7 @@ impl CertificateAuthority {
             );
         }
 
-        SecretKey::from_bytes(&self.sk_bytes)
-            .map_err(|_| "CA_SECRET_KEY_INVALID: stored secret key bytes are invalid".to_string())
+        secret_key_from_bytes(&self.sk_bytes)
     }
 
     /// Validates that stored key material is structurally sound and mutually consistent.
@@ -234,9 +233,10 @@ impl CertificateAuthority {
 
         let sk = self.secret_key()?;
         let message = self.self_test_message();
-        let signature = detached_sign(&message, &sk);
+        let signature = sign(&sk, &message, ML_DSA_CONTEXT, random())
+            .map_err(|_| "CA_KEYPAIR_MISMATCH: signing failed during self-test".to_string())?;
 
-        verify_detached_signature(&signature, &message, &pk).map_err(|_| {
+        verify(&pk, &message, ML_DSA_CONTEXT, &signature).map_err(|_| {
             "CA_KEYPAIR_MISMATCH: public and private key material are inconsistent".to_string()
         })
     }
@@ -281,7 +281,7 @@ impl CertificateAuthority {
         message
     }
 
-    /// Signs a certificate using a detached Dilithium3 signature.
+    /// Signs a certificate using a detached ML-DSA-65 signature.
     ///
     /// Operational behavior:
     /// - the CA issuer string is injected into the certificate before signing;
@@ -302,9 +302,10 @@ impl CertificateAuthority {
         let message = Self::signing_message(&payload);
 
         let sk = self.secret_key()?;
-        let signature = detached_sign(&message, &sk);
+        let signature = sign(&sk, &message, ML_DSA_CONTEXT, random())
+            .map_err(|_| "CERT_SIGN_ERROR: detached signature generation failed".to_string())?;
 
-        cert.signature = hex::encode_upper(signature.as_bytes());
+        cert.signature = hex::encode_upper(signature.as_slice());
 
         cert.validate_signed()
             .map_err(|error| format!("CERT_VALIDATE_ERROR: {}", error.code()))?;
@@ -348,12 +349,12 @@ impl CertificateAuthority {
         let sig_bytes = hex::decode(&cert.signature)
             .map_err(|_| "CERT_VERIFY_ERROR: signature is not valid hexadecimal".to_string())?;
 
-        let signature = DetachedSignature::from_bytes(&sig_bytes)
+        let signature = signature_from_bytes(&sig_bytes)
             .map_err(|_| "CERT_VERIFY_ERROR: detached signature bytes are invalid".to_string())?;
 
         let pk = self.public_key()?;
 
-        verify_detached_signature(&signature, &message, &pk)
+        verify(&pk, &message, ML_DSA_CONTEXT, &signature)
             .map_err(|_| "CERT_VERIFY_ERROR: detached signature verification failed".to_string())
     }
 
@@ -400,6 +401,33 @@ fn validate_issuer_identifier(value: &str) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn public_key_from_bytes(bytes: &[u8]) -> Result<PublicKey, String> {
+    if bytes.len() != PublicKey::len() {
+        return Err("CA_PUBLIC_KEY_INVALID: stored public key bytes are invalid".to_string());
+    }
+    let mut key = PublicKey::zero();
+    key.as_mut_slice().copy_from_slice(bytes);
+    Ok(key)
+}
+
+fn secret_key_from_bytes(bytes: &[u8]) -> Result<SecretKey, String> {
+    if bytes.len() != SecretKey::len() {
+        return Err("CA_SECRET_KEY_INVALID: stored secret key bytes are invalid".to_string());
+    }
+    let mut key = SecretKey::zero();
+    key.as_mut_slice().copy_from_slice(bytes);
+    Ok(key)
+}
+
+fn signature_from_bytes(bytes: &[u8]) -> Result<DetachedSignature, String> {
+    if bytes.len() != DetachedSignature::len() {
+        return Err("invalid detached signature length".to_string());
+    }
+    let mut signature = DetachedSignature::zero();
+    signature.as_mut_slice().copy_from_slice(bytes);
+    Ok(signature)
 }
 
 #[cfg(test)]

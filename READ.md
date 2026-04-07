@@ -88,3 +88,19 @@ Program trajectory is governed by `ROADMAP.md`: production-grade testnet operati
 ## 8) License and Liability Context
 
 AOXChain is distributed under the MIT License on an **"as is"** basis, without warranty or liability assumptions by maintainers or contributors except where restricted by applicable law.
+
+## 9) Production-Readiness Interpretation Rule
+
+A passing compile/test subset is necessary but insufficient for production declaration.
+
+Production-grade claims require:
+
+- full execution of mandatory readiness gates listed in `TESTING.md`,
+- environment-track consistency checks for the target deployment channel,
+- retained evidence (commands, artifacts, and identifiers) linked to the candidate commit.
+- required gate toolchain availability in CI/validation environments (for example, `cargo-audit` for security gate execution).
+- explicit closure or risk acceptance for active security advisories affecting consensus-critical dependency paths.
+
+Point-in-time closure gaps and pending actions are tracked in:
+
+- `docs/REPOSITORY_PRODUCTION_GAP_REPORT.md`
