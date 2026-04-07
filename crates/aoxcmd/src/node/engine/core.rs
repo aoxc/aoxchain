@@ -11,7 +11,7 @@ use crate::{
         state::{ConsensusSnapshot, KeyMaterialSnapshot, NodeState},
     },
 };
-use aoxcdata::{canonical_block_envelope_hash_hex, BlockEnvelope, HybridDataStore, IndexBackend};
+use aoxcdata::{BlockEnvelope, HybridDataStore, IndexBackend, canonical_block_envelope_hash_hex};
 use aoxcunity::{
     Block, BlockBody, BlockSection, ConsensusMessage, LaneCommitment, LaneCommitmentSection,
     LaneType, Proposer,

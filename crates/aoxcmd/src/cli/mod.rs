@@ -343,7 +343,7 @@ fn route_query_consensus_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "status" => ops::cmd_consensus_status(tail),
-        "validators" => ops::cmd_consensus_validators(tail),
+        "validators" | "validator-set" => ops::cmd_consensus_validators(tail),
         "proposer" => ops::cmd_consensus_proposer(tail),
         "round" => ops::cmd_consensus_round(tail),
         "finality" => ops::cmd_consensus_finality(tail),
