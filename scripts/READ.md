@@ -117,11 +117,9 @@ This script supports:
 
 - explicit `--home` full-node runtime path,
 - release-path publication under `/aoxchain/releases/v<workspace-version>/bin/aoxc` (configurable),
-- direct `--aoxc-bin` override to run an existing binary without writing to release paths,
 - locked release build for `aoxc` when missing or forced,
 - strict workspace/version-policy parity checks before launch,
-- optional bootstrap skip and direct `node start` execution,
-- fail-closed writable-path checks with explicit operator-facing error messages.
+- optional bootstrap skip and direct `node start` execution.
 
 ### `scripts/testnet_production_orchestrator.sh`
 Production-oriented testnet topology planner and orchestrator.

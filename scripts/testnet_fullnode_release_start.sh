@@ -14,7 +14,6 @@ NETWORK_KIND="testnet"
 FORCE_REBUILD=0
 SKIP_BUILD=0
 RUN_BOOTSTRAP=1
-AOXC_BIN_OVERRIDE=""
 
 usage() {
   cat <<USAGE
@@ -27,7 +26,6 @@ Required:
 
 Options:
   --releases-root <path>        Release root path (default: ${RELEASES_ROOT})
-  --aoxc-bin <path>             Use a specific aoxc binary path (skips release copy/build logic)
   --profile <name>              Bootstrap profile (default: ${PROFILE})
   --network-kind <kind>         Runtime source network kind (default: ${NETWORK_KIND})
   --skip-bootstrap              Skip production-bootstrap and only start node
@@ -50,17 +48,6 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
 }
 
-ensure_parent_writable() {
-  local target="$1"
-  local parent
-  parent="$(dirname "${target}")"
-  while [[ ! -d "${parent}" && "${parent}" != "/" ]]; do
-    parent="$(dirname "${parent}")"
-  done
-  [[ -d "${parent}" ]] || fail "Could not resolve existing parent directory for: ${target}"
-  [[ -w "${parent}" ]] || fail "Parent directory is not writable: ${parent}"
-}
-
 read_workspace_version() {
   sed -n '/^\[workspace\.package\]/,/^\[/{s/^version = "\(.*\)"/\1/p}' "${REPO_ROOT}/Cargo.toml" | head -n1
 }
@@ -81,7 +68,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --home) HOME_DIR="$2"; shift 2 ;;
     --releases-root) RELEASES_ROOT="$2"; shift 2 ;;
-    --aoxc-bin) AOXC_BIN_OVERRIDE="$2"; shift 2 ;;
     --profile) PROFILE="$2"; shift 2 ;;
     --network-kind) NETWORK_KIND="$2"; shift 2 ;;
     --skip-bootstrap) RUN_BOOTSTRAP=0; shift ;;
@@ -108,33 +94,19 @@ RELEASE_BIN_DIR="${RELEASE_DIR}/bin"
 RELEASE_BIN="${RELEASE_BIN_DIR}/aoxc"
 TARGET_BIN="${REPO_ROOT}/target/release/aoxc"
 
-if [[ -n "${AOXC_BIN_OVERRIDE}" ]]; then
-  [[ -x "${AOXC_BIN_OVERRIDE}" ]] || fail "--aoxc-bin is not executable: ${AOXC_BIN_OVERRIDE}"
-  RELEASE_BIN="${AOXC_BIN_OVERRIDE}"
-fi
+mkdir -p "${RELEASE_BIN_DIR}" "${HOME_DIR}"
 
-if [[ ! -d "${HOME_DIR}" ]]; then
-  ensure_parent_writable "${HOME_DIR}"
-  mkdir -p "${HOME_DIR}"
-fi
-
-if [[ -z "${AOXC_BIN_OVERRIDE}" ]]; then
-  if [[ "${FORCE_REBUILD}" -eq 1 ]]; then
-    ensure_parent_writable "${RELEASE_BIN_DIR}"
-    mkdir -p "${RELEASE_BIN_DIR}"
-    build_aoxc_release
-    cp "${TARGET_BIN}" "${RELEASE_BIN}"
-    chmod +x "${RELEASE_BIN}"
-  elif [[ ! -x "${RELEASE_BIN}" ]]; then
-    if [[ "${SKIP_BUILD}" -eq 1 ]]; then
-      fail "Release binary is missing and --skip-build was set: ${RELEASE_BIN}"
-    fi
-    ensure_parent_writable "${RELEASE_BIN_DIR}"
-    mkdir -p "${RELEASE_BIN_DIR}"
-    build_aoxc_release
-    cp "${TARGET_BIN}" "${RELEASE_BIN}"
-    chmod +x "${RELEASE_BIN}"
+if [[ "${FORCE_REBUILD}" -eq 1 ]]; then
+  build_aoxc_release
+  cp "${TARGET_BIN}" "${RELEASE_BIN}"
+  chmod +x "${RELEASE_BIN}"
+elif [[ ! -x "${RELEASE_BIN}" ]]; then
+  if [[ "${SKIP_BUILD}" -eq 1 ]]; then
+    fail "Release binary is missing and --skip-build was set: ${RELEASE_BIN}"
   fi
+  build_aoxc_release
+  cp "${TARGET_BIN}" "${RELEASE_BIN}"
+  chmod +x "${RELEASE_BIN}"
 fi
 
 RELEASE_VERSION_OUTPUT="$(${RELEASE_BIN} version 2>/dev/null || true)"
