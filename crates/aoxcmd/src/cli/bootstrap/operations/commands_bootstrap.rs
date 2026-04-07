@@ -167,7 +167,7 @@ pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
         &arg_value(args, "--profile").unwrap_or_else(|| "mainnet".to_string()),
     )?;
     let name = parse_required_or_default_text_arg(args, "--name", "validator-01")?;
-    let password = parse_required_text_arg(args, "--password", false, "production bootstrap")?;
+    let password = resolve_or_prompt_password(args, "production bootstrap")?;
     let bind_host = parse_optional_text_arg(args, "--bind-host", false);
 
     let mut settings = build_profile_settings(home.display().to_string(), profile, bind_host)?;
@@ -178,7 +178,7 @@ pub fn cmd_production_bootstrap(args: &[String]) -> Result<(), AppError> {
     persist(&settings)?;
 
     let mut genesis = profile.genesis_document();
-    let _material = bootstrap_operator_key(&name, profile.as_str(), &password)?;
+    let _material = bootstrap_operator_key(&name, profile.as_str(), password.as_str())?;
     let operator_summary = inspect_operator_key()?;
     upsert_validator_account(
         &mut genesis,
@@ -222,16 +222,24 @@ pub fn cmd_dual_profile_bootstrap(args: &[String]) -> Result<(), AppError> {
         .map(PathBuf::from)
         .unwrap_or_else(|| bootstrap_root().join("dual-profile"));
 
-    let password = parse_required_text_arg(args, "--password", false, "dual profile bootstrap")?;
+    let password = resolve_or_prompt_password(args, "dual profile bootstrap")?;
     let name = parse_required_or_default_text_arg(args, "--name", "validator-01")?;
 
     let mainnet_dir = output_dir.join("mainnet");
     let testnet_dir = output_dir.join("testnet");
 
-    let mainnet =
-        bootstrap_profile_directory(&mainnet_dir, EnvironmentProfile::Mainnet, &name, &password)?;
-    let testnet =
-        bootstrap_profile_directory(&testnet_dir, EnvironmentProfile::Testnet, &name, &password)?;
+    let mainnet = bootstrap_profile_directory(
+        &mainnet_dir,
+        EnvironmentProfile::Mainnet,
+        &name,
+        password.as_str(),
+    )?;
+    let testnet = bootstrap_profile_directory(
+        &testnet_dir,
+        EnvironmentProfile::Testnet,
+        &name,
+        password.as_str(),
+    )?;
 
     let result = DualProfileBootstrapResult {
         output_dir: output_dir.display().to_string(),

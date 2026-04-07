@@ -1,12 +1,12 @@
 [workspace]
 resolver = "3"
-
-members = [
-    "crates/aoxchal",
+members  = [
     "crates/aoxcai",
     "crates/aoxcdata",
     "crates/aoxcenergy",
     "crates/aoxcexec",
+    "crates/aoxchub",
+    "crates/aoxchal",
     "crates/aoxckit",
     "crates/aoxclibs",
     "crates/aoxcmd",
@@ -19,57 +19,56 @@ members = [
     "crates/aoxcsdk",
     "crates/aoxcunity",
     "crates/aoxcvm",
-    "crates/aoxchub",
     "tests",
 ]
 
 [workspace.package]
-version = "0.2.0-alpha.1"
-edition = "2024"
-authors = ["aoxchain@gmail.com"]
-license = "MIT"
+version      = "0.2.0-alpha.1"
+edition      = "2024"
 rust-version = "1.94.1"
-repository = "https://github.com/aoxchain/aoxchain"
-description = "AOXChain institutional-grade Rust workspace for deterministic blockchain execution and operator tooling."
+authors      = ["AOXChain Team <aoxchain@gmail.com>"]
+license      = "MIT"
+repository   = "https://github.com/aoxchain/aoxchain"
+description  = "High-performance, deterministic blockchain execution framework and institutional operator tooling."
 
 [workspace.dependencies]
-# Core serialization and async runtime
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-tokio = { version = "1.51.0", features = ["full"] }
-async-trait = "0.1.89"
+# --- Core Runtime & Async ---
+tokio        = { version = "1.51.0", features = ["full"] }
+async-trait  = "0.1.89"
+async-stream = "0.3.6"
+futures-core = "0.3.32"
 
-# Error handling and observability
-thiserror = "2.0.18"
-tracing = "0.1.44"
-chrono = { version = "0.4.44", features = ["serde"] }
+# --- Serialization & Data ---
+serde        = { version = "1.0.228", features = ["derive"] }
+serde_json   = "1.0.149"
+serde_yaml   = "0.9.34"
+chrono       = { version = "0.4.44", features = ["serde"] }
 
-# AI / compute
-candle-core = "0.9.2"
+# --- Networking & API ---
+axum         = { version = "0.8.8", features = ["json", "macros"] }
+tower        = { version = "0.5.3", features = ["limit", "timeout", "util"] }
+tower-http   = { version = "0.6.8", features = ["trace"] }
 
-# Hashing and encoding
-sha2 = "0.11.0"
-sha3 = "0.10.8"
-blake3 = "1.8.4"
-base64 = "0.22.1"
-hex = "0.4.3"
-
-# Cryptography
-aes-gcm = "0.10.3"
-argon2 = "0.5.3"
+# --- Cryptography & Hashing ---
+sha2         = "0.11.0"
+sha3         = "0.10.8"
+blake3       = "1.8.4"
+aes-gcm      = "0.10.3"
+argon2       = "0.5.3"
 ed25519-dalek = "2.2.0"
 libcrux-ml-dsa = "0.0.8"
 
-# Utilities
-rand = "0.10"
-serde_yaml = "0.9.34"
-redb = "4.0.0"
-axum = { version = "0.8.8", features = ["json", "macros"] }
-clap = { version = "4.6.0", features = ["derive", "env"] }
-tower = { version = "0.5.3", features = ["limit", "timeout", "util"] }
-tower-http = { version = "0.6.8", features = ["trace"] }
-async-stream = "0.3.6"
-futures-core = "0.3.32"
+# --- Infrastructure & Storage ---
+redb         = "4.0.0"
+candle-core  = "0.9.2"
+clap         = { version = "4.6.0", features = ["derive", "env"] }
+
+# --- Observability & Utilities ---
+tracing      = "0.1.44"
+thiserror    = "2.0.18"
+base64       = "0.22.1"
+hex          = "0.4.3"
+rand         = "0.10"
 
 [workspace.metadata.ci]
 required_checks = [
@@ -78,14 +77,15 @@ required_checks = [
     "cargo test --workspace --exclude aoxchub --all-targets",
     "cargo check -p aoxchub --all-targets",
 ]
-policy = "Formatting, core workspace clippy/tests, and an explicit desktop surface check are mandatory for merge and release branches."
+policy = "Strict adherence to formatting, clippy linting, and comprehensive test suites is required for all merge requests."
 
 [workspace.metadata.quality_focus]
-aoxcore = "Increase property-based test coverage for identity and genesis models."
-aoxckit = "Add golden tests for key rotation and revocation workflows."
-aoxcdata = "Preserve deterministic storage/integrity coverage when changing persistence code."
+aoxcore  = "Enhance property-based testing for identity modules and genesis state transitions."
+aoxckit  = "Implement golden tests for cryptographic key rotation and revocation lifecycles."
+aoxcdata = "Maintain strict determinism in storage layers and data integrity verification."
 
 [profile.release]
-panic = "abort"
-lto = true
+panic         = "abort"
+lto           = true
 codegen-units = 1
+strip         = true
