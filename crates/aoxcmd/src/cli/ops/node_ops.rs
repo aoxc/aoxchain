@@ -114,14 +114,20 @@ fn print_node_live_log_header(
     };
 
     let execution_mode = if continuous { "continuous" } else { "bounded" };
-    let log_mode = if log_level == "debug" { "debug" } else { "info" };
+    let log_mode = if log_level == "debug" {
+        "debug"
+    } else {
+        "info"
+    };
     let profile = settings.profile.as_str();
     let block_hash = short_hash(&state.consensus.last_block_hash_hex);
     let parent_hash = short_hash(&state.consensus.last_parent_hash_hex);
 
     println!();
     println!("🚀 AOXC NODE LIVE SESSION [{}]", now);
-    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    );
     println!(
         "🧭 mode={} | rounds={} | interval={}s | tx_prefix={} | log={} | live_log={}",
         execution_mode,
@@ -139,10 +145,7 @@ fn print_node_live_log_header(
         settings.network.rpc_port,
         settings.telemetry.prometheus_port
     );
-    println!(
-        "🔌 rpc_url={} | metrics_url={}",
-        rpc_url, metrics_url
-    );
+    println!("🔌 rpc_url={} | metrics_url={}", rpc_url, metrics_url);
     println!(
         "🧱 height={} | produced={} | network_id={} | consensus_round={} | sections={}",
         state.current_height,
@@ -159,9 +162,7 @@ fn print_node_live_log_header(
     );
     println!(
         "⛓️  head={} | parent={} | updated_at={}",
-        block_hash,
-        parent_hash,
-        state.updated_at
+        block_hash, parent_hash, state.updated_at
     );
     println!("🗄️  state_db={}", db_path.display());
     println!(
@@ -172,12 +173,16 @@ fn print_node_live_log_header(
             "use --log-level debug for extended trace fields"
         }
     );
-    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ LIVE ROUND STREAM ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ LIVE ROUND STREAM ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    );
     println!(
         "📋 {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:>7} | {:<17} | {:<12}",
         "round", "timestamp", "height", "blocks", "sec", "c_round", "block", "tx"
     );
-    println!("────────────────────────────────────────────────────────────────────────────────────────────────────────────");
+    println!(
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+    );
 
     Ok(())
 }
@@ -278,13 +283,12 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
 /// The footer provides a concise terminal state snapshot suitable for human
 /// confirmation and release/operator evidence capture.
 fn print_node_live_log_footer(state: &crate::node::state::NodeState) {
-    println!("────────────────────────────────────────────────────────────────────────────────────────────────────────────");
+    println!(
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+    );
     println!(
         "🏁 final_height={} | produced_blocks={} | consensus_round={} | updated_at={}",
-        state.current_height,
-        state.produced_blocks,
-        state.consensus.last_round,
-        state.updated_at
+        state.current_height, state.produced_blocks, state.consensus.last_round, state.updated_at
     );
     println!("✅ node session completed");
     println!();
