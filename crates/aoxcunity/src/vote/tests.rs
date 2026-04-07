@@ -4,9 +4,9 @@ use libcrux_ml_dsa::ml_dsa_65::{generate_key_pair, sign as mldsa_sign};
 use rand::random;
 
 use super::{
-    AuthenticatedVote, ConsensusIdentityProfile, SignedVote, Vote, VoteAuthenticationContext,
-    VoteAuthenticationError, VoteKind, SIGNATURE_SCHEME_DILITHIUM3, SIGNATURE_SCHEME_ED25519,
-    SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
+    AuthenticatedVote, ConsensusIdentityProfile, SIGNATURE_SCHEME_DILITHIUM3,
+    SIGNATURE_SCHEME_ED25519, SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3, SignedVote, Vote,
+    VoteAuthenticationContext, VoteAuthenticationError, VoteKind,
 };
 
 fn make_vote(block_hash: [u8; 32], round: u64, kind: VoteKind) -> Vote {
