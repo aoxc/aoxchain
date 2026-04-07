@@ -58,7 +58,7 @@ hex = "0.4.3"
 aes-gcm = "0.10.3"
 argon2 = "0.5.3"
 ed25519-dalek = "2.2.0"
-pqcrypto-mldsa = "0.1.2"
+libcrux-ml-dsa = "0.0.8"
 pqcrypto-traits = "0.3.5"
 
 # Utilities
