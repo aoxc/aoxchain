@@ -122,7 +122,7 @@ BOOTSTRAP
   config-validate
   config-print
   production-bootstrap --password <value> [--profile <testnet|mainnet>] [--name <validator>] [--bind-host <host>] [--produce-once-tx <value>] [--skip-produce-once]
-  topology-bootstrap --mode <single|mainchain-4> --password <value> [--output-dir <path>] [--name-prefix <validator>] [--profile <localnet|devnet|validation|testnet|mainnet>]
+  topology-bootstrap --mode <single|mainchain-4|devnet-4> --password <value> [--output-dir <path>] [--name-prefix <validator>] [--profile <localnet|devnet|validation|testnet|mainnet>]
   dual-profile-bootstrap --password <value> [--output-dir <path>] [--name-prefix <validator>]
 
 NODE AND ECONOMY

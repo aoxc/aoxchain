@@ -302,10 +302,32 @@ pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
                 "Four-node mainchain topology generated. Start each node with its dedicated --home directory.",
             )
         }
+        "devnet-4" | "dev-4" => {
+            let mut nodes = Vec::with_capacity(4);
+            for ordinal in 1..=4u16 {
+                let operator_name = format!("{name_prefix}-{:02}", ordinal);
+                let bootstrap = bootstrap_profile_directory_with_port_offset(
+                    &output_dir.join(format!("node-{:02}", ordinal)),
+                    EnvironmentProfile::Devnet,
+                    &operator_name,
+                    &password,
+                    (ordinal - 1) * 10,
+                )?;
+                nodes.push(node_runtime_summary(
+                    format!("devnet-validator-{ordinal}"),
+                    bootstrap,
+                ));
+            }
+            (
+                EnvironmentProfile::Devnet,
+                nodes,
+                "Four-node devnet topology generated. Start each node with its dedicated --home directory.",
+            )
+        }
         _ => {
             return Err(AppError::new(
                 ErrorCode::UsageInvalidArguments,
-                "Unsupported --mode. Use --mode single or --mode mainchain-4.",
+                "Unsupported --mode. Use --mode single, --mode mainchain-4, or --mode devnet-4.",
             ));
         }
     };
