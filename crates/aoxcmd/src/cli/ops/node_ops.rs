@@ -69,13 +69,22 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
         ));
     }
 
+    let mut listener_status = ListenerBootstrapStatus::NotRequested;
+
     if !has_flag(args, "--no-rpc-serve") {
         if let Ok(settings) = effective_settings_for_ops() {
-            let _ = super::rpc_serve_ops::spawn_rpc_and_metrics_listeners(
+            listener_status = match super::rpc_serve_ops::spawn_rpc_and_metrics_listeners(
                 &settings.network.bind_host,
                 settings.network.rpc_port,
                 settings.telemetry.prometheus_port,
-            );
+            ) {
+                Ok(()) => ListenerBootstrapStatus::Started {
+                    bind_host: settings.network.bind_host,
+                    rpc_port: settings.network.rpc_port,
+                    metrics_port: settings.telemetry.prometheus_port,
+                },
+                Err(error) => ListenerBootstrapStatus::Failed(error.to_string()),
+            };
         }
     }
 
@@ -86,6 +95,7 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
             &log_level,
             interval_secs,
             continuous,
+            &listener_status,
         )?;
     }
 
@@ -123,6 +133,16 @@ fn default_runtime_tx_id() -> String {
     format!("runtime-tx-{}", chrono::Utc::now().timestamp())
 }
 
+enum ListenerBootstrapStatus {
+    NotRequested,
+    Started {
+        bind_host: String,
+        rpc_port: u16,
+        metrics_port: u16,
+    },
+    Failed(String),
+}
+
 /// Prints the operator-facing startup banner.
 ///
 /// Audit Note:
@@ -135,6 +155,7 @@ fn print_node_live_log_header(
     log_level: &str,
     interval_secs: u64,
     continuous: bool,
+    listener_status: &ListenerBootstrapStatus,
 ) -> Result<(), AppError> {
     let now = chrono::Utc::now()
         .format("%Y-%m-%d %H:%M:%S UTC")
@@ -160,17 +181,31 @@ fn print_node_live_log_header(
         || rpc_jsonrpc_status_probe(&probe_host, settings.network.rpc_port);
 
     let execution_mode = if continuous { "continuous" } else { "bounded" };
-    let assessment = startup_assessment(
-        rpc_reachable,
-        non_empty_or(&state.key_material.operational_state, "unknown"),
-        state.current_height,
-    );
-
     let key_state = non_empty_or(&state.key_material.operational_state, "unknown");
+    let assessment = startup_assessment(rpc_reachable, key_state, state.current_height);
+
     let fingerprint = short_hash(&state.key_material.bundle_fingerprint);
     let proposer = short_hash(&state.consensus.last_proposer_hex);
     let head = short_hash(&state.consensus.last_block_hash_hex);
     let parent = short_hash(&state.consensus.last_parent_hash_hex);
+
+    let listener_line = match listener_status {
+        ListenerBootstrapStatus::NotRequested => {
+            "🧩 Listener   : not-requested".to_string()
+        }
+        ListenerBootstrapStatus::Started {
+            bind_host,
+            rpc_port,
+            metrics_port,
+        } => format!(
+            "🧩 Listener   : started | rpc=http://{}:{} | metrics=http://{}:{}/metrics",
+            bind_host, rpc_port, bind_host, metrics_port
+        ),
+        ListenerBootstrapStatus::Failed(reason) => format!(
+            "🧩 Listener   : failed | reason={}",
+            shorten_middle(reason, 72)
+        ),
+    };
 
     let banner_lines = vec![
         "🚀 AOXC TESTNET FULL NODE".to_string(),
@@ -178,10 +213,7 @@ fn print_node_live_log_header(
         format!("🕒 Started    : {}", now),
         format!("🌐 Profile    : {}", settings.profile),
         format!("⚙️ Mode       : {}", execution_mode),
-        format!(
-            "🏠 Home       : {}",
-            shorten_middle(&settings.home_dir, 74)
-        ),
+        format!("🏠 Home       : {}", shorten_middle(&settings.home_dir, 74)),
         format!(
             "📡 Network    : bind={} | p2p={} | rpc={} | metrics={}",
             settings.network.bind_host,
@@ -190,6 +222,7 @@ fn print_node_live_log_header(
             settings.telemetry.prometheus_port
         ),
         format!("🔌 Probe      : {}", probe_target),
+        listener_line,
         format!(
             "🧱 Chain      : height={} | round={} | produced={} | sections={} | network_id={}",
             state.current_height,
@@ -200,19 +233,13 @@ fn print_node_live_log_header(
         ),
         format!(
             "🔐 Identity   : key={} | fingerprint={} | proposer={}",
-            key_state,
-            fingerprint,
-            proposer
+            key_state, fingerprint, proposer
         ),
         format!(
             "🗄 Storage    : db={} | persistence=enabled",
             shorten_middle(&db_path.display().to_string(), 62)
         ),
-        format!(
-            "📈 Head       : block={} | parent={}",
-            head,
-            parent
-        ),
+        format!("📈 Head       : block={} | parent={}", head, parent),
         format!(
             "✅ Status     : {} | rpc={} | health={}",
             assessment,
@@ -431,11 +458,14 @@ fn short_hash(value: &str) -> String {
         return "unavailable".to_string();
     }
 
-    if value.chars().count() <= 18 {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= 18 {
         return value.to_string();
     }
 
-    format!("{}…{}", &value[..8], &value[value.len() - 8..])
+    let start: String = chars.iter().take(8).collect();
+    let end: String = chars[chars.len() - 8..].iter().collect();
+    format!("{start}…{end}")
 }
 
 /// Returns a fallback string if the input is empty.
