@@ -110,6 +110,20 @@ This gate validates:
 - testnet runtime-source integrity through the Make runtime surface,
 - `network-metadata.json` identity alignment with `manifest.v1.json`.
 
+### `scripts/testnet_fullnode_release_start.sh`
+Release-aligned real testnet full-node launcher.
+
+This script supports:
+
+- persistent full-node launch flow for release-root deployments (e.g. `/mnt/xdbx/aoxc`),
+- explicit `--home` and `--data-root` runtime paths,
+- release-bundle lookup under `v<version>/<platform>/bin/aoxc`,
+- version/platform selection via `--version`/`--platform` (plus `--release-version`/`--release-platform` aliases),
+- direct `--aoxc-bin` override to run an existing binary,
+- optional strict parity checks when repository policy files are present,
+- optional bootstrap skip and direct `node start` execution,
+- fail-closed writable-path checks with explicit operator-facing error messages.
+
 ### `scripts/testnet_production_orchestrator.sh`
 Production-oriented testnet topology planner and orchestrator.
 
