@@ -127,7 +127,7 @@ BOOTSTRAP
 NODE AND ECONOMY
   node-bootstrap
   produce-once
-  node-run [--rounds <n>] [--continuous] [--bounded] [--interval-secs <2..600>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log]
+  node-run [--rounds <n>] [--continuous] [--bounded] [--interval-secs <2..600>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log] [--no-rpc-serve]
   node-health
   economy-init
   treasury-transfer
@@ -205,6 +205,7 @@ NODE AND ECONOMY
   metrics
   rpc-status
   rpc-curl-smoke
+  rpc-serve [--host <ip>] [--rpc-port <n>] [--metrics-port <n>]
 
 VALIDATION AND AUDIT
   load-benchmark
