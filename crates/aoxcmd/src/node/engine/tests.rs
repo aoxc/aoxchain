@@ -144,7 +144,8 @@ fn snapshot_from_message_tracks_vote_payload() {
         pq_signature: None,
     };
 
-    let snapshot = snapshot_from_message(&ConsensusMessage::Vote(vote));
+    let snapshot = snapshot_from_message(&ConsensusMessage::Vote(vote))
+        .expect("vote snapshot derivation should succeed");
 
     assert_eq!(snapshot.last_message_kind, "vote");
     assert_eq!(snapshot.last_block_hash_hex, hex::encode(block.hash));

@@ -320,14 +320,16 @@ fn snapshot_from_key_material(key_material: &KeyMaterial) -> Result<KeyMaterialS
 
 /// Snapshot builder for test-only direct message assertions.
 #[cfg(test)]
-pub(super) fn snapshot_from_message(message: &ConsensusMessage) -> ConsensusSnapshot {
+pub(super) fn snapshot_from_message(
+    message: &ConsensusMessage,
+) -> Result<ConsensusSnapshot, AppError> {
     snapshot_from_message_kind(message, BLOCK_PROPOSAL_MESSAGE_KIND)
 }
 
 fn snapshot_from_message_kind(
     message: &ConsensusMessage,
     block_proposal_kind: &str,
-) -> ConsensusSnapshot {
+) -> Result<ConsensusSnapshot, AppError> {
     match message {
         ConsensusMessage::BlockProposal { block } => ConsensusSnapshot {
             network_id: block.header.network_id,
@@ -348,8 +350,8 @@ fn snapshot_from_message_kind(
             last_timestamp_unix: 0,
             last_message_kind: "vote".to_string(),
             last_section_count: 0,
-        },
-        ConsensusMessage::Finalize { seal, certificate } => ConsensusSnapshot {
+        }),
+        ConsensusMessage::Finalize { seal, certificate } => Ok(ConsensusSnapshot {
             network_id: certificate.network_id,
             last_block_hash_hex: hex::encode(seal.block_hash),
             last_parent_hash_hex: hex::encode([0u8; 32]),
@@ -358,7 +360,7 @@ fn snapshot_from_message_kind(
             last_timestamp_unix: 0,
             last_message_kind: "finalize".to_string(),
             last_section_count: 0,
-        },
+        }),
     }
 }
 
