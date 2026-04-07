@@ -219,6 +219,32 @@ pub(super) struct DualProfileBootstrapResult {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub(super) struct TopologyBootstrapNodeSummary {
+    pub(super) topology_role: String,
+    pub(super) bootstrap: ProfileBootstrapSummary,
+    pub(super) rpc_url: String,
+    pub(super) metrics_url: String,
+    pub(super) start_command: String,
+    pub(super) query_commands: Vec<String>,
+    pub(super) allocation_preset: String,
+    pub(super) genesis_accounts_total: usize,
+    pub(super) genesis_accounts_preview: Vec<BootstrapAccountRecord>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(super) struct TopologyBootstrapResult {
+    pub(super) topology_mode: String,
+    pub(super) output_dir: String,
+    pub(super) profile: String,
+    pub(super) node_count: usize,
+    pub(super) nodes: Vec<TopologyBootstrapNodeSummary>,
+    pub(super) genesis_consistency: Vec<String>,
+    pub(super) rpc_api_runbook: Vec<String>,
+    pub(super) economics_summary: Vec<String>,
+    pub(super) launch_hint: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub(super) struct AddressCreateOutput {
     pub(super) profile: String,
     pub(super) validator_name: String,

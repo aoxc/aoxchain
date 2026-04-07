@@ -45,7 +45,8 @@ use helpers_args::{
     parse_required_or_default_text_arg, parse_required_text_arg,
 };
 use helpers_core::{
-    bootstrap_profile_directory, build_profile_settings, derive_short_fingerprint, load_genesis,
+    bootstrap_profile_directory, bootstrap_profile_directory_with_port_offset,
+    build_profile_settings, derive_short_fingerprint, load_genesis,
     load_or_default_bootnodes_binding, load_or_default_validators_binding,
     materialize_binding_documents, persist_bootnodes_binding, persist_genesis,
     persist_validators_binding, sync_optional_accounts_binding, upsert_bootnode_binding,
@@ -58,7 +59,7 @@ mod helpers_tests;
 
 pub use commands_bootstrap::{
     cmd_config_init, cmd_config_print, cmd_config_validate, cmd_dual_profile_bootstrap,
-    cmd_production_bootstrap,
+    cmd_production_bootstrap, cmd_topology_bootstrap,
 };
 pub use commands_genesis::{
     cmd_consensus_profile_audit, cmd_genesis_add_account, cmd_genesis_add_validator,

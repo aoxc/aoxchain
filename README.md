@@ -4,34 +4,48 @@
   <img src="./logos/aoxc.png" alt="AOXChain Logo" width="180" />
 </p>
 
-AOXChain is a deterministic Layer-1 engineering program focused on production-grade operation, cryptographic agility, and evidence-backed readiness.
+AOXChain is a deterministic Layer-1 engineering program focused on operational discipline, cryptographic agility, and evidence-backed readiness.
 
-## Repository Health Snapshot (2026-04-07 UTC)
+## ⚠️ Experimental Program Notice (Read First)
+
+AOXChain is currently an **experimental engineering system** under active development.
+
+- It is suitable for engineering evaluation, deterministic testing, and controlled testnet operation.
+- It should **not** be interpreted as an unconditional production guarantee.
+- Behavior, interfaces, defaults, and operational controls may evolve as gaps are closed.
+
+AOXChain is distributed under the **MIT License** with standard warranty and liability limitations. Operators, integrators, and contributors are responsible for independent validation before high-stakes use.
+
+## 🧭 Current State and Strategic Target
+
+### Current state
+- Deterministic node lifecycle and operator CLI surfaces are available.
+- Environment identity and readiness gates are implemented for dev/test/main channels.
+- Repository-level production-gap closure is actively tracked and audited.
+
+### Strategic target
+- **Production-grade testnet discipline** as an intermediate control stage.
+- **Post-quantum (PQ) resilient mainnet posture** as a long-term activation target, enabled only after cryptographic, operational, and validation gates are satisfied.
+
+In short: AOXChain is built toward quantum-resilient operation, but is deliberately run with conservative, evidence-first activation policy.
+
+## 📊 Repository Health Snapshot (2026-04-07 UTC)
 
 - `cargo check --workspace --locked`: pass
 - `cargo test --workspace --exclude aoxchub --all-targets --locked`: pass
-- Current production-gap status and closure actions are tracked in `docs/REPOSITORY_PRODUCTION_GAP_REPORT.md`.
+- Open production-gap items and closure actions: `docs/REPOSITORY_PRODUCTION_GAP_REPORT.md`
 
-This snapshot is a point-in-time engineering status, not a standing production guarantee.
+This snapshot is point-in-time engineering evidence, not a perpetual guarantee.
 
-## Program Direction
+## 🛰️ Release Channel Model
 
-AOXChain follows a two-stage strategy:
+AOXChain uses one codebase across three operational channels:
 
-1. **Production-Grade Testnet** — operate testnet with mainnet discipline.
-2. **PQ-Resilient Mainnet** — activate mainnet only after cryptographic and operational controls are proven.
+1. **Devnet (rolling development)** — CI-first iteration and engineering change velocity.
+2. **Testnet (candidate validation)** — promotion-candidate hardening and operational evidence collection.
+3. **Mainnet (stable target)** — enabled only after policy and readiness gates pass.
 
-The repository intentionally avoids unverifiable claims.
-
-## Release Channel Model
-
-AOXChain runs one codebase across three operational channels:
-
-1. **Devnet (rolling development)** — continuous integration surface and fast iteration.
-2. **Testnet (candidate validation)** — stabilization and promotion candidate validation.
-3. **Mainnet (stable production)** — promotion target only after evidence-backed gates pass.
-
-Channel transitions are policy-driven; identity is loaded from environment manifests and registry policy, not hardcoded in binaries.
+Channel identity is policy-driven through environment manifests and registry controls, not hardcoded per build.
 
 ---
 
@@ -97,6 +111,32 @@ rm -f /path/to/aoxc/home/testnet/runtime/db/main.redb
 Otherwise startup can fail with a parent-hash mismatch (`AOXC-LED-001`) because
 historical block rows from a previous run conflict with a newly bootstrapped
 height-0 state.
+
+### 6) Fast topology bootstrap (single command)
+
+Use `topology-bootstrap` when you want one-command generation for single-node or four-node layouts:
+
+```bash
+# Interactive password mode (asks twice in terminal):
+./target/release/aoxc topology-bootstrap \
+  --mode single \
+  --allocation-preset balanced \
+  --profile testnet \
+  --output-dir /tmp/aoxc-topology-single
+
+# Explicit password mode (automation-friendly):
+./target/release/aoxc topology-bootstrap \
+  --mode mainchain-4 \
+  --password '<strong-password>' \
+  --allocation-preset validator-heavy \
+  --output-dir /tmp/aoxc-topology-mainchain4
+```
+
+What this provides:
+- deterministic per-node home directories and identity materials,
+- per-node RPC/metrics/start/query hints in output,
+- preset-based genesis allocation plans (`minimal`, `balanced`, `validator-heavy`),
+- mainchain-4 port-offset handling for same-host multi-node runs.
 
 ---
 
