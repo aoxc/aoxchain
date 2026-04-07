@@ -205,6 +205,7 @@ NODE AND ECONOMY
   metrics
   rpc-status
   rpc-curl-smoke
+  rpc-serve [--host <ip>] [--rpc-port <n>] [--metrics-port <n>]
 
 VALIDATION AND AUDIT
   load-benchmark
