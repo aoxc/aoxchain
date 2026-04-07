@@ -244,7 +244,7 @@ pub fn cmd_dual_profile_bootstrap(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
     let topology_mode = arg_value(args, "--mode").unwrap_or_else(|| "single".to_string());
-    let password = resolve_or_prompt_password(args, "topology bootstrap")?;
+    let password = parse_required_text_arg(args, "--password", false, "topology bootstrap")?;
     let name_prefix = parse_required_or_default_text_arg(args, "--name-prefix", "validator")?;
     let output_dir = arg_value(args, "--output-dir")
         .map(PathBuf::from)
@@ -268,7 +268,10 @@ pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
             )?;
             (
                 profile,
-                vec![node_runtime_summary("single-node".to_string(), bootstrap)],
+                vec![TopologyBootstrapNodeSummary {
+                    topology_role: "single-node".to_string(),
+                    bootstrap,
+                }],
                 "Single-node topology generated. Use `aoxc node start --home <node-home>` to launch.",
             )
         }
@@ -283,10 +286,10 @@ pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
                     &password,
                     (ordinal - 1) * 10,
                 )?;
-                nodes.push(node_runtime_summary(
-                    format!("mainchain-validator-{ordinal}"),
+                nodes.push(TopologyBootstrapNodeSummary {
+                    topology_role: format!("mainchain-validator-{ordinal}"),
                     bootstrap,
-                ));
+                });
             }
             (
                 EnvironmentProfile::Mainnet,
@@ -308,15 +311,6 @@ pub fn cmd_topology_bootstrap(args: &[String]) -> Result<(), AppError> {
         profile: profile.as_str().to_string(),
         node_count: nodes.len(),
         nodes,
-        genesis_consistency: vec![
-            "Use the exact generated genesis.json, validators.json, bootnodes.json, and certificate.json for every node in the topology.".to_string(),
-            "Do not mix identity bundles across different topology-bootstrap runs.".to_string(),
-        ],
-        rpc_api_runbook: vec![
-            "Run `aoxc network-identity-gate --enforce --env <profile>` before startup.".to_string(),
-            "Start each node with its dedicated home directory using the generated start_command value.".to_string(),
-            "Validate API/RPC with `aoxc api status`, `aoxc query chain status`, and `aoxc query network peers` for every node.".to_string(),
-        ],
         launch_hint,
     };
 
