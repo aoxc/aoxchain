@@ -1,6 +1,6 @@
 use crate::block::PQ_MANDATORY_START_EPOCH;
 use ed25519_dalek::{Signer, SigningKey};
-use pqcrypto_dilithium::dilithium3::{keypair as dilithium_keypair, sign as dilithium_sign};
+use pqcrypto_mldsa::mldsa65::{keypair as dilithium_keypair, sign as dilithium_sign};
 use pqcrypto_traits::sign::{PublicKey as _, SignedMessage as _};
 
 use super::{

@@ -6,6 +6,15 @@
 
 AOXChain is a deterministic Layer-1 engineering program focused on production-grade operation, cryptographic agility, and evidence-backed readiness.
 
+## Repository Health Snapshot (2026-04-07 UTC)
+
+- `cargo check --workspace --locked`: pass
+- `cargo test --workspace --exclude aoxchub --all-targets --locked`: pass
+- `cargo audit` (operator evidence from Arch Linux on 2026-04-07): warning `RUSTSEC-2024-0380` for `pqcrypto-dilithium` (unmaintained; replacement `pqcrypto-mldsa`)
+- Current production-gap status and closure actions are tracked in `docs/REPOSITORY_PRODUCTION_GAP_REPORT.md`.
+
+This snapshot is a point-in-time engineering status, not a standing production guarantee.
+
 ## Program Direction
 
 AOXChain follows a two-stage strategy:
@@ -214,6 +223,7 @@ Notes:
 - `ARCHITECTURE.md` — component boundaries and dependency direction.
 - `SECURITY.md` — security posture and disclosure model.
 - `TESTING.md` — validation policy and readiness gates.
+- `docs/REPOSITORY_PRODUCTION_GAP_REPORT.md` — point-in-time production gap register and closure actions.
 - `ROADMAP.md` — strategic roadmap and phase gates.
 - `docs/NAMING_VERSIONING_SIMPLIFICATION_PLAN.md` — naming/versioning baseline and migration policy.
 - `docs/GENESIS_IDENTITY_CHECKLIST.md` — genesis and environment identity consistency checklist.

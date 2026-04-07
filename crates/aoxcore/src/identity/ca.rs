@@ -4,7 +4,7 @@
 
 use crate::identity::certificate::Certificate;
 
-use pqcrypto_dilithium::dilithium3::{
+use pqcrypto_mldsa::mldsa65::{
     DetachedSignature, PublicKey, SecretKey, detached_sign, keypair, verify_detached_signature,
 };
 
