@@ -115,14 +115,11 @@ Release-aligned real testnet full-node launcher.
 
 This script supports:
 
-- persistent full-node launch flow for release-root deployments (e.g. `/mnt/xdbx/aoxc`),
-- explicit `--home` and `--data-root` runtime paths,
-- release-bundle lookup under `v<version>/<platform>/bin/aoxc`,
-- version/platform selection via `--version`/`--platform` (plus `--release-version`/`--release-platform` aliases),
-- direct `--aoxc-bin` override to run an existing binary,
-- optional strict parity checks when repository policy files are present,
-- optional bootstrap skip and direct `node start` execution,
-- fail-closed writable-path checks with explicit operator-facing error messages.
+- explicit `--home` full-node runtime path,
+- release-path publication under `/aoxchain/releases/v<workspace-version>/bin/aoxc` (configurable),
+- locked release build for `aoxc` when missing or forced,
+- strict workspace/version-policy parity checks before launch,
+- optional bootstrap skip and direct `node start` execution.
 
 ### `scripts/testnet_production_orchestrator.sh`
 Production-oriented testnet topology planner and orchestrator.

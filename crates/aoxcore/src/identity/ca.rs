@@ -9,10 +9,8 @@ use libcrux_ml_dsa::ml_dsa_65::{
     MLDSA65VerificationKey as PublicKey, generate_key_pair, sign, verify,
 };
 use rand::random;
-
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
-
 use std::fmt;
 
 /// Canonical signing domain for AOXC certificate authority operations.
@@ -33,10 +31,34 @@ const CA_SELF_TEST_DOMAIN: &[u8] = b"AOXC/IDENTITY/CA/SELF_TEST/V1";
 
 /// Domain used for CA key identifier derivation.
 const CA_KEY_ID_DOMAIN: &[u8] = b"AOXC/IDENTITY/CA/KEY_ID/V1";
+
+/// AOXC currently uses an empty ML-DSA context by policy.
+///
+/// Security rationale:
+/// - protocol-level separation is enforced through explicit AOXC signing domains,
+/// - holding the ML-DSA context constant prevents verifier drift between
+///   independent components that participate in certificate validation.
 const ML_DSA_CONTEXT: &[u8] = b"";
+
+/// Canonical detached signature size in raw bytes for ML-DSA-65.
 const ML_DSA_65_SIGNATURE_SIZE: usize = 3309;
+
+/// Canonical signing key size in raw bytes for ML-DSA-65.
 const ML_DSA_65_SIGNING_KEY_SIZE: usize = 4032;
+
+/// Canonical verification key size in raw bytes for ML-DSA-65.
 const ML_DSA_65_VERIFICATION_KEY_SIZE: usize = 1952;
+
+/// Canonical uppercase-hex encoded detached signature size.
+///
+/// Storage model:
+/// - certificate signatures are persisted as uppercase hexadecimal text,
+/// - storage width is therefore exactly 2x the detached signature byte width.
+///
+/// Security rationale:
+/// - explicit storage-width validation allows the verifier to reject malformed,
+///   truncated, or structurally inconsistent signature fields before decode.
+const ML_DSA_65_SIGNATURE_HEX_LEN: usize = ML_DSA_65_SIGNATURE_SIZE * 2;
 
 /// Maximum accepted issuer identifier length.
 ///
@@ -48,16 +70,16 @@ const MAX_ISSUER_LEN: usize = 128;
 /// capable of issuing and verifying certificates using ML-DSA-65.
 ///
 /// Compatibility notes:
-/// - Key material remains stored as raw bytes in order to preserve the
-///   existing persistence model used by the current system.
+/// - key material remains stored as raw bytes in order to preserve the
+///   existing persistence model used by the current system,
 /// - `sign_certificate` and `verify_certificate` preserve their external
-///   method signatures to reduce integration risk.
-/// - Detached signatures are used internally for a cleaner and more
-///   protocol-appropriate certificate signature model.
+///   method signatures to reduce integration risk,
+/// - detached signatures are generated in raw binary form and then stored
+///   in certificate records as uppercase hexadecimal text.
 ///
 /// Security notes:
-/// - This structure may carry private key material in memory.
-/// - Instances that do not need signing capability should prefer
+/// - this structure may carry private key material in memory,
+/// - instances that do not need signing capability should prefer
 ///   `to_public_verifier()` or `from_public_key_bytes(...)`.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct CertificateAuthority {
@@ -104,7 +126,7 @@ impl CertificateAuthority {
     /// - the resulting instance is expected to pass internal key-material validation.
     ///
     /// Compatibility note:
-    /// this constructor remains infallible in order to preserve existing call sites.
+    /// This constructor remains infallible in order to preserve existing call sites.
     /// Invalid issuer input is normalized by direct storage, but signing and detailed
     /// verification paths still enforce strict issuer validation.
     #[must_use]
@@ -227,19 +249,20 @@ impl CertificateAuthority {
     /// - verifier-only instances are accepted when the private key is absent,
     /// - signer-capable instances must pass a deterministic sign/verify self-test.
     fn validate_key_material_pair(&self) -> Result<(), String> {
-        let pk = self.public_key()?;
+        let public_key = self.public_key()?;
 
         if self.sk_bytes.is_empty() {
-            let _ = pk;
+            let _ = public_key;
             return Ok(());
         }
 
-        let sk = self.secret_key()?;
+        let secret_key = self.secret_key()?;
         let message = self.self_test_message();
-        let signature = sign(&sk, &message, ML_DSA_CONTEXT, random())
+
+        let detached_signature = sign(&secret_key, &message, ML_DSA_CONTEXT, random())
             .map_err(|_| "CA_KEYPAIR_MISMATCH: signing failed during self-test".to_string())?;
 
-        verify(&pk, &message, ML_DSA_CONTEXT, &signature).map_err(|_| {
+        verify(&public_key, &message, ML_DSA_CONTEXT, &detached_signature).map_err(|_| {
             "CA_KEYPAIR_MISMATCH: public and private key material are inconsistent".to_string()
         })
     }
@@ -284,13 +307,46 @@ impl CertificateAuthority {
         message
     }
 
+    /// Encodes a detached signature into the canonical certificate storage format.
+    ///
+    /// Storage policy:
+    /// - AOXC certificate records persist detached ML-DSA signatures as
+    ///   uppercase hexadecimal text,
+    /// - this function centralizes that encoding contract so the sign path,
+    ///   verification path, and test surface remain aligned.
+    #[must_use]
+    fn encode_detached_signature_hex(signature: &DetachedSignature) -> String {
+        hex::encode_upper(signature.as_ref())
+    }
+
+    /// Decodes a certificate signature from canonical storage format into raw bytes.
+    ///
+    /// Validation policy:
+    /// - signature text must have the exact canonical uppercase-hex storage width,
+    /// - signature text must decode successfully from hexadecimal,
+    /// - decoded byte length must match the exact detached ML-DSA-65 width.
+    fn decode_detached_signature_hex(signature_hex: &str) -> Result<Vec<u8>, String> {
+        if signature_hex.len() != ML_DSA_65_SIGNATURE_HEX_LEN {
+            return Err("CERT_VERIFY_ERROR: detached signature hex length is invalid".to_string());
+        }
+
+        let detached_signature_bytes = hex::decode(signature_hex)
+            .map_err(|_| "CERT_VERIFY_ERROR: signature is not valid hexadecimal".to_string())?;
+
+        if detached_signature_bytes.len() != ML_DSA_65_SIGNATURE_SIZE {
+            return Err("CERT_VERIFY_ERROR: detached signature bytes are invalid".to_string());
+        }
+
+        Ok(detached_signature_bytes)
+    }
+
     /// Signs a certificate using a detached ML-DSA-65 signature.
     ///
     /// Operational behavior:
-    /// - the CA issuer string is injected into the certificate before signing;
-    /// - the certificate must pass unsigned semantic validation;
-    /// - the signature field is excluded from the signed payload;
-    /// - the final signature is stored as an uppercase hexadecimal string;
+    /// - the CA issuer string is injected into the certificate before signing,
+    /// - the certificate must pass unsigned semantic validation,
+    /// - the signature field is excluded from the signed payload,
+    /// - the final signature is stored as uppercase hexadecimal text,
     /// - the signed certificate must pass post-sign validation before return.
     pub fn sign_certificate(&self, mut cert: Certificate) -> Result<Certificate, String> {
         self.validate_issuer()?;
@@ -304,11 +360,11 @@ impl CertificateAuthority {
         let payload = Self::certificate_payload(&cert)?;
         let message = Self::signing_message(&payload);
 
-        let sk = self.secret_key()?;
-        let signature = sign(&sk, &message, ML_DSA_CONTEXT, random())
+        let secret_key = self.secret_key()?;
+        let detached_signature = sign(&secret_key, &message, ML_DSA_CONTEXT, random())
             .map_err(|_| "CERT_SIGN_ERROR: detached signature generation failed".to_string())?;
 
-        cert.signature = hex::encode_upper(signature.as_ref());
+        cert.signature = Self::encode_detached_signature_hex(&detached_signature);
 
         cert.validate_signed()
             .map_err(|error| format!("CERT_VALIDATE_ERROR: {}", error.code()))?;
@@ -319,9 +375,9 @@ impl CertificateAuthority {
     /// Verifies a certificate signature using the CA public key.
     ///
     /// Verification policy:
-    /// - certificate signature must be present and decodable;
-    /// - certificate issuer must match this CA instance;
-    /// - the certificate must satisfy signed semantic validation;
+    /// - certificate signature must be present and decodable,
+    /// - certificate issuer must match this CA instance,
+    /// - the certificate must satisfy signed semantic validation,
     /// - the detached signature is verified against the domain-separated message.
     #[must_use]
     pub fn verify_certificate(&self, cert: &Certificate) -> bool {
@@ -349,15 +405,13 @@ impl CertificateAuthority {
         let payload = Self::certificate_payload(cert)?;
         let message = Self::signing_message(&payload);
 
-        let sig_bytes = hex::decode(&cert.signature)
-            .map_err(|_| "CERT_VERIFY_ERROR: signature is not valid hexadecimal".to_string())?;
-
-        let signature = signature_from_bytes(&sig_bytes)
+        let detached_signature_bytes = Self::decode_detached_signature_hex(&cert.signature)?;
+        let detached_signature = signature_from_bytes(&detached_signature_bytes)
             .map_err(|_| "CERT_VERIFY_ERROR: detached signature bytes are invalid".to_string())?;
 
-        let pk = self.public_key()?;
+        let public_key = self.public_key()?;
 
-        verify(&pk, &message, ML_DSA_CONTEXT, &signature)
+        verify(&public_key, &message, ML_DSA_CONTEXT, &detached_signature)
             .map_err(|_| "CERT_VERIFY_ERROR: detached signature verification failed".to_string())
     }
 
@@ -396,10 +450,12 @@ fn validate_issuer_identifier(value: &str) -> Result<(), String> {
         return Err("CA_ISSUER_INVALID: issuer exceeds maximum supported length".to_string());
     }
 
-    if !trimmed
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.')
-    {
+    if !trimmed.chars().all(|character| {
+        character.is_ascii_alphanumeric()
+            || character == '_'
+            || character == '-'
+            || character == '.'
+    }) {
         return Err("CA_ISSUER_INVALID: issuer contains unsupported characters".to_string());
     }
 
@@ -410,8 +466,10 @@ fn public_key_from_bytes(bytes: &[u8]) -> Result<PublicKey, String> {
     if bytes.len() != ML_DSA_65_VERIFICATION_KEY_SIZE {
         return Err("CA_PUBLIC_KEY_INVALID: stored public key bytes are invalid".to_string());
     }
+
     let mut key = [0u8; ML_DSA_65_VERIFICATION_KEY_SIZE];
     key.copy_from_slice(bytes);
+
     Ok(PublicKey::new(key))
 }
 
@@ -419,8 +477,10 @@ fn secret_key_from_bytes(bytes: &[u8]) -> Result<SecretKey, String> {
     if bytes.len() != ML_DSA_65_SIGNING_KEY_SIZE {
         return Err("CA_SECRET_KEY_INVALID: stored secret key bytes are invalid".to_string());
     }
+
     let mut key = [0u8; ML_DSA_65_SIGNING_KEY_SIZE];
     key.copy_from_slice(bytes);
+
     Ok(SecretKey::new(key))
 }
 
@@ -428,8 +488,10 @@ fn signature_from_bytes(bytes: &[u8]) -> Result<DetachedSignature, String> {
     if bytes.len() != ML_DSA_65_SIGNATURE_SIZE {
         return Err("invalid detached signature length".to_string());
     }
+
     let mut signature = [0u8; ML_DSA_65_SIGNATURE_SIZE];
     signature.copy_from_slice(bytes);
+
     Ok(DetachedSignature::new(signature))
 }
 
@@ -453,11 +515,11 @@ mod tests {
     fn key_id_is_stable_for_same_instance() {
         let ca = CertificateAuthority::new("AOXC-ROOT-CA");
 
-        let a = ca.key_id();
-        let b = ca.key_id();
+        let first = ca.key_id();
+        let second = ca.key_id();
 
-        assert_eq!(a, b);
-        assert_eq!(a.len(), 16);
+        assert_eq!(first, second);
+        assert_eq!(first.len(), 16);
     }
 
     #[test]
@@ -473,14 +535,20 @@ mod tests {
     }
 
     #[test]
-    fn detached_signature_size_matches_expected_constant() {
+    fn detached_signature_hex_encoding_matches_expected_ml_dsa_size() {
         let ca = CertificateAuthority::new("AOXC-ROOT-CA");
         let cert = sample_certificate();
+
         let signed = ca
             .sign_certificate(cert)
             .expect("certificate signing must succeed");
 
-        assert_eq!(signed.signature.len(), ML_DSA_65_SIGNATURE_SIZE);
+        let detached_signature_bytes =
+            CertificateAuthority::decode_detached_signature_hex(&signed.signature)
+                .expect("certificate signature must remain valid uppercase hexadecimal");
+
+        assert_eq!(detached_signature_bytes.len(), ML_DSA_65_SIGNATURE_SIZE);
+        assert_eq!(signed.signature.len(), ML_DSA_65_SIGNATURE_HEX_LEN);
     }
 
     #[test]
