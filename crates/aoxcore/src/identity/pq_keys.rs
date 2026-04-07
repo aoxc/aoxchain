@@ -16,8 +16,8 @@
 //! - uses deterministic domain-separated public-key fingerprints.
 
 use libcrux_ml_dsa::ml_dsa_65::{
-    generate_key_pair, sign, verify, MLDSA65Signature as Signature,
-    MLDSA65SigningKey as SecretKey, MLDSA65VerificationKey as PublicKey,
+    MLDSA65Signature as Signature, MLDSA65SigningKey as SecretKey,
+    MLDSA65VerificationKey as PublicKey, generate_key_pair, sign, verify,
 };
 use rand::random;
 use sha3::{Digest, Sha3_256};
@@ -282,8 +282,7 @@ fn unwrap_verified_message(wrapped: &[u8]) -> Result<Vec<u8>, PqKeyError> {
         return Err(PqKeyError::InvalidWrappedMessageDomain);
     }
 
-    if !wrapped.starts_with(AOXC_PQ_SIGNING_DOMAIN)
-        || wrapped[AOXC_PQ_SIGNING_DOMAIN.len()] != 0x00
+    if !wrapped.starts_with(AOXC_PQ_SIGNING_DOMAIN) || wrapped[AOXC_PQ_SIGNING_DOMAIN.len()] != 0x00
     {
         return Err(PqKeyError::InvalidWrappedMessageDomain);
     }
@@ -329,10 +328,7 @@ mod tests {
         let message = b"AOXC detached signature size test";
         let signed = sign_message(message, &sk);
 
-        assert_eq!(
-            signed.len(),
-            expected_signature_len() + message.len()
-        );
+        assert_eq!(signed.len(), expected_signature_len() + message.len());
     }
 
     #[test]

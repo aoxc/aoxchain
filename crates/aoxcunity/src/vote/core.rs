@@ -3,7 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-use libcrux_ml_dsa::ml_dsa_65::{verify, MLDSA65Signature, MLDSA65VerificationKey};
+use libcrux_ml_dsa::ml_dsa_65::{MLDSA65Signature, MLDSA65VerificationKey, verify};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -83,9 +83,7 @@ impl VoteAuthenticationContext {
     pub fn identity_profile(&self) -> Result<ConsensusIdentityProfile, VoteAuthenticationError> {
         match self.signature_scheme {
             SIGNATURE_SCHEME_ED25519 => Ok(ConsensusIdentityProfile::Classical),
-            SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 => {
-                Ok(ConsensusIdentityProfile::Hybrid)
-            }
+            SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 => Ok(ConsensusIdentityProfile::Hybrid),
             SIGNATURE_SCHEME_DILITHIUM3 => Ok(ConsensusIdentityProfile::PostQuantum),
             _ => Err(VoteAuthenticationError::UnknownSignatureScheme),
         }

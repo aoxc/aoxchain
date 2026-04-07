@@ -5,8 +5,8 @@
 use crate::identity::certificate::Certificate;
 
 use libcrux_ml_dsa::ml_dsa_65::{
-    generate_key_pair, sign, verify, MLDSA65Signature as DetachedSignature,
-    MLDSA65SigningKey as SecretKey, MLDSA65VerificationKey as PublicKey,
+    MLDSA65Signature as DetachedSignature, MLDSA65SigningKey as SecretKey,
+    MLDSA65VerificationKey as PublicKey, generate_key_pair, sign, verify,
 };
 use rand::random;
 use serde::{Deserialize, Serialize};
@@ -327,9 +327,7 @@ impl CertificateAuthority {
     /// - decoded byte length must match the exact detached ML-DSA-65 width.
     fn decode_detached_signature_hex(signature_hex: &str) -> Result<Vec<u8>, String> {
         if signature_hex.len() != ML_DSA_65_SIGNATURE_HEX_LEN {
-            return Err(
-                "CERT_VERIFY_ERROR: detached signature hex length is invalid".to_string(),
-            );
+            return Err("CERT_VERIFY_ERROR: detached signature hex length is invalid".to_string());
         }
 
         let detached_signature_bytes = hex::decode(signature_hex)
@@ -452,15 +450,12 @@ fn validate_issuer_identifier(value: &str) -> Result<(), String> {
         return Err("CA_ISSUER_INVALID: issuer exceeds maximum supported length".to_string());
     }
 
-    if !trimmed
-        .chars()
-        .all(|character| {
-            character.is_ascii_alphanumeric()
-                || character == '_'
-                || character == '-'
-                || character == '.'
-        })
-    {
+    if !trimmed.chars().all(|character| {
+        character.is_ascii_alphanumeric()
+            || character == '_'
+            || character == '-'
+            || character == '.'
+    }) {
         return Err("CA_ISSUER_INVALID: issuer contains unsupported characters".to_string());
     }
 
@@ -548,10 +543,9 @@ mod tests {
             .sign_certificate(cert)
             .expect("certificate signing must succeed");
 
-        let detached_signature_bytes = CertificateAuthority::decode_detached_signature_hex(
-            &signed.signature,
-        )
-        .expect("certificate signature must remain valid uppercase hexadecimal");
+        let detached_signature_bytes =
+            CertificateAuthority::decode_detached_signature_hex(&signed.signature)
+                .expect("certificate signature must remain valid uppercase hexadecimal");
 
         assert_eq!(detached_signature_bytes.len(), ML_DSA_65_SIGNATURE_SIZE);
         assert_eq!(signed.signature.len(), ML_DSA_65_SIGNATURE_HEX_LEN);
