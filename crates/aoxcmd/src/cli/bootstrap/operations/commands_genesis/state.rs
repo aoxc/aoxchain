@@ -63,6 +63,7 @@ pub fn cmd_genesis_add_account(args: &[String]) -> Result<(), AppError> {
     let balance = parse_required_text_arg(args, "--balance", false, "genesis add account")?;
     let role = parse_required_or_default_text_arg(args, "--role", "user")?;
     let normalized_role = role.to_ascii_lowercase();
+
     if !is_allowed_genesis_account_role(&normalized_role) {
         return Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
@@ -116,107 +117,6 @@ pub fn cmd_genesis_add_account(args: &[String]) -> Result<(), AppError> {
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{ALLOWED_GENESIS_ACCOUNT_ROLES, is_allowed_genesis_account_role};
-    use std::collections::BTreeSet;
-
-    #[test]
-    fn genesis_account_role_accepts_core7_and_system_roles() {
-        for role in [
-            "treasury",
-            "validator",
-            "system",
-            "user",
-            "governance",
-            "forge",
-            "quorum",
-            "seal",
-            "archive",
-            "sentinel",
-            "relay",
-            "pocket",
-        ] {
-            assert!(is_allowed_genesis_account_role(role));
-        }
-    }
-
-    #[test]
-    fn genesis_account_role_rejects_unknown_role() {
-        assert!(!is_allowed_genesis_account_role("bridge"));
-    }
-
-    #[test]
-    fn genesis_account_role_list_is_unique_and_stable() {
-        assert_eq!(ALLOWED_GENESIS_ACCOUNT_ROLES.len(), 12);
-
-        let unique: BTreeSet<&str> = ALLOWED_GENESIS_ACCOUNT_ROLES.iter().copied().collect();
-        assert_eq!(unique.len(), ALLOWED_GENESIS_ACCOUNT_ROLES.len());
-
-        let expected = BTreeSet::from([
-            "treasury",
-            "validator",
-            "system",
-            "user",
-            "governance",
-            "forge",
-            "quorum",
-            "seal",
-            "archive",
-            "sentinel",
-            "relay",
-            "pocket",
-        ]);
-        assert_eq!(unique, expected);
-    }
-
-    #[test]
-    fn genesis_account_role_entries_are_lowercase_ascii_safe_tokens() {
-        for role in ALLOWED_GENESIS_ACCOUNT_ROLES {
-            assert!(
-                role.bytes()
-                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit()),
-                "role contains unexpected characters: {role}"
-            );
-        }
-    }
-
-    #[test]
-    fn genesis_account_role_rejects_common_bypass_payloads() {
-        for payload in [
-            "",
-            " validator",
-            "validator ",
-            "validator\n",
-            "validator\t",
-            "VALIDATOR",
-            "Validator",
-            "validator\0",
-            "validator;DROP TABLE accounts",
-            "validator/admin",
-            "../validator",
-        ] {
-            assert!(
-                !is_allowed_genesis_account_role(payload),
-                "payload should be rejected: {payload:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn genesis_account_role_validation_matches_cli_normalization_behavior() {
-        for input in ["USER", "TreAsury", "FORGE", "relay"] {
-            let normalized = input.to_ascii_lowercase();
-            assert!(is_allowed_genesis_account_role(&normalized));
-        }
-
-        for input in [" validator ", "system\n", "pocket\t"] {
-            let normalized = input.to_ascii_lowercase();
-            assert!(!is_allowed_genesis_account_role(&normalized));
-        }
-    }
-}
-
 pub fn cmd_genesis_add_validator(args: &[String]) -> Result<(), AppError> {
     let validator_id =
         parse_required_text_arg(args, "--validator-id", false, "genesis add validator")?;
@@ -258,6 +158,7 @@ pub fn cmd_genesis_add_validator(args: &[String]) -> Result<(), AppError> {
             EnvironmentProfile::parse(&genesis.environment)?,
             None,
         )?);
+
     let bootnode_address = parse_required_or_default_text_arg(
         args,
         "--bootnode-address",
@@ -271,6 +172,7 @@ pub fn cmd_genesis_add_validator(args: &[String]) -> Result<(), AppError> {
         "AOXC_VALIDATOR_{}",
         derive_short_fingerprint(&validator_id).to_ascii_uppercase()
     );
+
     if let Some(existing) = genesis
         .state
         .accounts
@@ -344,6 +246,7 @@ pub fn cmd_genesis_validate(args: &[String]) -> Result<(), AppError> {
     let genesis = load_genesis()?;
     validate_genesis(&genesis)?;
     validate_binding_files(&genesis)?;
+
     let strict = has_flag(args, "--strict");
     if strict {
         validate_identity_against_repo_policy(&genesis)?;
@@ -375,6 +278,7 @@ pub fn cmd_genesis_production_gate(args: &[String]) -> Result<(), AppError> {
     validate_genesis(&genesis)?;
     validate_binding_files(&genesis)?;
     validate_identity_against_repo_policy(&genesis)?;
+
     let role_report = role_topology_core7_status(&genesis.environment)?;
 
     if !role_report.missing.is_empty() || !role_report.non_core_active.is_empty() {
@@ -446,6 +350,7 @@ fn role_topology_core7_status(environment: &str) -> Result<RoleTopologyCore7Stat
 
     for raw in content.lines() {
         let line = raw.trim();
+
         if line.starts_with("[roles.") && line.ends_with(']') {
             let role = line
                 .trim_start_matches("[roles.")
@@ -524,7 +429,7 @@ pub fn cmd_genesis_hash(args: &[String]) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ALLOWED_GENESIS_ACCOUNT_ROLES, is_allowed_genesis_account_role};
+    use super::{is_allowed_genesis_account_role, ALLOWED_GENESIS_ACCOUNT_ROLES};
     use std::collections::BTreeSet;
 
     #[test]
@@ -573,6 +478,7 @@ mod tests {
             "relay",
             "pocket",
         ]);
+
         assert_eq!(unique, expected);
     }
 
