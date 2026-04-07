@@ -73,8 +73,8 @@ impl VoteAuthenticationContext {
     pub fn identity_profile(&self) -> Result<ConsensusIdentityProfile, VoteAuthenticationError> {
         match self.signature_scheme {
             SIGNATURE_SCHEME_ED25519 => Ok(ConsensusIdentityProfile::Classical),
-            SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 => Ok(ConsensusIdentityProfile::Hybrid),
-            SIGNATURE_SCHEME_DILITHIUM3 => Ok(ConsensusIdentityProfile::PostQuantum),
+            SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 => Ok(ConsensusIdentityProfile::Hybrid),
+            SIGNATURE_SCHEME_MLDSA65 => Ok(ConsensusIdentityProfile::PostQuantum),
             _ => Err(VoteAuthenticationError::UnknownSignatureScheme),
         }
     }
@@ -199,11 +199,11 @@ impl AuthenticatedVote {
         let signing_bytes = self.signing_bytes();
         match self.context.signature_scheme {
             SIGNATURE_SCHEME_ED25519 => self.verify_ed25519_only(&signing_bytes)?,
-            SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 => {
+            SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 => {
                 self.verify_ed25519_only(&signing_bytes)?;
-                self.verify_dilithium_only(&signing_bytes)?;
+                self.verify_mldsa65_only(&signing_bytes)?;
             }
-            SIGNATURE_SCHEME_DILITHIUM3 => self.verify_dilithium_only(&signing_bytes)?,
+            SIGNATURE_SCHEME_MLDSA65 => self.verify_mldsa65_only(&signing_bytes)?,
             _ => return Err(VoteAuthenticationError::UnsupportedVerifierForSignatureScheme),
         }
 
@@ -222,7 +222,7 @@ impl AuthenticatedVote {
             .map_err(|_| VoteAuthenticationError::InvalidSignature)
     }
 
-    fn verify_dilithium_only(&self, signing_bytes: &[u8]) -> Result<(), VoteAuthenticationError> {
+    fn verify_mldsa65_only(&self, signing_bytes: &[u8]) -> Result<(), VoteAuthenticationError> {
         let public_key_bytes = self
             .pq_public_key
             .as_deref()
@@ -238,7 +238,7 @@ impl AuthenticatedVote {
             .pq_signature
             .as_deref()
             .or({
-                if self.context.signature_scheme == SIGNATURE_SCHEME_DILITHIUM3 {
+                if self.context.signature_scheme == SIGNATURE_SCHEME_MLDSA65 {
                     Some(self.signature.as_slice())
                 } else {
                     None
@@ -267,15 +267,15 @@ fn is_known_signature_scheme(signature_scheme: u16) -> bool {
     matches!(
         signature_scheme,
         SIGNATURE_SCHEME_ED25519
-            | SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3
-            | SIGNATURE_SCHEME_DILITHIUM3
+            | SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65
+            | SIGNATURE_SCHEME_MLDSA65
     )
 }
 
 fn is_post_quantum_hardened_scheme(signature_scheme: u16) -> bool {
     matches!(
         signature_scheme,
-        SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 | SIGNATURE_SCHEME_DILITHIUM3
+        SIGNATURE_SCHEME_HYBRID_ED25519_MLDSA65 | SIGNATURE_SCHEME_MLDSA65
     )
 }
 
