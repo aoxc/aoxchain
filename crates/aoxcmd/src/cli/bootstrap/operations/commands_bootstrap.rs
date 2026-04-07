@@ -69,32 +69,6 @@ fn resolve_or_prompt_password(args: &[String], context: &str) -> Result<String, 
     }
 }
 
-fn node_runtime_summary(
-    topology_role: String,
-    bootstrap: ProfileBootstrapSummary,
-) -> TopologyBootstrapNodeSummary {
-    let rpc_url = format!("http://{}:{}", bootstrap.bind_host, bootstrap.rpc_port);
-    let metrics_url = format!(
-        "http://{}:{}/metrics",
-        bootstrap.bind_host, bootstrap.prometheus_port
-    );
-    let start_command = format!("aoxc node start --home {}", bootstrap.home_dir);
-    let query_commands = vec![
-        format!("aoxc query network peers --home {}", bootstrap.home_dir),
-        format!("aoxc query chain status --home {}", bootstrap.home_dir),
-        format!("aoxc api status --home {}", bootstrap.home_dir),
-    ];
-
-    TopologyBootstrapNodeSummary {
-        topology_role,
-        bootstrap,
-        rpc_url,
-        metrics_url,
-        start_command,
-        query_commands,
-    }
-}
-
 pub fn cmd_config_init(args: &[String]) -> Result<(), AppError> {
     let home = resolve_home()?;
     ensure_layout(&home)?;
