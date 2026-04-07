@@ -2,10 +2,45 @@ use super::*;
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+/// Terminal presentation constants.
+///
+/// Audit Note:
+/// ANSI sequences are intentionally isolated in a compact constant block so that
+/// terminal styling remains explicit, reviewable, and easy to disable or replace
+/// in future operator-console revisions.
+const ANSI_RESET: &str = "\x1b[0m";
+const ANSI_BOLD: &str = "\x1b[1m";
+const ANSI_DIM: &str = "\x1b[2m";
+const ANSI_GREEN: &str = "\x1b[32m";
+const ANSI_YELLOW: &str = "\x1b[33m";
+const ANSI_BLUE: &str = "\x1b[34m";
+const ANSI_MAGENTA: &str = "\x1b[35m";
+const ANSI_CYAN: &str = "\x1b[36m";
+const ANSI_RED: &str = "\x1b[31m";
+const ANSI_BORDER: &str = "\x1b[38;5;239m";
+
+/// Human-readable event codes used in the live execution stream.
+///
+/// Audit Note:
+/// These codes are chosen to prevent semantic ambiguity. In particular, the code
+/// avoids using a generic success checkmark that could be misread as block
+/// finalization or irreversible confirmation.
+const EVENT_PRODUCED: &str = "PRD";
+const EVENT_ERROR: &str = "ERR";
+
 pub fn cmd_node_bootstrap(args: &[String]) -> Result<(), AppError> {
     bootstrap_operator_home()?;
     let state = lifecycle::bootstrap_state()?;
     let _ = refresh_runtime_metrics().ok();
+
+    if output_format(args) == crate::cli_support::OutputFormat::Text {
+        println!(
+            "{}BOOTSTRAP{} operator home initialized | state materialized | metrics refreshed",
+            paint(ANSI_GREEN, "✔ "),
+            ANSI_RESET
+        );
+    }
+
     emit_serialized(&state, output_format(args))
 }
 
@@ -13,6 +48,18 @@ pub fn cmd_produce_once(args: &[String]) -> Result<(), AppError> {
     let tx = parse_required_or_default_text_arg(args, "--tx", &default_runtime_tx_id(), false)?;
     let state = engine::produce_once(&tx)?;
     let _ = refresh_runtime_metrics().ok();
+
+    if output_format(args) == crate::cli_support::OutputFormat::Text {
+        println!(
+            "{}MANUAL{} block produced | tx={} | height={} | round={}",
+            paint(ANSI_CYAN, "▶ "),
+            ANSI_RESET,
+            tx,
+            state.current_height,
+            state.consensus.last_round
+        );
+    }
+
     emit_serialized(&state, output_format(args))
 }
 
@@ -37,7 +84,13 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     }
 
     if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
-        print_node_live_log_header(rounds, &tx_prefix, &log_level, interval_secs, continuous)?;
+        print_node_live_log_header(
+            rounds,
+            &tx_prefix,
+            &log_level,
+            interval_secs,
+            continuous,
+        )?;
     }
 
     let state = if continuous {
@@ -51,7 +104,8 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     } else {
         // Corporate/Audit Note:
         // The bounded execution path intentionally reuses the engine-owned observer
-        // pipeline in order to preserve a single telemetry source of truth.
+        // pipeline so that live terminal output and machine telemetry derive from
+        // the same execution source of truth.
         engine::run_rounds_with_observer(rounds, &tx_prefix, |entry| {
             if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
                 print_node_round_line(entry, &log_level);
@@ -73,13 +127,13 @@ fn default_runtime_tx_id() -> String {
     format!("runtime-tx-{}", chrono::Utc::now().timestamp())
 }
 
-/// Prints the operator-facing startup banner for `node run`.
+/// Prints the operator-facing startup banner.
 ///
 /// Audit Note:
-/// This function is intentionally text-only and side-effect free except for console
-/// emission. It consolidates the node execution posture, endpoint topology, key
-/// readiness, persisted chain state, and runtime mode into a compact operator
-/// summary optimized for incident handling and fast visual inspection.
+/// This banner is intentionally compact, deterministic, and text-oriented. Its
+/// purpose is to present a high-signal operator snapshot without requiring the
+/// reader to inspect multiple independent commands before understanding runtime
+/// posture.
 fn print_node_live_log_header(
     rounds: u64,
     tx_prefix: &str,
@@ -101,88 +155,104 @@ fn print_node_live_log_header(
         settings.network.bind_host, settings.telemetry.prometheus_port
     );
 
-    let key_state = if state.key_material.operational_state.is_empty() {
-        "unknown"
-    } else {
-        state.key_material.operational_state.as_str()
-    };
+    let rpc_reachable = rpc_http_get_probe(
+        &settings.network.bind_host,
+        settings.network.rpc_port,
+        "/health",
+    ) || rpc_jsonrpc_status_probe(&settings.network.bind_host, settings.network.rpc_port);
 
-    let key_fingerprint = if state.key_material.bundle_fingerprint.is_empty() {
-        "unavailable"
-    } else {
-        state.key_material.bundle_fingerprint.as_str()
-    };
+    let key_state = non_empty_or(&state.key_material.operational_state, "unknown");
+    let key_fingerprint = non_empty_or(&state.key_material.bundle_fingerprint, "unavailable");
+    let proposer = short_hash(&state.consensus.last_proposer_hex);
+    let head = short_hash(&state.consensus.last_block_hash_hex);
+    let parent = short_hash(&state.consensus.last_parent_hash_hex);
 
     let execution_mode = if continuous { "continuous" } else { "bounded" };
-    let log_mode = if log_level == "debug" {
-        "debug"
-    } else {
-        "info"
-    };
-    let profile = settings.profile.as_str();
-    let block_hash = short_hash(&state.consensus.last_block_hash_hex);
-    let parent_hash = short_hash(&state.consensus.last_parent_hash_hex);
+    let log_mode = if log_level == "debug" { "debug" } else { "info" };
+
+    let assessment = startup_assessment(rpc_reachable, key_state, state.current_height);
 
     println!();
-    println!("🚀 AOXC NODE LIVE SESSION [{}]", now);
-    println!(
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_border_top();
+    print_box_line(
+        "🚀 AOXC OPERATOR SESSION",
+        &format!("[{}]", now),
     );
-    println!(
-        "🧭 mode={} | rounds={} | interval={}s | tx_prefix={} | log={} | live_log={}",
-        execution_mode,
-        rounds,
-        interval_secs,
-        tx_prefix,
-        log_mode,
-        bool_label(true)
+    print_separator();
+
+    print_box_kv(
+        "🧭 RUNTIME",
+        &format!(
+            "mode={} | rounds={} | interval={}s | tx_prefix={} | log={}",
+            execution_mode, rounds, interval_secs, tx_prefix, log_mode
+        ),
     );
-    println!(
-        "🌐 profile={} | bind={} | p2p={} | rpc={} | metrics={}",
-        profile,
-        settings.network.bind_host,
-        settings.network.p2p_port,
-        settings.network.rpc_port,
-        settings.telemetry.prometheus_port
+    print_box_kv(
+        "🛰 NETWORK",
+        &format!(
+            "profile={} | bind={} | p2p={} | rpc={} | metrics={}",
+            settings.profile,
+            settings.network.bind_host,
+            settings.network.p2p_port,
+            settings.network.rpc_port,
+            settings.telemetry.prometheus_port
+        ),
     );
-    println!("🔌 rpc_url={} | metrics_url={}", rpc_url, metrics_url);
-    println!(
-        "🧱 height={} | produced={} | network_id={} | consensus_round={} | sections={}",
-        state.current_height,
-        state.produced_blocks,
-        state.consensus.network_id,
-        state.consensus.last_round,
-        state.consensus.last_section_count
+    print_box_kv(
+        "📡 ENDPOINTS",
+        &format!("rpc={} | metrics={}", rpc_url, metrics_url),
     );
-    println!(
-        "🪪 key_state={} | fingerprint={} | proposer={}",
-        key_state,
-        key_fingerprint,
-        short_hash(&state.consensus.last_proposer_hex)
+    print_box_kv(
+        "🧱 CHAIN",
+        &format!(
+            "height={} | produced={} | network_id={} | consensus_round={} | sections={}",
+            state.current_height,
+            state.produced_blocks,
+            state.consensus.network_id,
+            state.consensus.last_round,
+            state.consensus.last_section_count
+        ),
     );
-    println!(
-        "⛓️  head={} | parent={} | updated_at={}",
-        block_hash, parent_hash, state.updated_at
+    print_box_kv(
+        "🔐 IDENTITY",
+        &format!(
+            "key_state={} | fingerprint={} | proposer={}",
+            key_state, key_fingerprint, proposer
+        ),
     );
-    println!("🗄️  state_db={}", db_path.display());
-    println!(
-        "💡 debug_hint={} | shutdown_model=graceful | persistence=enabled",
+    print_box_kv(
+        "🗄 STORAGE",
+        &format!("state_db={} | persistence=enabled", db_path.display()),
+    );
+    print_box_kv(
+        "📈 HEAD",
+        &format!(
+            "block={} | parent={} | updated_at={}",
+            head, parent, state.updated_at
+        ),
+    );
+    print_box_kv(
+        "🛡 ASSESSMENT",
+        &format!(
+            "status={} | rpc={} | key={} | health_hint={}",
+            assessment,
+            status_word(rpc_reachable),
+            key_state,
+            health_hint_from_height(state.current_height)
+        ),
+    );
+    print_box_kv(
+        "📝 NOTE",
         if log_level == "debug" {
-            "parent-hash+unix-ts visible"
+            "extended trace enabled | parent/proposer/unix-ts visible"
         } else {
             "use --log-level debug for extended trace fields"
-        }
+        },
     );
-    println!(
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ LIVE ROUND STREAM ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    );
-    println!(
-        "📋 {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:>7} | {:<17} | {:<12}",
-        "round", "timestamp", "height", "blocks", "sec", "c_round", "block", "tx"
-    );
-    println!(
-        "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
-    );
+
+    print_separator();
+    print_table_header();
+    print_border_bottom();
 
     Ok(())
 }
@@ -203,12 +273,12 @@ fn parse_block_interval_secs(args: &[String]) -> Result<u64, AppError> {
     Ok(interval_secs)
 }
 
-/// Runs unbounded block production until external termination.
+/// Runs unbounded production until external termination.
 ///
 /// Audit Note:
-/// This loop is intentionally simple and deterministic. Per-round telemetry is
-/// emitted only after successful production, preventing misleading operator output
-/// for rounds that did not commit state.
+/// The loop emits a live line only after a successful production step. This
+/// avoids displaying optimistic terminal events for operations that did not
+/// actually advance state.
 fn run_continuous_rounds(
     interval_secs: u64,
     tx_prefix: &str,
@@ -244,18 +314,22 @@ fn run_continuous_rounds(
     }
 }
 
-/// Prints a single round line for the live execution stream.
+/// Prints a single live execution line.
 ///
 /// Audit Note:
-/// The line is intentionally columnar and stable so that operators can visually
-/// compare progression across rounds and parse output with lightweight tooling.
+/// The event code is intentionally explicit. `PRD` means the engine produced a
+/// new block-related state transition for this round. It does not claim economic
+/// finality unless the underlying engine explicitly exposes such a state.
 fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
     let timestamp = chrono::DateTime::<chrono::Utc>::from_timestamp(entry.timestamp_unix as i64, 0)
         .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
         .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string());
 
     println!(
-        "✅ {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:>7} | {:<17} | {:<12}",
+        "{}{:>3}{} │ {:>5} │ {:<19} │ {:>7} │ {:>7} │ {:>4} │ {:>7} │ {:<17} │ {:<16}",
+        paint(ANSI_GREEN, EVENT_PRODUCED),
+        "",
+        ANSI_RESET,
         entry.round_index,
         timestamp,
         entry.height,
@@ -268,7 +342,9 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
 
     if log_level == "debug" {
         println!(
-            "   🔍 kind={} | parent={} | proposer={} | timestamp_unix={}",
+            "{}DBG{} │ kind={} | parent={} | proposer={} | unix_ts={}",
+            paint(ANSI_DIM, ""),
+            ANSI_RESET,
             entry.message_kind,
             short_hash(&entry.parent_hash_hex),
             short_hash(&entry.proposer_hex),
@@ -280,42 +356,197 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
 /// Prints the end-of-session summary.
 ///
 /// Audit Note:
-/// The footer provides a concise terminal state snapshot suitable for human
-/// confirmation and release/operator evidence capture.
+/// The footer is concise by design. It provides terminal evidence of the final
+/// observed runtime posture without duplicating the startup snapshot.
 fn print_node_live_log_footer(state: &crate::node::state::NodeState) {
     println!(
-        "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
+        "{}{}────────────────────────────────────────────────────────────────────────────────────────────────────────────{}",
+        ANSI_BOLD, ANSI_BORDER, ANSI_RESET
     );
     println!(
         "🏁 final_height={} | produced_blocks={} | consensus_round={} | updated_at={}",
-        state.current_height, state.produced_blocks, state.consensus.last_round, state.updated_at
+        state.current_height,
+        state.produced_blocks,
+        state.consensus.last_round,
+        state.updated_at
     );
-    println!("✅ node session completed");
+    println!(
+        "{}SESSION{} graceful shutdown completed",
+        paint(ANSI_GREEN, "✔ "),
+        ANSI_RESET
+    );
     println!();
 }
 
-/// Produces a compact hash representation suitable for console output.
+/// Produces a compact hash representation suitable for console use.
 fn short_hash(value: &str) -> String {
     if value.is_empty() {
         return "unavailable".to_string();
     }
 
-    if value.len() <= 16 {
+    if value.len() <= 18 {
         return value.to_string();
     }
 
     format!("{}…{}", &value[..8], &value[value.len() - 8..])
 }
 
-/// Returns a stable textual label for boolean fields used in operator output.
-fn bool_label(value: bool) -> &'static str {
-    if value { "enabled" } else { "disabled" }
+/// Returns a fallback string if the source string is empty after inspection.
+fn non_empty_or<'a>(value: &'a str, fallback: &'a str) -> &'a str {
+    if value.is_empty() {
+        fallback
+    } else {
+        value
+    }
+}
+
+/// Derives a coarse startup assessment for operator visibility.
+///
+/// Audit Note:
+/// This function intentionally avoids overstating health. It provides a coarse
+/// readiness indicator rather than an assertion of finality or economic safety.
+fn startup_assessment(rpc_reachable: bool, key_state: &str, height: u64) -> &'static str {
+    if !rpc_reachable {
+        "degraded-rpc"
+    } else if key_state == "unknown" || key_state == "unavailable" {
+        "degraded-key"
+    } else if height == 0 {
+        "initializing"
+    } else {
+        "ready"
+    }
+}
+
+fn status_word(value: bool) -> &'static str {
+    if value {
+        "reachable"
+    } else {
+        "unreachable"
+    }
+}
+
+fn health_hint_from_height(height: u64) -> &'static str {
+    if height == 0 {
+        "chain-not-advanced"
+    } else {
+        "chain-progress-observed"
+    }
+}
+
+fn paint(code: &str, text: &str) -> String {
+    format!("{code}{text}{ANSI_RESET}")
+}
+
+fn print_border_top() {
+    println!(
+        "{}{}╭────────────────────────────────────────────────────────────────────────────────────────────╮{}",
+        ANSI_BOLD, ANSI_BORDER, ANSI_RESET
+    );
+}
+
+fn print_separator() {
+    println!(
+        "{}{}├────────────────────────────────────────────────────────────────────────────────────────────┤{}",
+        ANSI_BOLD, ANSI_BORDER, ANSI_RESET
+    );
+}
+
+fn print_border_bottom() {
+    println!(
+        "{}{}╰────────────────────────────────────────────────────────────────────────────────────────────╯{}",
+        ANSI_BOLD, ANSI_BORDER, ANSI_RESET
+    );
+}
+
+fn print_box_line(title: &str, suffix: &str) {
+    println!(
+        "{}{}│{} {} {}{}",
+        ANSI_BOLD, ANSI_BORDER, ANSI_RESET, title, suffix, pad_box_end(title, suffix)
+    );
+}
+
+fn print_box_kv(label: &str, value: &str) {
+    println!(
+        "{}{}│{} {} {}{}",
+        ANSI_BOLD, ANSI_BORDER, ANSI_RESET, paint_label(label), value, pad_box_kv_end(label, value)
+    );
+}
+
+fn print_table_header() {
+    println!(
+        "{}{}│{} {:>3} │ {:>5} │ {:<19} │ {:>7} │ {:>7} │ {:>4} │ {:>7} │ {:<17} │ {:<16} {}{}│{}",
+        ANSI_BOLD,
+        ANSI_BORDER,
+        ANSI_RESET,
+        "EVT",
+        "ROUND",
+        "TIMESTAMP",
+        "HEIGHT",
+        "BLOCKS",
+        "SEC",
+        "CROUND",
+        "BLOCK",
+        "TX",
+        ANSI_RESET,
+        ANSI_BOLD,
+        ANSI_BORDER,
+        ANSI_RESET
+    );
+}
+
+fn paint_label(label: &str) -> String {
+    let color = match label {
+        "🧭 RUNTIME" => ANSI_YELLOW,
+        "🛰 NETWORK" => ANSI_BLUE,
+        "📡 ENDPOINTS" => ANSI_CYAN,
+        "🧱 CHAIN" => ANSI_MAGENTA,
+        "🔐 IDENTITY" => ANSI_GREEN,
+        "🗄 STORAGE" => ANSI_DIM,
+        "📈 HEAD" => ANSI_RESET,
+        "🛡 ASSESSMENT" => ANSI_GREEN,
+        "📝 NOTE" => ANSI_YELLOW,
+        _ => ANSI_RESET,
+    };
+
+    if color == ANSI_RESET {
+        label.to_string()
+    } else {
+        format!("{color}{label}{ANSI_RESET}")
+    }
+}
+
+fn pad_box_end(title: &str, suffix: &str) -> String {
+    let used = visible_width(title) + 1 + visible_width(suffix);
+    let total = 92usize;
+    let padding = total.saturating_sub(used);
+    format!("{}│", " ".repeat(padding))
+}
+
+fn pad_box_kv_end(label: &str, value: &str) -> String {
+    let used = visible_width(label) + 1 + visible_width(value);
+    let total = 92usize;
+    let padding = total.saturating_sub(used);
+    format!("{}│", " ".repeat(padding))
+}
+
+/// Approximates visible width for simple terminal layout.
+///
+/// Audit Note:
+/// This helper intentionally uses a conservative character-count approximation.
+/// It is sufficient for stable internal operator tooling, but it should not be
+/// treated as full Unicode display-width accounting.
+fn visible_width(value: &str) -> usize {
+    value.chars().count()
 }
 
 pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
     let health = health_status()?;
     let mut details = BTreeMap::new();
     details.insert("health".to_string(), health.to_string());
+
+    if output_format(args) == crate::cli_support::OutputFormat::Text {
+        println!("🏥 health={}", health);
+    }
 
     emit_serialized(
         &text_envelope("node-health", "ok", details),
@@ -334,11 +565,8 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
         ) || rpc_jsonrpc_status_probe(&settings.network.bind_host, settings.network.rpc_port);
 
     let mut details = BTreeMap::new();
-    details.insert("bind_host".to_string(), settings.network.bind_host);
-    details.insert(
-        "rpc_port".to_string(),
-        settings.network.rpc_port.to_string(),
-    );
+    details.insert("bind_host".to_string(), settings.network.bind_host.clone());
+    details.insert("rpc_port".to_string(), settings.network.rpc_port.to_string());
     details.insert(
         "probe".to_string(),
         if rpc_reachable {
@@ -349,12 +577,22 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
     );
     details.insert(
         "transport_public_key".to_string(),
-        key_summary.transport_public_key,
+        key_summary.transport_public_key.clone(),
     );
     details.insert(
         "key_operational_state".to_string(),
-        key_summary.operational_state,
+        key_summary.operational_state.clone(),
     );
+
+    if output_format(args) == crate::cli_support::OutputFormat::Text {
+        println!(
+            "📡 network_smoke | bind={} | rpc_port={} | rpc={} | key_state={}",
+            settings.network.bind_host,
+            settings.network.rpc_port,
+            status_word(rpc_reachable),
+            key_summary.operational_state
+        );
+    }
 
     emit_serialized(
         &text_envelope("network-smoke", "ok", details),
@@ -381,12 +619,21 @@ pub fn cmd_real_network(args: &[String]) -> Result<(), AppError> {
     );
     details.insert(
         "key_operational_state".to_string(),
-        key_summary.operational_state,
+        key_summary.operational_state.clone(),
     );
     details.insert(
         "transport_public_key".to_string(),
-        key_summary.transport_public_key,
+        key_summary.transport_public_key.clone(),
     );
+
+    if output_format(args) == crate::cli_support::OutputFormat::Text {
+        println!(
+            "🌐 real_network | enforce_official_peers={} | rpc={} | key_state={}",
+            settings.network.enforce_official_peers,
+            status_word(rpc_reachable),
+            key_summary.operational_state
+        );
+    }
 
     emit_serialized(
         &text_envelope("real-network", "ok", details),
@@ -397,8 +644,15 @@ pub fn cmd_real_network(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_storage_smoke(args: &[String]) -> Result<(), AppError> {
     let context = runtime_context()?;
     let mut details = BTreeMap::new();
-    details.insert("home_dir".to_string(), context.settings.home_dir);
+    details.insert("home_dir".to_string(), context.settings.home_dir.clone());
     details.insert("storage".to_string(), "writable".to_string());
+
+    if output_format(args) == crate::cli_support::OutputFormat::Text {
+        println!(
+            "🗄 storage_smoke | dir={} | status=writable",
+            context.settings.home_dir
+        );
+    }
 
     emit_serialized(
         &text_envelope("storage-smoke", "ok", details),
