@@ -73,7 +73,7 @@ fn default_runtime_tx_id() -> String {
 
 fn print_node_live_log_header(
     rounds: u64,
-    tx_prefix: &str, // tx_source yerine tx_prefix olarak düzeltildi
+    tx_prefix: &str,
     log_level: &str,
     interval_secs: u64,
     continuous: bool,
@@ -165,7 +165,7 @@ fn run_continuous_rounds(
 ) -> Result<crate::node::state::NodeState, AppError> {
     let mut round_index = 0_u64;
     loop {
-        round_index = round_index.saturating_add(1); // round_indexr hatası düzeltildi
+        round_index = round_index.saturating_add(1);
         let tx = format!("{tx_prefix}-{round_index}");
         let state = engine::produce_once(&tx)?;
 
@@ -179,6 +179,8 @@ fn run_continuous_rounds(
                 section_count: state.consensus.last_section_count,
                 block_hash_hex: state.consensus.last_block_hash_hex.clone(),
                 parent_hash_hex: state.consensus.last_parent_hash_hex.clone(),
+                proposer_hex: state.consensus.last_proposer_hex.clone(),
+                message_kind: state.consensus.last_message_kind.clone(),
                 timestamp_unix: state.consensus.last_timestamp_unix,
             };
             print_node_round_line(&telemetry, log_level);

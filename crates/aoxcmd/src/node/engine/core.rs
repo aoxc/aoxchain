@@ -33,6 +33,8 @@ pub struct RoundTelemetry {
     pub section_count: usize,
     pub block_hash_hex: String,
     pub parent_hash_hex: String,
+    pub proposer_hex: String,
+    pub message_kind: String,
     pub timestamp_unix: u64,
 }
 
@@ -99,6 +101,8 @@ where
             section_count: state.consensus.last_section_count,
             block_hash_hex: state.consensus.last_block_hash_hex.clone(),
             parent_hash_hex: state.consensus.last_parent_hash_hex.clone(),
+            proposer_hex: state.consensus.last_proposer_hex.clone(),
+            message_kind: state.consensus.last_message_kind.clone(),
             timestamp_unix: state.consensus.last_timestamp_unix,
         };
         observer(&telemetry);
