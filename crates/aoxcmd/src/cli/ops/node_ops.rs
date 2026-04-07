@@ -8,7 +8,7 @@ pub fn cmd_node_bootstrap(args: &[String]) -> Result<(), AppError> {
 }
 
 pub fn cmd_produce_once(args: &[String]) -> Result<(), AppError> {
-    let tx = parse_required_or_default_text_arg(args, "--tx", "boot-sequence-1", false)?;
+    let tx = parse_required_or_default_text_arg(args, "--tx", &default_runtime_tx_id(), false)?;
     let state = engine::produce_once(&tx)?;
     let _ = refresh_runtime_metrics().ok();
     emit_serialized(&state, output_format(args))
@@ -16,7 +16,7 @@ pub fn cmd_produce_once(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     let rounds = parse_positive_u64_arg(args, "--rounds", 10, "node run")?;
-    let tx_prefix = parse_required_or_default_text_arg(args, "--tx-prefix", "AOXC-RUN", false)?;
+    let tx_prefix = parse_required_or_default_text_arg(args, "--tx-prefix", "runtime-tx", false)?;
     let format = output_format(args);
     let live_log_enabled = !has_flag(args, "--no-live-log");
     let log_level = parse_required_or_default_text_arg(args, "--log-level", "info", true)?;
@@ -58,6 +58,10 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
     }
 
     emit_serialized(&state, format)
+}
+
+fn default_runtime_tx_id() -> String {
+    format!("runtime-tx-{}", chrono::Utc::now().timestamp())
 }
 
 fn print_node_live_log_header(
@@ -191,6 +195,12 @@ pub fn cmd_node_health(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key()?;
+    let rpc_reachable =
+        rpc_http_get_probe(
+            &settings.network.bind_host,
+            settings.network.rpc_port,
+            "/health",
+        ) || rpc_jsonrpc_status_probe(&settings.network.bind_host, settings.network.rpc_port);
 
     let mut details = BTreeMap::new();
     details.insert("bind_host".to_string(), settings.network.bind_host);
@@ -200,7 +210,11 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
     );
     details.insert(
         "probe".to_string(),
-        "local-listener-simulated-ok".to_string(),
+        if rpc_reachable {
+            "rpc-reachable".to_string()
+        } else {
+            "rpc-unreachable".to_string()
+        },
     );
     details.insert(
         "transport_public_key".to_string(),
@@ -220,9 +234,16 @@ pub fn cmd_network_smoke(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_real_network(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
     let key_summary = crate::keys::manager::inspect_operator_key()?;
+    let rpc_reachable =
+        rpc_http_get_probe(
+            &settings.network.bind_host,
+            settings.network.rpc_port,
+            "/health",
+        ) || rpc_jsonrpc_status_probe(&settings.network.bind_host, settings.network.rpc_port);
 
     let mut details = BTreeMap::new();
-    details.insert("mode".to_string(), "deterministic-local".to_string());
+    details.insert("mode".to_string(), "runtime-network".to_string());
+    details.insert("rpc_reachable".to_string(), rpc_reachable.to_string());
     details.insert(
         "enforce_official_peers".to_string(),
         settings.network.enforce_official_peers.to_string(),
