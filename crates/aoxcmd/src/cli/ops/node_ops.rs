@@ -90,21 +90,9 @@ fn print_node_live_log_header(
         "http://{}:{}/metrics",
         settings.network.bind_host, settings.telemetry.prometheus_port
     );
-    let node_log_path = format!("{}/logs/node.log", settings.home_dir);
-    let audit_log_path = format!("{}/logs/audit.log", settings.home_dir);
-    let key_state = if state.key_material.operational_state.is_empty() {
-        "unknown"
-    } else {
-        state.key_material.operational_state.as_str()
-    };
-    let key_fingerprint = if state.key_material.bundle_fingerprint.is_empty() {
-        "unavailable"
-    } else {
-        state.key_material.bundle_fingerprint.as_str()
-    };
 
     println!("🚀 [{}] node-run startup", now);
-    println!("━━━━━━━━━━━━━━━━━━━━━━━━━ 🛰️  NODE BOOT CONTEXT ━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━ NODE BOOT CONTEXT ━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!(
         "🧭 mode=live rounds={} continuous={} interval_secs={} tx_prefix={} log_level={}",
         rounds, continuous, interval_secs, tx_prefix, log_level
@@ -118,34 +106,34 @@ fn print_node_live_log_header(
         settings.telemetry.prometheus_port
     );
     println!(
-        "🛡️  policy require_key_material={} require_genesis={} remote_peers={}",
-        format_status(settings.policy.require_key_material),
-        format_status(settings.policy.require_genesis),
-        format_status(settings.policy.allow_remote_peers)
-    );
-    println!(
         "🧱 boot height={} produced_blocks={} network_id={} last_round={}",
         state.current_height,
         state.produced_blocks,
         state.consensus.network_id,
         state.consensus.last_round
     );
-    println!("🔐 key_state={} fingerprint={}", key_state, key_fingerprint);
+    println!(
+        "🔐 key_state={} fingerprint={}",
+        if state.key_material.operational_state.is_empty() {
+            "unknown"
+        } else {
+            state.key_material.operational_state.as_str()
+        },
+        if state.key_material.bundle_fingerprint.is_empty() {
+            "unavailable"
+        } else {
+            state.key_material.bundle_fingerprint.as_str()
+        }
+    );
     println!("🔌 rpc_url={} metrics_url={}", rpc_url, metrics_url);
     println!("🗄️  state_db={}", db_path.display());
-    println!(
-        "📝 sinks terminal=text live={} file={} audit={} structured_json={}",
-        "enabled",
-        node_log_path,
-        audit_log_path,
-        format_status(settings.logging.json)
-    );
-    println!("💡 tip: use --log-level debug for parent hash and unix timestamp details");
-    println!("━━━━━━━━━━━━━━━━━━━━━━━━━ 📈 LIVE ROUND STREAM ━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("💡 tip: canlı akışta parent hash için --log-level debug kullanabilirsiniz");
     println!(
         "📋 {:>5} | {:<19} | {:>7} | {:>7} | {:>4} | {:>7} | {:<17} | {:<12}",
         "round", "timestamp", "height", "blocks", "sec", "c_round", "block", "tx"
     );
+    println!("💡 tip: use --log-level debug for parent hash and unix timestamp details");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━ LIVE ROUND STREAM ━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!(
         "────────────────────────────────────────────────────────────────────────────────────────────────────────────"
     );
@@ -219,22 +207,13 @@ fn print_node_round_line(entry: &engine::RoundTelemetry, log_level: &str) {
         block_hash,
         entry.tx_id
     );
-    println!(
-        "    🧩 consensus={} proposer={} parent={} tx={}",
-        entry.message_kind,
-        short_hash(&entry.proposer_hex),
-        short_hash(&entry.parent_hash_hex),
-        entry.tx_id
-    );
 
     if log_level == "debug" {
         println!(
-            "    🔍 round={} timestamp_unix={} block={} parent={} proposer={}",
+            "    🔍 round={} parent={} timestamp_unix={}",
             entry.round_index,
-            entry.timestamp_unix,
-            short_hash(&entry.block_hash_hex),
             short_hash(&entry.parent_hash_hex),
-            short_hash(&entry.proposer_hex)
+            entry.timestamp_unix
         );
     }
 }

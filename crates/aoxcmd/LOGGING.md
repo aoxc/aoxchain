@@ -46,11 +46,6 @@ A node log surface is weak when it only shows block height progression. Producti
    - raw unix timestamp,
    - any additional correlation metadata required for incident triage.
 
-4. **Connection and consensus continuity**
-   - peer connection state changes,
-   - consensus message kind progression,
-   - proposer identity snapshot for each committed round.
-
 ## Persistent Node Logs
 
 Structured persistent logs should include event groups:
@@ -60,7 +55,6 @@ Structured persistent logs should include event groups:
 - `rpc` (method, latency, status, caller class),
 - `storage` (state write/read failures, compaction/snapshot events),
 - `runtime` (command execution boundaries, round lifecycle),
-- `execution` (transaction and contract execution lifecycle),
 - `security` (key posture changes, signature/validation failures).
 
 Each record should carry:
@@ -72,28 +66,6 @@ Each record should carry:
 - height/round where relevant,
 - correlation id,
 - deterministic machine-readable fields (JSON-safe keys and values).
-
-Contract/transaction execution records should also include:
-
-- transaction id/hash,
-- sender and target contract/module identifier,
-- execution outcome (`success` or explicit failure class),
-- gas/fee/weight metrics when available,
-- emitted event count and receipt reference.
-
-P2P connection records should include:
-
-- peer id and remote address,
-- connect/disconnect/reject reason,
-- direction (`inbound` or `outbound`),
-- retry/backoff metadata.
-
-Consensus records should include:
-
-- network id, height, round,
-- message kind transition (`proposal`, `vote`, `commit`, `finality`),
-- proposer identity summary,
-- block hash and parent hash linkage.
 
 ## Audit Log
 
