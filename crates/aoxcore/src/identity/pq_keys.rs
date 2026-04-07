@@ -15,8 +15,10 @@
 //! - enforces explicit key decoding boundaries,
 //! - uses deterministic domain-separated public-key fingerprints.
 
-use pqcrypto_mldsa::mldsa65::{
-    PublicKey, SecretKey, SignedMessage, keypair, open, public_key_bytes, secret_key_bytes, sign,
+use libcrux_ml_dsa::constants::{SIGNATURE_SIZE, SIGNING_KEY_SIZE, VERIFICATION_KEY_SIZE};
+use libcrux_ml_dsa::ml_dsa_65::{
+    MLDSA65Signature as Signature, MLDSA65SigningKey as SecretKey,
+    MLDSA65VerificationKey as PublicKey, generate_key_pair, sign, verify,
 };
 use rand::random;
 
@@ -34,7 +36,6 @@ const AOXC_PQ_FINGERPRINT_DOMAIN: &[u8] = b"AOXC/IDENTITY/PQ_KEYS/FINGERPRINT/V1
 /// separated helpers below where protocol binding matters.
 const AOXC_PQ_SIGNING_DOMAIN: &[u8] = b"AOXC/IDENTITY/PQ_KEYS/SIGNED_MESSAGE/V1";
 const ML_DSA_CONTEXT: &[u8] = b"";
-
 /// Short fingerprint output length in bytes.
 const PQ_FINGERPRINT_LEN: usize = 8;
 
@@ -77,7 +78,7 @@ impl std::error::Error for PqKeyError {}
 
 /// Generates a new post-quantum ML-DSA-65 keypair.
 ///
-/// This uses secure randomness from the underlying pqcrypto library.
+/// This uses secure randomness through the libcrux ML-DSA implementation.
 #[must_use]
 pub fn generate_keypair() -> (PublicKey, SecretKey) {
     let pair = generate_key_pair(random());
@@ -87,13 +88,13 @@ pub fn generate_keypair() -> (PublicKey, SecretKey) {
 /// Returns the expected serialized public-key length in bytes.
 #[must_use]
 pub fn expected_public_key_len() -> usize {
-    PublicKey::len()
+    VERIFICATION_KEY_SIZE
 }
 
 /// Returns the expected serialized secret-key length in bytes.
 #[must_use]
 pub fn expected_secret_key_len() -> usize {
-    SecretKey::len()
+    SIGNING_KEY_SIZE
 }
 
 /// Signs a message using a ML-DSA-65 secret key.
@@ -151,7 +152,7 @@ fn verify_message_internal(signed: &[u8], pk: &PublicKey) -> Result<Vec<u8>, PqK
 /// Serializes a public key into raw bytes.
 #[must_use]
 pub fn serialize_public_key(pk: &PublicKey) -> Vec<u8> {
-    pk.as_slice().to_vec()
+    pk.as_ref().to_vec()
 }
 
 /// Serializes a secret key into raw bytes.
@@ -161,13 +162,13 @@ pub fn serialize_public_key(pk: &PublicKey) -> Vec<u8> {
 /// custody flows such as encrypted keyfiles or offline secure export.
 #[must_use]
 pub fn serialize_secret_key(sk: &SecretKey) -> Vec<u8> {
-    sk.as_slice().to_vec()
+    sk.as_ref().to_vec()
 }
 
 /// Serializes a public key into uppercase hexadecimal.
 #[must_use]
 pub fn serialize_public_key_hex(pk: &PublicKey) -> String {
-    hex::encode_upper(pk.as_slice())
+    hex::encode_upper(pk.as_ref())
 }
 
 /// Serializes a secret key into uppercase hexadecimal.
@@ -177,27 +178,27 @@ pub fn serialize_public_key_hex(pk: &PublicKey) -> String {
 /// custody flows such as encrypted keyfiles or offline secure export.
 #[must_use]
 pub fn serialize_secret_key_hex(sk: &SecretKey) -> String {
-    hex::encode_upper(sk.as_slice())
+    hex::encode_upper(sk.as_ref())
 }
 
 /// Restores a public key from raw bytes.
 pub fn public_key_from_bytes(bytes: &[u8]) -> Result<PublicKey, String> {
-    if bytes.len() != PublicKey::len() {
+    if bytes.len() != VERIFICATION_KEY_SIZE {
         return Err(PqKeyError::InvalidPublicKey.code().to_string());
     }
-    let mut key = PublicKey::zero();
-    key.as_mut_slice().copy_from_slice(bytes);
-    Ok(key)
+    let mut key = [0u8; VERIFICATION_KEY_SIZE];
+    key.copy_from_slice(bytes);
+    Ok(PublicKey::new(key))
 }
 
 /// Restores a secret key from raw bytes.
 pub fn secret_key_from_bytes(bytes: &[u8]) -> Result<SecretKey, String> {
-    if bytes.len() != SecretKey::len() {
+    if bytes.len() != SIGNING_KEY_SIZE {
         return Err(PqKeyError::InvalidSecretKey.code().to_string());
     }
-    let mut key = SecretKey::zero();
-    key.as_mut_slice().copy_from_slice(bytes);
-    Ok(key)
+    let mut key = [0u8; SIGNING_KEY_SIZE];
+    key.copy_from_slice(bytes);
+    Ok(SecretKey::new(key))
 }
 
 /// Restores a public key from uppercase or lowercase hexadecimal.
@@ -227,7 +228,7 @@ pub fn fingerprint(pk: &PublicKey) -> String {
 
     hasher.update(AOXC_PQ_FINGERPRINT_DOMAIN);
     hasher.update([0x00]);
-    hasher.update(pk.as_slice());
+    hasher.update(pk.as_ref());
 
     let digest = hasher.finalize();
 
@@ -262,22 +263,21 @@ fn unwrap_verified_message(wrapped: &[u8]) -> Result<Vec<u8>, PqKeyError> {
 }
 
 fn encode_signed_message(signature: &Signature, message: &[u8]) -> Vec<u8> {
-    let mut encoded = Vec::with_capacity(Signature::len() + message.len());
-    encoded.extend_from_slice(signature.as_slice());
+    let mut encoded = Vec::with_capacity(SIGNATURE_SIZE + message.len());
+    encoded.extend_from_slice(signature.as_ref());
     encoded.extend_from_slice(message);
     encoded
 }
 
 fn decode_signed_message(signed: &[u8]) -> Result<(Signature, &[u8]), PqKeyError> {
-    let sig_len = Signature::len();
-    if signed.len() < sig_len {
+    if signed.len() < SIGNATURE_SIZE {
         return Err(PqKeyError::InvalidSignedMessage);
     }
 
-    let (signature_bytes, message) = signed.split_at(sig_len);
-    let mut signature = Signature::zero();
-    signature.as_mut_slice().copy_from_slice(signature_bytes);
-    Ok((signature, message))
+    let (signature_bytes, message) = signed.split_at(SIGNATURE_SIZE);
+    let mut signature = [0u8; SIGNATURE_SIZE];
+    signature.copy_from_slice(signature_bytes);
+    Ok((Signature::new(signature), message))
 }
 
 #[cfg(test)]
@@ -288,8 +288,8 @@ mod tests {
     fn keypair_generation_works() {
         let (pk, sk) = generate_keypair();
 
-        assert_eq!(pk.as_slice().len(), expected_public_key_len());
-        assert_eq!(sk.as_slice().len(), expected_secret_key_len());
+        assert_eq!(pk.as_ref().len(), expected_public_key_len());
+        assert_eq!(sk.as_ref().len(), expected_secret_key_len());
     }
 
     #[test]
@@ -332,7 +332,7 @@ mod tests {
         let bytes = serialize_public_key(&pk);
         let restored = public_key_from_bytes(&bytes).unwrap();
 
-        assert_eq!(bytes, restored.as_slice());
+        assert_eq!(bytes, restored.as_ref());
     }
 
     #[test]
@@ -342,7 +342,7 @@ mod tests {
         let bytes = serialize_secret_key(&sk);
         let restored = secret_key_from_bytes(&bytes).unwrap();
 
-        assert_eq!(bytes, restored.as_slice());
+        assert_eq!(bytes, restored.as_ref());
     }
 
     #[test]
@@ -352,7 +352,7 @@ mod tests {
         let encoded = serialize_public_key_hex(&pk);
         let restored = public_key_from_hex(&encoded).unwrap();
 
-        assert_eq!(pk.as_slice(), restored.as_slice());
+        assert_eq!(pk.as_ref(), restored.as_ref());
     }
 
     #[test]
@@ -362,7 +362,7 @@ mod tests {
         let encoded = serialize_secret_key_hex(&sk);
         let restored = secret_key_from_hex(&encoded).unwrap();
 
-        assert_eq!(sk.as_slice(), restored.as_slice());
+        assert_eq!(sk.as_ref(), restored.as_ref());
     }
 
     #[test]
