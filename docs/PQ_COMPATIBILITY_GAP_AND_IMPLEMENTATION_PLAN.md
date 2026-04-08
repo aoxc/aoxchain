@@ -347,3 +347,209 @@ Reasoning:
 ### Practical rule
 
 Do not expand product features on top of an unstable cryptographic kernel. Stabilize kernel crypto policy and verification first, then scale execution/API features.
+
+## Complete Kernel Implementation Blueprint (Full Scope)
+
+This section defines a complete kernel-focused execution blueprint for moving AOXC from policy-level PQ intent to runtime-enforced, consensus-safe cryptographic agility.
+
+### A. Scope Boundary (Kernel only)
+
+In scope:
+
+- consensus-critical type system,
+- transaction and vote admission semantics,
+- block and vote verification semantics,
+- replay/canonicality invariants,
+- profile transition safety and failover rules.
+
+Out of scope (until kernel is complete):
+
+- non-critical API cosmetics,
+- optional UX improvements,
+- feature expansion unrelated to cryptographic enforcement.
+
+### B. Kernel Architecture Targets
+
+#### B1. Auth and signature model
+
+Required end state:
+
+- Versioned `AuthScheme` registry with stable numeric IDs.
+- Versioned signature envelope (`SignatureEnvelopeV1`) supporting single/hybrid/PQ-only bundles.
+- Deterministic canonical ordering for multi-signature sets.
+- Strict envelope validation before cryptographic verification.
+
+Hard requirements:
+
+- Unknown scheme ID => reject (fail closed).
+- Duplicate signer/algorithm tuple => reject.
+- Non-canonical ordering => reject.
+
+#### B2. Canonical signing preimage
+
+Required end state:
+
+Canonical preimage must include at minimum:
+
+- domain tag,
+- transaction format version,
+- auth scheme ID,
+- active crypto profile ID,
+- network replay domain,
+- payload digest.
+
+Hard requirements:
+
+- No algorithm-specific message shape.
+- No optional field ordering ambiguity.
+- Canonical encoding must be byte-for-byte reproducible.
+
+#### B3. Verification dispatch and admission matrix
+
+Required end state:
+
+- Deterministic dispatch by scheme/profile pair.
+- Profile-coupled admission matrix enforced in both mempool ingress and block validation.
+- Hybrid profile requires both declared components and deterministic error coding.
+
+Hard requirements:
+
+- Structurally valid but policy-invalid signatures are rejected.
+- Profile downgrade attempts are rejected even with cryptographically valid signatures.
+- Mempool/block validation behavior is identical for same inputs.
+
+#### B4. Vote and block semantics
+
+Required end state:
+
+- Vote authentication context includes explicit scheme/profile binding.
+- Block PQ section semantics are policy-checked against active crypto epoch.
+- Consensus outcome is independent of node-local library preferences.
+
+Hard requirements:
+
+- Any mismatch between vote metadata and signature envelope => reject.
+- Any missing mandatory PQ/hybrid field for active profile => reject.
+
+#### B5. Replay and anti-downgrade invariants
+
+Required end state:
+
+- Domain-separated replay binding across tx and vote surfaces.
+- Durable commitment tracking for consumed replay commitments.
+- Epoch/profile transition rules prohibit cryptographic weakening.
+
+Hard requirements:
+
+- Replay commitment reuse => reject.
+- Epoch transition without required profile continuity evidence => reject.
+
+### C. Implementation Work Packages
+
+#### WP-1: Type system completion
+
+Deliverables:
+
+- Final enum/table for scheme IDs.
+- Versioned signature envelope structs.
+- Canonical encoding/decoding with explicit error taxonomy.
+
+Acceptance criteria:
+
+- All type codecs deterministic across platforms.
+- Fuzz corpus shows no parser acceptance divergence.
+
+#### WP-2: Kernel verification engine
+
+Deliverables:
+
+- Scheme/profile verification dispatcher.
+- Hybrid verifier policy (`both required`, deterministic ordering).
+- Fail-closed unknown/unsupported path.
+
+Acceptance criteria:
+
+- Golden vector suite passes for each enabled scheme.
+- Negative corpus suite proves strict rejection behavior.
+
+#### WP-3: Admission and consensus coupling
+
+Deliverables:
+
+- Mempool admission matrix integration.
+- Block/vote validation matrix integration.
+- Transition guard logic for profile epochs.
+
+Acceptance criteria:
+
+- Same payload yields identical decision in ingress and block replay.
+- Downgrade attempts rejected in simulated transitions.
+
+#### WP-4: Transport and key lifecycle coupling
+
+Deliverables:
+
+- PQ/hybrid KEM enforcement for privileged channels.
+- Key max-age policy and rotation hooks at kernel policy boundary.
+- Emergency profile switch constraints.
+
+Acceptance criteria:
+
+- Transport downgrade simulation fails closed.
+- Rotation cadence violations are observable and block promotion.
+
+#### WP-5: Evidence and release artifacts
+
+Deliverables:
+
+- Machine-readable algorithm enablement manifest.
+- Verification backend provenance manifest.
+- Determinism + downgrade + replay evidence bundle.
+
+Acceptance criteria:
+
+- Independent operator can reproduce artifacts from tagged release.
+- Promotion blocked if evidence bundle is incomplete.
+
+### D. Required Test Matrix (Kernel)
+
+1. Determinism matrix
+   - cross-node identical pass/fail outcome for same vectors,
+   - cross-architecture reproducibility checks.
+2. Negative corpus
+   - malformed envelopes,
+   - unknown algorithms,
+   - ordering violations,
+   - mixed-profile violations.
+3. Replay and nonce regression
+   - duplicate commitment rejection,
+   - nonce regression rejection,
+   - cross-domain replay rejection.
+4. Transition safety
+   - profile upgrade path,
+   - attempted downgrade path,
+   - emergency rollback constraints.
+5. Stress and DoS posture
+   - oversized PQ payload rejection,
+   - bounded verifier resource behavior,
+   - deterministic timeout/error mapping.
+
+### E. Rollout Policy
+
+- Devnet: schema and verifier hardening only.
+- Testnet: hybrid enforcement + full evidence generation mandatory.
+- Mainnet: PQ/hybrid profile activation only after all kernel gates are green and independently reproduced.
+
+No channel may skip deterministic evidence requirements.
+
+### F. Definition of Done (Kernel PQ Program)
+
+Kernel PQ program is complete only when all conditions are true:
+
+- Scheme/profile model is versioned and enforced at runtime.
+- Mempool, block, and vote paths share one deterministic admission truth.
+- Anti-replay and anti-downgrade invariants are continuously tested.
+- Release artifacts include cryptographic provenance and reproducible verification evidence.
+- Profile transitions are operationally drill-tested and auditable.
+
+Until these are complete, product feature expansion should remain secondary to kernel cryptographic closure.
