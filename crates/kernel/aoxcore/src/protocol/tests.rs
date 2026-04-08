@@ -4,6 +4,7 @@ use super::{
     canonical_chain_families, canonical_message_envelope_fields, canonical_modules,
     canonical_sovereign_roots,
 };
+use super::quantum::{QuantumKernelProfile, QuantumProfileError, SignatureScheme};
 
 fn sample_envelope() -> MessageEnvelope {
     MessageEnvelope::new(
@@ -266,6 +267,40 @@ fn hash_distinguishes_optional_field_presence() {
     .expect("envelope must be valid");
 
     assert_ne!(without_proof.hash(), with_proof.hash());
+}
+
+#[test]
+fn strict_quantum_profile_is_valid_and_disables_legacy_support() {
+    let profile = QuantumKernelProfile::strict_default();
+    assert!(profile.validate().is_ok());
+    assert!(!profile.legacy_signature_support);
+    assert_eq!(profile.profile_version, 1);
+}
+
+#[test]
+fn quantum_profile_rejects_default_signature_outside_allowed_set() {
+    let mut profile = QuantumKernelProfile::strict_default();
+    profile.default_signature = SignatureScheme::Dilithium3;
+
+    assert_eq!(
+        profile
+            .validate()
+            .expect_err("default signature outside allowed set must fail"),
+        QuantumProfileError::DefaultSignatureNotAllowed
+    );
+}
+
+#[test]
+fn quantum_profile_rejects_fallback_signature_outside_allowed_set() {
+    let mut profile = QuantumKernelProfile::strict_default();
+    profile.fallback_signature = Some(SignatureScheme::Dilithium3);
+
+    assert_eq!(
+        profile
+            .validate()
+            .expect_err("fallback signature outside allowed set must fail"),
+        QuantumProfileError::FallbackSignatureNotAllowed
+    );
 }
 
 #[test]
