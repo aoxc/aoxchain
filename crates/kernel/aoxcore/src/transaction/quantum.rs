@@ -159,18 +159,6 @@ impl QuantumTransaction {
         SignatureScheme::MlDsa65
     }
 
-    /// Returns a deterministic unsigned intent identifier for this transaction.
-    #[must_use]
-    pub fn intent_id(&self) -> [u8; 32] {
-        self.hash_quantum_transaction(QUANTUM_TRANSACTION_INTENT_HASH_DOMAIN, false)
-    }
-
-    /// Returns a deterministic signed transaction identifier for this transaction.
-    #[must_use]
-    pub fn tx_id(&self) -> [u8; 32] {
-        self.hash_quantum_transaction(QUANTUM_TRANSACTION_HASH_DOMAIN, true)
-    }
-
     /// Validates nonce using a caller-supplied policy hook.
     pub fn validate_nonce_with<F>(&self, is_valid_nonce: F) -> Result<(), QuantumTransactionError>
     where
