@@ -209,6 +209,65 @@ impl QuantumTransaction {
         Ok(message)
     }
 
+    /// Returns the canonical unsigned intent identifier.
+    pub fn try_intent_id(&self) -> Result<[u8; 32], QuantumTransactionError> {
+        self.validate_hash_inputs()?;
+        Ok(self.hash_quantum_transaction(QUANTUM_TRANSACTION_INTENT_HASH_DOMAIN, false))
+    }
+
+    /// Returns the canonical unsigned intent identifier.
+    #[must_use]
+    pub fn intent_id(&self) -> [u8; 32] {
+        self.try_intent_id()
+            .expect("quantum intent hashing must operate on canonical transaction bounds")
+    }
+
+    /// Returns the canonical signed transaction identifier.
+    pub fn try_tx_id(&self) -> Result<[u8; 32], QuantumTransactionError> {
+        self.validate_hash_inputs()?;
+        Ok(self.hash_quantum_transaction(QUANTUM_TRANSACTION_HASH_DOMAIN, true))
+    }
+
+    /// Returns the canonical signed transaction identifier.
+    #[must_use]
+    pub fn tx_id(&self) -> [u8; 32] {
+        self.try_tx_id()
+            .expect("quantum tx hashing must operate on canonical transaction bounds")
+    }
+
+    /// Converts this transaction into a block-domain task.
+    pub fn to_task(&self) -> Result<Task, QuantumTransactionError> {
+        Task::new(
+            self.try_tx_id()?,
+            self.capability,
+            self.target,
+            self.payload.clone(),
+        )
+        .map_err(QuantumTransactionError::TaskConversionFailed)
+    }
+
+    fn validate_hash_inputs(&self) -> Result<(), QuantumTransactionError> {
+        if self.nonce == 0 {
+            return Err(QuantumTransactionError::InvalidNonce);
+        }
+
+        if self.payload.is_empty() {
+            return Err(QuantumTransactionError::EmptyPayload);
+        }
+
+        if self.payload.len() > MAX_TRANSACTION_PAYLOAD_BYTES {
+            return Err(QuantumTransactionError::PayloadTooLarge {
+                size: self.payload.len(),
+                max: MAX_TRANSACTION_PAYLOAD_BYTES,
+            });
+        }
+
+        pq_keys::public_key_from_bytes(&self.sender_public_key)
+            .map_err(|_| QuantumTransactionError::InvalidSenderPublicKey)?;
+
+        Ok(())
+    }
+
     fn hash_quantum_transaction(&self, domain: &[u8], include_signature: bool) -> [u8; 32] {
         let signing_message = self
             .signing_message()
