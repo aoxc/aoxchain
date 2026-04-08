@@ -68,14 +68,17 @@ impl HashPolicy {
 /// Quantum security profile validation failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuantumProfileError {
+    InvalidProfileVersion,
     EmptyAllowedSignatures,
     DefaultSignatureNotAllowed,
     FallbackSignatureNotAllowed,
+    LegacySupportMustRemainDisabled,
 }
 
 impl fmt::Display for QuantumProfileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidProfileVersion => f.write_str("profile_version must be greater than zero"),
             Self::EmptyAllowedSignatures => {
                 f.write_str("allowed_signatures must include at least one PQ signature scheme")
             }
@@ -84,6 +87,9 @@ impl fmt::Display for QuantumProfileError {
             }
             Self::FallbackSignatureNotAllowed => {
                 f.write_str("fallback_signature must appear in allowed_signatures")
+            }
+            Self::LegacySupportMustRemainDisabled => {
+                f.write_str("legacy_signature_support must remain disabled for strict profile")
             }
         }
     }
@@ -125,6 +131,10 @@ impl QuantumKernelProfile {
 
     /// Validates profile consistency under fail-closed kernel policy rules.
     pub fn validate(&self) -> Result<(), QuantumProfileError> {
+        if self.profile_version == 0 {
+            return Err(QuantumProfileError::InvalidProfileVersion);
+        }
+
         if self.allowed_signatures.is_empty() {
             return Err(QuantumProfileError::EmptyAllowedSignatures);
         }
@@ -139,6 +149,33 @@ impl QuantumKernelProfile {
             return Err(QuantumProfileError::FallbackSignatureNotAllowed);
         }
 
+        if self.legacy_signature_support {
+            return Err(QuantumProfileError::LegacySupportMustRemainDisabled);
+        }
+
         Ok(())
+    }
+
+    /// Returns true if a signature scheme is explicitly allowed by this profile.
+    #[must_use]
+    pub fn supports_signature(&self, scheme: SignatureScheme) -> bool {
+        self.allowed_signatures.contains(&scheme)
+    }
+
+    /// Verifies whether `next` can be adopted without changing kernel data model.
+    ///
+    /// Compatibility contract:
+    /// - profile versions must be monotonically non-decreasing,
+    /// - current default signature must remain accepted,
+    /// - both profiles must remain strict (legacy disabled).
+    pub fn is_upgrade_compatible_with(&self, next: &Self) -> Result<bool, QuantumProfileError> {
+        self.validate()?;
+        next.validate()?;
+
+        if next.profile_version < self.profile_version {
+            return Ok(false);
+        }
+
+        Ok(next.supports_signature(self.default_signature))
     }
 }
