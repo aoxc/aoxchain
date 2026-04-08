@@ -16,7 +16,6 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum SignatureScheme {
     MlDsa65,
-    Dilithium3,
     SphincsSha2128f,
 }
 
@@ -25,7 +24,6 @@ impl SignatureScheme {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::MlDsa65 => "ml-dsa-65",
-            Self::Dilithium3 => "dilithium3",
             Self::SphincsSha2128f => "sphincs+-sha2-128f",
         }
     }
@@ -35,7 +33,6 @@ impl SignatureScheme {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum KemScheme {
     MlKem768,
-    Kyber768,
 }
 
 impl KemScheme {
@@ -43,7 +40,6 @@ impl KemScheme {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::MlKem768 => "ml-kem-768",
-            Self::Kyber768 => "kyber-768",
         }
     }
 }
@@ -68,14 +64,17 @@ impl HashPolicy {
 /// Quantum security profile validation failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuantumProfileError {
+    InvalidProfileVersion,
     EmptyAllowedSignatures,
     DefaultSignatureNotAllowed,
     FallbackSignatureNotAllowed,
+    LegacySupportMustRemainDisabled,
 }
 
 impl fmt::Display for QuantumProfileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidProfileVersion => f.write_str("profile_version must be greater than zero"),
             Self::EmptyAllowedSignatures => {
                 f.write_str("allowed_signatures must include at least one PQ signature scheme")
             }
@@ -84,6 +83,9 @@ impl fmt::Display for QuantumProfileError {
             }
             Self::FallbackSignatureNotAllowed => {
                 f.write_str("fallback_signature must appear in allowed_signatures")
+            }
+            Self::LegacySupportMustRemainDisabled => {
+                f.write_str("legacy_signature_support must remain disabled for strict profile")
             }
         }
     }
@@ -112,10 +114,10 @@ impl QuantumKernelProfile {
     #[must_use]
     pub fn strict_default() -> Self {
         Self {
-            profile_version: 1,
+            profile_version: 2,
             default_signature: SignatureScheme::MlDsa65,
-            fallback_signature: Some(SignatureScheme::SphincsSha2128f),
-            allowed_signatures: vec![SignatureScheme::MlDsa65, SignatureScheme::SphincsSha2128f],
+            fallback_signature: None,
+            allowed_signatures: vec![SignatureScheme::MlDsa65],
             transport_kem: KemScheme::MlKem768,
             tx_hash_policy: HashPolicy::Sha3_256,
             state_hash_policy: HashPolicy::Blake3,
@@ -125,6 +127,10 @@ impl QuantumKernelProfile {
 
     /// Validates profile consistency under fail-closed kernel policy rules.
     pub fn validate(&self) -> Result<(), QuantumProfileError> {
+        if self.profile_version == 0 {
+            return Err(QuantumProfileError::InvalidProfileVersion);
+        }
+
         if self.allowed_signatures.is_empty() {
             return Err(QuantumProfileError::EmptyAllowedSignatures);
         }
@@ -139,6 +145,33 @@ impl QuantumKernelProfile {
             return Err(QuantumProfileError::FallbackSignatureNotAllowed);
         }
 
+        if self.legacy_signature_support {
+            return Err(QuantumProfileError::LegacySupportMustRemainDisabled);
+        }
+
         Ok(())
+    }
+
+    /// Returns whether this profile explicitly allows a signature scheme.
+    #[must_use]
+    pub fn allows_signature(&self, scheme: SignatureScheme) -> bool {
+        self.allowed_signatures.contains(&scheme)
+    }
+
+    /// Checks if `next` is a safe forward profile under the strict PQ contract.
+    ///
+    /// Forward-compatibility rules:
+    /// - both profiles must pass strict validation,
+    /// - next profile version must be strictly greater,
+    /// - current default signature must stay allowed in next profile.
+    pub fn is_forward_compatible_with(&self, next: &Self) -> Result<bool, QuantumProfileError> {
+        self.validate()?;
+        next.validate()?;
+
+        if next.profile_version <= self.profile_version {
+            return Ok(false);
+        }
+
+        Ok(next.allows_signature(self.default_signature))
     }
 }
