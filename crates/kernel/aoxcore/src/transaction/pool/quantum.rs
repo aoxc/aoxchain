@@ -4,7 +4,6 @@
 
 use std::collections::HashMap;
 
-use crate::block::Task;
 use crate::protocol::quantum::{QuantumAdmissionError, QuantumKernelProfile};
 use crate::transaction::quantum::QuantumTransaction;
 
@@ -21,7 +20,6 @@ pub enum QuantumTransactionPoolError {
     AdmissionRejected(QuantumAdmissionError),
     DuplicateTxId([u8; 32]),
     SenderNonceConflict([u8; 32]),
-    TaskConversionFailed,
 }
 
 impl QuantumTransactionPool {
@@ -69,53 +67,6 @@ impl QuantumTransactionPool {
         self.sender_nonces
             .remove(&(removed.sender_public_key.clone(), removed.nonce));
         Some(removed)
-    }
-
-    /// Selects transactions for block assembly under count and payload limits.
-    #[must_use]
-    pub fn select_for_block(&self, max_count: usize, max_payload_bytes: usize) -> Vec<[u8; 32]> {
-        let mut selected = Vec::new();
-        let mut consumed = 0usize;
-
-        for (tx_id, tx) in &self.pending {
-            if selected.len() >= max_count {
-                break;
-            }
-
-            let payload_len = tx.payload.len();
-            if consumed + payload_len > max_payload_bytes {
-                continue;
-            }
-
-            selected.push(*tx_id);
-            consumed += payload_len;
-        }
-
-        selected
-    }
-
-    /// Drains selected transactions and converts them into block tasks.
-    pub fn drain_for_block(
-        &mut self,
-        max_count: usize,
-        max_payload_bytes: usize,
-    ) -> Result<Vec<([u8; 32], Task)>, QuantumTransactionPoolError> {
-        let selected = self.select_for_block(max_count, max_payload_bytes);
-        let mut drained = Vec::with_capacity(selected.len());
-
-        for tx_id in selected {
-            let tx = self
-                .remove(&tx_id)
-                .expect("selected tx id must exist in pool during drain");
-
-            let task = tx
-                .to_task()
-                .map_err(|_| QuantumTransactionPoolError::TaskConversionFailed)?;
-
-            drained.push((tx_id, task));
-        }
-
-        Ok(drained)
     }
 }
 
@@ -220,23 +171,5 @@ mod tests {
         let removed = pool.remove(&tx_id).expect("tx must be removable");
         assert_eq!(removed.nonce, 9);
         assert!(pool.is_empty());
-    }
-
-    #[test]
-    fn drain_for_block_returns_tasks_and_removes_entries() {
-        let profile = QuantumKernelProfile::strict_default();
-        let mut pool = QuantumTransactionPool::new();
-
-        pool.add_with_profile(&profile, build_signed_tx(1, 1, vec![1, 2]))
-            .expect("tx1 must be admitted");
-        pool.add_with_profile(&profile, build_signed_tx(2, 1, vec![3, 4]))
-            .expect("tx2 must be admitted");
-
-        let drained = pool
-            .drain_for_block(1, 1024)
-            .expect("drain must produce tasks");
-
-        assert_eq!(drained.len(), 1);
-        assert_eq!(pool.len(), 1);
     }
 }

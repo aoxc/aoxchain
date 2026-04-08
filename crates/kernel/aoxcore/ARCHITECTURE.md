@@ -57,13 +57,6 @@ contract for post-quantum readiness:
 `transaction::quantum::QuantumTransaction` also exposes a canonical signing-message builder
 for deterministic external signing flows, preserving message-shape stability across
 components that generate signatures out of process.
-It now also publishes deterministic `intent_id` and `tx_id` derivation so block assembly,
-pooling, and telemetry can use a stable quantum transaction identity contract.
-`transaction::pool::QuantumTransactionPool` consumes this contract and enforces
-profile-bound admission (`QuantumKernelProfile`) plus sender/nonce lane protection
-for PQ transactions at kernel scope.
-The pool now also supports bounded `select_for_block`/`drain_for_block` assembly
-and converts admitted PQ transactions into canonical block `Task` objects.
 
 This model allows cryptographic agility over time while keeping kernel data-model
 boundaries stable for downstream services.
