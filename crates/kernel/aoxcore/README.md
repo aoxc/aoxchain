@@ -11,6 +11,7 @@ This crate defines low-level primitives that shape protocol truth, including:
 - receipt and state structures,
 - canonical protocol envelope types,
 - interoperability-aware kernel boundary types.
+- quantum-native kernel policy profiles.
 
 ## Responsibility Boundary
 This crate is responsible for:
@@ -49,6 +50,10 @@ AOXCore is developed under the following engineering priorities:
 4. Fail-Closed Semantics  
    Invalid inputs, malformed states, and unsafe transitions must be rejected
    explicitly rather than tolerated implicitly.
+
+5. Quantum-Native Baseline  
+   Kernel-facing cryptographic policy is expressed through explicit post-quantum
+   profile primitives with strict validation and legacy-disable defaults.
 
 ## Expected Change Review Standard
 Any change within this crate should be evaluated for:
