@@ -151,4 +151,27 @@ impl QuantumKernelProfile {
 
         Ok(())
     }
+
+    /// Returns true if a signature scheme is explicitly allowed by this profile.
+    #[must_use]
+    pub fn supports_signature(&self, scheme: SignatureScheme) -> bool {
+        self.allowed_signatures.contains(&scheme)
+    }
+
+    /// Verifies whether `next` can be adopted without changing kernel data model.
+    ///
+    /// Compatibility contract:
+    /// - profile versions must be monotonically non-decreasing,
+    /// - current default signature must remain accepted,
+    /// - both profiles must remain strict (legacy disabled).
+    pub fn is_upgrade_compatible_with(&self, next: &Self) -> Result<bool, QuantumProfileError> {
+        self.validate()?;
+        next.validate()?;
+
+        if next.profile_version < self.profile_version {
+            return Ok(false);
+        }
+
+        Ok(next.supports_signature(self.default_signature))
+    }
 }

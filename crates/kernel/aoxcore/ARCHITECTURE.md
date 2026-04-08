@@ -44,13 +44,13 @@ These are typed in kernel space so higher layers consume a stable, audit-friendl
 
 ## Quantum-Native Evolution Contract
 
-The `protocol::quantum::QuantumKernelProfile` surface is a hard quantum-native
-kernel policy:
+The `protocol::quantum::QuantumKernelProfile` surface is the kernel’s upgrade-safe
+contract for post-quantum readiness:
 
 - strict defaults are PQ-only and fail closed (`legacy_signature_support = false`),
-- transitional pre-standard aliases are not part of the protocol policy surface,
-- canonical runtime defaults are pinned to ML-DSA-65 + ML-KEM-768 with deterministic
-  hash policies for signing and state commitments.
+- profile validation enforces canonical, deterministic policy constraints,
+- profile upgrades are versioned and must preserve acceptance of the active default signature
+  to avoid architecture rewrites across runtime components.
 
-This model intentionally prioritizes direct quantum-native operation over hybrid
-compatibility pathways.
+This model allows cryptographic agility over time while keeping kernel data-model
+boundaries stable for downstream services.
