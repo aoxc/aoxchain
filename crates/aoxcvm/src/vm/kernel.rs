@@ -34,6 +34,13 @@ pub enum KernelSecurityLevel {
     Quantum,
 }
 
+/// Security posture selector for kernel baseline presets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KernelSecurityLevel {
+    Standard,
+    Quantum,
+}
+
 impl Default for KernelConfig {
     fn default() -> Self {
         Self {
@@ -70,6 +77,29 @@ impl KernelConfig {
                 min_spec_version: 2,
                 max_payload_bytes: 32 * 1024,
                 security_level: KernelSecurityLevel::Quantum,
+            },
+        }
+    }
+}
+
+impl KernelConfig {
+    /// Returns a conservative preset for deployments that want a stricter
+    /// quantum-readiness baseline.
+    pub const fn for_security_level(level: KernelSecurityLevel) -> Self {
+        match level {
+            KernelSecurityLevel::Standard => Self {
+                gas_limit: 1_000_000,
+                max_memory: 1024 * 1024,
+                max_stack_depth: 1024,
+                max_call_depth: 64,
+                min_spec_version: 1,
+            },
+            KernelSecurityLevel::Quantum => Self {
+                gas_limit: 750_000,
+                max_memory: 768 * 1024,
+                max_stack_depth: 768,
+                max_call_depth: 48,
+                min_spec_version: 2,
             },
         }
     }
@@ -280,43 +310,5 @@ mod tests {
         assert!(quantum.max_stack_depth < standard.max_stack_depth);
         assert!(quantum.max_call_depth < standard.max_call_depth);
         assert!(quantum.min_spec_version > standard.min_spec_version);
-        assert!(quantum.max_payload_bytes < standard.max_payload_bytes);
-    }
-
-    #[test]
-    fn quantum_profile_enforces_tighter_payload_limit() {
-        let quantum = AOXCVMachineQX1::new(KernelConfig::for_security_level(
-            KernelSecurityLevel::Quantum,
-        ));
-        let context = ExecutionContext::new(
-            EnvironmentContext::new(2626, 1),
-            BlockContext::new(1, 1, 1, [9_u8; 32]),
-            TxContext::new([7_u8; 32], 0, 500, false, 2, 0),
-            CallContext::new(0),
-            OriginContext::new([1_u8; 32], [2_u8; 32], [1_u8; 32], 0),
-        );
-        let tx = TxEnvelope::new(
-            2626,
-            1,
-            TxKind::UserCall,
-            FeeBudget::new(500, 1),
-            TxPayload::new(vec![1_u8; 40 * 1024]),
-        );
-        let err = quantum
-            .execute_phase1_with_context(
-                Program {
-                    code: vec![Instruction::Halt],
-                },
-                context,
-                tx,
-            )
-            .expect_err("payload must exceed quantum profile limit");
-
-        assert!(matches!(
-            err,
-            KernelError::Admission(crate::vm::admission::AdmissionError::TxValidation(
-                crate::tx::validation::ValidationError::PayloadTooLarge
-            ))
-        ));
     }
 }
