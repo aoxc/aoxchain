@@ -16,6 +16,7 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum SignatureScheme {
     MlDsa65,
+    Dilithium3,
     SphincsSha2128f,
 }
 
@@ -24,6 +25,7 @@ impl SignatureScheme {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::MlDsa65 => "ml-dsa-65",
+            Self::Dilithium3 => "dilithium3",
             Self::SphincsSha2128f => "sphincs+-sha2-128f",
         }
     }
@@ -92,6 +94,30 @@ impl fmt::Display for QuantumProfileError {
 }
 
 impl std::error::Error for QuantumProfileError {}
+
+/// Admission failures when applying a kernel quantum profile to a transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuantumAdmissionError {
+    InvalidProfile(QuantumProfileError),
+    UnsupportedTransactionSignatureScheme,
+    InvalidTransactionPayload,
+}
+
+impl fmt::Display for QuantumAdmissionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidProfile(err) => write!(f, "invalid quantum profile: {err}"),
+            Self::UnsupportedTransactionSignatureScheme => {
+                f.write_str("transaction signature scheme is not permitted by quantum profile")
+            }
+            Self::InvalidTransactionPayload => {
+                f.write_str("transaction payload failed quantum transaction validation")
+            }
+        }
+    }
+}
+
+impl std::error::Error for QuantumAdmissionError {}
 
 /// Canonical quantum-native kernel profile.
 ///
@@ -173,5 +199,22 @@ impl QuantumKernelProfile {
         }
 
         Ok(next.supports_signature(self.default_signature))
+    }
+
+    /// Validates that a quantum transaction can be admitted by this profile.
+    pub fn admit_quantum_transaction(
+        &self,
+        transaction: &crate::transaction::quantum::QuantumTransaction,
+    ) -> Result<(), QuantumAdmissionError> {
+        self.validate()
+            .map_err(QuantumAdmissionError::InvalidProfile)?;
+
+        if !self.supports_signature(transaction.signature_scheme()) {
+            return Err(QuantumAdmissionError::UnsupportedTransactionSignatureScheme);
+        }
+
+        transaction
+            .validate()
+            .map_err(|_| QuantumAdmissionError::InvalidTransactionPayload)
     }
 }

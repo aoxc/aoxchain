@@ -51,6 +51,12 @@ contract for post-quantum readiness:
 - profile validation enforces canonical, deterministic policy constraints,
 - profile upgrades are versioned and must preserve acceptance of the active default signature
   to avoid architecture rewrites across runtime components.
+- profile admission now includes `admit_quantum_transaction`, binding profile policy
+  to `transaction::quantum::QuantumTransaction` validation at kernel scope.
+
+`transaction::quantum::QuantumTransaction` also exposes a canonical signing-message builder
+for deterministic external signing flows, preserving message-shape stability across
+components that generate signatures out of process.
 
 This model allows cryptographic agility over time while keeping kernel data-model
 boundaries stable for downstream services.
