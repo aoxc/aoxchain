@@ -1,4 +1,4 @@
-# Scope: `crates/aoxcore`
+# Scope: `crates/kernel/aoxcore`
 
 ## Mission
 Define the canonical runtime data models and deterministic transition

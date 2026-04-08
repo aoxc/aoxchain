@@ -8,10 +8,10 @@ serde = { workspace = true }
 tokio = { workspace = true }
 aoxcmd = { path = "../crates/aoxcmd" }
 aoxcnet = { path = "../crates/aoxcnet" }
-aoxcunity = { path = "../crates/aoxcunity" }
+aoxcunity = { path = "../crates/kernel/aoxcunity" }
 aoxconfig = { path = "../crates/aoxconfig" }
 aoxcontract = { path = "../crates/aoxcontract" }
-aoxcore = { path = "../crates/aoxcore" }
+aoxcore = { path = "../crates/kernel/aoxcore" }
 aoxcdata = { path = "../crates/aoxcdata" }
 aoxcsdk = { path = "../crates/aoxcsdk" }
 aoxcvm = { path = "../crates/aoxcvm" }

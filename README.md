@@ -39,6 +39,15 @@ AOXChain is distributed under the **MIT License** with standard warranty and lia
 
 In short: AOXChain is built toward quantum-resilient operation, but is deliberately run with conservative, evidence-first activation policy.
 
+## Repository Layout Note
+
+Kernel-layer crates are grouped under `crates/kernel/`:
+
+- `crates/kernel/aoxcore`
+- `crates/kernel/aoxcunity`
+
+Execution, service, and operations crates remain under `crates/` and consume kernel-defined protocol truth through typed interfaces.
+
 ## 📊 Repository Health Snapshot (2026-04-07 UTC)
 
 - `cargo check --workspace --locked`: pass

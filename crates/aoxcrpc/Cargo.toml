@@ -12,7 +12,7 @@ sha2 = { workspace = true }
 chrono = { workspace = true }
 aoxconfig = { path = "../aoxconfig" }
 aoxcontract = { path = "../aoxcontract" }
-aoxcore = { path = "../aoxcore" }
+aoxcore = { path = "../kernel/aoxcore" }
 aoxcdata = { path = "../aoxcdata" }
 aoxcvm = { path = "../aoxcvm" }
 aoxcsdk = { path = "../aoxcsdk" }

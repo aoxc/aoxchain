@@ -14,10 +14,10 @@ members  = [
     "crates/aoxcnet",
     "crates/aoxconfig",
     "crates/aoxcontract",
-    "crates/aoxcore",
+    "crates/kernel/aoxcore",
     "crates/aoxcrpc",
     "crates/aoxcsdk",
-    "crates/aoxcunity",
+    "crates/kernel/aoxcunity",
     "crates/aoxcvm",
     "tests",
 ]
