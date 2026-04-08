@@ -41,8 +41,14 @@ impl Default for KernelConfig {
 }
 
 impl KernelConfig {
+    /// Returns the canonical quantum-first default profile.
+    pub const fn quantum_default() -> Self {
+        Self::for_security_level(KernelSecurityLevel::Quantum)
+    }
+
     /// Returns a conservative preset for deployments that want a stricter
     /// quantum-readiness baseline.
+    #[allow(deprecated)]
     pub const fn for_security_level(level: KernelSecurityLevel) -> Self {
         match level {
             KernelSecurityLevel::Standard => Self {
@@ -85,6 +91,7 @@ pub enum KernelError {
     Context(ContextError),
     Admission(AdmissionError),
     Determinism(DeterminismError),
+    ConfigInvariant(&'static str),
 }
 
 impl From<ContextError> for KernelError {
@@ -134,6 +141,8 @@ impl AOXCVMachineQX1 {
         context: ExecutionContext,
         tx: TxEnvelope,
     ) -> Result<KernelOutput, KernelError> {
+        self.validate_security_invariants()?;
+
         let limits = DeterminismLimits {
             max_call_depth: self.config.max_call_depth,
             max_gas_limit: self.config.gas_limit,
@@ -155,6 +164,43 @@ impl AOXCVMachineQX1 {
             result,
             receipt_proof,
         })
+    }
+
+    fn validate_security_invariants(&self) -> Result<(), KernelError> {
+        if self.config.security_level == KernelSecurityLevel::Quantum {
+            let quantum = KernelConfig::for_security_level(KernelSecurityLevel::Quantum);
+            if self.config.gas_limit > quantum.gas_limit {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires gas_limit <= 750_000",
+                ));
+            }
+            if self.config.max_memory > quantum.max_memory {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires max_memory <= 768KiB",
+                ));
+            }
+            if self.config.max_stack_depth > quantum.max_stack_depth {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires max_stack_depth <= 768",
+                ));
+            }
+            if self.config.max_call_depth > quantum.max_call_depth {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires max_call_depth <= 48",
+                ));
+            }
+            if self.config.min_spec_version < quantum.min_spec_version {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires min_spec_version >= 2",
+                ));
+            }
+            if self.config.max_payload_bytes > quantum.max_payload_bytes {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires max_payload_bytes <= 32KiB",
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn default_tx_for_context(context: &ExecutionContext) -> TxEnvelope {
@@ -179,6 +225,7 @@ impl AOXCVMachineQX1 {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::{AOXCVMachineQX1, KernelConfig, KernelError, KernelSecurityLevel};
     use crate::context::{
