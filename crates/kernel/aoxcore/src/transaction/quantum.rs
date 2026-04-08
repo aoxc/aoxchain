@@ -9,7 +9,7 @@
 
 use core::fmt;
 
-use crate::block::{Capability, TargetOutpost};
+use crate::block::{BlockError, Capability, TargetOutpost, Task};
 use crate::identity::pq_keys;
 use crate::protocol::quantum::SignatureScheme;
 
@@ -34,6 +34,7 @@ pub enum QuantumTransactionError {
     PayloadTooLarge { size: usize, max: usize },
     EmptyPayload,
     SigningMessageMismatch,
+    TaskConversionFailed(BlockError),
 }
 
 impl QuantumTransactionError {
@@ -46,6 +47,7 @@ impl QuantumTransactionError {
             Self::PayloadTooLarge { .. } => "QTX_PAYLOAD_TOO_LARGE",
             Self::EmptyPayload => "QTX_EMPTY_PAYLOAD",
             Self::SigningMessageMismatch => "QTX_SIGNING_MESSAGE_MISMATCH",
+            Self::TaskConversionFailed(_) => "QTX_TASK_CONVERSION_FAILED",
         }
     }
 }
@@ -68,6 +70,9 @@ impl fmt::Display for QuantumTransactionError {
             Self::EmptyPayload => f.write_str("quantum transaction payload must not be empty"),
             Self::SigningMessageMismatch => {
                 f.write_str("quantum transaction signed payload does not match canonical message")
+            }
+            Self::TaskConversionFailed(err) => {
+                write!(f, "quantum transaction-to-task conversion failed: {err}")
             }
         }
     }
