@@ -1,4 +1,5 @@
 use super::core::canonicalize_payload_type;
+use super::quantum::{QuantumKernelProfile, QuantumProfileError, SignatureScheme};
 use super::{
     ChainFamily, FeeClass, MessageEnvelope, MessageEnvelopeError, ModuleId, SovereignRoot,
     canonical_chain_families, canonical_message_envelope_fields, canonical_modules,

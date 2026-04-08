@@ -18,6 +18,7 @@ This crate is responsible for:
 
 - canonical block data structures
 - canonical transaction models and hashing
+- quantum-native transaction model and verification surface
 - canonical receipt models and hashing
 - canonical account and world-state structures
 - deterministic state-transition foundations
