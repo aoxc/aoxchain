@@ -1,10 +1,15 @@
 use super::core::canonicalize_payload_type;
-use super::quantum::{QuantumKernelProfile, QuantumProfileError, SignatureScheme};
+use super::quantum::{
+    QuantumAdmissionError, QuantumKernelProfile, QuantumProfileError, SignatureScheme,
+};
 use super::{
     ChainFamily, FeeClass, MessageEnvelope, MessageEnvelopeError, ModuleId, SovereignRoot,
     canonical_chain_families, canonical_message_envelope_fields, canonical_modules,
     canonical_sovereign_roots,
 };
+use crate::block::{Capability, TargetOutpost};
+use crate::identity::pq_keys;
+use crate::transaction::quantum::QuantumTransaction;
 
 fn sample_envelope() -> MessageEnvelope {
     MessageEnvelope::new(
@@ -378,4 +383,65 @@ fn is_expired_at_respects_optional_expiry() {
     .expect("envelope must be valid");
 
     assert!(!no_expiry.is_expired_at(u64::MAX));
+}
+
+#[test]
+fn strict_profile_admits_valid_quantum_transaction() {
+    let profile = QuantumKernelProfile::strict_default();
+    let (pk, sk) = pq_keys::generate_keypair();
+    let payload = vec![7, 8, 9];
+    let nonce = 9;
+    let message = QuantumTransaction::canonical_signing_message(
+        nonce,
+        Capability::UserSigned,
+        TargetOutpost::EthMainnetGateway,
+        &payload,
+    )
+    .expect("message must be buildable");
+
+    let signed_payload = pq_keys::sign_message_domain_separated(&message, &sk);
+    let tx = QuantumTransaction::new(
+        pq_keys::serialize_public_key(&pk),
+        nonce,
+        Capability::UserSigned,
+        TargetOutpost::EthMainnetGateway,
+        payload,
+        signed_payload,
+    )
+    .expect("transaction must be valid");
+
+    assert!(profile.admit_quantum_transaction(&tx).is_ok());
+}
+
+#[test]
+fn profile_rejects_invalid_quantum_transaction_during_admission() {
+    let profile = QuantumKernelProfile::strict_default();
+    let (pk, sk) = pq_keys::generate_keypair();
+    let payload = vec![1, 2, 3];
+    let nonce = 3;
+    let message = QuantumTransaction::canonical_signing_message(
+        nonce,
+        Capability::UserSigned,
+        TargetOutpost::EthMainnetGateway,
+        &payload,
+    )
+    .expect("message must be buildable");
+    let mut signed_payload = pq_keys::sign_message_domain_separated(&message, &sk);
+    signed_payload.push(0);
+
+    let tx = QuantumTransaction {
+        sender_public_key: pq_keys::serialize_public_key(&pk),
+        nonce,
+        capability: Capability::UserSigned,
+        target: TargetOutpost::EthMainnetGateway,
+        payload,
+        signed_payload,
+    };
+
+    assert_eq!(
+        profile
+            .admit_quantum_transaction(&tx)
+            .expect_err("tampered signature must be rejected"),
+        QuantumAdmissionError::InvalidTransactionPayload
+    );
 }
