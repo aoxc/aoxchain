@@ -34,13 +34,6 @@ pub enum KernelSecurityLevel {
     Quantum,
 }
 
-/// Security posture selector for kernel baseline presets.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KernelSecurityLevel {
-    Standard,
-    Quantum,
-}
-
 impl Default for KernelConfig {
     fn default() -> Self {
         Self {
@@ -77,29 +70,6 @@ impl KernelConfig {
                 min_spec_version: 2,
                 max_payload_bytes: 32 * 1024,
                 security_level: KernelSecurityLevel::Quantum,
-            },
-        }
-    }
-}
-
-impl KernelConfig {
-    /// Returns a conservative preset for deployments that want a stricter
-    /// quantum-readiness baseline.
-    pub const fn for_security_level(level: KernelSecurityLevel) -> Self {
-        match level {
-            KernelSecurityLevel::Standard => Self {
-                gas_limit: 1_000_000,
-                max_memory: 1024 * 1024,
-                max_stack_depth: 1024,
-                max_call_depth: 64,
-                min_spec_version: 1,
-            },
-            KernelSecurityLevel::Quantum => Self {
-                gas_limit: 750_000,
-                max_memory: 768 * 1024,
-                max_stack_depth: 768,
-                max_call_depth: 48,
-                min_spec_version: 2,
             },
         }
     }
