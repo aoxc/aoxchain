@@ -23,6 +23,15 @@ pub struct KernelConfig {
     pub max_stack_depth: usize,
     pub max_call_depth: u16,
     pub min_spec_version: u32,
+    pub max_payload_bytes: usize,
+    pub security_level: KernelSecurityLevel,
+}
+
+/// Security posture selector for kernel baseline presets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KernelSecurityLevel {
+    Standard,
+    Quantum,
 }
 
 /// Security posture selector for kernel baseline presets.
@@ -40,6 +49,35 @@ impl Default for KernelConfig {
             max_stack_depth: 1024,
             max_call_depth: 64,
             min_spec_version: 1,
+            max_payload_bytes: 64 * 1024,
+            security_level: KernelSecurityLevel::Standard,
+        }
+    }
+}
+
+impl KernelConfig {
+    /// Returns a conservative preset for deployments that want a stricter
+    /// quantum-readiness baseline.
+    pub const fn for_security_level(level: KernelSecurityLevel) -> Self {
+        match level {
+            KernelSecurityLevel::Standard => Self {
+                gas_limit: 1_000_000,
+                max_memory: 1024 * 1024,
+                max_stack_depth: 1024,
+                max_call_depth: 64,
+                min_spec_version: 1,
+                max_payload_bytes: 64 * 1024,
+                security_level: KernelSecurityLevel::Standard,
+            },
+            KernelSecurityLevel::Quantum => Self {
+                gas_limit: 750_000,
+                max_memory: 768 * 1024,
+                max_stack_depth: 768,
+                max_call_depth: 48,
+                min_spec_version: 2,
+                max_payload_bytes: 32 * 1024,
+                security_level: KernelSecurityLevel::Quantum,
+            },
         }
     }
 }
@@ -140,7 +178,7 @@ impl AOXCVMachineQX1 {
             min_spec_version: self.config.min_spec_version,
         };
 
-        validate_phase1_admission(&context, &tx, limits, 64 * 1024)?;
+        validate_phase1_admission(&context, &tx, limits, self.config.max_payload_bytes)?;
 
         let verifier = DeterminismVerifier {
             gas_limit: context.tx.gas_limit,
@@ -196,6 +234,8 @@ mod tests {
             max_stack_depth: 64,
             max_call_depth: 64,
             min_spec_version: 1,
+            max_payload_bytes: 64 * 1024,
+            security_level: KernelSecurityLevel::Standard,
         });
 
         let program = Program {
@@ -222,6 +262,8 @@ mod tests {
             max_stack_depth: 64,
             max_call_depth: 4,
             min_spec_version: 1,
+            max_payload_bytes: 64 * 1024,
+            security_level: KernelSecurityLevel::Standard,
         });
 
         let context = ExecutionContext::new(
