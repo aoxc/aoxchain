@@ -11,6 +11,7 @@ use core::fmt;
 
 use crate::block::{Capability, TargetOutpost};
 use crate::identity::pq_keys;
+use crate::protocol::quantum::SignatureScheme;
 
 use super::MAX_TRANSACTION_PAYLOAD_BYTES;
 
@@ -148,6 +149,12 @@ impl QuantumTransaction {
         Ok(())
     }
 
+    /// Returns the signature scheme used by this transaction type.
+    #[must_use]
+    pub const fn signature_scheme(&self) -> SignatureScheme {
+        SignatureScheme::MlDsa65
+    }
+
     /// Validates nonce using a caller-supplied policy hook.
     pub fn validate_nonce_with<F>(&self, is_valid_nonce: F) -> Result<(), QuantumTransactionError>
     where
@@ -162,15 +169,11 @@ impl QuantumTransaction {
 
     /// Returns the canonical signing message bytes.
     pub fn signing_message(&self) -> Result<Vec<u8>, QuantumTransactionError> {
-        Self::build_signing_message_from_fields(
-            self.nonce,
-            self.capability,
-            self.target,
-            &self.payload,
-        )
+        Self::canonical_signing_message(self.nonce, self.capability, self.target, &self.payload)
     }
 
-    fn build_signing_message_from_fields(
+    /// Builds canonical signing message bytes from transaction fields.
+    pub fn canonical_signing_message(
         nonce: u64,
         capability: Capability,
         target: TargetOutpost,
@@ -204,7 +207,7 @@ mod tests {
 
     fn signed_quantum_tx(payload: Vec<u8>, nonce: u64) -> QuantumTransaction {
         let (pk, sk) = pq_keys::generate_keypair();
-        let message = QuantumTransaction::build_signing_message_from_fields(
+        let message = QuantumTransaction::canonical_signing_message(
             nonce,
             Capability::UserSigned,
             TargetOutpost::EthMainnetGateway,
