@@ -1,0 +1,24 @@
+version: 1
+name: quantum_full_near_closure_evidence
+required:
+  - commit_sha
+  - generated_at_utc
+  - environment
+  - checks
+  - artifacts
+  - residual_risk_statement
+fields:
+  commit_sha: "<git-sha>"
+  generated_at_utc: "<RFC3339>"
+  environment: "testnet|mainnet-rehearsal"
+  checks:
+    mixed_profile_matrix: "pass|fail"
+    downgrade_rejection: "pass|fail"
+    migration_drill: "pass|fail"
+    rollback_rehearsal: "pass|fail"
+    runbook_validation: "pass|fail"
+  artifacts:
+    - type: "log|report|matrix|hash"
+      path: "artifacts/..."
+      sha256: "<hex>"
+  residual_risk_statement: "<path-or-inline-summary>"
