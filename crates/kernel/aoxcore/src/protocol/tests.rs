@@ -1,7 +1,6 @@
 use super::core::canonicalize_payload_type;
 use super::quantum::{
-    QuantumAdmissionError, QuantumKernelProfile, QuantumKernelRuntime, QuantumProfileError,
-    SignatureScheme,
+    QuantumAdmissionError, QuantumKernelProfile, QuantumProfileError, SignatureScheme,
 };
 use super::{
     ChainFamily, FeeClass, MessageEnvelope, MessageEnvelopeError, ModuleId, SovereignRoot,
@@ -445,42 +444,4 @@ fn profile_rejects_invalid_quantum_transaction_during_admission() {
             .expect_err("tampered signature must be rejected"),
         QuantumAdmissionError::InvalidTransactionPayload
     );
-}
-
-#[test]
-fn runtime_submits_and_drains_quantum_tasks() {
-    let profile = QuantumKernelProfile::strict_default();
-    let mut runtime = QuantumKernelRuntime::new(profile).expect("profile must be valid");
-
-    let (pk, sk) = pq_keys::generate_keypair();
-    let payload = vec![0xAA, 0xBB];
-    let nonce = 11;
-    let message = QuantumTransaction::canonical_signing_message(
-        nonce,
-        Capability::UserSigned,
-        TargetOutpost::EthMainnetGateway,
-        &payload,
-    )
-    .expect("canonical signing message must be valid");
-    let signed_payload = pq_keys::sign_message_domain_separated(&message, &sk);
-
-    let tx = QuantumTransaction::new(
-        pq_keys::serialize_public_key(&pk),
-        nonce,
-        Capability::UserSigned,
-        TargetOutpost::EthMainnetGateway,
-        payload,
-        signed_payload,
-    )
-    .expect("tx must be valid");
-
-    let tx_id = runtime.submit(tx).expect("runtime must accept tx");
-    assert_eq!(runtime.pending_len(), 1);
-
-    let tasks = runtime
-        .build_block_tasks(10, 1024)
-        .expect("runtime drain must succeed");
-    assert_eq!(tasks.len(), 1);
-    assert_eq!(tasks[0].0, tx_id);
-    assert_eq!(runtime.pending_len(), 0);
 }

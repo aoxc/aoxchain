@@ -2,18 +2,16 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
-use core::fmt;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
-use crate::block::Task;
 use crate::protocol::quantum::{QuantumAdmissionError, QuantumKernelProfile};
 use crate::transaction::quantum::QuantumTransaction;
 
 /// Deterministic pool for admitted quantum transactions.
 #[derive(Debug, Default)]
 pub struct QuantumTransactionPool {
-    pending: BTreeMap<[u8; 32], QuantumTransaction>,
-    sender_nonces: BTreeMap<(Vec<u8>, u64), [u8; 32]>,
+    pending: HashMap<[u8; 32], QuantumTransaction>,
+    sender_nonces: HashMap<(Vec<u8>, u64), [u8; 32]>,
 }
 
 /// Quantum pool admission failures.
@@ -22,42 +20,7 @@ pub enum QuantumTransactionPoolError {
     AdmissionRejected(QuantumAdmissionError),
     DuplicateTxId([u8; 32]),
     SenderNonceConflict([u8; 32]),
-    TaskConversionFailed,
-    MissingSelectedTransaction([u8; 32]),
 }
-
-impl fmt::Display for QuantumTransactionPoolError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::AdmissionRejected(err) => {
-                write!(
-                    f,
-                    "quantum pool admission rejected candidate transaction: {err}"
-                )
-            }
-            Self::DuplicateTxId(tx_id) => write!(
-                f,
-                "quantum pool admission rejected duplicate transaction id: {:02x?}",
-                tx_id
-            ),
-            Self::SenderNonceConflict(existing_tx_id) => write!(
-                f,
-                "quantum pool sender/nonce lane is already occupied by tx id: {:02x?}",
-                existing_tx_id
-            ),
-            Self::TaskConversionFailed => {
-                f.write_str("quantum pool failed to convert selected transaction into task")
-            }
-            Self::MissingSelectedTransaction(tx_id) => write!(
-                f,
-                "quantum pool internal inconsistency: selected tx id missing at drain time: {:02x?}",
-                tx_id
-            ),
-        }
-    }
-}
-
-impl std::error::Error for QuantumTransactionPoolError {}
 
 impl QuantumTransactionPool {
     #[must_use]
@@ -104,53 +67,6 @@ impl QuantumTransactionPool {
         self.sender_nonces
             .remove(&(removed.sender_public_key.clone(), removed.nonce));
         Some(removed)
-    }
-
-    /// Selects transactions for block assembly under count and payload limits.
-    #[must_use]
-    pub fn select_for_block(&self, max_count: usize, max_payload_bytes: usize) -> Vec<[u8; 32]> {
-        let mut selected = Vec::new();
-        let mut consumed = 0usize;
-
-        for (tx_id, tx) in &self.pending {
-            if selected.len() >= max_count {
-                break;
-            }
-
-            let payload_len = tx.payload.len();
-            if consumed + payload_len > max_payload_bytes {
-                continue;
-            }
-
-            selected.push(*tx_id);
-            consumed += payload_len;
-        }
-
-        selected
-    }
-
-    /// Drains selected transactions and converts them into block tasks.
-    pub fn drain_for_block(
-        &mut self,
-        max_count: usize,
-        max_payload_bytes: usize,
-    ) -> Result<Vec<([u8; 32], Task)>, QuantumTransactionPoolError> {
-        let selected = self.select_for_block(max_count, max_payload_bytes);
-        let mut drained = Vec::with_capacity(selected.len());
-
-        for tx_id in selected {
-            let tx = self.remove(&tx_id).ok_or(
-                QuantumTransactionPoolError::MissingSelectedTransaction(tx_id),
-            )?;
-
-            let task = tx
-                .to_task()
-                .map_err(|_| QuantumTransactionPoolError::TaskConversionFailed)?;
-
-            drained.push((tx_id, task));
-        }
-
-        Ok(drained)
     }
 }
 
@@ -255,49 +171,5 @@ mod tests {
         let removed = pool.remove(&tx_id).expect("tx must be removable");
         assert_eq!(removed.nonce, 9);
         assert!(pool.is_empty());
-    }
-
-    #[test]
-    fn drain_for_block_returns_tasks_and_removes_entries() {
-        let profile = QuantumKernelProfile::strict_default();
-        let mut pool = QuantumTransactionPool::new();
-
-        pool.add_with_profile(&profile, build_signed_tx(1, 1, vec![1, 2]))
-            .expect("tx1 must be admitted");
-        pool.add_with_profile(&profile, build_signed_tx(2, 1, vec![3, 4]))
-            .expect("tx2 must be admitted");
-
-        let drained = pool
-            .drain_for_block(1, 1024)
-            .expect("drain must produce tasks");
-
-        assert_eq!(drained.len(), 1);
-        assert_eq!(pool.len(), 1);
-    }
-
-    #[test]
-    fn selection_order_is_deterministic_by_tx_id() {
-        let profile = QuantumKernelProfile::strict_default();
-        let mut pool = QuantumTransactionPool::new();
-
-        let tx_a = build_signed_tx(1, 1, vec![1]);
-        let tx_b = build_signed_tx(2, 1, vec![2]);
-        let tx_c = build_signed_tx(3, 1, vec![3]);
-
-        let id_a = tx_a.tx_id();
-        let id_b = tx_b.tx_id();
-        let id_c = tx_c.tx_id();
-
-        pool.add_with_profile(&profile, tx_b)
-            .expect("tx_b must be admitted");
-        pool.add_with_profile(&profile, tx_c)
-            .expect("tx_c must be admitted");
-        pool.add_with_profile(&profile, tx_a)
-            .expect("tx_a must be admitted");
-
-        let selected = pool.select_for_block(3, 1024);
-        let mut expected = vec![id_a, id_b, id_c];
-        expected.sort_unstable();
-        assert_eq!(selected, expected);
     }
 }
