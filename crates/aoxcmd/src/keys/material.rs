@@ -300,11 +300,12 @@ fn normalize_profile(profile: &str) -> Result<&'static str, AppError> {
         "devnet" => Ok("devnet"),
         "localnet" => Ok("localnet"),
         "quantum" => Ok("mainnet"),
+        "quntum" => Ok("mainnet"),
         "pq-preview" => Ok("mainnet"),
         other => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             format!(
-                "Unsupported AOXC key-material profile `{}`; expected mainnet, quantum, pq-preview, testnet, validation, devnet, or localnet",
+                "Unsupported AOXC key-material profile `{}`; expected mainnet, quantum, quntum, pq-preview, testnet, validation, devnet, or localnet",
                 other
             ),
         )),
@@ -421,6 +422,18 @@ mod tests {
     fn quantum_profile_normalizes_to_mainnet_hybrid_surface() {
         let material = KeyMaterial::generate("validator-07", "quantum", "Quantum#2026!")
             .expect("quantum profile should succeed");
+
+        assert_eq!(material.bundle.profile, "mainnet");
+        assert_eq!(
+            material.bundle.crypto_profile.as_str(),
+            "hybrid-ed25519-dilithium3"
+        );
+    }
+
+    #[test]
+    fn quntum_profile_alias_normalizes_to_mainnet_hybrid_surface() {
+        let material = KeyMaterial::generate("validator-07", "quntum", "Quantum#2026!")
+            .expect("quntum profile alias should succeed");
 
         assert_eq!(material.bundle.profile, "mainnet");
         assert_eq!(
