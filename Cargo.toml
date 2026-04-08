@@ -14,10 +14,10 @@ members  = [
     "crates/aoxcnet",
     "crates/aoxconfig",
     "crates/aoxcontract",
-    "crates/aoxcore",
+    "crates/kernel/aoxcore",
     "crates/aoxcrpc",
     "crates/aoxcsdk",
-    "crates/aoxcunity",
+    "crates/kernel/aoxcunity",
     "crates/aoxcvm",
     "tests",
 ]
@@ -25,7 +25,7 @@ members  = [
 [workspace.package]
 version = "0.2.0-alpha.1"
 edition      = "2024"
-rust-version = "1.94.1"
+rust-version = "1.92.0"
 authors      = ["AOXChain Team <aoxchain@gmail.com>"]
 license      = "MIT"
 repository   = "https://github.com/aoxchain/aoxchain"

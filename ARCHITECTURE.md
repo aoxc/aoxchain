@@ -9,8 +9,8 @@ AOXChain is organized as a layered system designed to preserve deterministic exe
 ### Kernel Layer
 Core protocol, consensus authority, and interoperability-intelligence surfaces:
 
-- `aoxcore`
-- `aoxcunity`
+- `aoxcore` (`crates/kernel/aoxcore`)
+- `aoxcunity` (`crates/kernel/aoxcunity`)
 
 ### Execution Layer
 Deterministic execution engines and economic metering, kept modular behind kernel policy:

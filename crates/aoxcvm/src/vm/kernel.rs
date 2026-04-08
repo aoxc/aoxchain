@@ -23,6 +23,22 @@ pub struct KernelConfig {
     pub max_stack_depth: usize,
     pub max_call_depth: u16,
     pub min_spec_version: u32,
+    pub max_payload_bytes: usize,
+    pub security_level: KernelSecurityLevel,
+}
+
+/// Security posture selector for kernel baseline presets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KernelSecurityLevel {
+    Standard,
+    Quantum,
+}
+
+/// Security posture selector for kernel baseline presets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KernelSecurityLevel {
+    Standard,
+    Quantum,
 }
 
 impl Default for KernelConfig {
@@ -33,6 +49,58 @@ impl Default for KernelConfig {
             max_stack_depth: 1024,
             max_call_depth: 64,
             min_spec_version: 1,
+            max_payload_bytes: 64 * 1024,
+            security_level: KernelSecurityLevel::Standard,
+        }
+    }
+}
+
+impl KernelConfig {
+    /// Returns a conservative preset for deployments that want a stricter
+    /// quantum-readiness baseline.
+    pub const fn for_security_level(level: KernelSecurityLevel) -> Self {
+        match level {
+            KernelSecurityLevel::Standard => Self {
+                gas_limit: 1_000_000,
+                max_memory: 1024 * 1024,
+                max_stack_depth: 1024,
+                max_call_depth: 64,
+                min_spec_version: 1,
+                max_payload_bytes: 64 * 1024,
+                security_level: KernelSecurityLevel::Standard,
+            },
+            KernelSecurityLevel::Quantum => Self {
+                gas_limit: 750_000,
+                max_memory: 768 * 1024,
+                max_stack_depth: 768,
+                max_call_depth: 48,
+                min_spec_version: 2,
+                max_payload_bytes: 32 * 1024,
+                security_level: KernelSecurityLevel::Quantum,
+            },
+        }
+    }
+}
+
+impl KernelConfig {
+    /// Returns a conservative preset for deployments that want a stricter
+    /// quantum-readiness baseline.
+    pub const fn for_security_level(level: KernelSecurityLevel) -> Self {
+        match level {
+            KernelSecurityLevel::Standard => Self {
+                gas_limit: 1_000_000,
+                max_memory: 1024 * 1024,
+                max_stack_depth: 1024,
+                max_call_depth: 64,
+                min_spec_version: 1,
+            },
+            KernelSecurityLevel::Quantum => Self {
+                gas_limit: 750_000,
+                max_memory: 768 * 1024,
+                max_stack_depth: 768,
+                max_call_depth: 48,
+                min_spec_version: 2,
+            },
         }
     }
 }
@@ -110,7 +178,7 @@ impl AOXCVMachineQX1 {
             min_spec_version: self.config.min_spec_version,
         };
 
-        validate_phase1_admission(&context, &tx, limits, 64 * 1024)?;
+        validate_phase1_admission(&context, &tx, limits, self.config.max_payload_bytes)?;
 
         let verifier = DeterminismVerifier {
             gas_limit: context.tx.gas_limit,
@@ -150,7 +218,7 @@ impl AOXCVMachineQX1 {
 
 #[cfg(test)]
 mod tests {
-    use super::{AOXCVMachineQX1, KernelConfig, KernelError};
+    use super::{AOXCVMachineQX1, KernelConfig, KernelError, KernelSecurityLevel};
     use crate::context::{
         block::BlockContext, call::CallContext, environment::EnvironmentContext,
         execution::ExecutionContext, origin::OriginContext, tx::TxContext,
@@ -166,6 +234,8 @@ mod tests {
             max_stack_depth: 64,
             max_call_depth: 64,
             min_spec_version: 1,
+            max_payload_bytes: 64 * 1024,
+            security_level: KernelSecurityLevel::Standard,
         });
 
         let program = Program {
@@ -192,6 +262,8 @@ mod tests {
             max_stack_depth: 64,
             max_call_depth: 4,
             min_spec_version: 1,
+            max_payload_bytes: 64 * 1024,
+            security_level: KernelSecurityLevel::Standard,
         });
 
         let context = ExecutionContext::new(
@@ -226,5 +298,17 @@ mod tests {
                 crate::context::execution::ContextError::DepthExceedsDeterminism
             ))
         ));
+    }
+
+    #[test]
+    fn quantum_security_profile_is_stricter_than_standard() {
+        let standard = KernelConfig::for_security_level(KernelSecurityLevel::Standard);
+        let quantum = KernelConfig::for_security_level(KernelSecurityLevel::Quantum);
+
+        assert!(quantum.gas_limit < standard.gas_limit);
+        assert!(quantum.max_memory < standard.max_memory);
+        assert!(quantum.max_stack_depth < standard.max_stack_depth);
+        assert!(quantum.max_call_depth < standard.max_call_depth);
+        assert!(quantum.min_spec_version > standard.min_spec_version);
     }
 }

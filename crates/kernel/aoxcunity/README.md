@@ -1,6 +1,6 @@
-# READ.md
+# README.md
 
-> Scope: `crates/aoxcunity`
+> Scope: `crates/kernel/aoxcunity`
 
 ## Purpose
 Executes consensus/finality/safety flows and voting mechanics.
