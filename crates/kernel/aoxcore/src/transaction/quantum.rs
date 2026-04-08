@@ -17,8 +17,12 @@ use super::MAX_TRANSACTION_PAYLOAD_BYTES;
 
 /// Canonical signing-message format version for quantum transactions.
 pub const QUANTUM_TX_SIGNING_FORMAT_VERSION: u8 = 1;
+/// Canonical hash format version for quantum transaction identifiers.
+pub const QUANTUM_TX_HASH_FORMAT_VERSION: u8 = 1;
 
 const QUANTUM_TRANSACTION_SIGNING_DOMAIN: &[u8] = b"AOXC::TRANSACTION::QUANTUM::SIGNING_PAYLOAD";
+const QUANTUM_TRANSACTION_INTENT_HASH_DOMAIN: &[u8] = b"AOXC::TRANSACTION::QUANTUM::INTENT_ID";
+const QUANTUM_TRANSACTION_HASH_DOMAIN: &[u8] = b"AOXC::TRANSACTION::QUANTUM::TX_ID";
 
 /// Canonical error surface for quantum transaction validation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -199,6 +203,27 @@ impl QuantumTransaction {
 
         Ok(message)
     }
+
+    fn hash_quantum_transaction(&self, domain: &[u8], include_signature: bool) -> [u8; 32] {
+        let signing_message = self
+            .signing_message()
+            .expect("canonical quantum signing message must be representable for valid payloads");
+
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(domain);
+        hasher.update(&[QUANTUM_TX_HASH_FORMAT_VERSION]);
+        hasher.update(&u32::to_le_bytes(self.sender_public_key.len() as u32));
+        hasher.update(&self.sender_public_key);
+        hasher.update(&u32::to_le_bytes(signing_message.len() as u32));
+        hasher.update(&signing_message);
+
+        if include_signature {
+            hasher.update(&u32::to_le_bytes(self.signed_payload.len() as u32));
+            hasher.update(&self.signed_payload);
+        }
+
+        *hasher.finalize().as_bytes()
+    }
 }
 
 #[cfg(test)]
@@ -258,5 +283,19 @@ mod tests {
             tx.validate_nonce_with(|nonce| nonce == 41),
             Err(QuantumTransactionError::InvalidNonce)
         );
+    }
+
+    #[test]
+    fn quantum_transaction_ids_are_stable_and_signature_sensitive() {
+        let tx = signed_quantum_tx(vec![1, 2, 3], 42);
+        let cloned = tx.clone();
+        assert_eq!(tx.intent_id(), cloned.intent_id());
+        assert_eq!(tx.tx_id(), cloned.tx_id());
+
+        let mut tampered_signature = tx.clone();
+        tampered_signature.signed_payload.push(0xAB);
+
+        assert_eq!(tx.intent_id(), tampered_signature.intent_id());
+        assert_ne!(tx.tx_id(), tampered_signature.tx_id());
     }
 }
