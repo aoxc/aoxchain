@@ -51,6 +51,23 @@ contract for post-quantum readiness:
 - profile validation enforces canonical, deterministic policy constraints,
 - profile upgrades are versioned and must preserve acceptance of the active default signature
   to avoid architecture rewrites across runtime components.
+- profile admission now includes `admit_quantum_transaction`, binding profile policy
+  to `transaction::quantum::QuantumTransaction` validation at kernel scope.
+- `protocol::quantum::QuantumKernelRuntime` composes profile + quantum pool to provide
+  a single kernel API for submit-and-drain block task construction.
+
+`transaction::quantum::QuantumTransaction` also exposes a canonical signing-message builder
+for deterministic external signing flows, preserving message-shape stability across
+components that generate signatures out of process.
+It now also publishes deterministic `intent_id` and `tx_id` derivation so block assembly,
+pooling, and telemetry can use a stable quantum transaction identity contract.
+`transaction::pool::QuantumTransactionPool` consumes this contract and enforces
+profile-bound admission (`QuantumKernelProfile`) plus sender/nonce lane protection
+for PQ transactions at kernel scope.
+The pool now also supports bounded `select_for_block`/`drain_for_block` assembly
+and converts admitted PQ transactions into canonical block `Task` objects.
+Selection order is deterministic (`tx_id`-ordered) to keep block proposal inputs
+stable across nodes under identical pool state.
 
 This model allows cryptographic agility over time while keeping kernel data-model
 boundaries stable for downstream services.
