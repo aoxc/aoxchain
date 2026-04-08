@@ -30,34 +30,26 @@ pub struct KernelConfig {
 /// Security posture selector for kernel baseline presets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KernelSecurityLevel {
-    Standard,
-    Quantum,
-}
-
-/// Security posture selector for kernel baseline presets.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KernelSecurityLevel {
+    #[deprecated(note = "legacy-only profile; use Quantum for new deployments")]
     Standard,
     Quantum,
 }
 
 impl Default for KernelConfig {
     fn default() -> Self {
-        Self {
-            gas_limit: 1_000_000,
-            max_memory: 1024 * 1024,
-            max_stack_depth: 1024,
-            max_call_depth: 64,
-            min_spec_version: 1,
-            max_payload_bytes: 64 * 1024,
-            security_level: KernelSecurityLevel::Standard,
-        }
+        Self::quantum_default()
     }
 }
 
 impl KernelConfig {
+    /// Returns the canonical quantum-first default profile.
+    pub const fn quantum_default() -> Self {
+        Self::for_security_level(KernelSecurityLevel::Quantum)
+    }
+
     /// Returns a conservative preset for deployments that want a stricter
     /// quantum-readiness baseline.
+    #[allow(deprecated)]
     pub const fn for_security_level(level: KernelSecurityLevel) -> Self {
         match level {
             KernelSecurityLevel::Standard => Self {
@@ -82,29 +74,6 @@ impl KernelConfig {
     }
 }
 
-impl KernelConfig {
-    /// Returns a conservative preset for deployments that want a stricter
-    /// quantum-readiness baseline.
-    pub const fn for_security_level(level: KernelSecurityLevel) -> Self {
-        match level {
-            KernelSecurityLevel::Standard => Self {
-                gas_limit: 1_000_000,
-                max_memory: 1024 * 1024,
-                max_stack_depth: 1024,
-                max_call_depth: 64,
-                min_spec_version: 1,
-            },
-            KernelSecurityLevel::Quantum => Self {
-                gas_limit: 750_000,
-                max_memory: 768 * 1024,
-                max_stack_depth: 768,
-                max_call_depth: 48,
-                min_spec_version: 2,
-            },
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KernelOutput {
     pub context: ExecutionContext,
@@ -123,6 +92,7 @@ pub enum KernelError {
     Context(ContextError),
     Admission(AdmissionError),
     Determinism(DeterminismError),
+    ConfigInvariant(&'static str),
 }
 
 impl From<ContextError> for KernelError {
@@ -172,6 +142,8 @@ impl AOXCVMachineQX1 {
         context: ExecutionContext,
         tx: TxEnvelope,
     ) -> Result<KernelOutput, KernelError> {
+        self.validate_security_invariants()?;
+
         let limits = DeterminismLimits {
             max_call_depth: self.config.max_call_depth,
             max_gas_limit: self.config.gas_limit,
@@ -193,6 +165,43 @@ impl AOXCVMachineQX1 {
             result,
             receipt_proof,
         })
+    }
+
+    fn validate_security_invariants(&self) -> Result<(), KernelError> {
+        if self.config.security_level == KernelSecurityLevel::Quantum {
+            let quantum = KernelConfig::for_security_level(KernelSecurityLevel::Quantum);
+            if self.config.gas_limit > quantum.gas_limit {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires gas_limit <= 750_000",
+                ));
+            }
+            if self.config.max_memory > quantum.max_memory {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires max_memory <= 768KiB",
+                ));
+            }
+            if self.config.max_stack_depth > quantum.max_stack_depth {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires max_stack_depth <= 768",
+                ));
+            }
+            if self.config.max_call_depth > quantum.max_call_depth {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires max_call_depth <= 48",
+                ));
+            }
+            if self.config.min_spec_version < quantum.min_spec_version {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires min_spec_version >= 2",
+                ));
+            }
+            if self.config.max_payload_bytes > quantum.max_payload_bytes {
+                return Err(KernelError::ConfigInvariant(
+                    "quantum profile requires max_payload_bytes <= 32KiB",
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn default_tx_for_context(context: &ExecutionContext) -> TxEnvelope {
@@ -217,6 +226,7 @@ impl AOXCVMachineQX1 {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::{AOXCVMachineQX1, KernelConfig, KernelError, KernelSecurityLevel};
     use crate::context::{
@@ -310,5 +320,35 @@ mod tests {
         assert!(quantum.max_stack_depth < standard.max_stack_depth);
         assert!(quantum.max_call_depth < standard.max_call_depth);
         assert!(quantum.min_spec_version > standard.min_spec_version);
+    }
+
+    #[test]
+    fn default_kernel_config_is_quantum_baseline() {
+        let default = KernelConfig::default();
+        let quantum = KernelConfig::for_security_level(KernelSecurityLevel::Quantum);
+
+        assert_eq!(default, quantum);
+        assert_eq!(default.security_level, KernelSecurityLevel::Quantum);
+    }
+
+    #[test]
+    fn quantum_profile_rejects_weaker_custom_limits() {
+        let kernel = AOXCVMachineQX1::new(KernelConfig {
+            gas_limit: 900_000,
+            max_memory: 768 * 1024,
+            max_stack_depth: 768,
+            max_call_depth: 48,
+            min_spec_version: 2,
+            max_payload_bytes: 32 * 1024,
+            security_level: KernelSecurityLevel::Quantum,
+        });
+
+        let err = kernel
+            .execute_phase1(Program {
+                code: vec![Instruction::Halt],
+            })
+            .expect_err("must fail when quantum limits are weakened");
+
+        assert!(matches!(err, KernelError::ConfigInvariant(_)));
     }
 }
