@@ -11,13 +11,18 @@ use core::fmt;
 
 use crate::block::{Capability, TargetOutpost};
 use crate::identity::pq_keys;
+use crate::protocol::quantum::SignatureScheme;
 
 use super::MAX_TRANSACTION_PAYLOAD_BYTES;
 
 /// Canonical signing-message format version for quantum transactions.
 pub const QUANTUM_TX_SIGNING_FORMAT_VERSION: u8 = 1;
+/// Canonical hash format version for quantum transaction identifiers.
+pub const QUANTUM_TX_HASH_FORMAT_VERSION: u8 = 1;
 
 const QUANTUM_TRANSACTION_SIGNING_DOMAIN: &[u8] = b"AOXC::TRANSACTION::QUANTUM::SIGNING_PAYLOAD";
+const QUANTUM_TRANSACTION_INTENT_HASH_DOMAIN: &[u8] = b"AOXC::TRANSACTION::QUANTUM::INTENT_ID";
+const QUANTUM_TRANSACTION_HASH_DOMAIN: &[u8] = b"AOXC::TRANSACTION::QUANTUM::TX_ID";
 
 /// Canonical error surface for quantum transaction validation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -148,6 +153,24 @@ impl QuantumTransaction {
         Ok(())
     }
 
+    /// Returns the signature scheme used by this transaction type.
+    #[must_use]
+    pub const fn signature_scheme(&self) -> SignatureScheme {
+        SignatureScheme::MlDsa65
+    }
+
+    /// Returns a deterministic unsigned intent identifier for this transaction.
+    #[must_use]
+    pub fn intent_id(&self) -> [u8; 32] {
+        self.hash_quantum_transaction(QUANTUM_TRANSACTION_INTENT_HASH_DOMAIN, false)
+    }
+
+    /// Returns a deterministic signed transaction identifier for this transaction.
+    #[must_use]
+    pub fn tx_id(&self) -> [u8; 32] {
+        self.hash_quantum_transaction(QUANTUM_TRANSACTION_HASH_DOMAIN, true)
+    }
+
     /// Validates nonce using a caller-supplied policy hook.
     pub fn validate_nonce_with<F>(&self, is_valid_nonce: F) -> Result<(), QuantumTransactionError>
     where
@@ -162,15 +185,11 @@ impl QuantumTransaction {
 
     /// Returns the canonical signing message bytes.
     pub fn signing_message(&self) -> Result<Vec<u8>, QuantumTransactionError> {
-        Self::build_signing_message_from_fields(
-            self.nonce,
-            self.capability,
-            self.target,
-            &self.payload,
-        )
+        Self::canonical_signing_message(self.nonce, self.capability, self.target, &self.payload)
     }
 
-    fn build_signing_message_from_fields(
+    /// Builds canonical signing message bytes from transaction fields.
+    pub fn canonical_signing_message(
         nonce: u64,
         capability: Capability,
         target: TargetOutpost,
@@ -196,6 +215,27 @@ impl QuantumTransaction {
 
         Ok(message)
     }
+
+    fn hash_quantum_transaction(&self, domain: &[u8], include_signature: bool) -> [u8; 32] {
+        let signing_message = self
+            .signing_message()
+            .expect("canonical quantum signing message must be representable for valid payloads");
+
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(domain);
+        hasher.update(&[QUANTUM_TX_HASH_FORMAT_VERSION]);
+        hasher.update(&u32::to_le_bytes(self.sender_public_key.len() as u32));
+        hasher.update(&self.sender_public_key);
+        hasher.update(&u32::to_le_bytes(signing_message.len() as u32));
+        hasher.update(&signing_message);
+
+        if include_signature {
+            hasher.update(&u32::to_le_bytes(self.signed_payload.len() as u32));
+            hasher.update(&self.signed_payload);
+        }
+
+        *hasher.finalize().as_bytes()
+    }
 }
 
 #[cfg(test)]
@@ -204,7 +244,7 @@ mod tests {
 
     fn signed_quantum_tx(payload: Vec<u8>, nonce: u64) -> QuantumTransaction {
         let (pk, sk) = pq_keys::generate_keypair();
-        let message = QuantumTransaction::build_signing_message_from_fields(
+        let message = QuantumTransaction::canonical_signing_message(
             nonce,
             Capability::UserSigned,
             TargetOutpost::EthMainnetGateway,
@@ -255,5 +295,19 @@ mod tests {
             tx.validate_nonce_with(|nonce| nonce == 41),
             Err(QuantumTransactionError::InvalidNonce)
         );
+    }
+
+    #[test]
+    fn quantum_transaction_ids_are_stable_and_signature_sensitive() {
+        let tx = signed_quantum_tx(vec![1, 2, 3], 42);
+        let cloned = tx.clone();
+        assert_eq!(tx.intent_id(), cloned.intent_id());
+        assert_eq!(tx.tx_id(), cloned.tx_id());
+
+        let mut tampered_signature = tx.clone();
+        tampered_signature.signed_payload.push(0xAB);
+
+        assert_eq!(tx.intent_id(), tampered_signature.intent_id());
+        assert_ne!(tx.tx_id(), tampered_signature.tx_id());
     }
 }
