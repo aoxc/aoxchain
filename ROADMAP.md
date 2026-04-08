@@ -57,6 +57,21 @@ Exit criteria:
 - downgrade paths are rejected and measured,
 - profile transition evidence is retained.
 
+## Quantum-First Fast-Track (Governed Hard Cutover Option)
+
+Objective: define the only acceptable path for "direct quantum" activation requests without weakening determinism, safety, or operator recoverability.
+
+This track allows a hard cutover posture only when the following controls are all satisfied:
+
+1. **Kernel-first profile authority:** post-quantum profile selection and rejection rules are enforced in kernel-owned consensus-visible types before any network or VM activation.
+2. **No hidden classical fallback:** any classical-only acceptance path is either explicitly dual-profile by policy window or removed.
+3. **State and signature migration plan:** existing validator/operator key material and persisted consensus artifacts have deterministic migration or controlled reset rules.
+4. **Network handshake enforcement:** peer negotiation fails closed on profile mismatch and downgrade attempts are surfaced in telemetry.
+5. **Rollback boundedness:** rollback is explicit, rehearsed, and version-bounded; "implicit rollback by config drift" is prohibited.
+6. **Cutover evidence package:** pre-cutover simulation matrix, mixed-version rejection proofs, and incident drills are retained under `artifacts/`.
+
+Hard cutover is therefore permitted only as a governed protocol migration, not as an ad-hoc replacement of running architecture.
+
 ## Phase 4 — PQ-Resilient Mainnet Readiness Gate
 
 Objective: permit mainnet activation only with verified operational and cryptographic posture.
@@ -110,3 +125,4 @@ The following capability track defines operator and ecosystem surfaces expected 
 2. No hidden downgrade fallback paths.
 3. No readiness claim without evidence.
 4. No compatibility-sensitive change without explicit documentation and rollback context.
+5. No "direct quantum" production activation without kernel-level policy enforcement, deterministic migration controls, and retained cutover evidence.
