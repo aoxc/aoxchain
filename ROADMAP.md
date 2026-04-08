@@ -119,6 +119,14 @@ The following capability track defines operator and ecosystem surfaces expected 
 - broader compatibility shims where they do not violate kernel trust boundaries,
 - formalized ecosystem governance hooks for operator and contributor decision flow.
 
+## Quantum-Full Near-Closure Execution Reference
+
+The operational near-closure criteria for "full quantum" readiness are defined in:
+
+- `docs/QUANTUM_FULL_CLOSE_PLAN.md`
+
+This reference is normative for planning and release evidence associated with direct PQ posture claims.
+
 ## Non-Negotiable Program Rules
 
 1. No unverifiable “absolute security” claims.
