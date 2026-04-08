@@ -123,14 +123,9 @@ The following capability track defines operator and ecosystem surfaces expected 
 
 The operational near-closure criteria for "full quantum" readiness are defined in:
 
-- `docs/QUANTUM_FULL_CLOSE_PLAN.md` (entry point)
-- `docs/quantum/CLOSE_PLAN.md`
-- `docs/quantum/CLOSE_TRACKS.md`
-- `docs/quantum/EVIDENCE_PACKAGE.md`
-- `docs/quantum/CUTOVER_RUNBOOK.md`
-- `models/quantum_full_close_evidence.v1.yaml` (evidence schema template)
+- `docs/QUANTUM_FULL_CLOSE_PLAN.md`
 
-This reference set is normative for planning and release evidence associated with direct PQ posture claims.
+This reference is normative for planning and release evidence associated with direct PQ posture claims.
 
 ## Non-Negotiable Program Rules
 
