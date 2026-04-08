@@ -1,475 +1,231 @@
-# Quantum-Grade Account Management Blueprint (Advanced)
-
-## Document Status
-
-- **Owner:** AOXChain security and runtime engineering.
-- **Audience:** protocol maintainers, CLI maintainers, operator security teams, auditors.
-- **Normative level:** implementation policy baseline for account-management hardening.
-- **Change class:** architecture-sensitive and compatibility-sensitive documentation.
+# Quantum-Grade Account Management Blueprint
 
 ## Purpose
 
-Define an implementation-ready blueprint that upgrades AOXChain account management from classical custody assumptions to a quantum-resilient, policy-governed, and auditable control system.
+Define a production-oriented account-management architecture for AOXChain that closes the remaining gaps between current cryptographic readiness and an end-to-end quantum-resilient operating model.
 
-This blueprint unifies:
-- signer boundary design,
-- key and recovery lifecycle,
-- CLI operational controls,
-- host kernel/OS hardening,
-- runtime/protocol acceptance rules,
-- migration gates and evidence.
+This blueprint covers:
+- account lifecycle controls,
+- signer isolation (`clef`-style pattern),
+- seed and recovery posture,
+- CLI-side controls,
+- host kernel and OS hardening,
+- phased migration and gate criteria.
 
-## Scope and Boundaries
+## Scope and Assumptions
 
 ### In Scope
 
-- Externally controlled account keys and signing workflows.
-- Node-to-signer trust boundaries.
-- CLI request validation and user confirmation surfaces.
-- Kernel/OS controls for signer host protection.
-- Governance-gated migration from classical to hybrid/PQ signing.
+- External account signing lifecycle from key creation to retirement.
+- Operator and user-facing signing workflows in CLI surfaces.
+- Runtime admission implications for hybrid and post-quantum signatures.
+- Host controls needed to protect in-memory key material and signer processes.
 
 ### Out of Scope
 
-- Consensus algorithm redesign.
-- Cross-chain bridge custody frameworks.
-- End-user mobile wallet UX details outside AOXChain-operated surfaces.
+- Consensus-level algorithm changes unrelated to account authentication.
+- Historical key compromise remediation for already-exposed secrets.
+- Consumer wallet UI implementation details outside AOXChain CLI/operator scope.
 
-### System Boundary Definition
+### Security Assumptions
 
-This document models the account-management system as five planes:
-1. **Intent Plane**: CLI/API request materialization.
-2. **Policy Plane**: risk and authorization decisions.
-3. **Signing Plane**: key operations and signature generation.
-4. **Runtime Admission Plane**: mempool and verifier acceptance.
-5. **Evidence Plane**: logs, attestations, and release artifacts.
+- Network adversaries can observe and replay public traffic.
+- Endpoint adversaries may obtain user-space execution on non-hardened hosts.
+- Long-horizon adversaries can archive artifacts for future cryptanalysis.
+- Governance can activate protocol features with explicit rollout windows.
 
-A production closure is valid only when all five planes satisfy the acceptance gates defined later in this document.
+## Threat Model for Account Management
 
-## Threat Model
+### Primary Threats
 
-### Adversary Classes
+1. **Signer surface compromise**
+   - Malware or injection into node/CLI process signs unauthorized transactions.
+2. **Seed exfiltration and replay**
+   - Single-secret recovery models create catastrophic failure domains.
+3. **Signature algorithm obsolescence**
+   - Classical-only signatures create future break risk under large-scale quantum capabilities.
+4. **Policy bypass and blind signing**
+   - Lack of typed intent and spend constraints increases phishing and operator-error risk.
+5. **Host memory extraction**
+   - Debug, ptrace, core dumps, and weak syscall policies expose key material.
 
-1. **Remote adversary**: network access, replay attempts, malformed payload injection.
-2. **Endpoint adversary**: user-space code execution on CLI/node host.
-3. **Privileged insider misuse**: policy bypass attempt or dual-control evasion.
-4. **Long-horizon cryptanalytic adversary**: archive-now, break-later strategy.
-5. **Supply-chain adversary**: tampered binaries/configs or unsigned runtime artifacts.
+### Residual Risk Posture Target
 
-### Threat Events and Required Countermeasures
+- No direct private-key access in node runtime.
+- No single artifact that can unilaterally recover treasury-grade accounts.
+- Deterministic policy evidence for every signature acceptance.
+- Bounded blast radius through threshold controls and role separation.
 
-| Threat Event | Blast Radius Without Controls | Required Countermeasure |
-|---|---|---|
-| Node process signs directly with hot key | Full account compromise | Strict signer process separation + no in-process private key |
-| Seed phrase theft | Total custody loss | Threshold recovery + role-separated custody + recovery audits |
-| Blind signing | Irreversible asset loss | Typed intent, risk labels, allowlist policy, high-risk quorum |
-| Replay across domains/chains | Unauthorized execution | Domain separation, nonce windows, chain identity binding |
-| Memory extraction (ptrace/core dump) | Key material leakage | Kernel restrictions, seccomp, dump disablement, enclave/HSM |
-| Classical-only auth stagnation | Future signature forgery risk | Hybrid-first migration and governance deprecation schedule |
+## Target Architecture
 
-## Non-Negotiable Security Properties
+## 1) Signer Separation (`clef`-style plus policy engine)
 
-1. **No direct key access in node runtime** for protected account tiers.
-2. **No single secret recovery** for treasury/governance/validator-critical accounts.
-3. **Deterministic policy decision** for every accepted signature request.
-4. **Cryptographic agility** with explicit `auth_scheme` versioning.
-5. **Tamper-evident auditability** linking intent → decision → signature artifact.
+Implement a dedicated signer service with explicit trust-boundary separation:
 
-## Reference Architecture
+- Node and execution runtime submit unsigned payloads only.
+- Signer process validates request domain, chain identity, nonce, and policy.
+- Human/operator confirmation required for high-risk classes.
+- Signer returns signed envelope and immutable audit record.
 
-## 1) Signer Boundary (`clef`-style + policy authority)
+### Required Interfaces
 
-A `clef`-style pattern is mandatory but upgraded into a three-layer signer stack:
+- `SignIntent` (typed, canonical, hash-committed request).
+- `PolicyDecision` (allow/deny/defer with reason codes).
+- `SignatureArtifact` (algorithm id, key id, signature bytes, evidence hash).
+- `AuditEvent` (request hash, policy version, operator context, timestamp).
 
-- **Ingress Gateway**: validates schema, chain identity, nonce freshness, domain separators.
-- **Policy Engine**: evaluates transaction risk class and authorization requirements.
-- **Key Engine**: executes signing only after policy permit token is issued.
+## 2) Crypto-Agile Account Profile
 
-### Trust Boundary Rules
+All account authentication artifacts MUST be algorithm-versioned.
 
-- Node, RPC, and CLI hold **no long-lived private key material**.
-- Key Engine accepts only canonicalized `SignIntent` payloads.
-- Signatures are bound to `(chain_id, domain_tag, nonce, intent_hash, auth_scheme)`.
-- Every permit token is single-use and expires quickly.
+### Mandatory fields
 
-### Canonical Sign API Contract
+- `auth_scheme` (e.g., `ed25519-v1`, `hybrid-ed25519-ml_dsa-v1`, `ml_dsa-v1`).
+- `keyset_id` and rotation epoch.
+- `policy_profile_id` for signer-side enforcement.
 
-`SignIntent` MUST include:
-- `intent_hash` (canonical hash of typed request),
-- `chain_id`,
-- `domain_tag`,
-- `nonce`,
-- `auth_scheme`,
-- `policy_profile_id`,
-- `tx_class` (`low`, `medium`, `high`, `break_glass`),
-- `operator_context` (role, session id, approval references).
+### Migration posture
 
-`SignDecision` MUST include:
-- `decision` (`allow`, `deny`, `defer`),
-- `reason_code`,
-- `policy_version`,
-- `expires_at`,
-- `evidence_hash`.
+- Phase A: classical + PQ hybrid acceptance.
+- Phase B: default hybrid issuance for new accounts.
+- Phase C: policy-gated deprecation of classical-only accounts.
 
-`SignatureArtifact` MUST include:
-- `signature_bytes`,
-- `algorithm_id`,
-- `keyset_id`,
-- `signature_context_hash`.
+## 3) Seed and Recovery Model
 
-## 2) Key Hierarchy and Lifecycle
+Single mnemonic recovery is not sufficient for high-value roles.
 
-### Key Classes
+### Required controls
 
-- **Account keys**: external transaction authentication.
-- **Session keys**: short-lived delegated authority.
-- **Recovery keys**: custody-only; never used for routine signing.
-- **Emergency keys**: break-glass path with strict governance controls.
+- Threshold recovery (minimum `2-of-3`; treasury `3-of-5` or stronger).
+- Recovery shares distributed across role-separated custody domains.
+- Recovery ceremony with dual control and signed evidence.
+- Mandatory rotation after any recovery exercise.
 
-### Lifecycle States
+### Seed policy
 
-`provisioned -> active -> rotation_pending -> retired -> revoked`
+- Seed export disabled by default for production profiles.
+- Any export operation requires break-glass workflow and audit entry.
+- No seed handling through environment variables or shell history.
 
-Each state transition MUST emit audit events with actor identity and policy basis.
+## 4) CLI Security Profile
 
-### Rotation Policy
+CLI is treated as an untrusted request client unless explicitly hardened.
 
-- Time-based rotation for all critical keysets.
-- Immediate rotation on suspected compromise or failed attestation.
-- Recovery exercise forces mandatory post-exercise rotation.
+### Controls required for production mode
 
-## 3) Seed and Recovery Posture
+- Offline signing mode for critical accounts.
+- Human-readable typed-intent rendering (chain id, contract, method, value, nonce).
+- Risk scoring and staged confirmations for policy-sensitive actions.
+- Strict allowlists for destination domains/contracts where applicable.
+- Nonce freshness and anti-replay preflight checks.
+- Secret zeroization, memory locking, and crash dump suppression.
 
-### Required Recovery Model
+### Transaction classes
 
-- Baseline: `2-of-3` threshold for operational criticality.
-- Treasury/validator/governance: `3-of-5` or stricter threshold.
-- Recovery shares split across independent custodial domains.
+- `low-risk`: routine bounded operations with policy auto-approval.
+- `medium-risk`: requires explicit user confirmation.
+- `high-risk`: requires dual authorization and delayed execution window.
 
-### Recovery Ceremony Controls
+## 5) Kernel/OS Hardening Baseline for Signer Hosts
 
-- Dual (or greater) operator presence.
-- Signed checklist execution with timestamped evidence.
-- Hardware identity attestation for participating signer hosts.
-- Mandatory post-ceremony compromise assessment.
+Signer hosts MUST run a hardened profile.
 
-### Seed Restrictions
+### Minimum baseline
 
-- Seed export disabled by default in production profiles.
-- Any export path is break-glass only, with governance traceability.
-- Prohibit secret injection via shell env vars and command arguments.
-
-## 4) Quantum Migration Strategy
-
-## Stage Q0 — Crypto Agility Preparation
-
-- Add explicit `auth_scheme` everywhere signatures are created or verified.
-- Add compatibility matrix for classical, hybrid, and PQ-native paths.
-
-## Stage Q1 — Hybrid Default for Critical Accounts
-
-- New high-assurance accounts must use hybrid signatures.
-- Runtime accepts both classical and hybrid based on policy tier.
-
-## Stage Q2 — Progressive Classical Constraining
-
-- Disallow creation of classical-only keys for protected account tiers.
-- Increase policy friction for classical-only execution paths.
-
-## Stage Q3 — Classical Deprecation Window
-
-- Governance defines final classical-only sunset schedule.
-- Forced migration campaigns with clear exception registry.
-
-### Migration Safety Constraints
-
-- No abrupt cutover without dual-path validation period.
-- No revocation event without deterministic rollback plan.
-- Maintain replay protections consistently across all schemes.
-
-## 5) CLI Security Model
-
-CLI is a request-construction and operator-confirmation surface; not a custody boundary.
-
-### CLI Production Requirements
-
-- Render full typed intent before any signature request.
-- Show chain id, destination, contract/method, value, fee ceiling, nonce, auth scheme.
-- Require explicit confirmation for `medium` and quorum confirmation for `high`.
-- Local policy hints must never override signer policy authority.
-- Enforce anti-replay preflight with bounded nonce/time windows.
-- Zeroize sensitive memory and disable crash artifact leakage where possible.
-
-### CLI Risk Workflow
-
-| Transaction Class | Example | Required Authorization |
-|---|---|---|
-| `low` | bounded transfer to allowlisted target | signer policy auto-allow |
-| `medium` | contract call with value transfer | explicit operator confirmation |
-| `high` | governance, validator, treasury operation | dual control / multi-approval |
-| `break_glass` | emergency override | governance-linked emergency quorum |
-
-### CLI Hardening Checklist
-
-- Binary provenance verification before execution.
-- Strict configuration parsing and schema validation.
-- No plaintext secrets in CLI logs.
-- Strong defaults: deny-on-ambiguity and explicit override flags.
-- Deterministic output mode for automation pipelines.
-
-## 6) Kernel and OS Hardening Baseline
-
-Signer hosts are security-critical infrastructure.
-
-### Mandatory Host Controls
-
-- Dedicated signer host role; no mixed workload placement.
-- Mandatory access controls (AppArmor/SELinux).
-- seccomp syscall minimization profile for signer service.
+- Dedicated signer user and service account isolation.
+- seccomp profile minimizing syscall surface.
+- AppArmor/SELinux policy confinement.
 - `ptrace` restrictions and core dump disablement.
-- Signed binaries and verified boot chain.
-- Encrypted storage and strict file permission model.
-- Time sync integrity controls for replay-window enforcement.
+- Encrypted storage for key material at rest.
+- Secure/Measured boot and signed binary provenance validation.
+- Time synchronization integrity for replay-window enforcement.
 
-### Recommended Advanced Controls
+### Recommended advanced controls
 
-- HSM/TPM-backed keys or enclave-backed key operations.
-- Immutable infrastructure pattern for signer hosts.
-- Egress allowlisting and outbound policy enforcement.
-- Continuous runtime integrity checks and anomaly alerts.
+- Hardware-backed keys (TPM/HSM/secure enclave where available).
+- Runtime integrity monitoring with tamper-evident logs.
+- Network egress allowlist from signer hosts.
+- Continuous anomaly detection over signing velocity and policy denials.
 
-### Kernel Compliance Signals
+## Control Matrix (CLI + Kernel + Protocol)
 
-Release evidence should include:
-- active LSM mode,
-- seccomp profile hash,
-- ptrace/core dump policy snapshot,
-- signer process UID/GID isolation proof,
-- boot integrity attestation state.
+| Control | CLI | Signer Service | Kernel/OS | Protocol/Governance |
+|---|---|---|---|---|
+| Typed intent | Required render and hash preview | Required canonical validation | N/A | Envelope schema versioning |
+| Policy gates | Local pre-check hints | Authoritative decision point | N/A | Policy profile activation |
+| Key exposure | Never plaintext export in normal flow | Key operations only in signer boundary | Memory/process isolation | Scheme and keyset metadata |
+| Replay resistance | Nonce preflight | Nonce/time-window enforcement | Clock integrity | Replay rejection rules |
+| PQ migration | Scheme-aware UX | Hybrid/PQ signing capability | Crypto provider hardening | Feature-gated acceptance |
+| Auditability | Local operation logs | Immutable decision/event logs | Host attest logs | Governance evidence artifacts |
 
-## 7) Runtime Admission and Protocol Coupling
+## Implementation Roadmap
 
-Runtime verification MUST enforce account-management controls instead of trusting client behavior.
+## Stage 0 — Foundation (2-4 weeks)
 
-### Admission Requirements
+- Introduce signer boundary contract and typed intent schema.
+- Add policy decision codes and deterministic audit events.
+- Add CLI display contract for risk-critical transaction fields.
 
-- Verify `auth_scheme` support and governance activation state.
-- Validate signature domain binding and nonce freshness.
-- Reject ambiguous or malformed typed-intent envelopes.
-- Enforce replay cache semantics across mempool and finalization paths.
+**Exit criteria**
+- Every sign request carries canonical intent hash.
+- Every decision emits machine-readable reason code.
 
-### Governance Coupling
+## Stage 1 — Operational Hardening (4-8 weeks)
 
-- Feature gates define activation windows for hybrid/PQ modes.
-- Policy profile changes require versioned governance artifacts.
-- Emergency rollback toggles must be auditable and time-bounded.
+- Production signer daemon profile and isolated execution context.
+- Kernel baseline rollout scripts and compliance checks.
+- Recovery workflow with threshold shares and operator runbook.
 
-## 8) Observability and Audit Evidence
+**Exit criteria**
+- Seed export disabled in production profile.
+- All critical accounts enrolled in threshold recovery.
 
-### Mandatory Event Set
+## Stage 2 — Hybrid Quantum Migration (6-12 weeks)
 
-Every sign flow must emit linked events:
-1. `intent_received`
-2. `policy_evaluated`
-3. `operator_confirmed` (when applicable)
-4. `signature_issued`
-5. `admission_verified`
+- Default hybrid signature enrollment for new high-assurance accounts.
+- Governance-gated acceptance policy for hybrid-auth envelopes.
+- Cross-surface compatibility testing (CLI, RPC, mempool, validation).
 
-### Evidence Requirements
+**Exit criteria**
+- Hybrid path green across integration matrix.
+- Classical-only creation blocked for defined account tiers.
 
-- Immutable event log with hash chaining.
-- Mapping from `intent_hash` to policy decision and signature artifact.
-- Retention and export format suitable for external audit.
-- Exception register for any temporary policy bypass.
+## Stage 3 — Classical De-Risk and Closure (ongoing)
 
-## 9) Operational Runbooks
+- Risk-window reduction for classical-only accounts.
+- Rotation campaigns to PQ-capable keysets.
+- Periodic red-team drills on signer compromise and recovery ceremonies.
 
-## A) Compromise Runbook (Signer Host)
+**Exit criteria**
+- Governance-approved timeline for classical-only deprecation.
+- Reproducible evidence bundle for audit closure.
 
-1. isolate host from network,
-2. revoke affected keyset,
-3. activate incident policy profile,
-4. rotate keys under threshold ceremony,
-5. publish signed incident closure evidence.
-
-## B) Recovery Runbook (Threshold)
-
-1. initiate quorum-authenticated recovery request,
-2. execute share assembly under dual control,
-3. re-provision new active keyset,
-4. revoke old keyset,
-5. run post-recovery validation and publish audit package.
-
-## C) Break-Glass Runbook
-
-- limited-time emergency policy override,
-- mandatory multi-party authorization,
-- automatic expiration,
-- mandatory retrospective governance review.
-
-## 10) Acceptance Gates (Release Blocking)
+## Acceptance Gates
 
 A release is not quantum-grade for account management unless all gates pass:
 
-1. **Signer Isolation Gate**: protected profiles cannot sign in-process.
-2. **Policy Determinism Gate**: every decision has stable reason codes.
-3. **Recovery Gate**: threshold recovery drill succeeded in current release window.
-4. **Kernel Gate**: signer host baseline compliance is proven.
-5. **Hybrid Gate**: hybrid path passes integration and staging checks.
-6. **Audit Gate**: complete event linkage exists for sampled transactions.
+1. **Signer Isolation Gate**: no direct in-process node signing for protected profiles.
+2. **Policy Gate**: deterministic allow/deny with reason and evidence hash.
+3. **Recovery Gate**: threshold recovery exercised and documented.
+4. **Kernel Gate**: signer host hardening profile validated.
+5. **Hybrid Gate**: hybrid signature path tested in CI and staging.
+6. **Audit Gate**: immutable logs map every accepted signature to policy context.
 
-## 11) Implementation Backlog (Execution-Oriented)
+## Evidence Artifacts
 
-### Workstream A — Signer Service
+Each release should publish the following artifacts:
 
-- implement canonical `SignIntent` schema validation,
-- implement permit-token model and decision expiry,
-- enforce single-use decision token semantics,
-- add structured reason-code registry.
+- signer-policy profile manifest,
+- account auth-scheme distribution report,
+- threshold recovery drill report,
+- signer host hardening compliance output,
+- hybrid signature interoperability matrix,
+- exception register with approved risk ownership.
 
-### Workstream B — CLI Surface
+## Practical Position on `clef` Pattern and Seed Security
 
-- render typed intent with deterministic field ordering,
-- implement risk-class confirmation gates,
-- add strict anti-replay preflight checks,
-- add non-interactive policy-safe mode for automation.
+- A `clef`-style architecture is required as the minimum boundary control, but not sufficient by itself.
+- Single-seed custody is acceptable only for low-value and short-lived profiles.
+- Treasury, governance, and validator-affecting accounts require threshold recovery, policy-constrained signer flow, and hardened host controls.
 
-### Workstream C — Runtime Admission
-
-- bind signature verification to `auth_scheme` governance state,
-- enforce envelope domain and nonce window checks,
-- wire rejection telemetry and operator-facing diagnostics.
-
-### Workstream D — Kernel Hardening
-
-- provide signer-host baseline profile and validation script,
-- add build/release evidence export for host compliance,
-- add policy to block release closure when host baseline fails.
-
-### Workstream E — Recovery Governance
-
-- formalize threshold ceremony checklist,
-- codify recovery evidence artifact schema,
-- enforce mandatory post-recovery rotation policies.
-
-## 12) Metrics and SLO Targets
-
-Track at minimum:
-- policy denial rate by reason code,
-- high-risk request confirmation latency,
-- replay rejection count,
-- signature issuance success/error ratio,
-- percentage of protected accounts on hybrid/PQ-capable schemes,
-- recovery drill completion rate per quarter.
-
-Suggested SLOs:
-- 100% of high-risk operations require multi-party authorization,
-- 100% signer decisions include deterministic reason codes,
-- 0 protected-profile signatures from in-process node keys,
-- 100% release windows include current recovery drill evidence.
-
-## 13) Practical Position
-
-- A `clef`-style split is required as the minimum trust-boundary control.
-- Seed-only custody is insufficient for high-value AOXChain roles.
-- Quantum readiness requires simultaneous closure across cryptography, operations, and host security.
-
-Without signer isolation, threshold recovery, runtime enforcement, and kernel hardening, cryptographic migration alone does not establish quantum-grade account management.
-
-
-## 14) Repository Integration Map (AOXChain-Specific)
-
-This section maps blueprint controls to repository surfaces so implementation work can be tracked with clear ownership.
-
-| Control Surface | Primary Repository Area | Integration Goal |
-|---|---|---|
-| CLI intent rendering and risk prompts | `crates/aoxcmd/src/cli/` | canonical typed-intent UX and risk-class confirmations |
-| Key material and manager flow | `crates/aoxcmd/src/keys/` | enforce no-seed-in-env policy, rotation hooks, safe loaders |
-| Auth scheme and envelope rules | `crates/aoxcvm/src/auth/` | scheme versioning, hybrid acceptance, replay protections |
-| PQ migration and crypto inventory | `crates/aoxcvm/src/crypto/pq/` | hybrid/PQ capability gates and compatibility reports |
-| Runtime and admission semantics | `crates/aoxcvm/src/vm/` + `crates/aoxcvm/src/verifier/` | enforce policy-coupled signature admission |
-| Kernel transaction and mempool flow | `crates/kernel/aoxcore/src/transaction/` | preserve nonce/domain integrity through submission path |
-| Governance and feature gating | `crates/aoxcvm/src/governance/` | staged activation and deprecation windows |
-| Release readiness and validation gates | `scripts/validation/` | block release when signer/policy/hardening evidence is absent |
-
-## 15) Configuration Profiles (Normative Baselines)
-
-Define three policy profiles for operational clarity:
-
-### `profile_dev_local`
-- classical or hybrid allowed,
-- single-operator confirmation,
-- relaxed host hardening,
-- mandatory audit logging still enabled.
-
-### `profile_staging_assurance`
-- hybrid required for critical paths,
-- medium/high risk transaction gating enabled,
-- signer host baseline hardening enforced,
-- replay and domain checks in strict mode.
-
-### `profile_prod_high_assurance`
-- protected accounts require hybrid/PQ-capable auth scheme,
-- threshold recovery mandatory,
-- high-risk actions require multi-party approval,
-- break-glass path time-bounded and governance-linked,
-- release gate blocks on missing evidence artifacts.
-
-## 16) Control Verification Commands (Operator Runbook Interface)
-
-Use a standard command contract (actual command names may differ by release branch):
-
-1. `aoxc readiness full-surface --profile staging --format json`
-2. `aoxc readiness full-surface --profile production --require-hybrid`
-3. `aoxc policy audit --window 24h --emit evidence`
-4. `aoxc tx verify-intent --file <intent.json> --strict`
-5. `aoxc tx verify-signature --file <envelope.json> --auth-scheme <scheme>`
-6. `aoxc security signer-host-check --profile hardened`
-
-All production releases SHOULD archive command outputs in release evidence bundles.
-
-## 17) Exception Governance Model
-
-Exceptions are permitted only as explicit, time-bounded risk acceptances.
-
-### Exception Record Fields
-
-- `exception_id`
-- `scope` (account tier / environment / operation class)
-- `owner`
-- `reason`
-- `compensating_controls`
-- `expiry`
-- `review_signatures`
-
-### Exception Rules
-
-- No perpetual exception entries.
-- No exception may disable audit event linkage.
-- Any exception affecting protected accounts requires governance review.
-- Expired exceptions auto-fail release gate checks.
-
-## 18) Quarterly Assurance Program
-
-Minimum quarterly activities:
-
-1. threshold recovery dry run,
-2. signer compromise tabletop exercise,
-3. replay-resistance regression suite,
-4. auth-scheme distribution review,
-5. open exception burn-down review.
-
-Outputs must be attached to release evidence archives and referenced by release notes.
-
-## 19) Closure Criteria for "Quantum-Grade" Claim
-
-AOXChain may assert a quantum-grade account-management posture only when:
-
-- protected-account signatures are isolated behind policy-governed signer boundaries,
-- threshold recovery and rotation evidence is current,
-- hybrid/PQ migration milestones are met for declared tiers,
-- runtime admission enforces scheme-aware replay-safe verification,
-- kernel hardening compliance evidence is attached to release artifacts,
-- no unresolved high-severity exception is past expiry.
-
-If any criterion fails, release posture must be downgraded in public readiness reporting.
+Without these controls, cryptographic migration alone does not deliver a quantum-grade account-management posture.
