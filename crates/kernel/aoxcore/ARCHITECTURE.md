@@ -41,3 +41,16 @@ These are typed in kernel space so higher layers consume a stable, audit-friendl
 - Verification, finality, and settlement decisions must be represented as explicit typed outcomes.
 - Service and execution layers may implement behavior behind traits, but must not redefine kernel semantics.
 - External I/O, relayer behavior, and cryptographic implementation details remain outside AOXCore.
+
+## Quantum-Native Evolution Contract
+
+The `protocol::quantum::QuantumKernelProfile` surface is the kernel’s upgrade-safe
+contract for post-quantum readiness:
+
+- strict defaults are PQ-only and fail closed (`legacy_signature_support = false`),
+- profile validation enforces canonical, deterministic policy constraints,
+- profile upgrades are versioned and must preserve acceptance of the active default signature
+  to avoid architecture rewrites across runtime components.
+
+This model allows cryptographic agility over time while keeping kernel data-model
+boundaries stable for downstream services.

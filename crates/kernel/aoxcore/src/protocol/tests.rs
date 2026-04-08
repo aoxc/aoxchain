@@ -5,7 +5,6 @@ use super::{
     canonical_chain_families, canonical_message_envelope_fields, canonical_modules,
     canonical_sovereign_roots,
 };
-use super::quantum::{QuantumKernelProfile, QuantumProfileError, SignatureScheme};
 
 fn sample_envelope() -> MessageEnvelope {
     MessageEnvelope::new(
@@ -301,6 +300,57 @@ fn quantum_profile_rejects_fallback_signature_outside_allowed_set() {
             .validate()
             .expect_err("fallback signature outside allowed set must fail"),
         QuantumProfileError::FallbackSignatureNotAllowed
+    );
+}
+
+#[test]
+fn quantum_profile_rejects_legacy_support_flag() {
+    let mut profile = QuantumKernelProfile::strict_default();
+    profile.legacy_signature_support = true;
+
+    assert_eq!(
+        profile
+            .validate()
+            .expect_err("legacy support must remain disabled"),
+        QuantumProfileError::LegacySupportMustRemainDisabled
+    );
+}
+
+#[test]
+fn quantum_profile_upgrade_compatibility_requires_monotonic_version_and_default_support() {
+    let current = QuantumKernelProfile::strict_default();
+
+    let mut next = QuantumKernelProfile::strict_default();
+    next.profile_version = 2;
+    next.default_signature = SignatureScheme::SphincsSha2128f;
+    next.allowed_signatures = vec![
+        SignatureScheme::MlDsa65,
+        SignatureScheme::SphincsSha2128f,
+        SignatureScheme::Dilithium3,
+    ];
+    assert!(
+        current
+            .is_upgrade_compatible_with(&next)
+            .expect("compatibility check must succeed")
+    );
+
+    let mut downgraded = next.clone();
+    downgraded.profile_version = 0;
+    assert_eq!(
+        current
+            .is_upgrade_compatible_with(&downgraded)
+            .expect_err("invalid profile version must fail"),
+        QuantumProfileError::InvalidProfileVersion
+    );
+
+    let mut incompatible = QuantumKernelProfile::strict_default();
+    incompatible.profile_version = 2;
+    incompatible.allowed_signatures = vec![SignatureScheme::SphincsSha2128f];
+    incompatible.default_signature = SignatureScheme::SphincsSha2128f;
+    assert!(
+        !current
+            .is_upgrade_compatible_with(&incompatible)
+            .expect("compatibility check must return false")
     );
 }
 
