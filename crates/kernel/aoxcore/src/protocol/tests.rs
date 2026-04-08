@@ -274,13 +274,15 @@ fn strict_quantum_profile_is_valid_and_disables_legacy_support() {
     let profile = QuantumKernelProfile::strict_default();
     assert!(profile.validate().is_ok());
     assert!(!profile.legacy_signature_support);
-    assert_eq!(profile.profile_version, 1);
+    assert_eq!(profile.profile_version, 2);
+    assert_eq!(profile.allowed_signatures, vec![SignatureScheme::MlDsa65]);
+    assert_eq!(profile.fallback_signature, None);
 }
 
 #[test]
 fn quantum_profile_rejects_default_signature_outside_allowed_set() {
     let mut profile = QuantumKernelProfile::strict_default();
-    profile.default_signature = SignatureScheme::Dilithium3;
+    profile.default_signature = SignatureScheme::SphincsSha2128f;
 
     assert_eq!(
         profile
@@ -293,7 +295,7 @@ fn quantum_profile_rejects_default_signature_outside_allowed_set() {
 #[test]
 fn quantum_profile_rejects_fallback_signature_outside_allowed_set() {
     let mut profile = QuantumKernelProfile::strict_default();
-    profile.fallback_signature = Some(SignatureScheme::Dilithium3);
+    profile.fallback_signature = Some(SignatureScheme::SphincsSha2128f);
 
     assert_eq!(
         profile

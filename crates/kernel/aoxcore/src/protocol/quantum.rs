@@ -16,7 +16,6 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum SignatureScheme {
     MlDsa65,
-    Dilithium3,
     SphincsSha2128f,
 }
 
@@ -25,7 +24,6 @@ impl SignatureScheme {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::MlDsa65 => "ml-dsa-65",
-            Self::Dilithium3 => "dilithium3",
             Self::SphincsSha2128f => "sphincs+-sha2-128f",
         }
     }
@@ -35,7 +33,6 @@ impl SignatureScheme {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum KemScheme {
     MlKem768,
-    Kyber768,
 }
 
 impl KemScheme {
@@ -43,7 +40,6 @@ impl KemScheme {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::MlKem768 => "ml-kem-768",
-            Self::Kyber768 => "kyber-768",
         }
     }
 }
@@ -118,10 +114,10 @@ impl QuantumKernelProfile {
     #[must_use]
     pub fn strict_default() -> Self {
         Self {
-            profile_version: 1,
+            profile_version: 2,
             default_signature: SignatureScheme::MlDsa65,
-            fallback_signature: Some(SignatureScheme::SphincsSha2128f),
-            allowed_signatures: vec![SignatureScheme::MlDsa65, SignatureScheme::SphincsSha2128f],
+            fallback_signature: None,
+            allowed_signatures: vec![SignatureScheme::MlDsa65],
             transport_kem: KemScheme::MlKem768,
             tx_hash_policy: HashPolicy::Sha3_256,
             state_hash_policy: HashPolicy::Blake3,
