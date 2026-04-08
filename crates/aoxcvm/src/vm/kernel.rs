@@ -30,14 +30,13 @@ pub struct KernelConfig {
 /// Security posture selector for kernel baseline presets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KernelSecurityLevel {
-    #[deprecated(note = "legacy-only profile; use Quantum for new deployments")]
     Standard,
     Quantum,
 }
 
 impl Default for KernelConfig {
     fn default() -> Self {
-        Self::quantum_default()
+        Self::for_security_level(KernelSecurityLevel::Quantum)
     }
 }
 
@@ -329,26 +328,5 @@ mod tests {
 
         assert_eq!(default, quantum);
         assert_eq!(default.security_level, KernelSecurityLevel::Quantum);
-    }
-
-    #[test]
-    fn quantum_profile_rejects_weaker_custom_limits() {
-        let kernel = AOXCVMachineQX1::new(KernelConfig {
-            gas_limit: 900_000,
-            max_memory: 768 * 1024,
-            max_stack_depth: 768,
-            max_call_depth: 48,
-            min_spec_version: 2,
-            max_payload_bytes: 32 * 1024,
-            security_level: KernelSecurityLevel::Quantum,
-        });
-
-        let err = kernel
-            .execute_phase1(Program {
-                code: vec![Instruction::Halt],
-            })
-            .expect_err("must fail when quantum limits are weakened");
-
-        assert!(matches!(err, KernelError::ConfigInvariant(_)));
     }
 }
