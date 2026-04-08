@@ -152,26 +152,26 @@ impl QuantumKernelProfile {
         Ok(())
     }
 
-    /// Returns whether this profile explicitly allows a signature scheme.
+    /// Returns true if a signature scheme is explicitly allowed by this profile.
     #[must_use]
-    pub fn allows_signature(&self, scheme: SignatureScheme) -> bool {
+    pub fn supports_signature(&self, scheme: SignatureScheme) -> bool {
         self.allowed_signatures.contains(&scheme)
     }
 
-    /// Checks if `next` is a safe forward profile under the strict PQ contract.
+    /// Verifies whether `next` can be adopted without changing kernel data model.
     ///
-    /// Forward-compatibility rules:
-    /// - both profiles must pass strict validation,
-    /// - next profile version must be strictly greater,
-    /// - current default signature must stay allowed in next profile.
-    pub fn is_forward_compatible_with(&self, next: &Self) -> Result<bool, QuantumProfileError> {
+    /// Compatibility contract:
+    /// - profile versions must be monotonically non-decreasing,
+    /// - current default signature must remain accepted,
+    /// - both profiles must remain strict (legacy disabled).
+    pub fn is_upgrade_compatible_with(&self, next: &Self) -> Result<bool, QuantumProfileError> {
         self.validate()?;
         next.validate()?;
 
-        if next.profile_version <= self.profile_version {
+        if next.profile_version < self.profile_version {
             return Ok(false);
         }
 
-        Ok(next.allows_signature(self.default_signature))
+        Ok(next.supports_signature(self.default_signature))
     }
 }

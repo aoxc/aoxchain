@@ -319,48 +319,40 @@ fn quantum_profile_rejects_legacy_support_flag() {
 }
 
 #[test]
-fn quantum_profile_rejects_zero_profile_version() {
-    let mut profile = QuantumKernelProfile::strict_default();
-    profile.profile_version = 0;
-
-    assert_eq!(
-        profile
-            .validate()
-            .expect_err("invalid profile version must fail"),
-        QuantumProfileError::InvalidProfileVersion
-    );
-}
-
-#[test]
-fn quantum_profile_forward_compatibility_requires_higher_version_and_default_support() {
+fn quantum_profile_upgrade_compatibility_requires_monotonic_version_and_default_support() {
     let current = QuantumKernelProfile::strict_default();
 
     let mut next = QuantumKernelProfile::strict_default();
-    next.profile_version = 3;
-    next.allowed_signatures = vec![SignatureScheme::MlDsa65, SignatureScheme::SphincsSha2128f];
-    next.fallback_signature = Some(SignatureScheme::SphincsSha2128f);
-
+    next.profile_version = 2;
+    next.default_signature = SignatureScheme::SphincsSha2128f;
+    next.allowed_signatures = vec![
+        SignatureScheme::MlDsa65,
+        SignatureScheme::SphincsSha2128f,
+        SignatureScheme::Dilithium3,
+    ];
     assert!(
         current
-            .is_forward_compatible_with(&next)
-            .expect("forward compatibility check must succeed")
+            .is_upgrade_compatible_with(&next)
+            .expect("compatibility check must succeed")
     );
 
-    let mut same_version = next.clone();
-    same_version.profile_version = current.profile_version;
-    assert!(
-        !current
-            .is_forward_compatible_with(&same_version)
-            .expect("same version must not be forward compatible")
+    let mut downgraded = next.clone();
+    downgraded.profile_version = 0;
+    assert_eq!(
+        current
+            .is_upgrade_compatible_with(&downgraded)
+            .expect_err("invalid profile version must fail"),
+        QuantumProfileError::InvalidProfileVersion
     );
 
-    let mut incompatible = next;
+    let mut incompatible = QuantumKernelProfile::strict_default();
+    incompatible.profile_version = 2;
     incompatible.allowed_signatures = vec![SignatureScheme::SphincsSha2128f];
     incompatible.default_signature = SignatureScheme::SphincsSha2128f;
     assert!(
         !current
-            .is_forward_compatible_with(&incompatible)
-            .expect("removing active default support must be incompatible")
+            .is_upgrade_compatible_with(&incompatible)
+            .expect("compatibility check must return false")
     );
 }
 
