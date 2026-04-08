@@ -1,6 +1,7 @@
 use super::core::canonicalize_payload_type;
 use super::quantum::{
-    QuantumAdmissionError, QuantumKernelProfile, QuantumProfileError, SignatureScheme,
+    QuantumAdmissionError, QuantumHandshakeError, QuantumKernelProfile, QuantumProfileError,
+    SignatureScheme,
 };
 use super::{
     ChainFamily, FeeClass, MessageEnvelope, MessageEnvelopeError, ModuleId, SovereignRoot,
@@ -383,6 +384,65 @@ fn is_expired_at_respects_optional_expiry() {
     .expect("envelope must be valid");
 
     assert!(!no_expiry.is_expired_at(u64::MAX));
+}
+
+#[test]
+fn handshake_negotiation_accepts_matching_or_higher_peer_profile() {
+    let local = QuantumKernelProfile::strict_default();
+    let mut peer = QuantumKernelProfile::strict_default();
+    peer.profile_version = local.profile_version + 1;
+
+    let result = local
+        .negotiate_peer_profile(&peer)
+        .expect("peer with compatible profile must be admitted");
+
+    assert_eq!(result.negotiated_profile_version, local.profile_version);
+    assert_eq!(result.selected_signature, local.default_signature);
+}
+
+#[test]
+fn handshake_negotiation_rejects_profile_downgrade() {
+    let local = QuantumKernelProfile::strict_default();
+    let mut peer = QuantumKernelProfile::strict_default();
+    peer.profile_version = local.profile_version - 1;
+
+    assert_eq!(
+        local
+            .negotiate_peer_profile(&peer)
+            .expect_err("downgraded peer profile must fail"),
+        QuantumHandshakeError::ProfileDowngradeRejected
+    );
+}
+
+#[test]
+fn handshake_negotiation_rejects_peer_without_local_default_signature() {
+    let local = QuantumKernelProfile::strict_default();
+    let mut peer = QuantumKernelProfile::strict_default();
+    peer.allowed_signatures = vec![SignatureScheme::SphincsSha2128f];
+    peer.default_signature = SignatureScheme::SphincsSha2128f;
+
+    assert_eq!(
+        local
+            .negotiate_peer_profile(&peer)
+            .expect_err("peer missing local default signature support must fail"),
+        QuantumHandshakeError::PeerDoesNotSupportLocalDefaultSignature
+    );
+}
+
+#[test]
+fn handshake_negotiation_rejects_invalid_peer_profile() {
+    let local = QuantumKernelProfile::strict_default();
+    let mut peer = QuantumKernelProfile::strict_default();
+    peer.legacy_signature_support = true;
+
+    assert_eq!(
+        local
+            .negotiate_peer_profile(&peer)
+            .expect_err("invalid peer profile must fail"),
+        QuantumHandshakeError::InvalidPeerProfile(
+            QuantumProfileError::LegacySupportMustRemainDisabled
+        )
+    );
 }
 
 #[test]

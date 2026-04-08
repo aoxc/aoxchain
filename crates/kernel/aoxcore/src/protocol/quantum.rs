@@ -119,6 +119,39 @@ impl fmt::Display for QuantumAdmissionError {
 
 impl std::error::Error for QuantumAdmissionError {}
 
+/// Deterministic handshake negotiation failures for peer profile admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuantumHandshakeError {
+    InvalidLocalProfile(QuantumProfileError),
+    InvalidPeerProfile(QuantumProfileError),
+    ProfileDowngradeRejected,
+    PeerDoesNotSupportLocalDefaultSignature,
+}
+
+impl fmt::Display for QuantumHandshakeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidLocalProfile(err) => write!(f, "invalid local quantum profile: {err}"),
+            Self::InvalidPeerProfile(err) => write!(f, "invalid peer quantum profile: {err}"),
+            Self::ProfileDowngradeRejected => {
+                f.write_str("peer profile version is lower than required local profile version")
+            }
+            Self::PeerDoesNotSupportLocalDefaultSignature => {
+                f.write_str("peer profile does not support local default signature")
+            }
+        }
+    }
+}
+
+impl std::error::Error for QuantumHandshakeError {}
+
+/// Deterministic result of kernel-level profile handshake negotiation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuantumHandshakeResult {
+    pub negotiated_profile_version: u16,
+    pub selected_signature: SignatureScheme,
+}
+
 /// Canonical quantum-native kernel profile.
 ///
 /// This profile is designed to be persisted in genesis and/or constitutional
@@ -199,6 +232,35 @@ impl QuantumKernelProfile {
         }
 
         Ok(next.supports_signature(self.default_signature))
+    }
+
+    /// Negotiates peer profile compatibility under strict fail-closed rules.
+    ///
+    /// Handshake contract:
+    /// - both local and peer profiles must validate,
+    /// - peer version must not be lower than local required profile version,
+    /// - peer must support the local default signature to prevent implicit downgrade.
+    pub fn negotiate_peer_profile(
+        &self,
+        peer: &Self,
+    ) -> Result<QuantumHandshakeResult, QuantumHandshakeError> {
+        self.validate()
+            .map_err(QuantumHandshakeError::InvalidLocalProfile)?;
+        peer.validate()
+            .map_err(QuantumHandshakeError::InvalidPeerProfile)?;
+
+        if peer.profile_version < self.profile_version {
+            return Err(QuantumHandshakeError::ProfileDowngradeRejected);
+        }
+
+        if !peer.supports_signature(self.default_signature) {
+            return Err(QuantumHandshakeError::PeerDoesNotSupportLocalDefaultSignature);
+        }
+
+        Ok(QuantumHandshakeResult {
+            negotiated_profile_version: self.profile_version,
+            selected_signature: self.default_signature,
+        })
     }
 
     /// Validates that a quantum transaction can be admitted by this profile.
