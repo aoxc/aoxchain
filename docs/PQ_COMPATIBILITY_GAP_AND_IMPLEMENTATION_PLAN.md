@@ -175,3 +175,175 @@ Any Dilithium/Falcon integration must preserve:
 ## Recommended Immediate Next Step
 
 Implement **Phase A** first, without enabling PQ acceptance in production profiles by default. This allows full schema/pipeline hardening and deterministic test coverage before operational activation.
+
+
+## Beyond "Quantum-Resistant": Practical Hardening Targets
+
+Absolute "quantum-proof" claims are not realistic for a production chain. The engineering target should be **crypto-agile, compromise-contained, and rapidly updatable** under new cryptanalytic results.
+
+### Target 1: Harvest-now/decrypt-later containment
+
+Required controls:
+
+- Forward-secrecy-only transport profiles for all validator and privileged control channels.
+- Aggressive key/epoch rotation with enforced maximum key lifetime.
+- Mandatory re-encryption and re-signing windows for long-lived sensitive artifacts.
+
+### Target 2: Algorithm monoculture reduction
+
+Required controls:
+
+- Multi-family admission policy (for example: ML-DSA + SLH-DSA families) under governance.
+- Hybrid-by-default critical path during migration windows.
+- Explicit anti-downgrade policy requiring stronger profile continuity across epochs.
+
+### Target 3: Evidence-backed activation
+
+Required controls:
+
+- Reproducible algorithm test-vector bundles and negative corpus checks in CI.
+- Per-release cryptographic provenance report (algorithms, versions, validation status).
+- Independent implementation differential tests for consensus-critical verification outcomes.
+
+### Target 4: Rapid cryptographic emergency response
+
+Required controls:
+
+- Pre-approved emergency profile transition runbook with bounded rollback semantics.
+- On-chain/profile-level kill-switch for compromised schemes (fail closed).
+- Operator drills proving cluster-wide profile transitions within defined SLOs.
+
+### Target 5: State and signature survivability
+
+Required controls:
+
+- Versioned signature envelopes and long-horizon re-signing strategy for archival objects.
+- Domain-separated commitment strategy that can be upgraded without ambiguous interpretation.
+- Explicit compatibility rules for historic block verification during profile evolution.
+
+## Practical Interpretation for AOXC
+
+AOXC should not optimize for a static "quantum-proof" endpoint. It should optimize for:
+
+- deterministic multi-algorithm verification,
+- governance-coupled and evidence-backed migration,
+- strict anti-downgrade invariants,
+- and operational ability to rotate or retire cryptographic schemes quickly.
+
+This posture provides stronger real-world resilience than any single immutable algorithm choice.
+
+
+## Quantum-First Pre-Feature Plan (Where to Start)
+
+This sequence is intended for a chain that is already running, but wants to move to a quantum-hardened baseline **before** major feature expansion.
+
+### Step 0 (Week 0): Freeze cryptographic surface churn
+
+Objectives:
+
+- Declare a temporary policy freeze: no new signature- or transaction-format variants without PQ review.
+- Register all cryptographic touchpoints (mempool admission, block validation, p2p handshake, key custody, RPC auth).
+
+Exit criteria:
+
+- A signed crypto-inventory artifact exists and is referenced by release CI.
+
+### Step 1 (Weeks 1-2): Implement type-level crypto agility first
+
+Objectives:
+
+- Complete `AuthScheme` expansion and versioned signature envelope design.
+- Add deterministic algorithm identifiers and canonical ordering rules.
+- Keep runtime acceptance conservative (do not enable PQ-only admission yet).
+
+Exit criteria:
+
+- Serialization/backward-compatibility tests pass.
+- Unknown algorithm and malformed envelope paths fail closed.
+
+### Step 2 (Weeks 2-4): Wire deterministic verification dispatch
+
+Objectives:
+
+- Implement verification routing for classical, hybrid, and PQ-only scheme variants.
+- Enforce strict profile-to-scheme admission matrix at mempool ingress and block validation.
+- Add anti-downgrade checks across epoch/profile transitions.
+
+Exit criteria:
+
+- Deterministic pass/fail matrix is green in CI for all supported schemes.
+- Replay and downgrade tests pass.
+
+### Step 3 (Weeks 4-6): Secure transport and key lifecycle
+
+Objectives:
+
+- Enforce PQ/hybrid KEM posture on validator/privileged channels.
+- Introduce mandatory key rotation cadence and max key age policy.
+- Add emergency cryptographic profile transition runbook and drills.
+
+Exit criteria:
+
+- Cluster simulation confirms profile transition within target SLO.
+- Transport downgrade attempts are rejected and observable.
+
+### Step 4 (Weeks 6-8): Operator evidence and release gating
+
+Objectives:
+
+- Expose active crypto profile + admission matrix through CLI/RPC.
+- Require release evidence bundle (algorithms, backend provenance, vector corpus status).
+- Promote channels only if `quantum-readiness-gate` and `quantum-full` succeed.
+
+Exit criteria:
+
+- Release artifact includes machine-readable crypto posture evidence.
+- Promotion checklist is reproducible by an independent operator.
+
+## Recommended Immediate Starting Point
+
+If you must start today, prioritize in this order:
+
+1. **AuthScheme + signature envelope versioning (Step 1)**
+2. **Deterministic verification dispatch with fail-closed routing (Step 2)**
+3. **Profile-coupled admission + anti-downgrade enforcement (Step 2)**
+
+This order minimizes later refactor cost and allows feature development to proceed on top of stable cryptographic interfaces.
+
+
+## Kernel-First Quantum Hardening Track
+
+Yes—starting from the kernel is the correct priority for a running chain.
+
+Reasoning:
+
+- Kernel verification and block semantics define consensus truth; mistakes here cannot be safely compensated in outer services.
+- RPC, CLI, and automation layers should only expose/operate policy that kernel validation already enforces.
+
+### Kernel-first order of work
+
+1. **Consensus-critical auth and verification types**
+   - Finalize versioned auth scheme identifiers.
+   - Finalize versioned signature envelope and deterministic ordering rules.
+2. **Block/vote validation path**
+   - Route verification deterministically by active profile.
+   - Enforce fail-closed unknown-scheme behavior and anti-downgrade rules.
+3. **Mempool and transaction admission**
+   - Enforce profile-to-scheme admission before execution.
+   - Reject structurally valid but policy-invalid signature bundles.
+4. **Replay and canonicality invariants**
+   - Strengthen domain separation and replay binding for all scheme families.
+   - Preserve deterministic canonical signing preimage across transitions.
+5. **Then expose operator surfaces**
+   - After kernel enforcement is complete, reflect the same matrix in RPC/CLI and readiness gates.
+
+### Kernel readiness gates (must pass before expansion)
+
+- Deterministic verification matrix is reproducible across nodes.
+- Downgrade and replay regression suite is green.
+- Profile transition simulation has no consensus ambiguity.
+- Release evidence records enabled algorithms and verification provenance.
+
+### Practical rule
+
+Do not expand product features on top of an unstable cryptographic kernel. Stabilize kernel crypto policy and verification first, then scale execution/API features.
