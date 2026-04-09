@@ -2,6 +2,8 @@
 
 use crate::{
     auth::{
+        constitution::CryptographicConstitution,
+        domains::AuthDomain,
         envelope::{AuthEnvelope, AuthEnvelopeLimits},
         qrkf::{AuthorizationLane, EpochKeyBundle, LanePolicy},
         registry::{AuthProfileId, AuthProfileRegistry},
@@ -78,6 +80,32 @@ pub fn verify_envelope_with_qrkf(
     Ok(verified)
 }
 
+/// Verifies registry profile checks and constitution checks in one pass.
+pub fn verify_envelope_under_constitution(
+    registry: &AuthProfileRegistry,
+    profile_id: AuthProfileId,
+    profile_version: Option<u16>,
+    envelope: &AuthEnvelope,
+    limits: AuthEnvelopeLimits,
+    constitution: &CryptographicConstitution,
+) -> AoxcvmResult<VerifiedAuthContext> {
+    let verified = verify_envelope(registry, profile_id, profile_version, envelope, limits)?;
+
+    match AuthDomain::parse(envelope.domain.as_str()) {
+        Some(AuthDomain::ConstitutionalRecovery) => {
+            constitution.validate_constitutional_recovery_envelope(envelope)?
+        }
+        Some(_) => constitution.validate_operational_envelope(envelope)?,
+        None => {
+            return Err(AoxcvmError::InvalidSignatureMetadata(
+                "domain must be recognized for constitution verification",
+            ));
+        }
+    }
+
+    Ok(verified)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -90,7 +118,10 @@ mod tests {
         scheme::{AuthProfile, SignatureAlgorithm},
         signer::SignerClass,
         threshold::ThresholdPolicy,
-        verifier::{QrkfVerification, verify_envelope, verify_envelope_with_qrkf},
+        verifier::{
+            QrkfVerification, verify_envelope, verify_envelope_under_constitution,
+            verify_envelope_with_qrkf,
+        },
     };
 
     #[test]
@@ -215,5 +246,47 @@ mod tests {
             err.to_string()
                 .contains("qrkf failed: authorization lane policy not satisfied")
         );
+    }
+
+    #[test]
+    fn verifier_applies_constitution_by_domain_lane() {
+        let mut registry = AuthProfileRegistry::default();
+        let id = AuthProfileId::new(12);
+        let record = AuthProfileRecord {
+            profile: AuthProfile::PostQuantumStrict,
+            threshold: ThresholdPolicy {
+                min_signers: 1,
+                require_post_quantum: true,
+            },
+            quorum: QuorumPolicy {
+                min_total: 1,
+                min_governance: 0,
+                min_operations: 0,
+                min_system: 0,
+            },
+            signer_classes: BTreeMap::from([("pq-1".to_owned(), SignerClass::Application)]),
+        };
+        registry.insert_version(id, 1, record).expect("insert v1");
+
+        let envelope = AuthEnvelope {
+            domain: "AOX/TX/V1".to_owned(),
+            nonce: 8,
+            signers: vec![SignatureEntry {
+                algorithm: SignatureAlgorithm::MlDsa65,
+                key_id: "pq-1".to_owned(),
+                signature: vec![9_u8; 2048],
+            }],
+        };
+
+        let result = verify_envelope_under_constitution(
+            &registry,
+            id,
+            Some(1),
+            &envelope,
+            AuthEnvelopeLimits::default(),
+            &crate::auth::constitution::CryptographicConstitution::default(),
+        );
+
+        assert!(result.is_ok());
     }
 }
