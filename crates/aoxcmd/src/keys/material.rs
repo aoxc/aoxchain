@@ -308,11 +308,12 @@ fn normalize_profile(profile: &str) -> Result<&'static str, AppError> {
         "localnet" => Ok("localnet"),
         "quantum" => Ok("mainnet"),
         "quntum" => Ok("mainnet"),
+        "qumtum" => Ok("mainnet"),
         "pq-preview" => Ok("mainnet"),
         other => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             format!(
-                "Unsupported AOXC key-material profile `{}`; expected mainnet, quantum, quntum, pq-preview, testnet, validation, devnet, or localnet",
+                "Unsupported AOXC key-material profile `{}`; expected mainnet, quantum, quntum, qumtum, pq-preview, testnet, validation, devnet, or localnet",
                 other
             ),
         )),
