@@ -21,6 +21,13 @@ pub const MAX_BLOCK_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 /// to the protocol-defined zero state root.
 pub const ZERO_STATE_ROOT: [u8; 32] = [0u8; 32];
 
+/// Maximum quantum header proof size in bytes.
+///
+/// Security rationale:
+/// This bound prevents oversized post-quantum attestations from causing
+/// disproportionate memory or gossip amplification at block-header scope.
+pub const MAX_QUANTUM_HEADER_PROOF_BYTES: usize = 4 * 1024;
+
 /// Enumerates the lifecycle role of a block within the protocol.
 ///
 /// Audit rationale:
@@ -124,6 +131,12 @@ pub struct BlockHeader {
     /// Block producer identity or public key.
     pub producer: [u8; 32],
 
+    /// Post-quantum signature scheme used for header attestation.
+    pub quantum_signature_scheme: crate::protocol::quantum::SignatureScheme,
+
+    /// Post-quantum header attestation proof bytes.
+    pub quantum_header_proof: Vec<u8>,
+
     /// Semantic block type.
     pub block_type: BlockType,
 }
@@ -214,4 +227,3 @@ pub struct Block {
     pub header: BlockHeader,
     pub tasks: Vec<Task>,
 }
-

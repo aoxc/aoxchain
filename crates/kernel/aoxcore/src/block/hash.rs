@@ -177,6 +177,9 @@ pub fn hash_header(header: &BlockHeader) -> [u8; HASH_SIZE] {
     update_bytes32(&mut hasher, &header.prev_hash);
     update_bytes32(&mut hasher, &header.state_root);
     update_bytes32(&mut hasher, &header.producer);
+    update_u8(&mut hasher, header.quantum_signature_scheme.code());
+    update_bytes(&mut hasher, &header.quantum_header_proof)
+        .expect("BLOCK_HASH: quantum header proof exceeded canonical encoding limits");
     update_u8(&mut hasher, header.block_type.code());
 
     finalize_hash(hasher)
@@ -324,6 +327,8 @@ mod tests {
             prev_hash: bytes32(1),
             state_root: bytes32(2),
             producer: bytes32(3),
+            quantum_signature_scheme: crate::protocol::quantum::SignatureScheme::MlDsa65,
+            quantum_header_proof: vec![0xAA, 0xBB, 0xCC],
             block_type: BlockType::Active,
         }
     }
