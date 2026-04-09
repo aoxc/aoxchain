@@ -111,7 +111,7 @@ BOOTSTRAP
   keys-inspect
   keys-show-fingerprint
   keys-verify [--password <value>]
-  address-create --name <validator> --profile <validation|testnet|mainnet|devnet|localnet> --password <value>
+  address-create --name <validator> --profile <validation|testnet|mainnet|devnet|localnet> --password <value> [--account-id-mode <secure|legacy|dual>] [--account-id-bytes <16-32>] [--account-salt <value>]
   genesis-init
   genesis-add-account --account-id <id> --balance <amount> [--role <treasury|validator|system|user|governance|forge|quorum|seal|archive|sentinel|relay|pocket>]
   genesis-add-validator --validator-id <id> --consensus-public-key <hex> --network-public-key <hex> [--consensus-fingerprint <hex>] [--network-fingerprint <hex>] [--bootnode-address <host:port>] [--balance <amount>] [--display-name <label>]

@@ -128,6 +128,9 @@ pub fn cmd_address_create(args: &[String]) -> Result<(), AppError> {
     let profile = EnvironmentProfile::parse(&profile_input)?;
     let name = parse_required_or_default_text_arg(args, "--name", "validator-01")?;
     let password = parse_required_text_arg(args, "--password", false, "address create")?;
+    let account_mode = parse_account_id_mode(args)?;
+    let account_payload_bytes = parse_account_id_payload_bytes(args)?;
+    let account_salt = parse_optional_text_arg(args, "--account-salt", false);
 
     let material = bootstrap_operator_key(&name, profile.as_str(), &password)?;
     let summary = material.summary()?;
