@@ -1,106 +1,89 @@
-# AOXChain Technical Contract
+# AOXChain Technical Contract (Reset)
 
-This document defines AOXChain’s repository-wide engineering contract for deterministic behavior, trust boundaries, and readiness claims.
+This document is the repository-wide technical contract for deterministic, policy-governed, post-quantum-oriented operation.
 
-## 1) System Intent
+## 1) Mission Contract
 
-AOXChain is a deterministic Layer-1 system with:
+AOXChain must deliver:
 
-- kernel-owned consensus and settlement policy,
-- deterministic execution with bounded metering,
-- profile-driven cryptographic agility,
-- evidence-governed operational promotion.
+- deterministic state transitions,
+- fail-closed validation,
+- policy-based authority semantics,
+- cryptographic agility with explicit profile governance,
+- evidence-backed readiness declarations.
 
-## 2) Non-Negotiable Invariants
+## 2) Core Invariants
 
-1. **Determinism:** identical canonical inputs produce identical canonical outputs.
-2. **Fail-closed validation:** malformed or unsupported critical inputs are rejected before state transition.
-3. **Boundary integrity:** non-kernel surfaces cannot override consensus truth.
-4. **Profile explicitness:** consensus-critical cryptography is versioned and policy-bound.
-5. **Evidence traceability:** readiness claims require reproducible commands and retained artifacts.
-6. **Identity tuple integrity:** `chain_id`, `network_id`, and `network_serial` must remain registry-derived and mutually consistent.
-7. **Version-axis separation:** brand/ticker, release line, workspace version, and cryptographic profile version are distinct and must not be conflated.
-8. **Environment topology minimums:** bootstrap inputs must satisfy environment minimum validator/bootnode thresholds; stricter thresholds apply to `testnet` and `mainnet`.
+1. Identical canonical inputs must produce identical canonical outputs.
+2. Validation must complete before execution is allowed.
+3. Consensus truth is kernel-owned and cannot be overridden by service or operations layers.
+4. All consensus-relevant cryptography must be profile-tagged and policy-bound.
+5. `policy_root` and `recovery_root` must remain logically independent.
+6. Replay protection must be domain-separated.
+7. Migration and rotation are native state transitions, not ad-hoc operator events.
+8. No production/readiness claim is valid without reproducible evidence.
 
-## 3) Layer Responsibilities
+## 3) Authority Model Contract
 
-### 3.1 Kernel and Consensus (`aoxcore`, `aoxcunity`)
-- owns consensus truth, finality interpretation, and settlement admission;
-- enforces consensus-visible cryptographic policy;
-- preserves replay-protection semantics.
+Validation pipeline:
 
-### 3.2 Execution (`aoxcvm`, `aoxcexec`, `aoxcenergy`)
-- executes deterministic state transitions under kernel policy;
-- enforces bounded metering and deterministic syscall behavior;
-- does not redefine consensus trust rules.
+`actor -> scheme_id -> policy_root -> proof_bundle -> replay check -> execute`
 
-### 3.3 Services (`aoxcnet`, `aoxcrpc`, `aoxcdata`, `aoxconfig`)
-- provides transport, RPC, storage, and config delivery;
-- treats ingress as untrusted until validated;
-- cannot bypass kernel admission rules.
+Minimum actor classes:
 
-### 3.4 Operations (`aoxcmd`, `aoxckit`, `aoxchub`, `scripts/`)
-- provides lifecycle orchestration and diagnostics;
-- runs readiness gates and evidence collection;
-- cannot mutate protocol truth outside approved policy surfaces.
+- account authority,
+- validator authority,
+- governance authority.
 
-## 4) Layer Extension Rule
+All actor classes must support controlled key rotation, scheme migration, and policy rotation under explicit authorization rules.
 
-When introducing a new layer, role class, or operational plane:
+## 4) Cryptographic Profile Contract
 
-1. update `ARCHITECTURE.md` with responsibility and dependency direction;
-2. update `configs/topology/*` and environment overlays for activation policy;
-3. define trust boundary and validation ownership explicitly;
-4. add readiness evidence requirements in testing and operational runbooks.
+- profile IDs are first-class protocol data,
+- profile activation and deprecation are governance-controlled,
+- unsupported profiles fail closed,
+- hybrid windows are explicit, time-bounded, and evidence-gated,
+- hidden classical fallback paths are prohibited.
 
-No new layer should be introduced through implementation-only changes without synchronized governance and operational documentation.
+## 5) Layer Responsibilities
 
-## 5) Required Readiness Gates
+### Kernel
+Owns authority model, consensus truth, profile policy enforcement, replay semantics, and settlement admission.
 
-Readiness status is valid only when required gates pass and evidence is retained.
+### Execution
+Runs deterministic computation under kernel acceptance decisions and deterministic cost rules.
+
+### Services
+Provides network/RPC/storage/config transport and must treat all ingress as untrusted until validated.
+
+### Operations
+Provides orchestration, diagnostics, and evidence production; cannot mutate protocol truth outside approved policy transitions.
+
+## 6) Required Gate Baseline
+
+At minimum, readiness evaluation must include:
 
 ```bash
 make build
 make test
 make quality
 make audit
-make os-compat-gate
 make testnet-gate
 make testnet-readiness-gate
 ```
 
-## 6) High-Sensitivity Change Classes
+If any required gate fails or is skipped without approved exception, readiness status is `NOT_READY`.
 
-The following classes require synchronized implementation, tests, and documentation:
+## 7) Architecture-Change Rule
 
-- consensus/finality behavior,
-- execution semantics and metering rules,
-- cryptographic profile and key lifecycle policy,
-- serialization and storage compatibility,
-- RPC/API/operator control surfaces,
-- release and rollback workflows,
-- network identity and version policy definitions.
+Any architecture-sensitive change must update, in the same change set:
 
-## 7) Program Trajectory
+1. `ARCHITECTURE.md` (responsibility and trust-boundary impact),
+2. `ROADMAP.md` (phase/checklist impact),
+3. `TESTING.md` (validation scope and required evidence).
 
-Program trajectory is governed by `ROADMAP.md`: production-grade testnet operation first, then controlled activation of a PQ-resilient mainnet.
-
-Direct "quantum-first" migration requests are valid only when implemented as governed kernel policy changes with deterministic migration, fail-closed negotiation, and evidence-backed cutover rehearsal.
+Implementation-only architecture drift is not allowed.
 
 ## 8) License and Liability Context
 
-AOXChain is distributed under the MIT License on an **"as is"** basis, without warranty or liability assumptions by maintainers or contributors except where restricted by applicable law.
-
-## 9) Production-Readiness Interpretation Rule
-
-A passing compile/test subset is necessary but insufficient for production declaration.
-
-Production-grade claims require:
-
-- full execution of mandatory readiness gates listed in `TESTING.md`,
-- environment-track consistency checks for the target deployment channel,
-- retained evidence (commands, artifacts, and identifiers) linked to the candidate commit.
-
-Point-in-time closure gaps and pending actions are tracked in:
-
-- `docs/REPOSITORY_PRODUCTION_GAP_REPORT.md`
+AOXChain is provided under the MIT License on an "as is" basis, without warranty or liability assumptions by maintainers or contributors except where restricted by applicable law.
