@@ -15,6 +15,8 @@ pub enum SignatureAlgorithm {
     MlDsa65,
     /// ML-DSA-87 (higher-security post-quantum profile).
     MlDsa87,
+    /// SLH-DSA-128s (SPHINCS+ family) for constitutional recovery actions.
+    SlhDsa128s,
 }
 
 impl SignatureAlgorithm {
@@ -25,12 +27,18 @@ impl SignatureAlgorithm {
             Self::EcdsaP256 => "ecdsa-p256",
             Self::MlDsa65 => "ml-dsa-65",
             Self::MlDsa87 => "ml-dsa-87",
+            Self::SlhDsa128s => "slh-dsa-128s",
         }
     }
 
     /// Whether the algorithm is considered post-quantum secure.
     pub const fn is_post_quantum(self) -> bool {
-        matches!(self, Self::MlDsa65 | Self::MlDsa87)
+        matches!(self, Self::MlDsa65 | Self::MlDsa87 | Self::SlhDsa128s)
+    }
+
+    /// Whether the algorithm is reserved for constitutional recovery operations.
+    pub const fn is_constitutional_recovery(self) -> bool {
+        matches!(self, Self::SlhDsa128s)
     }
 }
 
@@ -87,6 +95,7 @@ mod tests {
         assert_eq!(SignatureAlgorithm::EcdsaP256.wire_id(), "ecdsa-p256");
         assert_eq!(SignatureAlgorithm::MlDsa65.wire_id(), "ml-dsa-65");
         assert_eq!(SignatureAlgorithm::MlDsa87.wire_id(), "ml-dsa-87");
+        assert_eq!(SignatureAlgorithm::SlhDsa128s.wire_id(), "slh-dsa-128s");
     }
 
     #[test]
