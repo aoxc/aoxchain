@@ -144,6 +144,8 @@ impl Block {
                 prev_hash,
                 state_root,
                 producer,
+                quantum_signature_scheme: crate::protocol::quantum::SignatureScheme::MlDsa65,
+                quantum_header_proof: vec![0x01],
                 block_type,
             },
             tasks,
@@ -307,6 +309,17 @@ impl Block {
             return Err(BlockError::InvalidProducer);
         }
 
+        if self.header.quantum_signature_scheme != crate::protocol::quantum::SignatureScheme::MlDsa65
+        {
+            return Err(BlockError::InvalidProducer);
+        }
+
+        if self.header.quantum_header_proof.is_empty()
+            || self.header.quantum_header_proof.len() > MAX_QUANTUM_HEADER_PROOF_BYTES
+        {
+            return Err(BlockError::InvalidProducer);
+        }
+
         Ok(())
     }
 
@@ -369,4 +382,3 @@ fn current_time() -> Result<u64, BlockError> {
 
     Ok(duration.as_secs())
 }
-

@@ -22,6 +22,15 @@ pub enum SignatureScheme {
 
 impl SignatureScheme {
     #[must_use]
+    pub const fn code(self) -> u8 {
+        match self {
+            Self::MlDsa65 => 0,
+            Self::Dilithium3 => 1,
+            Self::SphincsSha2128f => 2,
+        }
+    }
+
+    #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::MlDsa65 => "ml-dsa-65",
