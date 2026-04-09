@@ -2,6 +2,37 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
+pub const DEFAULT_PACEMAKER_BASE_TIMEOUT_MS: u64 = 1_000;
+pub const DEFAULT_PACEMAKER_MAX_TIMEOUT_MS: u64 = 60_000;
+
+/// Deterministic pacemaker timeout configuration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PacemakerConfig {
+    pub base_timeout_ms: u64,
+    pub max_timeout_ms: u64,
+}
+
+impl PacemakerConfig {
+    #[must_use]
+    pub fn new(base_timeout_ms: u64, max_timeout_ms: u64) -> Self {
+        let bounded_base = base_timeout_ms.max(1);
+        let bounded_max = max_timeout_ms.max(bounded_base);
+        Self {
+            base_timeout_ms: bounded_base,
+            max_timeout_ms: bounded_max,
+        }
+    }
+}
+
+impl Default for PacemakerConfig {
+    fn default() -> Self {
+        Self {
+            base_timeout_ms: DEFAULT_PACEMAKER_BASE_TIMEOUT_MS,
+            max_timeout_ms: DEFAULT_PACEMAKER_MAX_TIMEOUT_MS,
+        }
+    }
+}
+
 /// Consensus round and pacemaker state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RoundState {
@@ -9,6 +40,7 @@ pub struct RoundState {
     pub timeout_ms: u64,
     pub timeout_count: u32,
     pub last_round_change_reason: RoundChangeReason,
+    pub pacemaker: PacemakerConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,18 +61,24 @@ pub struct PacemakerStep {
 impl RoundState {
     #[must_use]
     pub fn new() -> Self {
+        Self::with_pacemaker(PacemakerConfig::default())
+    }
+
+    #[must_use]
+    pub fn with_pacemaker(pacemaker: PacemakerConfig) -> Self {
         Self {
             round: 0,
-            timeout_ms: 1_000,
+            timeout_ms: pacemaker.base_timeout_ms,
             timeout_count: 0,
             last_round_change_reason: RoundChangeReason::NormalProgress,
+            pacemaker,
         }
     }
 
     pub fn advance(&mut self) {
         self.round = self.round.saturating_add(1);
         self.timeout_count = 0;
-        self.timeout_ms = 1_000;
+        self.timeout_ms = self.pacemaker.base_timeout_ms;
         self.last_round_change_reason = RoundChangeReason::NormalProgress;
     }
 
@@ -48,7 +86,7 @@ impl RoundState {
         if round > self.round {
             self.round = round;
             self.timeout_count = 0;
-            self.timeout_ms = 1_000;
+            self.timeout_ms = self.pacemaker.base_timeout_ms;
             self.last_round_change_reason = RoundChangeReason::NormalProgress;
         }
     }
@@ -58,7 +96,10 @@ impl RoundState {
         let previous = self.round;
         self.round = self.round.saturating_add(1);
         self.timeout_count = self.timeout_count.saturating_add(1);
-        self.timeout_ms = self.timeout_ms.saturating_mul(2).clamp(1_000, 60_000);
+        self.timeout_ms = self.timeout_ms.saturating_mul(2).clamp(
+            self.pacemaker.base_timeout_ms,
+            self.pacemaker.max_timeout_ms,
+        );
         self.last_round_change_reason = RoundChangeReason::Timeout;
 
         PacemakerStep {
@@ -86,7 +127,7 @@ impl Default for RoundState {
 
 #[cfg(test)]
 mod tests {
-    use super::{RoundChangeReason, RoundState};
+    use super::{PacemakerConfig, RoundChangeReason, RoundState};
 
     #[test]
     fn advance_to_is_monotonic() {
@@ -105,6 +146,20 @@ mod tests {
         assert_eq!(step.next_round, 1);
         assert_eq!(step.timeout_ms, 2_000);
         assert_eq!(step.reason, RoundChangeReason::Timeout);
+    }
+
+    #[test]
+    fn custom_pacemaker_configuration_is_applied() {
+        let mut state = RoundState::with_pacemaker(PacemakerConfig::new(750, 3_000));
+        assert_eq!(state.timeout_ms, 750);
+
+        let first = state.on_timeout();
+        let second = state.on_timeout();
+        let third = state.on_timeout();
+
+        assert_eq!(first.timeout_ms, 1_500);
+        assert_eq!(second.timeout_ms, 3_000);
+        assert_eq!(third.timeout_ms, 3_000);
     }
 
     #[test]
