@@ -1,5 +1,8 @@
 use super::*;
 
+const ACCOUNT_ID_DERIVATION_DOMAIN_V2: &str = "AOXC/ACCOUNT_ID/V2";
+const ACCOUNT_ID_CHECKSUM_DOMAIN_V2: &str = "AOXC/ACCOUNT_ID/V2/CHECKSUM";
+
 pub(super) fn genesis_path() -> Result<PathBuf, AppError> {
     Ok(resolve_home()?.join("identity").join("genesis.json"))
 }
@@ -128,7 +131,7 @@ pub fn cmd_address_create(args: &[String]) -> Result<(), AppError> {
 
     let material = bootstrap_operator_key(&name, profile.as_str(), &password)?;
     let summary = material.summary()?;
-    let validator_account_id = format!(
+    let validator_account_id_legacy = format!(
         "AOXC_VALIDATOR_{}",
         summary
             .bundle_fingerprint
@@ -136,16 +139,115 @@ pub fn cmd_address_create(args: &[String]) -> Result<(), AppError> {
             .take(16)
             .collect::<String>()
     );
+    let (validator_account_id, account_id_checksum) =
+        derive_secure_validator_account_id(profile, &name, &summary);
 
     emit_serialized(
         &AddressCreateOutput {
             profile: summary.profile,
             validator_name: name,
             validator_account_id,
+            validator_account_id_legacy,
+            account_id_checksum,
+            account_id_derivation_domain: ACCOUNT_ID_DERIVATION_DOMAIN_V2.to_string(),
             bundle_fingerprint: summary.bundle_fingerprint,
             consensus_public_key: summary.consensus_public_key,
             transport_public_key: summary.transport_public_key,
         },
         output_format(args),
     )
+}
+
+fn derive_secure_validator_account_id(
+    profile: EnvironmentProfile,
+    validator_name: &str,
+    summary: &crate::keys::material::KeyMaterialSummary,
+) -> (String, String) {
+    let identity = profile.identity();
+    let normalized_name = validator_name
+        .trim()
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .flat_map(|ch| ch.to_uppercase())
+        .take(16)
+        .collect::<String>();
+    let profile_tag = profile_account_tag(profile);
+
+    let mut hasher = Sha256::new();
+    hasher.update(ACCOUNT_ID_DERIVATION_DOMAIN_V2.as_bytes());
+    hasher.update([0x1F]);
+    hasher.update(profile.as_str().as_bytes());
+    hasher.update([0x1F]);
+    hasher.update(identity.network_id.as_bytes());
+    hasher.update([0x1F]);
+    hasher.update(identity.chain_id.to_be_bytes());
+    hasher.update([0x1F]);
+    hasher.update(normalized_name.as_bytes());
+    hasher.update([0x1F]);
+    hasher.update(summary.bundle_fingerprint.as_bytes());
+    hasher.update([0x1F]);
+    hasher.update(summary.consensus_public_key.as_bytes());
+    hasher.update([0x1F]);
+    hasher.update(summary.transport_public_key.as_bytes());
+    let digest = hasher.finalize();
+
+    let payload = hex::encode_upper(&digest[..20]);
+
+    let mut checksum_hasher = Sha256::new();
+    checksum_hasher.update(ACCOUNT_ID_CHECKSUM_DOMAIN_V2.as_bytes());
+    checksum_hasher.update([0x1F]);
+    checksum_hasher.update(payload.as_bytes());
+    let checksum = hex::encode_upper(&checksum_hasher.finalize()[..4]);
+
+    (
+        format!("AOXC_{}_{}_{}", profile_tag, payload, checksum),
+        checksum,
+    )
+}
+
+const fn profile_account_tag(profile: EnvironmentProfile) -> &'static str {
+    match profile {
+        EnvironmentProfile::Mainnet => "MAIN",
+        EnvironmentProfile::Testnet => "TEST",
+        EnvironmentProfile::Validation => "VAL",
+        EnvironmentProfile::Devnet => "DEV",
+        EnvironmentProfile::Localnet => "LOCAL",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EnvironmentProfile, derive_secure_validator_account_id};
+    use crate::keys::material::KeyMaterial;
+
+    #[test]
+    fn secure_account_id_is_deterministic_for_same_inputs() {
+        let material = KeyMaterial::generate("validator-01", "validation", "Test#2026!")
+            .expect("key material generation should succeed");
+        let summary = material.summary().expect("summary should be available");
+
+        let (left, left_checksum) =
+            derive_secure_validator_account_id(EnvironmentProfile::Validation, "Validator 01", &summary);
+        let (right, right_checksum) =
+            derive_secure_validator_account_id(EnvironmentProfile::Validation, "Validator 01", &summary);
+
+        assert_eq!(left, right);
+        assert_eq!(left_checksum, right_checksum);
+    }
+
+    #[test]
+    fn secure_account_id_is_profile_scoped() {
+        let material = KeyMaterial::generate("validator-02", "validation", "Test#2026!")
+            .expect("key material generation should succeed");
+        let summary = material.summary().expect("summary should be available");
+
+        let (validation_id, _) =
+            derive_secure_validator_account_id(EnvironmentProfile::Validation, "Validator 02", &summary);
+        let (testnet_id, _) =
+            derive_secure_validator_account_id(EnvironmentProfile::Testnet, "Validator 02", &summary);
+
+        assert_ne!(validation_id, testnet_id);
+        assert!(validation_id.starts_with("AOXC_VAL_"));
+        assert!(testnet_id.starts_with("AOXC_TEST_"));
+    }
 }

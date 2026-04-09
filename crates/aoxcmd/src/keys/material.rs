@@ -108,6 +108,7 @@ impl KeyMaterial {
     /// - The generated bundle is validated before it is returned.
     pub fn generate(name: &str, profile: &str, password: &str) -> Result<Self, AppError> {
         let normalized_name = normalize_required_text(name, "name")?;
+        let profile_hint = profile.trim().to_ascii_lowercase();
         let normalized_profile = normalize_profile(profile)?;
         let normalized_password = normalize_required_text(password, "password")?;
         let created_at = Utc::now().to_rfc3339();
@@ -129,7 +130,7 @@ impl KeyMaterial {
             &normalized_name,
             normalized_profile,
             created_at,
-            infer_crypto_profile(normalized_profile),
+            infer_crypto_profile(normalized_profile, &profile_hint),
             &engine,
             encrypted_root_seed,
         )
@@ -280,10 +281,16 @@ impl KeyMaterial {
 /// normalized environment profile.
 ///
 /// Current policy:
+/// - explicit quantum profile aliases (`quantum`, `quntum`, `qumtum`, `pq-preview`) =>
+///   `PqDilithium3Preview`,
 /// - mainnet => hybrid surface reservation,
 /// - testnet / validation / devnet / localnet => classic Ed25519 operational mode.
-fn infer_crypto_profile(profile: &str) -> CryptoProfile {
-    match profile {
+fn infer_crypto_profile(normalized_profile: &str, profile_hint: &str) -> CryptoProfile {
+    if matches!(profile_hint, "quantum" | "quntum" | "qumtum" | "pq-preview") {
+        return CryptoProfile::PqDilithium3Preview;
+    }
+
+    match normalized_profile {
         "mainnet" => CryptoProfile::HybridEd25519Dilithium3,
         "testnet" | "validation" | "devnet" | "localnet" => CryptoProfile::ClassicEd25519,
         _ => unreachable!("profile must be normalized before crypto profile inference"),
@@ -301,11 +308,12 @@ fn normalize_profile(profile: &str) -> Result<&'static str, AppError> {
         "localnet" => Ok("localnet"),
         "quantum" => Ok("mainnet"),
         "quntum" => Ok("mainnet"),
+        "qumtum" => Ok("mainnet"),
         "pq-preview" => Ok("mainnet"),
         other => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             format!(
-                "Unsupported AOXC key-material profile `{}`; expected mainnet, quantum, quntum, pq-preview, testnet, validation, devnet, or localnet",
+                "Unsupported AOXC key-material profile `{}`; expected mainnet, quantum, quntum, qumtum, pq-preview, testnet, validation, devnet, or localnet",
                 other
             ),
         )),
@@ -419,26 +427,50 @@ mod tests {
     }
 
     #[test]
-    fn quantum_profile_normalizes_to_mainnet_hybrid_surface() {
+    fn quantum_profile_normalizes_to_mainnet_pq_preview_surface() {
         let material = KeyMaterial::generate("validator-07", "quantum", "Quantum#2026!")
             .expect("quantum profile should succeed");
 
         assert_eq!(material.bundle.profile, "mainnet");
         assert_eq!(
             material.bundle.crypto_profile.as_str(),
-            "hybrid-ed25519-dilithium3"
+            "pq-dilithium3-preview"
         );
     }
 
     #[test]
-    fn quntum_profile_alias_normalizes_to_mainnet_hybrid_surface() {
+    fn quntum_profile_alias_normalizes_to_mainnet_pq_preview_surface() {
         let material = KeyMaterial::generate("validator-07", "quntum", "Quantum#2026!")
             .expect("quntum profile alias should succeed");
 
         assert_eq!(material.bundle.profile, "mainnet");
         assert_eq!(
             material.bundle.crypto_profile.as_str(),
-            "hybrid-ed25519-dilithium3"
+            "pq-dilithium3-preview"
+        );
+    }
+
+    #[test]
+    fn qumtum_profile_alias_normalizes_to_mainnet_pq_preview_surface() {
+        let material = KeyMaterial::generate("validator-11", "qumtum", "Quantum#2026!")
+            .expect("qumtum profile alias should succeed");
+
+        assert_eq!(material.bundle.profile, "mainnet");
+        assert_eq!(
+            material.bundle.crypto_profile.as_str(),
+            "pq-dilithium3-preview"
+        );
+    }
+
+    #[test]
+    fn pq_preview_profile_alias_uses_pq_preview_crypto_profile() {
+        let material = KeyMaterial::generate("validator-10", "pq-preview", "Preview#2026!")
+            .expect("pq-preview profile should succeed");
+
+        assert_eq!(material.bundle.profile, "mainnet");
+        assert_eq!(
+            material.bundle.crypto_profile.as_str(),
+            "pq-dilithium3-preview"
         );
     }
 
