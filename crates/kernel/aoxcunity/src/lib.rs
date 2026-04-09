@@ -43,7 +43,10 @@ pub use messages::ConsensusMessage;
 pub use proposer::Proposer;
 pub use quorum::QuorumThreshold;
 pub use rotation::ValidatorRotation;
-pub use round::{PacemakerStep, RoundChangeReason, RoundState};
+pub use round::{
+    DEFAULT_PACEMAKER_BASE_TIMEOUT_MS, DEFAULT_PACEMAKER_MAX_TIMEOUT_MS, PacemakerConfig,
+    PacemakerStep, RoundChangeReason, RoundState,
+};
 pub use safety::{JustificationRef, LockState, SafeToVote, SafetyViolation, evaluate_safe_to_vote};
 pub use seal::AuthenticatedQuorumCertificate;
 pub use seal::{BlockSeal, QuorumCertificate};

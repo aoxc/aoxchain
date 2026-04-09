@@ -5,6 +5,7 @@
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use libcrux_ml_dsa::ml_dsa_65::{MLDSA65Signature, MLDSA65VerificationKey, verify};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::block::PQ_MANDATORY_START_EPOCH;
@@ -12,6 +13,7 @@ use crate::validator::ValidatorId;
 
 const VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_VOTE_SIGNING_V1";
 const AUTHENTICATED_VOTE_SIGNING_DOMAIN_V1: &[u8] = b"AOXC_AUTHENTICATED_VOTE_V1";
+const PQ_VALIDATOR_ID_BINDING_DOMAIN_V1: &[u8] = b"AOXC_PQ_VALIDATOR_ID_BINDING_V1";
 
 pub const SIGNATURE_SCHEME_ED25519: u16 = 1;
 pub const SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3: u16 = 2;
@@ -139,6 +141,9 @@ pub enum VoteAuthenticationError {
         "vote requires a non-zero post-quantum attestation root for hybrid/post-quantum identity profiles"
     )]
     MissingPostQuantumAttestationRoot,
+
+    #[error("vote post-quantum identity binding does not match validator identifier")]
+    PostQuantumIdentityBindingMismatch,
 }
 
 impl Vote {
@@ -247,7 +252,10 @@ impl AuthenticatedVote {
                 self.verify_ed25519_only(&signing_bytes)?;
                 self.verify_mldsa65_only(&signing_bytes)?;
             }
-            SIGNATURE_SCHEME_DILITHIUM3 => self.verify_mldsa65_only(&signing_bytes)?,
+            SIGNATURE_SCHEME_DILITHIUM3 => {
+                self.verify_pq_identity_binding()?;
+                self.verify_mldsa65_only(&signing_bytes)?;
+            }
             _ => return Err(VoteAuthenticationError::UnsupportedVerifierForSignatureScheme),
         }
 
@@ -327,6 +335,41 @@ impl AuthenticatedVote {
 
         Ok(())
     }
+
+    /// Enforces deterministic validator identity binding for post-quantum-only
+    /// signatures.
+    ///
+    /// Security rationale:
+    /// - In PQ-only mode, the validator identifier can no longer rely on an
+    ///   Ed25519 key relationship.
+    /// - Binding `vote.voter` to a deterministic digest of the PQ public key
+    ///   prevents arbitrary voter-id claims with unrelated PQ key material.
+    fn verify_pq_identity_binding(&self) -> Result<(), VoteAuthenticationError> {
+        let public_key_bytes = self
+            .pq_public_key
+            .as_deref()
+            .ok_or(VoteAuthenticationError::MissingPostQuantumPublicKey)?;
+
+        if public_key_bytes.len() != ML_DSA_65_VERIFICATION_KEY_SIZE {
+            return Err(VoteAuthenticationError::MalformedPublicKey);
+        }
+
+        let expected_validator_id = derive_pq_validator_id(public_key_bytes);
+        if self.vote.voter != expected_validator_id {
+            return Err(VoteAuthenticationError::PostQuantumIdentityBindingMismatch);
+        }
+
+        Ok(())
+    }
+}
+
+#[must_use]
+fn derive_pq_validator_id(public_key_bytes: &[u8]) -> ValidatorId {
+    let mut hasher = Sha256::new();
+    hasher.update(PQ_VALIDATOR_ID_BINDING_DOMAIN_V1);
+    hasher.update((public_key_bytes.len() as u64).to_le_bytes());
+    hasher.update(public_key_bytes);
+    hasher.finalize().into()
 }
 
 #[must_use]

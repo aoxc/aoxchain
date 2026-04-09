@@ -9,6 +9,10 @@ pub(super) fn default_consensus_identity_profile() -> String {
     "hybrid".to_string()
 }
 
+fn default_consensus_timing() -> BootstrapConsensusTimingConfig {
+    BootstrapConsensusTimingConfig::default()
+}
+
 /// Canonical AOXC environment identity description used by bootstrap flows.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(super) struct CanonicalIdentity {
@@ -52,6 +56,27 @@ pub(super) struct BootstrapConsensusConfig {
     pub(super) validator_quorum_policy: String,
     #[serde(default = "default_consensus_identity_profile")]
     pub(super) consensus_identity_profile: String,
+    #[serde(default = "default_consensus_timing")]
+    pub(super) consensus_timing: BootstrapConsensusTimingConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub(super) struct BootstrapConsensusTimingConfig {
+    pub(super) epoch_length_blocks: u64,
+    pub(super) pacemaker_base_timeout_ms: u64,
+    pub(super) pacemaker_max_timeout_ms: u64,
+    pub(super) reconfiguration_finality_lag_blocks: u64,
+}
+
+impl Default for BootstrapConsensusTimingConfig {
+    fn default() -> Self {
+        Self {
+            epoch_length_blocks: 14_400,
+            pacemaker_base_timeout_ms: 1_000,
+            pacemaker_max_timeout_ms: 60_000,
+            reconfiguration_finality_lag_blocks: 2,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -257,6 +282,12 @@ pub(super) struct GenesisTemplateOutput {
     pub(super) output_path: String,
     pub(super) chain_name: String,
     pub(super) network_id: String,
+    pub(super) block_time_ms: u64,
+    pub(super) epoch_length_blocks: u64,
+    pub(super) pacemaker_base_timeout_ms: u64,
+    pub(super) pacemaker_max_timeout_ms: u64,
+    pub(super) reconfiguration_finality_lag_blocks: u64,
+    pub(super) consensus_identity_profile: String,
     pub(super) validator_quorum_policy: String,
     pub(super) deterministic_serialization_required: bool,
     pub(super) notes: Vec<String>,
@@ -396,6 +427,7 @@ impl EnvironmentProfile {
                 block_time_ms: 6_000,
                 validator_quorum_policy,
                 consensus_identity_profile: default_consensus_identity_profile(),
+                consensus_timing: BootstrapConsensusTimingConfig::default(),
             },
             vm: BootstrapVmConfig::default(),
             economics: BootstrapEconomicsConfig {

@@ -1,5 +1,21 @@
 use super::*;
 
+fn parse_optional_u64_flag(args: &[String], flag: &str) -> Result<Option<u64>, AppError> {
+    let Some(value) = arg_value(args, flag) else {
+        return Ok(None);
+    };
+
+    let parsed = value.parse::<u64>().map_err(|error| {
+        AppError::with_source(
+            ErrorCode::UsageInvalidArguments,
+            format!("{flag} must be an unsigned integer"),
+            error,
+        )
+    })?;
+
+    Ok(Some(parsed))
+}
+
 pub fn cmd_genesis_template_advanced(args: &[String]) -> Result<(), AppError> {
     let profile_input = arg_value(args, "--profile").unwrap_or_else(|| "testnet".to_string());
     let profile = EnvironmentProfile::parse(&profile_input)?;
@@ -15,6 +31,35 @@ pub fn cmd_genesis_template_advanced(args: &[String]) -> Result<(), AppError> {
         balance: "250000000".to_string(),
         role: "governance".to_string(),
     });
+
+    if let Some(consensus_profile) = arg_value(args, "--consensus-identity-profile") {
+        genesis.consensus.consensus_identity_profile = consensus_profile;
+    }
+
+    if let Some(block_time_ms) = parse_optional_u64_flag(args, "--block-time-ms")? {
+        genesis.consensus.block_time_ms = block_time_ms;
+    }
+
+    if let Some(epoch_length_blocks) = parse_optional_u64_flag(args, "--epoch-length-blocks")? {
+        genesis.consensus.consensus_timing.epoch_length_blocks = epoch_length_blocks;
+    }
+
+    if let Some(base_timeout_ms) = parse_optional_u64_flag(args, "--pacemaker-base-timeout-ms")? {
+        genesis.consensus.consensus_timing.pacemaker_base_timeout_ms = base_timeout_ms;
+    }
+
+    if let Some(max_timeout_ms) = parse_optional_u64_flag(args, "--pacemaker-max-timeout-ms")? {
+        genesis.consensus.consensus_timing.pacemaker_max_timeout_ms = max_timeout_ms;
+    }
+
+    if let Some(reconfiguration_lag_blocks) =
+        parse_optional_u64_flag(args, "--reconfiguration-finality-lag-blocks")?
+    {
+        genesis
+            .consensus
+            .consensus_timing
+            .reconfiguration_finality_lag_blocks = reconfiguration_lag_blocks;
+    }
 
     let output_path = arg_value(args, "--out")
         .map(PathBuf::from)
@@ -53,6 +98,21 @@ pub fn cmd_genesis_template_advanced(args: &[String]) -> Result<(), AppError> {
             output_path: output_path.display().to_string(),
             chain_name: genesis.identity.chain_name,
             network_id: genesis.identity.network_id,
+            block_time_ms: genesis.consensus.block_time_ms,
+            epoch_length_blocks: genesis.consensus.consensus_timing.epoch_length_blocks,
+            pacemaker_base_timeout_ms: genesis
+                .consensus
+                .consensus_timing
+                .pacemaker_base_timeout_ms,
+            pacemaker_max_timeout_ms: genesis
+                .consensus
+                .consensus_timing
+                .pacemaker_max_timeout_ms,
+            reconfiguration_finality_lag_blocks: genesis
+                .consensus
+                .consensus_timing
+                .reconfiguration_finality_lag_blocks,
+            consensus_identity_profile: genesis.consensus.consensus_identity_profile.clone(),
             validator_quorum_policy: genesis.consensus.validator_quorum_policy,
             deterministic_serialization_required: genesis
                 .integrity
@@ -60,6 +120,9 @@ pub fn cmd_genesis_template_advanced(args: &[String]) -> Result<(), AppError> {
             notes: vec![
                 "Customize validator set, bootnodes, and certificate bindings before use"
                     .to_string(),
+                "Optional flags: --consensus-identity-profile --block-time-ms --epoch-length-blocks"
+                    .to_string(),
+                "Optional flags: --pacemaker-base-timeout-ms --pacemaker-max-timeout-ms --reconfiguration-finality-lag-blocks".to_string(),
                 "Run `aoxc genesis-security-audit --profile <profile> --enforce` before promotion"
                     .to_string(),
             ],
@@ -417,6 +480,60 @@ pub(in super::super) fn evaluate_consensus_profile_audit(
         } else {
             warnings.push(message);
         }
+    }
+
+    let timing = &genesis.consensus.consensus_timing;
+    if timing.epoch_length_blocks >= 100 {
+        passed.push("consensus-epoch-length".to_string());
+    } else {
+        let message = format!(
+            "epoch_length_blocks={} is below minimum recommended value 100",
+            timing.epoch_length_blocks
+        );
+        if matches!(
+            profile,
+            EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet
+        ) {
+            blockers.push(message);
+        } else {
+            warnings.push(message);
+        }
+    }
+
+    if timing.pacemaker_base_timeout_ms > 0
+        && timing.pacemaker_max_timeout_ms >= timing.pacemaker_base_timeout_ms
+    {
+        passed.push("consensus-pacemaker-timeout-order".to_string());
+    } else {
+        blockers.push(format!(
+            "invalid pacemaker timeout bounds: base={} max={}",
+            timing.pacemaker_base_timeout_ms, timing.pacemaker_max_timeout_ms
+        ));
+    }
+
+    let base_in_envelope = timing.pacemaker_base_timeout_ms >= 200
+        && timing.pacemaker_base_timeout_ms <= genesis.consensus.block_time_ms;
+    if base_in_envelope {
+        passed.push("consensus-pacemaker-base-envelope".to_string());
+    } else {
+        let message = format!(
+            "pacemaker_base_timeout_ms={} is outside recommended envelope [200, block_time_ms={}]",
+            timing.pacemaker_base_timeout_ms, genesis.consensus.block_time_ms
+        );
+        if matches!(
+            profile,
+            EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet
+        ) {
+            blockers.push(message);
+        } else {
+            warnings.push(message);
+        }
+    }
+
+    if timing.reconfiguration_finality_lag_blocks > 0 {
+        passed.push("consensus-reconfiguration-lag".to_string());
+    } else {
+        blockers.push("reconfiguration_finality_lag_blocks must be non-zero".to_string());
     }
 
     if genesis.consensus.validator_quorum_policy.trim().is_empty() {
