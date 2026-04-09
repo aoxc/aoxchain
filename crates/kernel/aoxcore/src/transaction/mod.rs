@@ -19,6 +19,7 @@
 
 pub mod hash;
 pub mod pool;
+pub mod quantum;
 
 pub use hash::{
     HASH_FORMAT_VERSION, HASH_SIZE, TransactionHashError, ZERO_HASH, calculate_transaction_root,
@@ -29,6 +30,10 @@ pub use hash::{
 };
 pub use pool::{
     SenderId, TransactionId, TransactionPool, TransactionPoolConfig, TransactionPoolError,
+};
+pub use quantum::{
+    QUANTUM_TX_HASH_FORMAT_VERSION, QUANTUM_TX_SIGNING_FORMAT_VERSION, QuantumTransaction,
+    QuantumTransactionError,
 };
 
 use core::fmt;

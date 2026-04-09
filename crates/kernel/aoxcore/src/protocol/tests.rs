@@ -1,9 +1,16 @@
 use super::core::canonicalize_payload_type;
+use super::quantum::{
+    QuantumAdmissionError, QuantumHandshakeError, QuantumKernelProfile, QuantumProfileError,
+    SignatureScheme,
+};
 use super::{
     ChainFamily, FeeClass, MessageEnvelope, MessageEnvelopeError, ModuleId, SovereignRoot,
     canonical_chain_families, canonical_message_envelope_fields, canonical_modules,
     canonical_sovereign_roots,
 };
+use crate::block::{Capability, TargetOutpost};
+use crate::identity::pq_keys;
+use crate::transaction::quantum::QuantumTransaction;
 
 fn sample_envelope() -> MessageEnvelope {
     MessageEnvelope::new(
@@ -269,6 +276,93 @@ fn hash_distinguishes_optional_field_presence() {
 }
 
 #[test]
+fn strict_quantum_profile_is_valid_and_disables_legacy_support() {
+    let profile = QuantumKernelProfile::strict_default();
+    assert!(profile.validate().is_ok());
+    assert!(!profile.legacy_signature_support);
+    assert_eq!(profile.profile_version, 2);
+    assert_eq!(profile.allowed_signatures, vec![SignatureScheme::MlDsa65]);
+    assert_eq!(profile.fallback_signature, None);
+}
+
+#[test]
+fn quantum_profile_rejects_default_signature_outside_allowed_set() {
+    let mut profile = QuantumKernelProfile::strict_default();
+    profile.default_signature = SignatureScheme::SphincsSha2128f;
+
+    assert_eq!(
+        profile
+            .validate()
+            .expect_err("default signature outside allowed set must fail"),
+        QuantumProfileError::DefaultSignatureNotAllowed
+    );
+}
+
+#[test]
+fn quantum_profile_rejects_fallback_signature_outside_allowed_set() {
+    let mut profile = QuantumKernelProfile::strict_default();
+    profile.fallback_signature = Some(SignatureScheme::SphincsSha2128f);
+
+    assert_eq!(
+        profile
+            .validate()
+            .expect_err("fallback signature outside allowed set must fail"),
+        QuantumProfileError::FallbackSignatureNotAllowed
+    );
+}
+
+#[test]
+fn quantum_profile_rejects_legacy_support_flag() {
+    let mut profile = QuantumKernelProfile::strict_default();
+    profile.legacy_signature_support = true;
+
+    assert_eq!(
+        profile
+            .validate()
+            .expect_err("legacy support must remain disabled"),
+        QuantumProfileError::LegacySupportMustRemainDisabled
+    );
+}
+
+#[test]
+fn quantum_profile_upgrade_compatibility_requires_monotonic_version_and_default_support() {
+    let current = QuantumKernelProfile::strict_default();
+
+    let mut next = QuantumKernelProfile::strict_default();
+    next.profile_version = 2;
+    next.default_signature = SignatureScheme::SphincsSha2128f;
+    next.allowed_signatures = vec![
+        SignatureScheme::MlDsa65,
+        SignatureScheme::SphincsSha2128f,
+        SignatureScheme::Dilithium3,
+    ];
+    assert!(
+        current
+            .is_upgrade_compatible_with(&next)
+            .expect("compatibility check must succeed")
+    );
+
+    let mut downgraded = next.clone();
+    downgraded.profile_version = 0;
+    assert_eq!(
+        current
+            .is_upgrade_compatible_with(&downgraded)
+            .expect_err("invalid profile version must fail"),
+        QuantumProfileError::InvalidProfileVersion
+    );
+
+    let mut incompatible = QuantumKernelProfile::strict_default();
+    incompatible.profile_version = 2;
+    incompatible.allowed_signatures = vec![SignatureScheme::SphincsSha2128f];
+    incompatible.default_signature = SignatureScheme::SphincsSha2128f;
+    assert!(
+        !current
+            .is_upgrade_compatible_with(&incompatible)
+            .expect("compatibility check must return false")
+    );
+}
+
+#[test]
 fn is_expired_at_respects_optional_expiry() {
     let envelope = sample_envelope();
     assert!(!envelope.is_expired_at(42));
@@ -290,4 +384,124 @@ fn is_expired_at_respects_optional_expiry() {
     .expect("envelope must be valid");
 
     assert!(!no_expiry.is_expired_at(u64::MAX));
+}
+
+#[test]
+fn handshake_negotiation_accepts_matching_or_higher_peer_profile() {
+    let local = QuantumKernelProfile::strict_default();
+    let mut peer = QuantumKernelProfile::strict_default();
+    peer.profile_version = local.profile_version + 1;
+
+    let result = local
+        .negotiate_peer_profile(&peer)
+        .expect("peer with compatible profile must be admitted");
+
+    assert_eq!(result.negotiated_profile_version, local.profile_version);
+    assert_eq!(result.selected_signature, local.default_signature);
+}
+
+#[test]
+fn handshake_negotiation_rejects_profile_downgrade() {
+    let local = QuantumKernelProfile::strict_default();
+    let mut peer = QuantumKernelProfile::strict_default();
+    peer.profile_version = local.profile_version - 1;
+
+    assert_eq!(
+        local
+            .negotiate_peer_profile(&peer)
+            .expect_err("downgraded peer profile must fail"),
+        QuantumHandshakeError::ProfileDowngradeRejected
+    );
+}
+
+#[test]
+fn handshake_negotiation_rejects_peer_without_local_default_signature() {
+    let local = QuantumKernelProfile::strict_default();
+    let mut peer = QuantumKernelProfile::strict_default();
+    peer.allowed_signatures = vec![SignatureScheme::SphincsSha2128f];
+    peer.default_signature = SignatureScheme::SphincsSha2128f;
+
+    assert_eq!(
+        local
+            .negotiate_peer_profile(&peer)
+            .expect_err("peer missing local default signature support must fail"),
+        QuantumHandshakeError::PeerDoesNotSupportLocalDefaultSignature
+    );
+}
+
+#[test]
+fn handshake_negotiation_rejects_invalid_peer_profile() {
+    let local = QuantumKernelProfile::strict_default();
+    let mut peer = QuantumKernelProfile::strict_default();
+    peer.legacy_signature_support = true;
+
+    assert_eq!(
+        local
+            .negotiate_peer_profile(&peer)
+            .expect_err("invalid peer profile must fail"),
+        QuantumHandshakeError::InvalidPeerProfile(
+            QuantumProfileError::LegacySupportMustRemainDisabled
+        )
+    );
+}
+
+#[test]
+fn strict_profile_admits_valid_quantum_transaction() {
+    let profile = QuantumKernelProfile::strict_default();
+    let (pk, sk) = pq_keys::generate_keypair();
+    let payload = vec![7, 8, 9];
+    let nonce = 9;
+    let message = QuantumTransaction::canonical_signing_message(
+        nonce,
+        Capability::UserSigned,
+        TargetOutpost::EthMainnetGateway,
+        &payload,
+    )
+    .expect("message must be buildable");
+
+    let signed_payload = pq_keys::sign_message_domain_separated(&message, &sk);
+    let tx = QuantumTransaction::new(
+        pq_keys::serialize_public_key(&pk),
+        nonce,
+        Capability::UserSigned,
+        TargetOutpost::EthMainnetGateway,
+        payload,
+        signed_payload,
+    )
+    .expect("transaction must be valid");
+
+    assert!(profile.admit_quantum_transaction(&tx).is_ok());
+}
+
+#[test]
+fn profile_rejects_invalid_quantum_transaction_during_admission() {
+    let profile = QuantumKernelProfile::strict_default();
+    let (pk, sk) = pq_keys::generate_keypair();
+    let payload = vec![1, 2, 3];
+    let nonce = 3;
+    let message = QuantumTransaction::canonical_signing_message(
+        nonce,
+        Capability::UserSigned,
+        TargetOutpost::EthMainnetGateway,
+        &payload,
+    )
+    .expect("message must be buildable");
+    let mut signed_payload = pq_keys::sign_message_domain_separated(&message, &sk);
+    signed_payload.push(0);
+
+    let tx = QuantumTransaction {
+        sender_public_key: pq_keys::serialize_public_key(&pk),
+        nonce,
+        capability: Capability::UserSigned,
+        target: TargetOutpost::EthMainnetGateway,
+        payload,
+        signed_payload,
+    };
+
+    assert_eq!(
+        profile
+            .admit_quantum_transaction(&tx)
+            .expect_err("tampered signature must be rejected"),
+        QuantumAdmissionError::InvalidTransactionPayload
+    );
 }

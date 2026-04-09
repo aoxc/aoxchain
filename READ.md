@@ -85,6 +85,8 @@ The following classes require synchronized implementation, tests, and documentat
 
 Program trajectory is governed by `ROADMAP.md`: production-grade testnet operation first, then controlled activation of a PQ-resilient mainnet.
 
+Direct "quantum-first" migration requests are valid only when implemented as governed kernel policy changes with deterministic migration, fail-closed negotiation, and evidence-backed cutover rehearsal.
+
 ## 8) License and Liability Context
 
 AOXChain is distributed under the MIT License on an **"as is"** basis, without warranty or liability assumptions by maintainers or contributors except where restricted by applicable law.

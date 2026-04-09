@@ -3,6 +3,7 @@
 
 mod core;
 pub mod interop;
+pub mod quantum;
 
 pub use core::*;
 
