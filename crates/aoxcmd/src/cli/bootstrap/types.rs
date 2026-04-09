@@ -13,10 +13,6 @@ fn default_consensus_timing() -> BootstrapConsensusTimingConfig {
     BootstrapConsensusTimingConfig::default()
 }
 
-fn default_consensus_timing() -> BootstrapConsensusTimingConfig {
-    BootstrapConsensusTimingConfig::default()
-}
-
 /// Canonical AOXC environment identity description used by bootstrap flows.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(super) struct CanonicalIdentity {
