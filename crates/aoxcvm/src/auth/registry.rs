@@ -181,8 +181,19 @@ mod tests {
 
     /// Returns a deterministic test-only signature payload whose size is
     /// compatible with the selected algorithm.
+    ///
+    /// Values are chosen to satisfy envelope metadata validation ranges for
+    /// the currently supported algorithms in this crate.
     fn valid_test_signature_bytes(algorithm: SignatureAlgorithm, fill: u8) -> Vec<u8> {
-        vec![fill; fixture_signature_len(algorithm)]
+        let signature_len = match algorithm {
+            SignatureAlgorithm::Ed25519 => 64,
+            SignatureAlgorithm::EcdsaP256 => 64,
+            SignatureAlgorithm::MlDsa65 => 3309,
+            SignatureAlgorithm::MlDsa87 => 3500,
+            SignatureAlgorithm::SlhDsa128s => 3000,
+        };
+
+        vec![fill; signature_len]
     }
 
     /// Builds a deterministic signature entry with algorithm-compatible
