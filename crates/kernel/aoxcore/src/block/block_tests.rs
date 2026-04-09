@@ -148,6 +148,25 @@ mod tests {
             tasks: Vec::new(),
         };
 
+        assert_eq!(block.validate(), Err(BlockError::InvalidProducer));
+    }
+
+    #[test]
+    fn empty_quantum_header_proof_is_rejected() {
+        let block = Block {
+            header: BlockHeader {
+                height: 1,
+                timestamp: 1,
+                prev_hash: bytes32(10),
+                state_root: ZERO_STATE_ROOT,
+                producer: bytes32(30),
+                quantum_signature_scheme: crate::protocol::quantum::SignatureScheme::MlDsa65,
+                quantum_header_proof: Vec::new(),
+                block_type: BlockType::Heartbeat,
+            },
+            tasks: Vec::new(),
+        };
+
         assert_eq!(block.validate(), Err(BlockError::InvalidTaskRoot));
     }
 
