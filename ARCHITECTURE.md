@@ -1,227 +1,122 @@
-# AOXChain Architecture
+# AOXChain Architecture (Reset Baseline)
 
-AOXChain is organized as a layered system designed to preserve deterministic execution, explicit trust boundaries, and operational auditability. Each layer has a distinct responsibility and must remain disciplined in both dependency direction and runtime behavior.
+This document defines the architecture after the repository-wide planning reset.
 
----
+## 1) Design Intent
 
-## Component Topology
+AOXChain is designed as a deterministic L1 where authority is policy-based, cryptography is profile-governed, and migration is protocol-native.
 
-### Kernel Layer
-Core protocol, consensus authority, and interoperability-intelligence surfaces:
+Primary architectural objective:
 
-- `aoxcore` (`crates/kernel/aoxcore`)
-- `aoxcunity` (`crates/kernel/aoxcunity`)
+- classical-secure operation now,
+- post-quantum-primary operation by governed transition,
+- migration-safe operation without hidden trust bypasses.
 
-### Execution Layer
-Deterministic execution engines and economic metering, kept modular behind kernel policy:
+## 2) Layer Topology
 
-- `aoxcexec`
-- `aoxcvm`
-- `aoxcenergy`
+### 2.1 Kernel Layer
 
-### Service Layer
-Networking, RPC, persistence, and typed configuration control surfaces:
+Kernel components own canonical protocol truth:
 
-- `aoxcnet`
-- `aoxcrpc`
-- `aoxcdata`
-- `aoxconfig`
+- authority object semantics,
+- consensus admission and finality-critical validation,
+- profile selection and policy enforcement,
+- replay-domain integrity and migration transitions.
 
-### Operations Layer
-Operator tooling, workflow orchestration, runtime control, and supporting scripts:
+### 2.2 Execution Layer
 
-- `aoxcmd`
-- `aoxckit`
-- `aoxchub`
-- `scripts/`
+Execution components:
 
----
+- execute accepted transactions deterministically,
+- enforce scheme-aware metering and verification costs,
+- do not redefine kernel trust or profile policy.
 
-## Data and Control Flow
+### 2.3 Service Layer
 
-AOXChain follows a controlled and traceable flow of configuration, execution, and operational evidence:
+Service components:
 
-1. **Environment and policy inputs** originate in `configs/`.
-2. **Runtime and protocol crates** consume typed configuration and execute deterministic workflows.
-3. **Node and service surfaces** expose telemetry, APIs, and operational interfaces.
-4. **Operator workflows** evaluate readiness, lifecycle state, and release posture, then emit evidence under `artifacts/`.
+- provide P2P, RPC, and storage transport,
+- enforce fail-closed ingress preconditions,
+- expose profile/validation telemetry without policy override.
 
-This flow is intentionally structured so that operational actions remain observable and protocol behavior remains reproducible.
+### 2.4 Operations Layer
 
-For cross-chain workflows, kernel control flow is explicit:
+Operations components:
 
-1. **Ingress classification:** the kernel resolves foreign chain profile, authority domain, and proof/finality expectations.
-2. **Canonicalization:** foreign events and intents are normalized into canonical cross-chain message records.
-3. **Verification dispatch boundary:** proof-type selection and verifier dispatch are decided at kernel boundary interfaces.
-4. **Settlement policy evaluation:** inbound and outbound settlement decisions are evaluated under deterministic policy classes.
-5. **Execution delegation:** if execution is required, the kernel delegates to execution modules with explicit constraints and expected outputs.
-6. **Finality bookkeeping:** finality class and replay-protection state are persisted as canonical kernel truth.
+- run lifecycle orchestration and readiness gates,
+- generate audit evidence artifacts,
+- run rotation/migration/recovery drills under policy controls.
 
----
+## 3) Authority-Centric Control Flow
 
-## Dependency Direction
+Canonical control flow:
 
-Dependencies must flow **from foundational primitives upward** into higher-level services and tools.
+1. Parse canonical envelope and actor identity.
+2. Resolve `scheme_id` and applicable policy.
+3. Verify proof bundle and policy constraints.
+4. Apply replay-domain checks.
+5. If accepted, execute deterministic state transition.
+6. Persist deterministic result and evidence metadata.
 
-### Expected Direction
-- Shared primitives and protocol-safe types should sit at the base.
-- Execution and service crates may depend on lower layers, but not bypass them.
-- Operational tooling may observe and orchestrate runtime behavior, but must not redefine protocol truth.
+No execution path may bypass steps 2–4.
 
-### Prohibited Direction
-- Runtime-critical code must not depend on operator artifacts as execution prerequisites.
-- Documentation, reports, and release evidence are governance outputs, not runtime dependencies.
-- Higher-level convenience layers must not introduce hidden influence over kernel behavior.
+## 4) State Objects (Normative Families)
 
-This directional discipline exists to preserve determinism, auditability, and architectural clarity.
+- `AccountObject`
+- `ValidatorObject`
+- `GovernanceAuthorityObject`
+- `ReplayState`
+- `RotationIntent`
+- `RecoveryIntent`
 
----
+All families are versioned, policy-aware, and migration-compatible by explicit rules.
 
-## Boundary Controls
+## 5) Trust and Validation Boundaries
 
-AOXChain treats boundary enforcement as a first-class architectural concern.
+### Kernel Boundary
 
-### Consensus Boundary
-- Consensus logic must remain isolated from non-deterministic side effects.
-- Kernel truth must not depend on UI behavior, local convenience helpers, or operator shortcuts.
-- Validation and finality-critical decisions must remain explicit and reproducible.
+- kernel validates consensus-visible cryptographic and authority state,
+- kernel rejects unknown scheme/profile combinations,
+- kernel owns downgrade rejection behavior.
 
-### Interoperability Boundary (Kernel-First)
-- Foreign chain identity classification is a kernel concern, not an RPC or execution concern.
-- Proof type taxonomy and verifier dispatch decisions are kernel policy surfaces.
-- Finality class interpretation must be explicit, typed, and auditable at kernel level.
-- Authority-domain mapping and universal identity translation must remain deterministic and fail-closed.
-- Replay protection and message-domain separation must be enforced before execution dispatch.
-- Cross-chain routing semantics must be canonicalized in kernel-owned types.
+### Service Boundary
 
-### Execution Boundary
-- Execution lanes must preserve deterministic semantics under shared policy constraints.
-- Metering, state transition behavior, and execution outputs must remain stable for identical canonical inputs.
+- all external ingress is untrusted until kernel acceptance preconditions pass,
+- transport availability concerns cannot override acceptance rules.
 
-### Network and API Boundary
-- Network and API surfaces must not bypass kernel validation.
-- External requests, peer inputs, and service adapters must be treated as untrusted until explicitly validated.
-- Transport convenience must never supersede protocol correctness.
+### Operations Boundary
 
-### Key Material Boundary
-- Key handling must remain explicit, auditable, and least-privilege.
-- Signing authority, validator identity, and operational access should remain clearly separated wherever possible.
-- Sensitive material must never flow through ambiguous or convenience-oriented interfaces.
+- operations can trigger governed transitions,
+- operations cannot mutate canonical truth outside validated transaction flow.
 
----
+## 6) Cryptographic Agility and Migration
 
-## Architectural Intent
+Architecture requires:
 
-The architecture is designed around a small number of durable principles:
+- first-class `scheme_id` support,
+- explicit activation/deprecation states,
+- bounded hybrid windows,
+- deterministic migration and rollback behavior,
+- independent policy and recovery roots.
 
-- **Determinism over convenience**
-- **Explicit boundaries over implicit behavior**
-- **Auditable control flow over hidden coupling**
-- **Operational evidence over unverifiable claims**
-- **Kernel-native interoperability over execution-centric identity**
+## 7) Failure Model Requirements
 
-AOXChain is therefore positioned as:
+System behavior must remain deterministic for:
 
-- execution-agnostic where possible,
-- proof-aware,
-- finality-aware,
-- policy-governed,
-- interoperability-native at the kernel layer.
+- malformed proof bundles,
+- replay-domain violations,
+- profile mismatch and downgrade attempts,
+- migration and recovery authorization failures.
 
-Execution remains essential but secondary: execution engines are replaceable implementation surfaces, while cross-chain trust interpretation and settlement safety are kernel responsibilities.
+Each class must map to stable rejection semantics suitable for multi-node convergence.
 
----
+## 8) Evidence and Operability
 
-## Proposed Responsibility Map (Layer-Aligned)
+Architecture validity is demonstrated by retained evidence:
 
-### `aoxcore` (Kernel protocol domain)
-- chain profile registry types and lookup contracts;
-- canonical cross-chain message model and domain separation rules;
-- proof type registry interfaces and verifier dispatch boundary traits;
-- finality classification types and decision inputs;
-- settlement policy evaluation input/output models;
-- authority-domain and universal identity mapping boundaries;
-- replay protection and canonical routing keys.
+- gate command outputs,
+- deterministic test artifacts,
+- migration/recovery drill artifacts,
+- environment identity and profile consistency checks.
 
-### `aoxcunity` (Kernel consensus and finalization)
-- local consensus safety/liveness and constitutional constraints;
-- anchoring kernel finality decisions into chain state;
-- deterministic integration points for cross-chain settlement admission.
-
-### `aoxcexec` + `aoxcvm` + `aoxcenergy` (Execution layer)
-- deterministic state execution and metering under kernel-provided policy decisions;
-- no redefinition of foreign trust, proof validity class, or finality semantics.
-
-### `aoxcnet` + `aoxcrpc` + `aoxcdata` + `aoxconfig` (Service layer)
-- transport, storage, API, and configuration delivery of kernel-defined types;
-- no authority to override kernel settlement policy outcomes.
-
-### `aoxcmd` + `aoxckit` + `aoxchub` + `scripts/` (Operations layer)
-- orchestration, diagnostics, evidence generation, and operational control;
-- no influence over canonical protocol truth.
-
-Every non-trivial change should preserve or strengthen these principles.
-
----
-
-## Engineering Note
-
-When modifying AOXChain architecture-sensitive code, contributors should evaluate whether the change:
-
-- preserves dependency direction,
-- keeps kernel logic isolated,
-- avoids non-deterministic side effects,
-- maintains explicit validation boundaries,
-- and improves, rather than weakens, auditability.
-
-If a change affects any of these properties, the architectural intent should be documented clearly in the associated pull request and, where appropriate, in repository documentation.
-
-
-## Quantum-Profile Architecture Alignment (v2)
-
-### Kernel (`aoxcore`, `aoxcunity`)
-- owns cryptographic profile truth, activation state, and deprecation policy boundaries;
-- validates profile identifiers and rejects unknown or invalid profile payloads before settlement.
-
-### VM (`aoxcvm`, `aoxcexec`, `aoxcenergy`)
-- executes profile-gated cryptographic verification paths under deterministic metering;
-- cannot locally override kernel-selected profile policy;
-- must preserve deterministic behavior for identical inputs across supported hardware classes.
-
-### Network (`aoxcnet`, `aoxcrpc`)
-- enforces handshake/profile negotiation constraints and downgrade protections;
-- exports operator-visible telemetry for profile mismatches and rejected downgrade attempts.
-
-### Operations (`aoxcmd`, `aoxckit`, `aoxchub`, `scripts/`)
-- orchestrates staged rollout and rollback drills for profile transitions;
-- emits reproducible readiness artifacts used by release and closure gates.
-
-This alignment must remain consistent with `ROADMAP.md` and `READ.md`.
-
-Authority and account-level post-quantum migration constraints (including `scheme_id`, `policy_root`, `recovery_root`, replay domains, and phased validation-kernel rollout) are specified in `docs/QUANTUM_ACCOUNT_MANAGEMENT_BLUEPRINT.md`.
-
----
-
-## Network and RPC Security Addendum
-
-`NETWORK_SECURITY_ARCHITECTURE.md` defines AOXChain's deployment and trust-boundary requirements for:
-
-- validator, sentry, RPC, and control-plane separation,
-- profile-driven network cryptography and downgrade rejection,
-- staged RPC admission and DDoS-resilience controls,
-- kernel/host isolation and resource-confinement baseline.
-
-This addendum is normative for networking and API changes that can affect consensus continuity, availability posture, or key-trust boundaries.
-
----
-
-## Advanced Role Topology (Definition-First)
-
-AOXChain supports a full multi-role topology with staged activation. The normative role and plane blueprint is documented in:
-
-- `docs/ADVANCED_NODE_ROLE_BLUEPRINT.md`
-- `configs/topology/full-role-topology.toml`
-- `configs/topology/socket-matrix.toml`
-- `configs/topology/consensus-policy.toml`
-
-This model preserves validator isolation while allowing non-core roles (archive, index, sentinel, bridge, oracle, DA) to be pre-defined and activated only by explicit policy and readiness evidence.
+No architecture claim is accepted without reproducible artifacts.
