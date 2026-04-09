@@ -1,5 +1,6 @@
 //! Authentication envelope structures and deterministic validation rules.
 
+use crate::auth::domains::AuthDomain;
 use crate::auth::scheme::{AuthProfile, SignatureAlgorithm};
 use crate::errors::{AoxcvmError, AoxcvmResult};
 
@@ -40,6 +41,11 @@ impl AuthEnvelope {
         if self.domain.is_empty() {
             return Err(AoxcvmError::InvalidSignatureMetadata(
                 "domain must not be empty",
+            ));
+        }
+        if AuthDomain::parse(self.domain.as_str()).is_none() {
+            return Err(AoxcvmError::InvalidSignatureMetadata(
+                "domain must be a recognized canonical auth domain",
             ));
         }
 
@@ -132,6 +138,23 @@ mod tests {
                 signer(SignatureAlgorithm::MlDsa87, "pq-1", 3000),
                 signer(SignatureAlgorithm::Ed25519, "classic-1", 64),
             ],
+        };
+        assert!(
+            envelope
+                .validate(
+                    AuthProfile::PostQuantumStrict,
+                    AuthEnvelopeLimits::default()
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn reject_unknown_domain_identifiers() {
+        let envelope = AuthEnvelope {
+            domain: "tx-v2-unknown".to_string(),
+            nonce: 3,
+            signers: vec![signer(SignatureAlgorithm::MlDsa65, "pq-1", 2048)],
         };
         assert!(
             envelope
