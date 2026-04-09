@@ -148,6 +148,7 @@ mod tests {
         registry::{AuthProfileId, AuthProfileRecord, AuthProfileRegistry},
         scheme::{AuthProfile, SignatureAlgorithm},
         signer::SignerClass,
+        test_fixtures::fixture_signature_len,
         threshold::ThresholdPolicy,
         verifier::{
             QrkfVerification, verify_envelope, verify_envelope_under_constitution,
@@ -157,24 +158,8 @@ mod tests {
 
     /// Returns a deterministic dummy signature payload whose length is compatible
     /// with the selected signature algorithm for test-only metadata validation.
-    ///
-    /// Important:
-    /// These sizes must remain aligned with the production-side signature metadata
-    /// validator. The values below are chosen to satisfy realistic post-quantum
-    /// algorithm length expectations rather than using undersized placeholders.
     fn valid_test_signature(algorithm: SignatureAlgorithm, fill: u8) -> Vec<u8> {
-        let len = match algorithm {
-            SignatureAlgorithm::MlDsa65 => 3309,
-            SignatureAlgorithm::MlDsa87 => 4627,
-            SignatureAlgorithm::SlhDsa128s => 7856,
-            SignatureAlgorithm::SlhDsa128f => 17088,
-            SignatureAlgorithm::SlhDsa192s => 16224,
-            SignatureAlgorithm::SlhDsa192f => 35664,
-            SignatureAlgorithm::SlhDsa256s => 29792,
-            SignatureAlgorithm::SlhDsa256f => 49856,
-        };
-
-        vec![fill; len]
+        vec![fill; fixture_signature_len(algorithm)]
     }
 
     /// Constructs a deterministic signature entry with algorithm-compatible

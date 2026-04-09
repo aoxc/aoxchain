@@ -136,6 +136,7 @@ mod tests {
         domains::AuthDomain,
         envelope::{AuthEnvelope, SignatureEntry},
         scheme::SignatureAlgorithm,
+        test_fixtures::fixture_signature_len,
     };
 
     #[test]
@@ -169,7 +170,7 @@ mod tests {
             signers: vec![SignatureEntry {
                 algorithm: SignatureAlgorithm::SlhDsa128s,
                 key_id: "constitution-1".to_owned(),
-                signature: vec![8_u8; 9000],
+                signature: vec![8_u8; fixture_signature_len(SignatureAlgorithm::SlhDsa128s)],
             }],
         };
 

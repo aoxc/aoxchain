@@ -175,28 +175,14 @@ mod tests {
         policy::QuorumPolicy,
         scheme::{AuthProfile, SignatureAlgorithm},
         signer::SignerClass,
+        test_fixtures::fixture_signature_len,
         threshold::ThresholdPolicy,
     };
 
     /// Returns a deterministic test-only signature payload whose size is
     /// compatible with the selected algorithm.
-    ///
-    /// These values are intentionally chosen to satisfy realistic
-    /// post-quantum signature metadata constraints rather than relying on
-    /// undersized placeholder buffers that can cause false-negative failures.
     fn valid_test_signature_bytes(algorithm: SignatureAlgorithm, fill: u8) -> Vec<u8> {
-        let signature_len = match algorithm {
-            SignatureAlgorithm::MlDsa65 => 3309,
-            SignatureAlgorithm::MlDsa87 => 4627,
-            SignatureAlgorithm::SlhDsa128s => 7856,
-            SignatureAlgorithm::SlhDsa128f => 17088,
-            SignatureAlgorithm::SlhDsa192s => 16224,
-            SignatureAlgorithm::SlhDsa192f => 35664,
-            SignatureAlgorithm::SlhDsa256s => 29792,
-            SignatureAlgorithm::SlhDsa256f => 49856,
-        };
-
-        vec![fill; signature_len]
+        vec![fill; fixture_signature_len(algorithm)]
     }
 
     /// Builds a deterministic signature entry with algorithm-compatible

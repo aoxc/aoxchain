@@ -69,6 +69,7 @@ mod tests {
         envelope::{AuthEnvelope, SignatureEntry},
         recovery::ConstitutionalRecoveryPolicy,
         scheme::SignatureAlgorithm,
+        test_fixtures::fixture_signature_len,
     };
 
     #[test]
@@ -81,7 +82,7 @@ mod tests {
             signers: vec![SignatureEntry {
                 algorithm: SignatureAlgorithm::SlhDsa128s,
                 key_id: "constitution-1".to_owned(),
-                signature: vec![4_u8; 9000],
+                signature: vec![4_u8; fixture_signature_len(SignatureAlgorithm::SlhDsa128s)],
             }],
         };
         assert!(
