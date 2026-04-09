@@ -180,11 +180,7 @@ mod tests {
     /// Constructs a deterministic signature entry with algorithm-compatible
     /// metadata. This helper prevents tests from failing for the wrong reason
     /// when the intent is to exercise policy, registry, or constitution logic.
-    fn signature_entry(
-        algorithm: SignatureAlgorithm,
-        key_id: &str,
-        fill: u8,
-    ) -> SignatureEntry {
+    fn signature_entry(algorithm: SignatureAlgorithm, key_id: &str, fill: u8) -> SignatureEntry {
         SignatureEntry {
             algorithm,
             key_id: key_id.to_owned(),
