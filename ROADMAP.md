@@ -124,6 +124,7 @@ The following capability track defines operator and ecosystem surfaces expected 
 The operational near-closure criteria for "full quantum" readiness are defined in:
 
 - `docs/QUANTUM_FULL_CLOSE_PLAN.md`
+- `docs/PQ_AUTHORITY_IMPLEMENTATION_CHECKLIST.md`
 
 This reference is normative for planning and release evidence associated with direct PQ posture claims.
 

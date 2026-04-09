@@ -48,6 +48,12 @@ Kernel-layer crates are grouped under `crates/kernel/`:
 
 Execution, service, and operations crates remain under `crates/` and consume kernel-defined protocol truth through typed interfaces.
 
+## Documentation Naming Policy (README vs READ)
+
+- `README.md` is the canonical human-facing entry point for a directory or component.
+- `READ.md` is reserved for compact technical contracts only when it adds non-duplicative operational value.
+- If a `READ.md` does not provide unique constraints beyond an adjacent `README.md`, it should be merged or removed to prevent review ambiguity.
+
 ## 📊 Repository Health Snapshot (2026-04-07 UTC)
 
 - `cargo check --workspace --locked`: pass
