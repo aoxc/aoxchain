@@ -33,7 +33,7 @@ description  = "High-performance, deterministic blockchain execution framework a
 
 [workspace.dependencies]
 # --- Core Runtime & Async ---
-tokio        = { version = "1.51.0", features = ["full"] }
+tokio        = { version = "1.51.1", features = ["full"] }
 async-trait  = "0.1.89"
 async-stream = "0.3.6"
 futures-core = "0.3.32"
