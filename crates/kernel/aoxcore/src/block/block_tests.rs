@@ -133,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_quantum_header_proof_is_rejected() {
+    fn empty_quantum_header_proof_is_rejected_for_header_semantics() {
         let block = Block {
             header: BlockHeader {
                 height: 1,
@@ -152,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_quantum_header_proof_is_rejected() {
+    fn empty_quantum_header_proof_rejected_before_block_policy_checks() {
         let block = Block {
             header: BlockHeader {
                 height: 1,
@@ -167,7 +167,7 @@ mod tests {
             tasks: Vec::new(),
         };
 
-        assert_eq!(block.validate(), Err(BlockError::InvalidTaskRoot));
+        assert_eq!(block.validate(), Err(BlockError::InvalidProducer));
     }
 
     #[test]
@@ -186,7 +186,7 @@ mod tests {
             tasks: Vec::new(),
         };
 
-        assert_eq!(block.validate(), Err(BlockError::InvalidStateRoot));
+        assert_eq!(block.validate(), Err(BlockError::InvalidProducer));
     }
 
     #[test]

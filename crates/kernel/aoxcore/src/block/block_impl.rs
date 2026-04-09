@@ -137,7 +137,6 @@ impl Block {
         block_type: BlockType,
         tasks: Vec<Task>,
     ) -> Result<Self, BlockError> {
-        let strict_profile = crate::protocol::quantum::QuantumKernelProfile::strict_default();
         let block = Self {
             header: BlockHeader {
                 height,
