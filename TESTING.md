@@ -33,7 +33,9 @@ For changes to authority, profile, replay, recovery, consensus, or serialization
 - malformed-proof and policy-violation adversarial tests,
 - profile mismatch/downgrade rejection tests,
 - migration and recovery transition tests,
-- compatibility and rollback-path checks.
+- compatibility and rollback-path checks,
+- key-domain separation tests (wallet/validator/governance/recovery/transport),
+- deterministic key-encoding/address-binding test vectors.
 
 General test pass alone is insufficient for these classes.
 

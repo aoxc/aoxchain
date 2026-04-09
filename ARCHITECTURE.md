@@ -110,7 +110,26 @@ System behavior must remain deterministic for:
 
 Each class must map to stable rejection semantics suitable for multi-node convergence.
 
-## 8) Evidence and Operability
+## 8) Advanced Key Architecture (Wallet + Node)
+
+Architecture requires explicit key-domain separation across:
+
+- wallet transaction authorization,
+- validator consensus signing,
+- governance authority control,
+- recovery authority control,
+- node transport/session identity.
+
+Mandatory rules:
+
+- no cross-domain key reuse,
+- all keys are profile-tagged (`scheme_id`) and policy-bound,
+- wallet and node key lifecycles are governed state transitions,
+- recovery authority remains logically independent from policy authority.
+
+Cryptographic profile usage is policy-driven: ML-DSA primary, SLH-DSA hybrid/secondary where explicitly authorized.
+
+## 9) Evidence and Operability
 
 Architecture validity is demonstrated by retained evidence:
 

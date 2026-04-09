@@ -21,7 +21,8 @@ AOXChain must deliver:
 5. `policy_root` and `recovery_root` must remain logically independent.
 6. Replay protection must be domain-separated.
 7. Migration and rotation are native state transitions, not ad-hoc operator events.
-8. No production/readiness claim is valid without reproducible evidence.
+8. Wallet, validator, governance, recovery, and transport key domains must remain non-overlapping.
+9. No production/readiness claim is valid without reproducible evidence.
 
 ## 3) Authority Model Contract
 
@@ -80,7 +81,8 @@ Any architecture-sensitive change must update, in the same change set:
 
 1. `ARCHITECTURE.md` (responsibility and trust-boundary impact),
 2. `ROADMAP.md` (phase/checklist impact),
-3. `TESTING.md` (validation scope and required evidence).
+3. `TESTING.md` (validation scope and required evidence),
+4. `KEY_MANAGEMENT.md` (key-domain, lifecycle, and migration impact).
 
 Implementation-only architecture drift is not allowed.
 

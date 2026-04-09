@@ -69,7 +69,8 @@ Deliverables:
 - profile-aware `scheme_id` model and policy constraints,
 - `policy_root` and `recovery_root` separation rules,
 - replay-domain model and intent-domain boundaries,
-- migration rulebook for key rotation, scheme migration, policy rotation, and recovery invocation.
+- migration rulebook for key rotation, scheme migration, policy rotation, and recovery invocation,
+- wallet and node key hierarchy spec with strict domain separation and lifecycle rules.
 
 Checklist:
 
@@ -78,6 +79,7 @@ Checklist:
 - [ ] replay semantics defined by intent/domain class
 - [ ] validation transcript format specified for deterministic auditability
 - [ ] profile activation/deprecation state machine documented
+- [ ] wallet/node key-domain separation and lifecycle contract documented
 
 Exit criteria:
 
