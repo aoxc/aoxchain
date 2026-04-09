@@ -62,7 +62,6 @@ Highest-priority classes include:
 - cryptographic validation bypass or downgrade path,
 - replay/migration/recovery authorization flaws,
 - validator/governance authority escalation,
-- cross-domain key reuse or key-derivation isolation failures,
 - P2P/RPC abuse that can cause protocol-level denial or partition risk.
 
 ## Release and Readiness Security Gates

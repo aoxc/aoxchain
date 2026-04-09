@@ -42,7 +42,7 @@ Objective: remove stale planning ambiguity and establish one canonical planning 
 Deliverables:
 
 - retire superseded planning text and conflicting draft language,
-- align `README.md`, `READ.md`, `ARCHITECTURE.md`, `SCOPE.md`, `TESTING.md`, `SECURITY.md`, `KEY_MANAGEMENT.md` with this roadmap,
+- align `README.md`, `READ.md`, `ARCHITECTURE.md`, `SCOPE.md`, `TESTING.md`, `SECURITY.md` with this roadmap,
 - declare authoritative terminology for actor, scheme, profile, migration, recovery, and replay.
 
 Checklist:
