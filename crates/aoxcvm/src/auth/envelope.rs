@@ -16,6 +16,19 @@ impl SignatureEntry {
     pub fn encoded_size(&self) -> usize {
         self.key_id.len() + self.signature.len() + self.algorithm.wire_id().len()
     }
+
+    /// Canonical signature witness encoding.
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        let wire = self.algorithm.wire_id().as_bytes();
+        out.extend_from_slice(&(wire.len() as u16).to_be_bytes());
+        out.extend_from_slice(wire);
+        out.extend_from_slice(&(self.key_id.len() as u16).to_be_bytes());
+        out.extend_from_slice(self.key_id.as_bytes());
+        out.extend_from_slice(&(self.signature.len() as u32).to_be_bytes());
+        out.extend_from_slice(&self.signature);
+        out
+    }
 }
 
 /// Transaction auth envelope for policy and replay validation.
@@ -78,6 +91,30 @@ impl AuthEnvelope {
         }
 
         Ok(())
+    }
+
+    /// Deterministic witness serialization for signing and hashing.
+    pub fn canonical_witness_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&(self.domain.len() as u16).to_be_bytes());
+        out.extend_from_slice(self.domain.as_bytes());
+        out.extend_from_slice(&self.nonce.to_be_bytes());
+
+        let mut signers = self.signers.clone();
+        signers.sort_by(|left, right| {
+            left.key_id
+                .cmp(&right.key_id)
+                .then_with(|| left.algorithm.wire_id().cmp(right.algorithm.wire_id()))
+                .then_with(|| left.signature.len().cmp(&right.signature.len()))
+        });
+
+        out.extend_from_slice(&(signers.len() as u16).to_be_bytes());
+        for signer in &signers {
+            let witness = signer.canonical_bytes();
+            out.extend_from_slice(&(witness.len() as u32).to_be_bytes());
+            out.extend_from_slice(&witness);
+        }
+        out
     }
 }
 
