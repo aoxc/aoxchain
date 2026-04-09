@@ -5,7 +5,6 @@ use crate::{
         domains::AuthDomain,
         envelope::AuthEnvelope,
         recovery::ConstitutionalRecoveryPolicy,
-        rotation::RotationPlan,
         scheme::{AuthProfile, SignatureAlgorithm},
     },
     errors::{AoxcvmError, AoxcvmResult},
@@ -112,21 +111,6 @@ impl CryptographicConstitution {
         }
         Ok(())
     }
-
-    /// Validates key-rotation flow against constitutional constraints.
-    pub fn validate_rotation_plan(&self, plan: &RotationPlan) -> AoxcvmResult<()> {
-        if self.key_rotation_rules.require_pq_continuity && !plan.preserves_quantum_continuity() {
-            return Err(AoxcvmError::PolicyViolation(
-                "rotation violates constitutional pq continuity requirement",
-            ));
-        }
-        if self.key_rotation_rules.require_algorithm_overlap && !plan.has_overlap() {
-            return Err(AoxcvmError::PolicyViolation(
-                "rotation violates constitutional overlap requirement",
-            ));
-        }
-        Ok(())
-    }
 }
 
 impl Default for CryptographicConstitution {
@@ -151,7 +135,6 @@ mod tests {
         constitution::CryptographicConstitution,
         domains::AuthDomain,
         envelope::{AuthEnvelope, SignatureEntry},
-        rotation::RotationPlan,
         scheme::SignatureAlgorithm,
     };
 
@@ -195,21 +178,5 @@ mod tests {
                 .validate_constitutional_recovery_envelope(&envelope)
                 .is_ok()
         );
-    }
-
-    #[test]
-    fn rotation_plan_requires_continuity_and_overlap() {
-        let constitution = CryptographicConstitution::default();
-        let invalid_plan = RotationPlan {
-            previous: vec![SignatureAlgorithm::MlDsa65],
-            next: vec![SignatureAlgorithm::SlhDsa128s],
-        };
-        assert!(constitution.validate_rotation_plan(&invalid_plan).is_err());
-
-        let valid_plan = RotationPlan {
-            previous: vec![SignatureAlgorithm::MlDsa65, SignatureAlgorithm::MlDsa87],
-            next: vec![SignatureAlgorithm::MlDsa87, SignatureAlgorithm::SlhDsa128s],
-        };
-        assert!(constitution.validate_rotation_plan(&valid_plan).is_ok());
     }
 }
