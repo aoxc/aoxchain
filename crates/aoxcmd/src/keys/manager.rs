@@ -20,6 +20,7 @@ use crate::{
 /// - `mainnet`
 /// - `quantum`
 /// - `quntum`
+/// - `qumtum`
 /// - `pq-preview`
 /// - `testnet`
 /// - `validation`
@@ -40,11 +41,12 @@ fn normalize_profile(profile: &str) -> Result<&'static str, AppError> {
         "localnet" => Ok("localnet"),
         "quantum" => Ok("mainnet"),
         "quntum" => Ok("mainnet"),
+        "qumtum" => Ok("mainnet"),
         "pq-preview" => Ok("mainnet"),
         other => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             format!(
-                "Unsupported AOXC key-management profile `{}`; expected mainnet, quantum, quntum, pq-preview, testnet, validation, devnet, or localnet",
+                "Unsupported AOXC key-management profile `{}`; expected mainnet, quantum, quntum, qumtum, pq-preview, testnet, validation, devnet, or localnet",
                 other
             ),
         )),
@@ -327,6 +329,10 @@ mod tests {
         );
         assert_eq!(
             normalize_profile("pq-preview").expect("pq-preview profile should normalize"),
+            "mainnet"
+        );
+        assert_eq!(
+            normalize_profile("qumtum").expect("qumtum profile should normalize"),
             "mainnet"
         );
     }
