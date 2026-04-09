@@ -1,69 +1,73 @@
 # AOXChain
 
-<p align="center">
-  <img src="logos/aoxc_transparent.png" alt="AOXChain logo" width="220" />
-</p>
+AOXChain is a deterministic Layer-1 engineering program designed for policy-governed authority, cryptographic agility, and evidence-gated release discipline.
 
-<p align="center">
-  Deterministic Layer-1 engineering with policy-governed authority, cryptographic agility, and evidence-gated release discipline.
-</p>
+> **Warning — Experimental Repository**
+>
+> AOXChain is under active development and should be treated as an **experimental system**. Interfaces, runtime behavior, network policy, and configuration formats may change between commits. Do not assume production safety unless a specific release artifact and readiness evidence explicitly state otherwise.
 
-> [!WARNING]
-> **Experimental repository:** AOXChain is under active development.
-> Treat this codebase as experimental unless a specific release artifact and readiness evidence explicitly declare production suitability.
+## 1) Project Purpose
 
-## 1) What AOXChain is
+AOXChain exists to build a blockchain runtime and operations surface that is:
 
-AOXChain is a Rust workspace for building and operating a deterministic blockchain stack with explicit governance surfaces.
+- deterministic under adversarial execution,
+- classical-secure in current deployments,
+- post-quantum transition-capable under governance,
+- auditable through explicit architecture, scope, testing, and release evidence.
 
-Primary goals:
+The repository emphasizes engineering discipline over marketing claims: no readiness statement is valid without reproducible evidence.
 
-- deterministic execution and replayable behavior,
-- explicit trust boundaries and operational controls,
-- staged classical-to-post-quantum migration readiness,
-- release assertions backed by verifiable artifacts.
+## 2) Repository Layout
 
-## 2) Who this repository is for
+Top-level directories and their operational role:
 
-- **Node operators:** install, verify, activate, and run AOXC runtime surfaces.
-- **Protocol/runtime developers:** work across kernel, VM, networking, and tooling crates.
-- **Release/reliability engineers:** run readiness gates and generate evidence bundles.
-- **Security reviewers:** inspect scope, architecture, compatibility, and disclosure posture.
+- `crates/` — Rust workspace crates for runtime, kernel, networking, tooling, and operator surfaces.
+- `configs/` — environment profiles, topology definitions, registry data, and release/network metadata.
+- `docs/` — program plans, runbooks, matrixes, and deep technical references.
+- `scripts/` — automation for validation gates, environment checks, runtime orchestration, and release evidence.
+- `tests/` — cross-crate and external-readiness integration test surfaces.
+- `artifacts/` — generated evidence bundles, closure snapshots, and release manifests.
+- `models/` — machine-readable readiness and governance models.
+- `contracts/` — contract/system-side reference material and integration surfaces.
 
-## 3) Repository map
+## 3) Canonical Governance and Technical Documents
 
-- `crates/` — workspace crates (`aoxcmd`, `aoxcvm`, `aoxcnet`, kernel crates, tooling).
-- `configs/` — canonical environment/runtime source bundles and topology policies.
-- `docs/` — runbooks, matrixes, plans, and deep technical references.
-- `scripts/` — operational automation, gates, orchestration, and release utilities.
-- `tests/` — external/readiness integration surfaces.
-- `artifacts/` — generated evidence outputs and closure snapshots.
-- `models/` — machine-readable governance/readiness models.
-- `contracts/` — contract/system integration references.
+The following repository-root documents are the primary governance and engineering contract:
 
-## 4) Canonical governance documents
+- `READ.md` — operational technical contract and invariants.
+- `SCOPE.md` — in-scope and out-of-scope boundaries; sensitive change classes.
+- `ARCHITECTURE.md` — component structure, trust boundaries, and dependency direction.
+- `TESTING.md` — mandatory validation surfaces and release-readiness expectations.
+- `SECURITY.md` — security posture, disclosure process, and priority classes.
+- `ROADMAP.md` — phased execution path and closure checkpoints.
+- `VERSIONING.md` — compatibility and versioning posture.
+- `CONTRIBUTING.md` — contribution workflow and review expectations.
 
-Read these first for policy-sensitive work:
+When implementation changes affect architecture, compatibility, or security posture, update the corresponding governance document in the same change set.
 
-- `READ.md` — repository technical contract and invariants.
-- `SCOPE.md` — in-scope/out-of-scope and sensitive-change boundaries.
-- `ARCHITECTURE.md` — major components, dependency direction, trust boundaries.
-- `TESTING.md` — required validation and readiness criteria.
-- `SECURITY.md` — disclosure and security posture expectations.
-- `ROADMAP.md` — phased execution and closure milestones.
-- `VERSIONING.md` — compatibility/versioning posture.
-- `CONTRIBUTING.md` — contribution and review workflow.
+## 4) Core Components
 
-## 5) Quick start (developer)
+High-level component map (non-exhaustive):
 
-### 5.1 Prerequisites
+- `crates/aoxcmd` — operator CLI for chain/runtime operations and readiness tooling.
+- `crates/aoxcvm` — virtual machine, execution model, object system, and governance-enforced policy surfaces.
+- `crates/kernel/aoxcore` — core protocol/domain structures (identity, transactions, blocks, genesis).
+- `crates/kernel/aoxcunity` — consensus kernel and safety-critical state transitions.
+- `crates/aoxcnet` — networking, gossip, p2p transport, and resilience helpers.
+- `crates/aoxchub` — operator-facing web hub and command execution surface.
+- `crates/aoxconfig` — configuration model and profile composition.
 
-- Rust + Cargo
-- GNU Make
-- Bash
-- Git
+For crate-specific scope and architecture constraints, consult each crate’s `README.md`, `SCOPE.md`, and `ARCHITECTURE.md` when present.
 
-### 5.2 Build key binaries
+## 5) Build and Validation Quick Start
+
+### Prerequisites
+
+- Rust toolchain compatible with `Cargo.toml` and lockfile.
+- Standard UNIX shell environment.
+- `make` for repository-level gate execution.
+
+### Build key operator binary
 
 ```bash
 cargo build -p aoxcmd --release
@@ -71,7 +75,7 @@ cargo build -p aoxchub --release
 cargo build -p aoxckit --release
 ```
 
-### 5.3 Discover available command surfaces
+### Baseline repository gates
 
 ```bash
 cargo run -p aoxcmd --bin aoxc -- --help
@@ -92,105 +96,66 @@ make testnet-gate
 make testnet-readiness-gate
 ```
 
-## 6) Quick start (operator)
+These gates are intended to provide a minimum confidence baseline; specific release decisions require the full testing and evidence criteria documented in `TESTING.md` and release scripts.
 
-### 6.1 Runtime lifecycle via Make
+## 6) Configuration and Environment Profiles
 
-```bash
-make env-check
-make runtime-source-check
-make runtime-install
-make runtime-verify
-make runtime-activate
-make runtime-status
-make runtime-doctor
-```
+Environment and topology materials are maintained under `configs/`, including:
 
-### 6.2 Runtime daemon flow
+- network profiles (`devnet`, `testnet`, `mainnet`),
+- topology policies,
+- registry and compatibility manifests,
+- environment-specific metadata and certificates.
 
-```bash
-./scripts/runtime_daemon.sh start
-./scripts/runtime_daemon.sh status
-./scripts/runtime_daemon.sh tail
-./scripts/runtime_daemon.sh stop
-```
+Treat these files as operationally sensitive. Changes may alter consensus behavior, node coordination, interoperability expectations, or release validity.
 
-### 6.3 Persistent service install (Linux/systemd)
+## 7) Testing and Readiness Model
 
-```bash
-./scripts/runtime_daemon.sh install-service
-systemctl --user start aoxc-runtime.service
-```
+AOXChain uses layered validation, including:
 
-### 6.4 Useful operational wrappers
+- unit/integration tests at crate level,
+- cross-surface readiness tests under `tests/`,
+- scripted quality and policy gates under `scripts/validation/`,
+- artifact-based release evidence under `artifacts/` and `releases/`.
 
-```bash
-./scripts/preflight_check.sh
-./scripts/validator_bootstrap.sh
-./scripts/finality_smoke.sh
-./scripts/transfer_smoke.sh
-./scripts/runtime_recover.sh
-```
+A "green local build" alone does not imply production readiness.
 
-## 7) AOXCHub (localhost control plane)
+## 8) Security and Risk Posture
 
-AOXCHub provides a localhost-only operator UI for approved AOXC/Make workflows.
+Security and trust boundaries are defined by repository governance documents and crate-level security/architecture files.
 
-```bash
-cargo run -p aoxchub
-# then open http://127.0.0.1:7070
-```
+Operational expectations:
 
-Alternative launch surface from Make:
+- follow responsible disclosure guidance in `SECURITY.md`,
+- avoid introducing undocumented trust-boundary shifts,
+- include compatibility/risk rationale for sensitive changes,
+- keep auditability and deterministic behavior explicit in reviews.
 
-```bash
-make ui
-```
+## 9) Compatibility and Change Control
 
-## 8) Configuration and environment policy
+Compatibility-sensitive domains include (non-exhaustive):
 
-Canonical runtime source material is managed under:
+- authority and identity model,
+- consensus semantics,
+- transaction/execution determinism,
+- storage and object lifecycle behavior,
+- network/profile and policy-governed feature activation.
 
-- `configs/environments/mainnet/`
-- `configs/environments/testnet/`
-- `configs/environments/deterministic-testnet/`
+If your change impacts one of these domains, update architecture/scope/testing artifacts and include explicit migration or rollback implications.
 
-These files are operationally sensitive. Modifications can change network identity, runtime source integrity, topology behavior, and compatibility assumptions.
+## 10) Contributing
 
-## 9) Testing and release evidence model
+1. Read `CONTRIBUTING.md`, `SCOPE.md`, and `ARCHITECTURE.md` before making non-trivial changes.
+2. Keep changes minimal and intentional; avoid broad incidental edits.
+3. Run relevant tests and validation gates before proposing a merge.
+4. Include evidence and rationale for policy-sensitive or compatibility-sensitive modifications.
 
-AOXChain readiness uses layered validation:
-
-- crate-level unit/integration tests,
-- repository integration/readiness tests,
-- scripted validation gates under `scripts/validation/`,
-- release/evidence generation workflows under `scripts/release/` and `artifacts/`.
-
-A local successful build is necessary but not sufficient for production claims.
-
-## 10) Change-discipline rules
-
-If a change affects authority model, consensus semantics, trust boundaries, compatibility, or operational policy:
-
-1. update implementation,
-2. update corresponding governance docs,
-3. include explicit migration/rollback implications,
-4. include reproducible validation evidence.
-
-Silent architecture-policy drift is not acceptable.
-
-## 11) Security posture
-
-- Follow `SECURITY.md` for reporting and handling security issues.
-- Keep trust-boundary assumptions explicit in code and docs.
-- Do not merge compatibility-sensitive changes without test and evidence context.
-
-## 12) License and liability
+## 11) License and Liability
 
 AOXChain is distributed under the MIT License.
 
-Unless required by applicable law or agreed in writing, software is provided **"AS IS"**, without warranties or liability assumptions by maintainers/contributors.
+Unless required by applicable law or explicitly agreed in writing, the software is provided **"AS IS"**, without warranties or conditions of any kind, and without maintainers assuming liability for operational outcomes.
 
 ---
 
-If you are new to the repository, begin with `READ.md` and `ARCHITECTURE.md`, then use crate-local `README.md` / `SCOPE.md` / `ARCHITECTURE.md` documents for the subsystem you are modifying.
+For additional implementation details, begin with `READ.md`, then follow crate-level documentation nearest to the component you are modifying.
