@@ -281,12 +281,12 @@ impl KeyMaterial {
 /// normalized environment profile.
 ///
 /// Current policy:
-/// - explicit quantum profile aliases (`quantum`, `quntum`, `qumtum`, `pq-preview`) =>
+/// - explicit quantum profile aliases (`quantum`, `quntum`, `pq-preview`) =>
 ///   `PqDilithium3Preview`,
 /// - mainnet => hybrid surface reservation,
 /// - testnet / validation / devnet / localnet => classic Ed25519 operational mode.
 fn infer_crypto_profile(normalized_profile: &str, profile_hint: &str) -> CryptoProfile {
-    if matches!(profile_hint, "quantum" | "quntum" | "qumtum" | "pq-preview") {
+    if matches!(profile_hint, "quantum" | "quntum" | "pq-preview") {
         return CryptoProfile::PqDilithium3Preview;
     }
 
@@ -442,18 +442,6 @@ mod tests {
     fn quntum_profile_alias_normalizes_to_mainnet_pq_preview_surface() {
         let material = KeyMaterial::generate("validator-07", "quntum", "Quantum#2026!")
             .expect("quntum profile alias should succeed");
-
-        assert_eq!(material.bundle.profile, "mainnet");
-        assert_eq!(
-            material.bundle.crypto_profile.as_str(),
-            "pq-dilithium3-preview"
-        );
-    }
-
-    #[test]
-    fn qumtum_profile_alias_normalizes_to_mainnet_pq_preview_surface() {
-        let material = KeyMaterial::generate("validator-11", "qumtum", "Quantum#2026!")
-            .expect("qumtum profile alias should succeed");
 
         assert_eq!(material.bundle.profile, "mainnet");
         assert_eq!(
