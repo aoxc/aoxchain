@@ -8,6 +8,17 @@ use super::{
     SIGNATURE_SCHEME_ED25519, SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3, SignedVote, Vote,
     VoteAuthenticationContext, VoteAuthenticationError, VoteKind,
 };
+use sha2::{Digest, Sha256};
+
+const PQ_VALIDATOR_ID_BINDING_DOMAIN_V1: &[u8] = b"AOXC_PQ_VALIDATOR_ID_BINDING_V1";
+
+fn derive_pq_validator_id(public_key_bytes: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(PQ_VALIDATOR_ID_BINDING_DOMAIN_V1);
+    hasher.update((public_key_bytes.len() as u64).to_le_bytes());
+    hasher.update(public_key_bytes);
+    hasher.finalize().into()
+}
 
 fn make_vote(block_hash: [u8; 32], round: u64, kind: VoteKind) -> Vote {
     Vote {
@@ -209,7 +220,7 @@ fn authenticated_vote_requires_pq_hardened_scheme_after_cutover_epoch() {
 }
 
 #[test]
-fn authenticated_vote_accepts_hybrid_scheme_after_cutover_epoch() {
+fn authenticated_vote_rejects_hybrid_scheme_after_cutover_epoch() {
     let signing_key = SigningKey::from_bytes(&[7u8; 32]);
     let pq_key_pair = generate_key_pair(random());
 
@@ -249,7 +260,10 @@ fn authenticated_vote_accepts_hybrid_scheme_after_cutover_epoch() {
         .to_bytes()
         .to_vec();
 
-    assert!(authenticated_vote.verify().is_ok());
+    assert_eq!(
+        authenticated_vote.verify(),
+        Err(VoteAuthenticationError::PostQuantumPolicyRequired)
+    );
 }
 
 #[test]
@@ -268,7 +282,7 @@ fn authenticated_vote_rejects_hybrid_without_pq_public_key() {
         vote,
         context: VoteAuthenticationContext {
             network_id: 2626,
-            epoch: PQ_MANDATORY_START_EPOCH,
+            epoch: PQ_MANDATORY_START_EPOCH.saturating_sub(1),
             validator_set_root: [5u8; 32],
             pq_attestation_root: [11u8; 32],
             signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
@@ -291,6 +305,46 @@ fn authenticated_vote_rejects_hybrid_without_pq_public_key() {
 
 #[test]
 fn authenticated_vote_accepts_post_quantum_only_scheme() {
+    let pq_key_pair = generate_key_pair(random());
+    let pq_public_key = pq_key_pair.verification_key.as_ref().to_vec();
+
+    let vote = Vote {
+        voter: derive_pq_validator_id(&pq_public_key),
+        block_hash: [1u8; 32],
+        height: 9,
+        round: 2,
+        kind: VoteKind::Commit,
+    };
+
+    let mut authenticated_vote = AuthenticatedVote {
+        vote,
+        context: VoteAuthenticationContext {
+            network_id: 2626,
+            epoch: PQ_MANDATORY_START_EPOCH,
+            validator_set_root: [5u8; 32],
+            pq_attestation_root: [11u8; 32],
+            signature_scheme: SIGNATURE_SCHEME_DILITHIUM3,
+        },
+        signature: Vec::new(),
+        pq_public_key: Some(pq_public_key),
+        pq_signature: None,
+    };
+
+    let pq_signature = mldsa_sign(
+        &pq_key_pair.signing_key,
+        &authenticated_vote.signing_bytes(),
+        b"",
+        random(),
+    )
+    .expect("ML-DSA signing must succeed for a valid key pair and message");
+
+    authenticated_vote.signature = pq_signature.as_ref().to_vec();
+
+    assert!(authenticated_vote.verify().is_ok());
+}
+
+#[test]
+fn authenticated_vote_rejects_post_quantum_only_with_mismatched_validator_binding() {
     let pq_key_pair = generate_key_pair(random());
 
     let vote = Vote {
@@ -325,7 +379,10 @@ fn authenticated_vote_accepts_post_quantum_only_scheme() {
 
     authenticated_vote.signature = pq_signature.as_ref().to_vec();
 
-    assert!(authenticated_vote.verify().is_ok());
+    assert_eq!(
+        authenticated_vote.verify(),
+        Err(VoteAuthenticationError::PostQuantumIdentityBindingMismatch)
+    );
 }
 
 #[test]

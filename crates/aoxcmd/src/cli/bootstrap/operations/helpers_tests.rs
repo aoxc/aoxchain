@@ -132,12 +132,12 @@ mod tests {
             report
                 .blockers
                 .iter()
-                .any(|item| item.contains("must not run with classical-only"))
+                .any(|item| item.contains("legacy consensus identity profile"))
         );
     }
 
     #[test]
-    fn consensus_profile_audit_passes_hybrid_validation_profile() {
+    fn consensus_profile_audit_passes_pq_only_validation_profile() {
         let genesis = EnvironmentProfile::Validation.genesis_document();
 
         let report = evaluate_consensus_profile_audit(
@@ -191,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn consensus_profile_gate_status_reports_pass_for_hybrid_testnet() {
+    fn consensus_profile_gate_status_reports_pass_for_pq_only_testnet() {
         let genesis = EnvironmentProfile::Testnet.genesis_document();
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -209,7 +209,7 @@ mod tests {
 
         assert!(status.passed);
         assert_eq!(status.verdict, "pass");
-        assert!(status.detail.contains("consensus_profile=hybrid"));
+        assert!(status.detail.contains("consensus_profile=pq-only"));
 
         let _ = fs::remove_file(path);
     }
@@ -239,5 +239,41 @@ mod tests {
             });
 
         validate_genesis(&genesis).expect("core7 roles should be accepted");
+    }
+
+    #[test]
+    fn validate_genesis_rejects_invalid_pacemaker_timeout_bounds() {
+        let mut genesis = EnvironmentProfile::Validation.genesis_document();
+        genesis.consensus.consensus_timing.pacemaker_base_timeout_ms = 2_000;
+        genesis.consensus.consensus_timing.pacemaker_max_timeout_ms = 1_000;
+
+        let error = validate_genesis(&genesis).expect_err("invalid timeout bounds must fail");
+        assert!(
+            error
+                .to_string()
+                .contains("pacemaker_max_timeout_ms must be >= pacemaker_base_timeout_ms"),
+            "error should describe pacemaker timeout ordering"
+        );
+    }
+
+    #[test]
+    fn consensus_profile_audit_blocks_short_epoch_on_mainnet() {
+        let mut genesis = EnvironmentProfile::Mainnet.genesis_document();
+        genesis.consensus.consensus_timing.epoch_length_blocks = 10;
+
+        let report = evaluate_consensus_profile_audit(
+            &genesis,
+            EnvironmentProfile::Mainnet,
+            "memory://mainnet".to_string(),
+        );
+
+        assert_eq!(report.verdict, "fail");
+        assert!(
+            report
+                .blockers
+                .iter()
+                .any(|item| item.contains("epoch_length_blocks")),
+            "mainnet audit should block too-short epochs"
+        );
     }
 }
