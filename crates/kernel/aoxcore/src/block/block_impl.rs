@@ -137,6 +137,7 @@ impl Block {
         block_type: BlockType,
         tasks: Vec<Task>,
     ) -> Result<Self, BlockError> {
+        let strict_profile = crate::protocol::quantum::QuantumKernelProfile::strict_default();
         let block = Self {
             header: BlockHeader {
                 height,
@@ -144,6 +145,8 @@ impl Block {
                 prev_hash,
                 state_root,
                 producer,
+                quantum_signature_scheme: strict_profile.default_signature,
+                quantum_header_proof: vec![0x01],
                 block_type,
             },
             tasks,
@@ -307,6 +310,17 @@ impl Block {
             return Err(BlockError::InvalidProducer);
         }
 
+        let strict_profile = crate::protocol::quantum::QuantumKernelProfile::strict_default();
+        if !strict_profile.supports_signature(self.header.quantum_signature_scheme) {
+            return Err(BlockError::InvalidStateRoot);
+        }
+
+        if self.header.quantum_header_proof.is_empty()
+            || self.header.quantum_header_proof.len() > MAX_QUANTUM_HEADER_PROOF_BYTES
+        {
+            return Err(BlockError::InvalidTaskRoot);
+        }
+
         Ok(())
     }
 
@@ -369,4 +383,3 @@ fn current_time() -> Result<u64, BlockError> {
 
     Ok(duration.as_secs())
 }
-
