@@ -3,6 +3,7 @@
 use crate::auth::domains::AuthDomain;
 use crate::auth::scheme::{AuthProfile, SignatureAlgorithm};
 use crate::errors::{AoxcvmError, AoxcvmResult};
+use std::collections::BTreeSet;
 
 /// Single signature witness attached to an auth envelope.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,6 +64,7 @@ impl AuthEnvelope {
         }
 
         let mut algorithms = Vec::with_capacity(self.signers.len());
+        let mut seen_signer_bindings = BTreeSet::new();
         for signer in &self.signers {
             if signer.key_id.is_empty() {
                 return Err(AoxcvmError::InvalidSignatureMetadata(
@@ -80,6 +82,17 @@ impl AuthEnvelope {
                     got: signer.signature.len(),
                     max: limits.max_signature_bytes,
                 });
+            }
+            let (min, max) = algorithm_signature_size_range(signer.algorithm);
+            if signer.signature.len() < min || signer.signature.len() > max {
+                return Err(AoxcvmError::InvalidSignatureMetadata(
+                    "signature size is incompatible with selected algorithm",
+                ));
+            }
+            if !seen_signer_bindings.insert((signer.key_id.as_str(), signer.algorithm.wire_id())) {
+                return Err(AoxcvmError::PolicyViolation(
+                    "duplicate signer binding in envelope",
+                ));
             }
             algorithms.push(signer.algorithm);
         }
@@ -115,6 +128,16 @@ impl AuthEnvelope {
             out.extend_from_slice(&witness);
         }
         out
+    }
+}
+
+fn algorithm_signature_size_range(algorithm: SignatureAlgorithm) -> (usize, usize) {
+    match algorithm {
+        SignatureAlgorithm::Ed25519 => (64, 64),
+        SignatureAlgorithm::EcdsaP256 => (64, 72),
+        SignatureAlgorithm::MlDsa65 => (1024, 4096),
+        SignatureAlgorithm::MlDsa87 => (2048, 4096),
+        SignatureAlgorithm::SlhDsa128s => (512, 4096),
     }
 }
 
@@ -199,6 +222,40 @@ mod tests {
                     AuthProfile::PostQuantumStrict,
                     AuthEnvelopeLimits::default()
                 )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn reject_duplicate_signer_binding() {
+        let envelope = AuthEnvelope {
+            domain: "tx".to_string(),
+            nonce: 4,
+            signers: vec![
+                signer(SignatureAlgorithm::MlDsa65, "pq-1", 2048),
+                signer(SignatureAlgorithm::MlDsa65, "pq-1", 2048),
+            ],
+        };
+        assert!(
+            envelope
+                .validate(
+                    AuthProfile::PostQuantumStrict,
+                    AuthEnvelopeLimits::default()
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn reject_signature_size_mismatch_for_algorithm() {
+        let envelope = AuthEnvelope {
+            domain: "tx".to_string(),
+            nonce: 5,
+            signers: vec![signer(SignatureAlgorithm::Ed25519, "classic-1", 65)],
+        };
+        assert!(
+            envelope
+                .validate(AuthProfile::Legacy, AuthEnvelopeLimits::default())
                 .is_err()
         );
     }
