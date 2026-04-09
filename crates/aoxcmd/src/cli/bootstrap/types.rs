@@ -6,7 +6,11 @@ use crate::error::{AppError, ErrorCode};
 use serde::{Deserialize, Serialize};
 
 pub(super) fn default_consensus_identity_profile() -> String {
-    "hybrid".to_string()
+    "pq-only".to_string()
+}
+
+fn default_consensus_timing() -> BootstrapConsensusTimingConfig {
+    BootstrapConsensusTimingConfig::default()
 }
 
 fn default_consensus_timing() -> BootstrapConsensusTimingConfig {
@@ -409,8 +413,8 @@ impl EnvironmentProfile {
     pub(super) fn genesis_document(self) -> BootstrapGenesisDocument {
         let identity = self.identity();
         let validator_quorum_policy = match self {
-            Self::Mainnet | Self::Testnet => "pq-hybrid-threshold-2of3".to_string(),
-            _ => "strict-majority".to_string(),
+            Self::Mainnet | Self::Testnet => "pq-threshold-2of3".to_string(),
+            _ => "pq-strict-majority".to_string(),
         };
 
         BootstrapGenesisDocument {

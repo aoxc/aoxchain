@@ -223,7 +223,7 @@ impl AuthenticatedVote {
     /// - Unknown schemes must never degrade into permissive handling.
     /// - Hybrid and post-quantum profiles require non-zero PQ attestation
     ///   material.
-    /// - After the mandatory PQ epoch, classical-only signatures are rejected.
+    /// - After the mandatory PQ epoch, only PQ-only signatures are accepted.
     pub fn verify(&self) -> Result<VerifiedAuthenticatedVote, VoteAuthenticationError> {
         if !is_known_signature_scheme(self.context.signature_scheme) {
             return Err(VoteAuthenticationError::UnknownSignatureScheme);
@@ -239,7 +239,7 @@ impl AuthenticatedVote {
         }
 
         if self.context.epoch >= PQ_MANDATORY_START_EPOCH
-            && !is_post_quantum_hardened_scheme(self.context.signature_scheme)
+            && self.context.signature_scheme != SIGNATURE_SCHEME_DILITHIUM3
         {
             return Err(VoteAuthenticationError::PostQuantumPolicyRequired);
         }
@@ -384,14 +384,6 @@ fn is_known_signature_scheme(signature_scheme: u16) -> bool {
         SIGNATURE_SCHEME_ED25519
             | SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3
             | SIGNATURE_SCHEME_DILITHIUM3
-    )
-}
-
-#[must_use]
-fn is_post_quantum_hardened_scheme(signature_scheme: u16) -> bool {
-    matches!(
-        signature_scheme,
-        SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 | SIGNATURE_SCHEME_DILITHIUM3
     )
 }
 

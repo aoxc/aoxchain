@@ -132,12 +132,12 @@ mod tests {
             report
                 .blockers
                 .iter()
-                .any(|item| item.contains("must not run with classical-only"))
+                .any(|item| item.contains("legacy consensus identity profile"))
         );
     }
 
     #[test]
-    fn consensus_profile_audit_passes_hybrid_validation_profile() {
+    fn consensus_profile_audit_passes_pq_only_validation_profile() {
         let genesis = EnvironmentProfile::Validation.genesis_document();
 
         let report = evaluate_consensus_profile_audit(
@@ -191,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn consensus_profile_gate_status_reports_pass_for_hybrid_testnet() {
+    fn consensus_profile_gate_status_reports_pass_for_pq_only_testnet() {
         let genesis = EnvironmentProfile::Testnet.genesis_document();
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -209,7 +209,7 @@ mod tests {
 
         assert!(status.passed);
         assert_eq!(status.verdict, "pass");
-        assert!(status.detail.contains("consensus_profile=hybrid"));
+        assert!(status.detail.contains("consensus_profile=pq-only"));
 
         let _ = fs::remove_file(path);
     }

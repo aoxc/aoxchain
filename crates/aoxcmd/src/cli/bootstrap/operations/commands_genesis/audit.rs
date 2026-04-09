@@ -25,7 +25,7 @@ pub fn cmd_genesis_template_advanced(args: &[String]) -> Result<(), AppError> {
     genesis.metadata.description =
         "AOXC advanced genesis template with strict bindings and deterministic integrity controls"
             .to_string();
-    genesis.consensus.validator_quorum_policy = "pq-hybrid-threshold-2of3".to_string();
+    genesis.consensus.validator_quorum_policy = "pq-threshold-2of3".to_string();
     genesis.state.accounts.push(BootstrapAccountRecord {
         account_id: "AOXC_GOVERNANCE_TREASURY".to_string(),
         balance: "250000000".to_string(),
@@ -256,17 +256,14 @@ pub(in super::super) fn evaluate_consensus_profile_audit(
         .to_ascii_lowercase();
 
     match consensus_profile.as_str() {
-        "hybrid" | "pq-hybrid" => {
-            passed.push("consensus-identity-profile-hybrid".to_string());
-        }
-        "pq" | "pq-only" | "post-quantum" => {
+        "pq" | "pq-only" | "post-quantum" | "pq-strict" => {
             passed.push("consensus-identity-profile-pq".to_string());
         }
-        "classical" => {
-            warnings.push(
-                "classical consensus profile should only be used for controlled migration windows"
-                    .to_string(),
-            );
+        "hybrid" | "pq-hybrid" | "classical" => {
+            blockers.push(format!(
+                "legacy consensus identity profile `{}` is not allowed; use pq-only/pq-strict",
+                genesis.consensus.consensus_identity_profile
+            ));
         }
         _ => {
             blockers.push(format!(
@@ -274,17 +271,6 @@ pub(in super::super) fn evaluate_consensus_profile_audit(
                 genesis.consensus.consensus_identity_profile
             ));
         }
-    }
-
-    if matches!(
-        profile,
-        EnvironmentProfile::Mainnet | EnvironmentProfile::Testnet
-    ) && consensus_profile == "classical"
-    {
-        blockers.push(
-            "mainnet/testnet profiles must not run with classical-only consensus identity profile"
-                .to_string(),
-        );
     }
     if matches!(
         profile,
@@ -295,11 +281,11 @@ pub(in super::super) fn evaluate_consensus_profile_audit(
             .validator_quorum_policy
             .trim()
             .to_ascii_lowercase();
-        if normalized_quorum.contains("pq") || normalized_quorum.contains("hybrid") {
-            passed.push("validator-quorum-policy-pq-hybrid".to_string());
+        if normalized_quorum.contains("pq") && !normalized_quorum.contains("hybrid") {
+            passed.push("validator-quorum-policy-pq-strict".to_string());
         } else {
             blockers.push(format!(
-                "mainnet/testnet profiles must declare a pq/hybrid quorum policy; got `{}`",
+                "mainnet/testnet profiles must declare a strict pq quorum policy (no hybrid); got `{}`",
                 genesis.consensus.validator_quorum_policy
             ));
         }

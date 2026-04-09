@@ -220,7 +220,7 @@ fn authenticated_vote_requires_pq_hardened_scheme_after_cutover_epoch() {
 }
 
 #[test]
-fn authenticated_vote_accepts_hybrid_scheme_after_cutover_epoch() {
+fn authenticated_vote_rejects_hybrid_scheme_after_cutover_epoch() {
     let signing_key = SigningKey::from_bytes(&[7u8; 32]);
     let pq_key_pair = generate_key_pair(random());
 
@@ -260,7 +260,10 @@ fn authenticated_vote_accepts_hybrid_scheme_after_cutover_epoch() {
         .to_bytes()
         .to_vec();
 
-    assert!(authenticated_vote.verify().is_ok());
+    assert_eq!(
+        authenticated_vote.verify(),
+        Err(VoteAuthenticationError::PostQuantumPolicyRequired)
+    );
 }
 
 #[test]
@@ -279,7 +282,7 @@ fn authenticated_vote_rejects_hybrid_without_pq_public_key() {
         vote,
         context: VoteAuthenticationContext {
             network_id: 2626,
-            epoch: PQ_MANDATORY_START_EPOCH,
+            epoch: PQ_MANDATORY_START_EPOCH.saturating_sub(1),
             validator_set_root: [5u8; 32],
             pq_attestation_root: [11u8; 32],
             signature_scheme: SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
