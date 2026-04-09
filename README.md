@@ -71,12 +71,24 @@ For crate-specific scope and architecture constraints, consult each crate’s `R
 
 ```bash
 cargo build -p aoxcmd --release
+cargo build -p aoxchub --release
+cargo build -p aoxckit --release
 ```
 
 ### Baseline repository gates
 
 ```bash
-make build
+cargo run -p aoxcmd --bin aoxc -- --help
+cargo run -p aoxchub -- --help
+cargo run -p aoxckit -- --help
+make help
+```
+
+### 5.4 Baseline quality and readiness gates
+
+```bash
+make fmt
+make check
 make test
 make quality
 make audit
