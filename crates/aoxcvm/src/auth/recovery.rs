@@ -69,6 +69,7 @@ mod tests {
         envelope::{AuthEnvelope, SignatureEntry},
         recovery::ConstitutionalRecoveryPolicy,
         scheme::SignatureAlgorithm,
+        test_fixtures::fixture_signature_len,
     };
 
     #[test]
