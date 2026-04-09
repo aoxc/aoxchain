@@ -1,50 +1,79 @@
-# AOXChain Protocol: Vulnerability Disclosure & Security Governance Policy
+# AOXChain Security Policy (Repository Root)
 
-## 1. Executive Summary
-This document delineates the formal framework for the **Coordinated Vulnerability Disclosure (CVD)** process within the AOXChain ecosystem. It defines the mandatory protocols for the identification, private reporting, and remediation of security-critical anomalies to ensure the integrity of the decentralized ledger and its operational stakeholders.
+This document defines AOXChain's repository-level security posture, vulnerability disclosure workflow, and high-risk engineering controls.
 
-## 2. Mandatory Private Disclosure Protocol
-To mitigate systemic risk and prevent the premature weaponization of security findings, all suspected vulnerabilities must be sequestered from public discourse. Public disclosure via issue trackers, pull requests, or social channels prior to containment is strictly prohibited.
+## Security Posture
 
-**Authorized Communication Channel:**
-> **Security Liaison:** [admin@aoxcore.com](mailto:admin@aoxcore.com)  
-> *For high-sensitivity telemetry, researchers are encouraged to request an encrypted communication channel.*
+AOXChain targets deterministic, fail-closed Layer-1 behavior with policy-governed cryptographic validation and migration safety.
 
-## 3. Reporting Standards & Evidence Requirements
-To facilitate high-fidelity technical triage, submissions should adhere to the following **Structural Reporting Schema**:
+Security claims are bounded:
 
-*   **Locus of Vulnerability:** Identification of the specific subsystem, interface, or consensus boundary (e.g., `aoxcvm`, `aoxcnet`).
-*   **Exploit Narrative & PoC:** A deterministic reproduction procedure or a high-fidelity proof-of-concept.
-*   **Behavioral Divergence:** A comparative analysis of expected protocol behavior versus the observed anomaly.
-*   **Impact Taxonomy:** Assessment of risks pertaining to **Economic Safety, Liveness, Data Integrity, or Consensus Convergence.**
-*   **Environmental Metadata:** Commit hashes, dependency trees, and network topology assumptions relevant to the finding.
+- no claim of permanent or absolute cryptographic security,
+- no claim of readiness without reproducible validation evidence,
+- no acceptance of hidden trust bypasses in consensus-relevant paths.
 
-## 4. Response Objectives & Service Level Expectations (SLE)
-The AOXChain maintainers operate under a **Good-Faith Execution** model with the following targeted milestones:
+## Supported Scope
 
-| Phase | Milestone | Target Latency |
-| :--- | :--- | :--- |
-| **Acknowledgment** | Initial receipt confirmation and triage tracking. | < 24 Hours |
-| **Verification** | Technical validation and severity classification. | Prompt Effort |
-| **Containment** | Development of patches, hotfixes, or operational mitigations. | Impact-Weighted |
-| **Disclosure** | Publication of Coordinated Advisory Notes. | Post-Remediation |
+This policy applies to repository-maintained protocol, kernel, execution, networking, RPC, configuration, and operational tooling surfaces.
 
-## 5. Priority Security Domains (High-Criticality)
-The following vectors are categorized as **Protocol-Critical** and receive expedited review:
-*   **Consensus Integrity:** Violations of safety, liveness, or finality properties.
-*   **Execution Determinism:** State transition failures or VM escape primitives.
-*   **Cryptographic Security:** Vulnerabilities in signature schemes or key rotation lifecycles.
-*   **Network Resilience:** Eclipse attacks, P2P partitioning, or RPC-based DoS vectors.
-*   **Incentive Alignment:** Vulnerabilities affecting governance, funds, or validator trust.
+Third-party dependencies are in scope for triage and containment planning, but may require upstream remediation.
 
-## 6. Coordinated Disclosure & Containment Model
-AOXChain adheres to an **Evidence-Driven Disclosure Philosophy.** Public dissemination of vulnerability data is contingent upon:
-1. Validated reproduction of the reported anomaly.
-2. Availability of verifiable mitigation or containment guidance.
-3. Reasonable opportunity for node operators and stakeholders to implement security updates.
+## How to Report a Vulnerability
 
-## 7. Scope & Inherited Risk Attribution
-This policy encompasses the source code, operational workflows, and trust-sensitive paths maintained within the AOXChain repository. While third-party dependencies and upstream components are outside the project's direct remediation authority, inherited risks will be triaged for ecosystem impact and containment relevance.
+Report vulnerabilities privately to:
 
-## 8. Legal Disclaimer & Liability Limitation
-This repository is provided under the **MIT License** on an **"as is"** basis. This policy does not constitute a contractual warranty or an assumption of liability. Participants interact with the AOXChain protocol at their own risk, subject to the iterative nature of cryptographic security assurance.
+- **Security contact:** `admin@aoxcore.com`
+
+Do not open a public issue, pull request, or social post for an unpatched vulnerability.
+
+For high-sensitivity reports, request encrypted communication in the first email.
+
+## Required Report Content
+
+Include, at minimum:
+
+1. affected component(s) and trust boundary,
+2. deterministic reproduction steps or proof-of-concept,
+3. expected vs observed behavior,
+4. impact assessment (safety, liveness, integrity, economic or governance risk),
+5. commit/hash, environment, and configuration context.
+
+Reports missing key data are still accepted but may extend triage time.
+
+## Triage and Response Model
+
+AOXChain uses coordinated vulnerability disclosure.
+
+Process:
+
+1. acknowledge receipt,
+2. validate and classify severity,
+3. define containment (code fix, config mitigation, or operator action),
+4. publish advisory after mitigation is available and operators have update guidance.
+
+Response speed is impact-driven; critical consensus or key-management issues are prioritized.
+
+## Priority Vulnerability Classes
+
+Highest-priority classes include:
+
+- consensus safety/liveness/finality violations,
+- deterministic execution divergence,
+- cryptographic validation bypass or downgrade path,
+- replay/migration/recovery authorization flaws,
+- validator/governance authority escalation,
+- P2P/RPC abuse that can cause protocol-level denial or partition risk.
+
+## Release and Readiness Security Gates
+
+Security-sensitive changes must ship with synchronized updates where relevant:
+
+- `ARCHITECTURE.md` (trust boundary impact),
+- `ROADMAP.md` (phase/checklist impact),
+- `TESTING.md` (required validation/evidence impact).
+
+Readiness or promotion claims are non-authoritative without retained evidence linked to the tested commit.
+
+## Legal and Liability Context
+
+AOXChain is distributed under the MIT License on an "as is" basis, without warranty or liability assumptions by maintainers or contributors except where prohibited by applicable law.
