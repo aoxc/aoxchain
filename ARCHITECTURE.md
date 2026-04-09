@@ -198,6 +198,8 @@ If a change affects any of these properties, the architectural intent should be 
 
 This alignment must remain consistent with `ROADMAP.md` and `READ.md`.
 
+Authority and account-level post-quantum migration constraints (including `scheme_id`, `policy_root`, `recovery_root`, replay domains, and phased validation-kernel rollout) are specified in `docs/QUANTUM_ACCOUNT_MANAGEMENT_BLUEPRINT.md`.
+
 ---
 
 ## Network and RPC Security Addendum
