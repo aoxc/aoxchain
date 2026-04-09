@@ -1,7 +1,9 @@
 //! auth subsystem for AOXC-VMachine-QX1 Kernel v1.
+pub mod constitution;
 pub mod domains;
 pub mod envelope;
 pub mod hybrid;
+pub mod identity;
 pub mod nonce;
 pub mod policy;
 pub mod qrkf;

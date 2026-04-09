@@ -1,5 +1,6 @@
 //! Authentication envelope structures and deterministic validation rules.
 
+use crate::auth::domains::AuthDomain;
 use crate::auth::scheme::{AuthProfile, SignatureAlgorithm};
 use crate::errors::{AoxcvmError, AoxcvmResult};
 
@@ -14,6 +15,19 @@ pub struct SignatureEntry {
 impl SignatureEntry {
     pub fn encoded_size(&self) -> usize {
         self.key_id.len() + self.signature.len() + self.algorithm.wire_id().len()
+    }
+
+    /// Canonical signature witness encoding.
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        let wire = self.algorithm.wire_id().as_bytes();
+        out.extend_from_slice(&(wire.len() as u16).to_be_bytes());
+        out.extend_from_slice(wire);
+        out.extend_from_slice(&(self.key_id.len() as u16).to_be_bytes());
+        out.extend_from_slice(self.key_id.as_bytes());
+        out.extend_from_slice(&(self.signature.len() as u32).to_be_bytes());
+        out.extend_from_slice(&self.signature);
+        out
     }
 }
 
@@ -40,6 +54,11 @@ impl AuthEnvelope {
         if self.domain.is_empty() {
             return Err(AoxcvmError::InvalidSignatureMetadata(
                 "domain must not be empty",
+            ));
+        }
+        if AuthDomain::parse(self.domain.as_str()).is_none() {
+            return Err(AoxcvmError::InvalidSignatureMetadata(
+                "domain must be a recognized canonical auth domain",
             ));
         }
 
@@ -72,6 +91,30 @@ impl AuthEnvelope {
         }
 
         Ok(())
+    }
+
+    /// Deterministic witness serialization for signing and hashing.
+    pub fn canonical_witness_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&(self.domain.len() as u16).to_be_bytes());
+        out.extend_from_slice(self.domain.as_bytes());
+        out.extend_from_slice(&self.nonce.to_be_bytes());
+
+        let mut signers = self.signers.clone();
+        signers.sort_by(|left, right| {
+            left.key_id
+                .cmp(&right.key_id)
+                .then_with(|| left.algorithm.wire_id().cmp(right.algorithm.wire_id()))
+                .then_with(|| left.signature.len().cmp(&right.signature.len()))
+        });
+
+        out.extend_from_slice(&(signers.len() as u16).to_be_bytes());
+        for signer in &signers {
+            let witness = signer.canonical_bytes();
+            out.extend_from_slice(&(witness.len() as u32).to_be_bytes());
+            out.extend_from_slice(&witness);
+        }
+        out
     }
 }
 
@@ -140,6 +183,48 @@ mod tests {
                     AuthEnvelopeLimits::default()
                 )
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn reject_unknown_domain_identifiers() {
+        let envelope = AuthEnvelope {
+            domain: "tx-v2-unknown".to_string(),
+            nonce: 3,
+            signers: vec![signer(SignatureAlgorithm::MlDsa65, "pq-1", 2048)],
+        };
+        assert!(
+            envelope
+                .validate(
+                    AuthProfile::PostQuantumStrict,
+                    AuthEnvelopeLimits::default()
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn canonical_serialization_is_order_invariant() {
+        let env_a = AuthEnvelope {
+            domain: "AOX/TX/V1".to_owned(),
+            nonce: 42,
+            signers: vec![
+                signer(SignatureAlgorithm::MlDsa65, "z-key", 2048),
+                signer(SignatureAlgorithm::MlDsa87, "a-key", 3000),
+            ],
+        };
+        let env_b = AuthEnvelope {
+            domain: "AOX/TX/V1".to_owned(),
+            nonce: 42,
+            signers: vec![
+                signer(SignatureAlgorithm::MlDsa87, "a-key", 3000),
+                signer(SignatureAlgorithm::MlDsa65, "z-key", 2048),
+            ],
+        };
+
+        assert_eq!(
+            env_a.canonical_witness_bytes(),
+            env_b.canonical_witness_bytes()
         );
     }
 }
