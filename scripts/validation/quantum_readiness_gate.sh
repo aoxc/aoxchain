@@ -16,15 +16,34 @@ required_files=(
 
 required_read_sections=(
   "## 2) Core Invariants"
-  "## 4) Readiness Contract"
-  "## 6) Program Trajectory"
+  "## 4) Cryptographic Profile Contract"
+  "## 6) Required Gate Baseline"
 )
 
 required_roadmap_sections=(
-  "## Phase 2 — Production-Grade Testnet Baseline"
-  "## Phase 3 — Cryptographic Agility Activation (Hybrid)"
-  "## Phase 4 — PQ-Resilient Mainnet Readiness Gate"
-  "## Non-Negotiable Program Rules"
+  "## Hard Constraints (Non-Negotiable)"
+  "## Phase 3 — Validation Kernel (PQ-Primary, Hybrid-Capable)"
+  "## Phase 5 — Testnet Hardening and Promotion Gate"
+  "## Phase 6 — Mainnet Activation Decision (Governed)"
+)
+
+required_quantum_files=(
+  "${REPO_ROOT}/docs/quantum/CLOSE_PLAN.md"
+  "${REPO_ROOT}/docs/quantum/CLOSE_TRACKS.md"
+  "${REPO_ROOT}/docs/quantum/CUTOVER_RUNBOOK.md"
+  "${REPO_ROOT}/docs/quantum/EVIDENCE_PACKAGE.md"
+)
+
+required_quantum_plan_sections=(
+  "## Entry Conditions"
+  "## Acceptance Rule"
+  "## Non-Goals"
+)
+
+required_quantum_tracks_sections=(
+  "## 1) Kernel Policy Closure"
+  "## 2) Network and Handshake Closure"
+  "## 5) Evidence and Gate Closure"
 )
 
 missing=0
@@ -37,6 +56,13 @@ log() {
 for file in "${required_files[@]}"; do
   if [[ ! -f "${file}" ]]; then
     log "missing required file: ${file}"
+    missing=1
+  fi
+done
+
+for file in "${required_quantum_files[@]}"; do
+  if [[ ! -f "${file}" ]]; then
+    log "missing required quantum document: ${file}"
     missing=1
   fi
 done
@@ -55,8 +81,22 @@ for section in "${required_roadmap_sections[@]}"; do
   fi
 done
 
+for section in "${required_quantum_plan_sections[@]}"; do
+  if ! grep -Fq "${section}" "${REPO_ROOT}/docs/quantum/CLOSE_PLAN.md"; then
+    log "missing quantum close plan section: ${section}"
+    missing=1
+  fi
+done
+
+for section in "${required_quantum_tracks_sections[@]}"; do
+  if ! grep -Fq "${section}" "${REPO_ROOT}/docs/quantum/CLOSE_TRACKS.md"; then
+    log "missing quantum close tracks section: ${section}"
+    missing=1
+  fi
+done
+
 roadmap_phase_count="$(grep -Ec '^## Phase [0-9]+ — ' "${ROADMAP_FILE}" || true)"
-if [[ "${roadmap_phase_count}" -lt 4 ]]; then
+if [[ "${roadmap_phase_count}" -lt 6 ]]; then
   log "roadmap has insufficient phase sections: ${roadmap_phase_count}"
   missing=1
 fi
@@ -72,7 +112,13 @@ cat > "${SUMMARY_FILE}" <<JSON
   "surfaces": {
     "read_file": "READ.md",
     "roadmap_file": "ROADMAP.md",
-    "roadmap_phase_count": ${roadmap_phase_count}
+    "roadmap_phase_count": ${roadmap_phase_count},
+    "quantum_documents": [
+      "docs/quantum/CLOSE_PLAN.md",
+      "docs/quantum/CLOSE_TRACKS.md",
+      "docs/quantum/CUTOVER_RUNBOOK.md",
+      "docs/quantum/EVIDENCE_PACKAGE.md"
+    ]
   },
   "status": {
     "missing_required_surfaces": ${missing},
