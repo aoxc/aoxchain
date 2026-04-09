@@ -81,7 +81,7 @@ mod tests {
             signers: vec![SignatureEntry {
                 algorithm: SignatureAlgorithm::SlhDsa128s,
                 key_id: "constitution-1".to_owned(),
-                signature: vec![4_u8; 9000],
+                signature: vec![4_u8; 3000],
             }],
         };
         assert!(
