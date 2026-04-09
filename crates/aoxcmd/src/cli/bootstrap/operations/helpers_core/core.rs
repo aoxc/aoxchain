@@ -601,6 +601,29 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
         ));
     }
 
+    if genesis.consensus.consensus_timing.epoch_length_blocks == 0 {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: consensus_timing.epoch_length_blocks must be non-zero",
+        ));
+    }
+
+    if genesis.consensus.consensus_timing.pacemaker_base_timeout_ms == 0 {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: consensus_timing.pacemaker_base_timeout_ms must be non-zero",
+        ));
+    }
+
+    if genesis.consensus.consensus_timing.pacemaker_max_timeout_ms
+        < genesis.consensus.consensus_timing.pacemaker_base_timeout_ms
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: consensus_timing.pacemaker_max_timeout_ms must be >= pacemaker_base_timeout_ms",
+        ));
+    }
+
     if genesis.vm.vm_engine.trim().is_empty() || genesis.vm.gas_model.trim().is_empty() {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
