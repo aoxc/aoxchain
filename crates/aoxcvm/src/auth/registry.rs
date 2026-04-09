@@ -202,11 +202,7 @@ mod tests {
     /// Builds a deterministic signature entry with algorithm-compatible
     /// metadata. This helper centralizes fixture correctness and prevents
     /// policy tests from failing due to unrelated metadata size violations.
-    fn signature_entry(
-        algorithm: SignatureAlgorithm,
-        key_id: &str,
-        fill: u8,
-    ) -> SignatureEntry {
+    fn signature_entry(algorithm: SignatureAlgorithm, key_id: &str, fill: u8) -> SignatureEntry {
         SignatureEntry {
             algorithm,
             key_id: key_id.to_owned(),
