@@ -28,6 +28,7 @@ The following changes require explicit design rationale, tests, and synchronized
 - replay/recovery semantics,
 - serialization/storage compatibility behavior,
 - validator/governance authorization paths,
+- wallet/node key hierarchy, domain separation, and lifecycle controls,
 - release/readiness gate definitions.
 
 ## Compatibility Policy

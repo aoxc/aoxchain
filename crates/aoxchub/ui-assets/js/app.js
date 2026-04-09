@@ -21,10 +21,47 @@ function abbreviateAddress(address) {
   return `${address.slice(0, 10)}...${address.slice(-8)}`;
 }
 
-function generateLocalAddress() {
-  const bytes = new Uint8Array(20);
-  crypto.getRandomValues(bytes);
-  return `AOXC${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
+function bytesToHex(bytes) {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function sha256Hex(input) {
+  const encoded = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest('SHA-256', encoded);
+  return bytesToHex(new Uint8Array(digest));
+}
+
+async function deriveDomainFingerprint(masterSeedHex, domain) {
+  return sha256Hex(`aoxc:${domain}:${masterSeedHex}`);
+}
+
+async function generateLocalWalletMaterial() {
+  if (!crypto?.subtle) {
+    throw new Error('Secure cryptography API is not available in this browser context.');
+  }
+
+  const masterSeed = new Uint8Array(48);
+  crypto.getRandomValues(masterSeed);
+  const masterSeedHex = bytesToHex(masterSeed);
+
+  const walletDomain = await deriveDomainFingerprint(masterSeedHex, 'wallet_tx_auth');
+  const validatorDomain = await deriveDomainFingerprint(masterSeedHex, 'validator_consensus');
+  const governanceDomain = await deriveDomainFingerprint(masterSeedHex, 'governance_authority');
+  const recoveryDomain = await deriveDomainFingerprint(masterSeedHex, 'recovery_authority');
+  const transportDomain = await deriveDomainFingerprint(masterSeedHex, 'node_transport');
+
+  return {
+    address: `AOXC${walletDomain.slice(0, 40)}`,
+    key_profile: 'ml-dsa-primary',
+    seed_commitment: (await sha256Hex(`aoxc:seed-commitment:${masterSeedHex}`)).slice(0, 64),
+    key_domains: {
+      wallet_tx_auth: walletDomain.slice(0, 64),
+      validator_consensus: validatorDomain.slice(0, 64),
+      governance_authority: governanceDomain.slice(0, 64),
+      recovery_authority: recoveryDomain.slice(0, 64),
+      node_transport: transportDomain.slice(0, 64),
+    },
+  };
 }
 
 async function j(url, options = {}) {
@@ -318,23 +355,31 @@ async function executeAutonomousRun() {
   terminalFooter(`Autonomous sequence completed (${allowed.length} commands).`);
 }
 
-function createWallet() {
+async function createWallet() {
   const wallet = walletData();
   if (wallet.address) {
     alert('An active address already exists. Import only if you intend to replace it.');
     return;
   }
 
-  const label = document.getElementById('wallet-label').value.trim();
-  upsertWallet({
-    address: generateLocalAddress(),
-    label,
-    balance_placeholder: '0.00',
-    created_at: new Date().toISOString(),
-    source: 'generated_local',
-  });
-  renderHeader();
-  renderDashboard();
+  try {
+    const label = document.getElementById('wallet-label').value.trim();
+    const material = await generateLocalWalletMaterial();
+    upsertWallet({
+      address: material.address,
+      label,
+      balance_placeholder: '0.00',
+      created_at: new Date().toISOString(),
+      source: 'generated_local',
+      key_profile: material.key_profile,
+      seed_commitment: material.seed_commitment,
+      key_domains: material.key_domains,
+    });
+    renderHeader();
+    renderDashboard();
+  } catch (error) {
+    alert(`Wallet creation failed: ${error.message}`);
+  }
 }
 
 function importWallet(event) {

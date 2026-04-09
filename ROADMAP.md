@@ -2,7 +2,16 @@
 
 This document replaces prior roadmap drafts with one execution plan that is explicit, testable, and release-gated.
 
-Status date: 2026-04-09 (UTC)
+
+## Planning Cadence (Date-Free)
+
+This roadmap is intentionally milestone-driven rather than calendar-driven.
+
+- phase closure is based on evidence-backed exit criteria,
+- checklist completion requires attributable artifacts,
+- promotion decisions are governance approvals, not timeline assumptions.
+
+---
 
 ## Program Goal
 
@@ -33,7 +42,7 @@ Objective: remove stale planning ambiguity and establish one canonical planning 
 Deliverables:
 
 - retire superseded planning text and conflicting draft language,
-- align `README.md`, `READ.md`, `ARCHITECTURE.md`, `SCOPE.md`, `TESTING.md` with this roadmap,
+- align `README.md`, `READ.md`, `ARCHITECTURE.md`, `SCOPE.md`, `TESTING.md`, `SECURITY.md`, `KEY_MANAGEMENT.md` with this roadmap,
 - declare authoritative terminology for actor, scheme, profile, migration, recovery, and replay.
 
 Checklist:
@@ -60,7 +69,8 @@ Deliverables:
 - profile-aware `scheme_id` model and policy constraints,
 - `policy_root` and `recovery_root` separation rules,
 - replay-domain model and intent-domain boundaries,
-- migration rulebook for key rotation, scheme migration, policy rotation, and recovery invocation.
+- migration rulebook for key rotation, scheme migration, policy rotation, and recovery invocation,
+- wallet and node key hierarchy spec with strict domain separation and lifecycle rules.
 
 Checklist:
 
@@ -69,6 +79,7 @@ Checklist:
 - [ ] replay semantics defined by intent/domain class
 - [ ] validation transcript format specified for deterministic auditability
 - [ ] profile activation/deprecation state machine documented
+- [ ] wallet/node key-domain separation and lifecycle contract documented
 
 Exit criteria:
 

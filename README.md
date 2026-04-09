@@ -12,7 +12,9 @@ Canonical root documents:
 - `READ.md` — technical contract and invariants,
 - `ARCHITECTURE.md` — architecture baseline and trust boundaries,
 - `SCOPE.md` — in-scope/out-of-scope and sensitive change classes,
-- `TESTING.md` — mandatory validation and evidence policy.
+- `TESTING.md` — mandatory validation and evidence policy,
+- `SECURITY.md` — disclosure process, threat-priority classes, and security gates,
+- `KEY_MANAGEMENT.md` — quantum-resistant wallet/node key model, lifecycle, and domain separation.
 
 ## Program Objective
 
