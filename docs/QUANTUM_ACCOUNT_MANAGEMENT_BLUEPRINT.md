@@ -21,17 +21,6 @@ The correct engineering objective is:
 
 AOXChain therefore treats post-quantum migration as a protocol and state-model concern, not only a cryptographic library substitution.
 
-## Forward-Looking Architecture Recommendation
-
-For the next architecture horizon, AOXChain should prioritize **authority-kernel completion before feature expansion**:
-
-1. finalize canonical authority/state semantics,
-2. make verification dispatch and replay domains deterministic in all consensus-visible paths,
-3. complete validator/governance migration controls before broad wallet ecosystem expansion,
-4. activate PQ-first policy by explicit governance windows only after drill evidence is retained.
-
-This ordering minimizes expensive rework and avoids a late-stage redesign where transaction format, replay protection, and authority migration become incompatible across components.
-
 ## Scope and Assumptions
 
 ### In Scope
@@ -265,11 +254,3 @@ Each candidate should retain:
 ## Maintenance Rule
 
 Any change affecting authority model, scheme governance, replay semantics, recovery boundaries, verifier dispatch, or transaction witness format must update this blueprint in the same change set.
-
-## Tracking Rule
-
-Execution status for this blueprint is tracked in:
-
-- `docs/PQ_AUTHORITY_IMPLEMENTATION_CHECKLIST.md`
-
-Checklist updates should be committed in the same change stream as the implementation or policy change that modifies status.

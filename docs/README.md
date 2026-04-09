@@ -16,7 +16,6 @@ This directory contains the authoritative documentation system for AOXChain engi
 - `API_REFERENCE.md` — implementation-aligned HTTP/gRPC API surface and usage examples.
 - `PQ_COMPATIBILITY_GAP_AND_IMPLEMENTATION_PLAN.md` — implementation-aligned Dilithium/Falcon compatibility gap analysis and staged delivery plan.
 - `QUANTUM_ACCOUNT_MANAGEMENT_BLUEPRINT.md` — post-quantum authority/account blueprint covering scheme agility, policy roots, replay/recovery controls, validator integration, and phased validation-kernel rollout.
-- `PQ_AUTHORITY_IMPLEMENTATION_CHECKLIST.md` — master execution checklist for the PQ authority architecture, intended for incremental completion tracking.
 
 ## Documentation Rules
 
