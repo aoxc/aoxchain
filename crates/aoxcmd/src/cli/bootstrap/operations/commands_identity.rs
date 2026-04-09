@@ -2,7 +2,6 @@ use super::*;
 
 const ACCOUNT_ID_DERIVATION_DOMAIN_V2: &str = "AOXC/ACCOUNT_ID/V2";
 const ACCOUNT_ID_CHECKSUM_DOMAIN_V2: &str = "AOXC/ACCOUNT_ID/V2/CHECKSUM";
-const DEFAULT_ACCOUNT_ID_PAYLOAD_BYTES: usize = 20;
 
 pub(super) fn genesis_path() -> Result<PathBuf, AppError> {
     Ok(resolve_home()?.join("identity").join("genesis.json"))
@@ -143,29 +142,17 @@ pub fn cmd_address_create(args: &[String]) -> Result<(), AppError> {
             .take(16)
             .collect::<String>()
     );
-    let secure_account = derive_secure_validator_account_id(
-        profile,
-        &name,
-        &summary,
-        account_payload_bytes,
-        account_salt.as_deref(),
-    );
-    let validator_account_id = account_mode.select_primary(
-        &secure_account.account_id,
-        &validator_account_id_legacy,
-    );
+    let (validator_account_id, account_id_checksum) =
+        derive_secure_validator_account_id(profile, &name, &summary);
 
     emit_serialized(
         &AddressCreateOutput {
             profile: summary.profile,
             validator_name: name,
             validator_account_id,
-            validator_account_id_mode: account_mode.as_str().to_string(),
             validator_account_id_legacy,
-            account_id_checksum: secure_account.checksum,
+            account_id_checksum,
             account_id_derivation_domain: ACCOUNT_ID_DERIVATION_DOMAIN_V2.to_string(),
-            account_id_payload_hex_chars: secure_account.payload_hex_chars,
-            account_id_salt_applied: account_salt.is_some(),
             bundle_fingerprint: summary.bundle_fingerprint,
             consensus_public_key: summary.consensus_public_key,
             transport_public_key: summary.transport_public_key,
@@ -174,81 +161,11 @@ pub fn cmd_address_create(args: &[String]) -> Result<(), AppError> {
     )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AccountIdMode {
-    Secure,
-    Legacy,
-    Dual,
-}
-
-impl AccountIdMode {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::Secure => "secure",
-            Self::Legacy => "legacy",
-            Self::Dual => "dual",
-        }
-    }
-
-    fn select_primary<'a>(self, secure: &'a str, legacy: &'a str) -> String {
-        match self {
-            Self::Secure | Self::Dual => secure.to_string(),
-            Self::Legacy => legacy.to_string(),
-        }
-    }
-}
-
-fn parse_account_id_mode(args: &[String]) -> Result<AccountIdMode, AppError> {
-    let mode = parse_optional_text_arg(args, "--account-id-mode", true)
-        .unwrap_or_else(|| "dual".to_string())
-        .to_ascii_lowercase();
-    match mode.as_str() {
-        "secure" | "v2" => Ok(AccountIdMode::Secure),
-        "legacy" | "v1" => Ok(AccountIdMode::Legacy),
-        "dual" | "compat" => Ok(AccountIdMode::Dual),
-        other => Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            format!(
-                "Unsupported account-id mode `{}`; expected secure, legacy, or dual",
-                other
-            ),
-        )),
-    }
-}
-
-fn parse_account_id_payload_bytes(args: &[String]) -> Result<usize, AppError> {
-    let Some(value) = parse_optional_text_arg(args, "--account-id-bytes", false) else {
-        return Ok(DEFAULT_ACCOUNT_ID_PAYLOAD_BYTES);
-    };
-    let parsed = value.parse::<usize>().map_err(|error| {
-        AppError::with_source(
-            ErrorCode::UsageInvalidArguments,
-            "address create --account-id-bytes must be a positive integer",
-            error,
-        )
-    })?;
-    if !(16..=32).contains(&parsed) {
-        return Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "address create --account-id-bytes must be between 16 and 32",
-        ));
-    }
-    Ok(parsed)
-}
-
-struct DerivedAccountId {
-    account_id: String,
-    checksum: String,
-    payload_hex_chars: usize,
-}
-
 fn derive_secure_validator_account_id(
     profile: EnvironmentProfile,
     validator_name: &str,
     summary: &crate::keys::material::KeyMaterialSummary,
-    payload_bytes: usize,
-    account_salt: Option<&str>,
-) -> DerivedAccountId {
+) -> (String, String) {
     let identity = profile.identity();
     let normalized_name = validator_name
         .trim()
@@ -275,13 +192,9 @@ fn derive_secure_validator_account_id(
     hasher.update(summary.consensus_public_key.as_bytes());
     hasher.update([0x1F]);
     hasher.update(summary.transport_public_key.as_bytes());
-    if let Some(salt) = account_salt {
-        hasher.update([0x1F]);
-        hasher.update(salt.as_bytes());
-    }
     let digest = hasher.finalize();
 
-    let payload = hex::encode_upper(&digest[..payload_bytes]);
+    let payload = hex::encode_upper(&digest[..20]);
 
     let mut checksum_hasher = Sha256::new();
     checksum_hasher.update(ACCOUNT_ID_CHECKSUM_DOMAIN_V2.as_bytes());
@@ -289,11 +202,10 @@ fn derive_secure_validator_account_id(
     checksum_hasher.update(payload.as_bytes());
     let checksum = hex::encode_upper(&checksum_hasher.finalize()[..4]);
 
-    DerivedAccountId {
-        account_id: format!("AOXC_{}_{}_{}", profile_tag, payload, checksum),
+    (
+        format!("AOXC_{}_{}_{}", profile_tag, payload, checksum),
         checksum,
-        payload_hex_chars: payload.len(),
-    }
+    )
 }
 
 const fn profile_account_tag(profile: EnvironmentProfile) -> &'static str {
@@ -308,10 +220,7 @@ const fn profile_account_tag(profile: EnvironmentProfile) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        AccountIdMode, DEFAULT_ACCOUNT_ID_PAYLOAD_BYTES, EnvironmentProfile,
-        derive_secure_validator_account_id, parse_account_id_mode, parse_account_id_payload_bytes,
-    };
+    use super::{EnvironmentProfile, derive_secure_validator_account_id};
     use crate::keys::material::KeyMaterial;
 
     #[test]
@@ -320,23 +229,13 @@ mod tests {
             .expect("key material generation should succeed");
         let summary = material.summary().expect("summary should be available");
 
-        let left = derive_secure_validator_account_id(
-            EnvironmentProfile::Validation,
-            "Validator 01",
-            &summary,
-            DEFAULT_ACCOUNT_ID_PAYLOAD_BYTES,
-            None,
-        );
-        let right = derive_secure_validator_account_id(
-            EnvironmentProfile::Validation,
-            "Validator 01",
-            &summary,
-            DEFAULT_ACCOUNT_ID_PAYLOAD_BYTES,
-            None,
-        );
+        let (left, left_checksum) =
+            derive_secure_validator_account_id(EnvironmentProfile::Validation, "Validator 01", &summary);
+        let (right, right_checksum) =
+            derive_secure_validator_account_id(EnvironmentProfile::Validation, "Validator 01", &summary);
 
-        assert_eq!(left.account_id, right.account_id);
-        assert_eq!(left.checksum, right.checksum);
+        assert_eq!(left, right);
+        assert_eq!(left_checksum, right_checksum);
     }
 
     #[test]
@@ -345,68 +244,13 @@ mod tests {
             .expect("key material generation should succeed");
         let summary = material.summary().expect("summary should be available");
 
-        let validation = derive_secure_validator_account_id(
-            EnvironmentProfile::Validation,
-            "Validator 02",
-            &summary,
-            DEFAULT_ACCOUNT_ID_PAYLOAD_BYTES,
-            None,
-        );
-        let testnet = derive_secure_validator_account_id(
-            EnvironmentProfile::Testnet,
-            "Validator 02",
-            &summary,
-            DEFAULT_ACCOUNT_ID_PAYLOAD_BYTES,
-            None,
-        );
+        let (validation_id, _) =
+            derive_secure_validator_account_id(EnvironmentProfile::Validation, "Validator 02", &summary);
+        let (testnet_id, _) =
+            derive_secure_validator_account_id(EnvironmentProfile::Testnet, "Validator 02", &summary);
 
-        assert_ne!(validation.account_id, testnet.account_id);
-        assert!(validation.account_id.starts_with("AOXC_VAL_"));
-        assert!(testnet.account_id.starts_with("AOXC_TEST_"));
-    }
-
-    #[test]
-    fn secure_account_id_changes_with_optional_salt() {
-        let material = KeyMaterial::generate("validator-03", "validation", "Test#2026!")
-            .expect("key material generation should succeed");
-        let summary = material.summary().expect("summary should be available");
-        let default_id = derive_secure_validator_account_id(
-            EnvironmentProfile::Validation,
-            "Validator 03",
-            &summary,
-            DEFAULT_ACCOUNT_ID_PAYLOAD_BYTES,
-            None,
-        );
-        let salted_id = derive_secure_validator_account_id(
-            EnvironmentProfile::Validation,
-            "Validator 03",
-            &summary,
-            DEFAULT_ACCOUNT_ID_PAYLOAD_BYTES,
-            Some("HIGH-SECURITY-SALT"),
-        );
-        assert_ne!(default_id.account_id, salted_id.account_id);
-    }
-
-    #[test]
-    fn account_id_mode_parser_accepts_aliases() {
-        let args = vec![
-            "address-create".to_string(),
-            "--account-id-mode".to_string(),
-            "v2".to_string(),
-        ];
-        assert_eq!(
-            parse_account_id_mode(&args).expect("v2 alias should parse"),
-            AccountIdMode::Secure
-        );
-    }
-
-    #[test]
-    fn account_id_payload_bytes_parser_enforces_bounds() {
-        let args = vec![
-            "address-create".to_string(),
-            "--account-id-bytes".to_string(),
-            "12".to_string(),
-        ];
-        assert!(parse_account_id_payload_bytes(&args).is_err());
+        assert_ne!(validation_id, testnet_id);
+        assert!(validation_id.starts_with("AOXC_VAL_"));
+        assert!(testnet_id.starts_with("AOXC_TEST_"));
     }
 }
