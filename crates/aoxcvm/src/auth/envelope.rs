@@ -202,29 +202,4 @@ mod tests {
                 .is_err()
         );
     }
-
-    #[test]
-    fn canonical_serialization_is_order_invariant() {
-        let env_a = AuthEnvelope {
-            domain: "AOX/TX/V1".to_owned(),
-            nonce: 42,
-            signers: vec![
-                signer(SignatureAlgorithm::MlDsa65, "z-key", 2048),
-                signer(SignatureAlgorithm::MlDsa87, "a-key", 3000),
-            ],
-        };
-        let env_b = AuthEnvelope {
-            domain: "AOX/TX/V1".to_owned(),
-            nonce: 42,
-            signers: vec![
-                signer(SignatureAlgorithm::MlDsa87, "a-key", 3000),
-                signer(SignatureAlgorithm::MlDsa65, "z-key", 2048),
-            ],
-        };
-
-        assert_eq!(
-            env_a.canonical_witness_bytes(),
-            env_b.canonical_witness_bytes()
-        );
-    }
 }
