@@ -10,6 +10,7 @@ use blake3::Hasher;
 use serde::{Deserialize, Serialize};
 
 use crate::config::{NetworkConfig, SecurityMode};
+use crate::discovery::{DiscoveryTable, PeerCandidate, RpcSurface};
 use crate::error::NetworkError;
 use crate::gossip::peer::Peer;
 use crate::metrics::{NetworkMetrics, NetworkMetricsSnapshot};

@@ -3,8 +3,9 @@ mod tests {
     use super::super::{
         BootstrapBootnodeRecord, BootstrapBootnodesDocument, BootstrapValidatorBindingRecord,
         BootstrapValidatorBindingsDocument, CanonicalIdentity, EnvironmentProfile,
-        consensus_profile_gate_status, derive_short_fingerprint, evaluate_consensus_profile_audit,
-        upsert_bootnode_binding, upsert_validator_binding, validate_genesis,
+        apply_genesis_start_overrides, consensus_profile_gate_status, derive_short_fingerprint,
+        evaluate_consensus_profile_audit, upsert_bootnode_binding, upsert_validator_binding,
+        validate_genesis,
     };
     use std::{
         env, fs,
@@ -274,6 +275,44 @@ mod tests {
                 .iter()
                 .any(|item| item.contains("epoch_length_blocks")),
             "mainnet audit should block too-short epochs"
+        );
+    }
+
+    #[test]
+    fn apply_genesis_start_overrides_updates_selected_fields() {
+        let mut genesis = EnvironmentProfile::Validation.genesis_document();
+        let args = vec![
+            "--family-name".to_string(),
+            "AOXC ADVANCED".to_string(),
+            "--chain-id".to_string(),
+            "424242".to_string(),
+            "--native-decimals".to_string(),
+            "12".to_string(),
+            "--treasury-amount".to_string(),
+            "900000000".to_string(),
+        ];
+
+        let applied =
+            apply_genesis_start_overrides(&args, &mut genesis).expect("override should succeed");
+
+        assert_eq!(applied, 4);
+        assert_eq!(genesis.family_name, "AOXC ADVANCED");
+        assert_eq!(genesis.identity.chain_id, 424_242);
+        assert_eq!(genesis.economics.native_decimals, 12);
+        assert_eq!(genesis.economics.initial_treasury.amount, "900000000");
+    }
+
+    #[test]
+    fn apply_genesis_start_overrides_rejects_zero_treasury_amount() {
+        let mut genesis = EnvironmentProfile::Validation.genesis_document();
+        let args = vec!["--treasury-amount".to_string(), "0".to_string()];
+
+        let error = apply_genesis_start_overrides(&args, &mut genesis)
+            .expect_err("zero treasury amount should fail");
+        assert!(
+            error
+                .to_string()
+                .contains("--treasury-amount must be a non-zero decimal string")
         );
     }
 }

@@ -1,15 +1,19 @@
 use super::*;
+use sha2::{Digest, Sha256};
+use std::{collections::BTreeSet, path::PathBuf};
 
 pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
-    let response = build_network_snapshot(&settings);
+    let options = DiscoveryOptions::parse(args)?;
+    let response = build_network_snapshot(&settings, &options)?;
 
     emit_serialized(&response, output_format(args))
 }
 
 pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
-    let snapshot = build_network_snapshot(&settings);
+    let options = DiscoveryOptions::parse(args)?;
+    let snapshot = build_network_snapshot(&settings, &options)?;
     let status = NetworkStatus {
         mode: snapshot.mode,
         bind_host: snapshot.bind_host,
@@ -25,7 +29,8 @@ pub fn cmd_network_status(args: &[String]) -> Result<(), AppError> {
 
 pub fn cmd_network_full(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
-    let response = build_network_snapshot(&settings);
+    let options = DiscoveryOptions::parse(args)?;
+    let response = build_network_snapshot(&settings, &options)?;
 
     emit_serialized(&response, output_format(args))
 }
@@ -37,6 +42,10 @@ struct PeerView {
     direction: &'static str,
     connected_since: String,
     sync_state: &'static str,
+    genesis_match: bool,
+    rpc_http: Option<String>,
+    rpc_jsonrpc: Option<String>,
+    quantum_ready: Option<bool>,
 }
 
 #[derive(serde::Serialize)]
@@ -49,6 +58,10 @@ struct NetworkSnapshot {
     listener_active: bool,
     sync_state: &'static str,
     enforce_official_peers: bool,
+    discovery_enabled: bool,
+    genesis_fingerprint: String,
+    bootstrap_limit: usize,
+    quantum_only: bool,
     peers: Vec<PeerView>,
 }
 
@@ -63,9 +76,71 @@ struct NetworkStatus {
     sync_state: &'static str,
 }
 
-fn build_network_snapshot(settings: &Settings) -> NetworkSnapshot {
+#[derive(Debug, Clone)]
+struct DiscoveryOptions {
+    discovery_enabled: bool,
+    bootstrap_limit: usize,
+    quantum_only: bool,
+    include_rpc: bool,
+    genesis_fingerprint_override: Option<String>,
+    known_bootnodes: BTreeSet<String>,
+    known_bootnode_file: Option<PathBuf>,
+    bootnodes_file_override: Option<PathBuf>,
+    bootnodes_sha256: Option<String>,
+    certificate_file_override: Option<PathBuf>,
+    certificate_sha256: Option<String>,
+    strict_bootnode_id: bool,
+}
+
+impl DiscoveryOptions {
+    fn parse(args: &[String]) -> Result<Self, AppError> {
+        let discovery_enabled = !has_flag(args, "--no-auto-discovery");
+        let quantum_only = has_flag(args, "--quantum-only");
+        let include_rpc = has_flag(args, "--include-rpc");
+        let bootstrap_limit =
+            parse_positive_u64_arg(args, "--bootstrap-limit", 8, "network")?.clamp(1, 128) as usize;
+        let genesis_fingerprint_override = arg_value(args, "--genesis-fingerprint")
+            .and_then(|value| normalize_text(&value, false));
+        let known_bootnodes = collect_flag_values(args, "--known-bootnode")
+            .into_iter()
+            .filter_map(|value| normalize_text(&value, false))
+            .collect::<BTreeSet<_>>();
+        let known_bootnode_file = arg_value(args, "--known-bootnode-file").map(PathBuf::from);
+        let bootnodes_file_override = arg_value(args, "--bootnodes-file").map(PathBuf::from);
+        let bootnodes_sha256 =
+            arg_value(args, "--bootnodes-sha256").and_then(|value| normalize_text(&value, true));
+        let certificate_file_override = arg_value(args, "--certificate-file").map(PathBuf::from);
+        let certificate_sha256 =
+            arg_value(args, "--certificate-sha256").and_then(|value| normalize_text(&value, true));
+        let strict_bootnode_id = has_flag(args, "--strict-bootnode-id");
+
+        Ok(Self {
+            discovery_enabled,
+            bootstrap_limit,
+            quantum_only,
+            include_rpc,
+            genesis_fingerprint_override,
+            known_bootnodes,
+            known_bootnode_file,
+            bootnodes_file_override,
+            bootnodes_sha256,
+            certificate_file_override,
+            certificate_sha256,
+            strict_bootnode_id,
+        })
+    }
+}
+
+fn build_network_snapshot(
+    settings: &Settings,
+    options: &DiscoveryOptions,
+) -> Result<NetworkSnapshot, AppError> {
     let now = Utc::now().to_rfc3339();
-    let peers = vec![PeerView {
+    let local_genesis_fp = options
+        .genesis_fingerprint_override
+        .clone()
+        .unwrap_or_else(|| derive_settings_genesis_fingerprint(settings));
+    let mut peers = vec![PeerView {
         peer_id: "self".to_string(),
         address: format!(
             "{}:{}",
@@ -74,14 +149,33 @@ fn build_network_snapshot(settings: &Settings) -> NetworkSnapshot {
         direction: "inbound+outbound",
         connected_since: now,
         sync_state: "in-sync",
+        genesis_match: true,
+        rpc_http: options.include_rpc.then(|| {
+            format!(
+                "http://{}:{}",
+                settings.network.bind_host, settings.network.rpc_port
+            )
+        }),
+        rpc_jsonrpc: options.include_rpc.then(|| {
+            format!(
+                "http://{}:{}/jsonrpc",
+                settings.network.bind_host, settings.network.rpc_port
+            )
+        }),
+        quantum_ready: options.include_rpc.then_some(true),
     }];
+
+    if options.discovery_enabled {
+        let mut discovered = load_profile_bootnodes(settings, &local_genesis_fp, options)?;
+        peers.append(&mut discovered);
+    }
 
     let probe_target = format!(
         "{}:{}",
         settings.network.bind_host, settings.network.rpc_port
     );
     let listener_active = rpc_listener_active(&probe_target);
-    NetworkSnapshot {
+    Ok(NetworkSnapshot {
         mode: "single-node",
         bind_host: settings.network.bind_host.clone(),
         p2p_port: settings.network.p2p_port,
@@ -90,8 +184,166 @@ fn build_network_snapshot(settings: &Settings) -> NetworkSnapshot {
         listener_active,
         sync_state: "in-sync",
         enforce_official_peers: settings.network.enforce_official_peers,
+        discovery_enabled: options.discovery_enabled,
+        genesis_fingerprint: local_genesis_fp,
+        bootstrap_limit: options.bootstrap_limit,
+        quantum_only: options.quantum_only,
         peers,
+    })
+}
+
+fn load_profile_bootnodes(
+    settings: &Settings,
+    local_genesis_fp: &str,
+    options: &DiscoveryOptions,
+) -> Result<Vec<PeerView>, AppError> {
+    let path = options.bootnodes_file_override.clone().unwrap_or_else(|| {
+        Path::new("configs")
+            .join("environments")
+            .join(&settings.profile)
+            .join("bootnodes.json")
+    });
+    let raw = fs::read_to_string(&path).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to read bootnodes file: {}", path.display()),
+            error,
+        )
+    })?;
+    if let Some(expected) = options.bootnodes_sha256.as_ref() {
+        verify_sha256_hex(&raw, expected, "bootnodes file")?;
     }
+    if let Some(certificate_path) = options.certificate_file_override.as_ref() {
+        let certificate_raw = fs::read_to_string(certificate_path).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to read certificate file: {}",
+                    certificate_path.display()
+                ),
+                error,
+            )
+        })?;
+        if let Some(expected) = options.certificate_sha256.as_ref() {
+            verify_sha256_hex(&certificate_raw, expected, "certificate file")?;
+        }
+    }
+    let json = serde_json::from_str::<serde_json::Value>(&raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!("Invalid bootnodes JSON: {}", path.display()),
+            error,
+        )
+    })?;
+    let items = json
+        .get("bootnodes")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!("Bootnodes list is missing in {}", path.display()),
+            )
+        })?;
+
+    let mut known_bootnodes = options.known_bootnodes.clone();
+    if let Some(path) = options.known_bootnode_file.as_ref() {
+        let extra = fs::read_to_string(path).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!("Failed to read known bootnode file: {}", path.display()),
+                error,
+            )
+        })?;
+        for line in extra.lines().map(str::trim).filter(|line| !line.is_empty()) {
+            known_bootnodes.insert(line.to_string());
+        }
+    }
+
+    Ok(items
+        .iter()
+        .filter_map(|item| {
+            let node_id = item.get("node_id")?.as_str()?.to_string();
+            let address = item.get("address")?.as_str()?.to_string();
+            let fingerprint = item
+                .get("transport_key_fingerprint")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let genesis_match = !fingerprint.is_empty()
+                && fingerprint.starts_with(&local_genesis_fp[..8.min(local_genesis_fp.len())]);
+            if !genesis_match {
+                return None;
+            }
+
+            let quantum_ready = fingerprint.len() >= 64;
+            if options.quantum_only && !quantum_ready {
+                return None;
+            }
+            if !known_bootnodes.is_empty() && !known_bootnodes.contains(&node_id) {
+                return None;
+            }
+            if options.strict_bootnode_id
+                && !node_id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+            {
+                return None;
+            }
+
+            Some(PeerView {
+                peer_id: node_id.clone(),
+                address,
+                direction: "outbound",
+                connected_since: Utc::now().to_rfc3339(),
+                sync_state: "bootstrap",
+                genesis_match,
+                rpc_http: options
+                    .include_rpc
+                    .then(|| format!("http://{}.rpc.local:{}", node_id, settings.network.rpc_port)),
+                rpc_jsonrpc: options.include_rpc.then(|| {
+                    format!(
+                        "http://{}.rpc.local:{}/jsonrpc",
+                        node_id, settings.network.rpc_port
+                    )
+                }),
+                quantum_ready: options.include_rpc.then_some(quantum_ready),
+            })
+        })
+        .take(options.bootstrap_limit)
+        .collect())
+}
+
+fn derive_settings_genesis_fingerprint(settings: &Settings) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(settings.profile.as_bytes());
+    hasher.update(settings.network.bind_host.as_bytes());
+    hasher.update(settings.network.p2p_port.to_le_bytes());
+    hasher.update(settings.network.rpc_port.to_le_bytes());
+    hex::encode(hasher.finalize())
+}
+
+fn verify_sha256_hex(raw: &str, expected: &str, context: &str) -> Result<(), AppError> {
+    if expected.len() != 64 || !expected.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Invalid {context} sha256 value: expected 64 hex characters"),
+        ));
+    }
+    let digest = hex::encode(Sha256::digest(raw.as_bytes()));
+    if digest != expected.to_ascii_lowercase() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!("{context} hash mismatch: expected={expected} computed={digest}"),
+        ));
+    }
+    Ok(())
+}
+
+fn collect_flag_values(args: &[String], flag: &str) -> Vec<String> {
+    args.windows(2)
+        .filter(|window| window[0] == flag)
+        .map(|window| window[1].clone())
+        .collect()
 }
 
 pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {

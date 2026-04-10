@@ -78,7 +78,7 @@ USAGE
 
 GUIDED GROUPS
   chain init|create|start|status|doctor|demo
-  genesis init|add-validator|add-account|build|verify|inspect|fingerprint|production-gate
+  genesis init|add-validator|add-account|build|verify|inspect|template-advanced|advanced-system|security-audit|fingerprint|production-gate|start
   validator create|inspect|status|rotate-key
   wallet create|balance
   account fund
@@ -118,6 +118,8 @@ BOOTSTRAP
   genesis-validate [--strict]
   genesis-inspect
   genesis-hash
+  genesis-advanced-system [--profile <localnet|devnet|validation|testnet|mainnet>] [--out <path>] [--no-enforce]
+  genesis-start [--profile <localnet|devnet|validation|testnet|mainnet>] [--no-init] [--bootstrap-key-if-missing --password <value> --operator-name <name>] [--strict] [--production-gate] [--dry-run|--skip-node-run] [--family-id <u32>] [--family-name <text>] [--family-code <text>] [--chain-id <u64>] [--chain-name <text>] [--network-class <text>] [--network-serial <text>] [--network-id <text>] [--genesis-epoch <u64>] [--block-time-ms <u64>] [--validator-quorum-policy <text>] [--consensus-identity-profile <text>] [--epoch-length-blocks <u64>] [--pacemaker-base-timeout-ms <u64>] [--pacemaker-max-timeout-ms <u64>] [--reconfiguration-finality-lag-blocks <u64>] [--native-symbol <text>] [--native-decimals <u8>] [--treasury-account-id <text>] [--treasury-amount <decimal>] [--enforce-pq-consensus] [--enforce-block-validation-rules] [--expected-genesis-sha256 <hex>] [--expected-validators-sha256 <hex>] [--expected-bootnodes-sha256 <hex>] [--expected-certificate-sha256 <hex>] [--rounds <n>] [--interval-secs <2..600>] [--tx-prefix <value>] [--continuous|--bounded] [--log-level <info|debug>] [--no-live-log] [--no-rpc-serve]
   config-init [--profile <validation|testnet|mainnet>] [--bind-host <host>] [--json-logs]
   config-validate
   config-print
@@ -128,7 +130,7 @@ BOOTSTRAP
 NODE AND ECONOMY
   node-bootstrap
   produce-once
-  node-run [--rounds <n>] [--continuous] [--bounded] [--interval-secs <2..600>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log] [--no-rpc-serve]
+  node-run [--rounds <n>] [--continuous] [--bounded] [--interval-secs <2..600>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log] [--no-rpc-serve] [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc]
   node-health
   economy-init
   treasury-transfer
@@ -182,8 +184,8 @@ NODE AND ECONOMY
   query vm trace
   query full [--account-id <id>] [--tx-hash <hash>]
   query network status
-  query network peers
-  query network full
+  query network peers [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id]
+  query network full [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id]
   query runtime [status|snapshot] [--action <snapshot|list|prune|restore-latest>] [--keep <n>] [--runtime-root <path>] [--snapshot-dir <path>]
   query state-root
   query rpc
@@ -200,7 +202,7 @@ NODE AND ECONOMY
   tx-receipt --hash <tx-hash>
   account-get --id <account-id>
   balance-get --id <account-id>
-  peer-list
+  peer-list [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id]
   network-status
   state-root [--height <n>]
   metrics
