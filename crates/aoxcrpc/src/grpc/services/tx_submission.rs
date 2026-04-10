@@ -104,7 +104,9 @@ mod tests {
             zkp_proof: vec![9; 64],
             identity_tier: Some("signed_client".to_string()),
             signer_algorithms: vec!["ed25519".to_string(), "ml-dsa-65".to_string()],
+            verified_signature_count: None,
             remaining_budget_units: Some(100),
+            is_operator_authenticated: Some(false),
         }
     }
 

@@ -61,7 +61,13 @@ mod tests {
         let err = service
             .get_chain_status_admitted(100, false, &context)
             .expect_err("anonymous should be denied");
-        assert!(err.to_string().contains("ADMISSION_DENIED"));
+        assert!(matches!(
+            err,
+            RpcError::AdmissionDenied {
+                code: AdmissionFailure::Method(MethodAdmissionFailure::IdentityTierTooLow),
+                ..
+            }
+        ));
     }
 
     #[test]
