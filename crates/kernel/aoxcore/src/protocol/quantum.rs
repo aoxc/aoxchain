@@ -300,8 +300,7 @@ impl QuantumKernelProfile {
         &self,
         transaction: &crate::transaction::quantum::QuantumTransaction,
     ) -> Result<(), QuantumAdmissionError> {
-        let mut envelope = crate::transaction::TransactionEnvelope::from(transaction.clone());
-        envelope.profile_id = self.profile_version;
+        let envelope = crate::transaction::TransactionEnvelope::from(transaction.clone());
         self.admit_transaction_envelope(&envelope)
     }
 }
