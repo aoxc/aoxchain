@@ -288,7 +288,10 @@ impl QuantumKernelProfile {
         }
 
         transaction
-            .validate()
+            .validate_with_policy(crate::transaction::EnvelopeVerificationPolicy {
+                allow_legacy_signature_fallback: self.legacy_signature_support,
+                expected_profile_id: Some(self.profile_version),
+            })
             .map_err(|_| QuantumAdmissionError::InvalidTransactionPayload)
     }
 
