@@ -267,15 +267,6 @@ pub struct ScenarioFloorProjection {
     pub report: EconomicFloorReport,
 }
 
-/// Aggregate summary across deterministic demand scenarios.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ScenarioProjectionSummary {
-    pub scenario_count: usize,
-    pub min_per_unit_floor: UnitAmount,
-    pub max_per_unit_floor: UnitAmount,
-    pub avg_per_unit_floor: UnitAmount,
-}
-
 impl EconomicFloorReport {
     /// Classifies a realized unit value against the computed floor.
     #[must_use]
@@ -593,43 +584,6 @@ impl EnergyAnchorEngine {
         }
 
         Ok(projections)
-    }
-
-    /// Returns aggregate floor summary across demand scenarios.
-    pub fn summarize_projection(
-        &self,
-        projections: &[ScenarioFloorProjection],
-    ) -> Result<ScenarioProjectionSummary, EnergyError> {
-        if projections.is_empty() {
-            return Err(EnergyError::InvalidInput(
-                "projections must contain at least one scenario".to_owned(),
-            ));
-        }
-
-        let mut min_floor = projections[0].report.per_unit_floor;
-        let mut max_floor = projections[0].report.per_unit_floor;
-        let mut sum: u128 = 0;
-
-        for projection in projections {
-            let floor = projection.report.per_unit_floor;
-            if floor < min_floor {
-                min_floor = floor;
-            }
-            if floor > max_floor {
-                max_floor = floor;
-            }
-            sum = sum
-                .checked_add(floor.micros())
-                .ok_or(EnergyError::ArithmeticOverflow)?;
-        }
-
-        let avg = UnitAmount::from_micros(sum / projections.len() as u128);
-        Ok(ScenarioProjectionSummary {
-            scenario_count: projections.len(),
-            min_per_unit_floor: min_floor,
-            max_per_unit_floor: max_floor,
-            avg_per_unit_floor: avg,
-        })
     }
 }
 
