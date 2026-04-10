@@ -44,6 +44,8 @@ impl QueryService {
 mod tests {
     use super::QueryService;
     use crate::admission::{AdmissionContext, IdentityTier};
+    use crate::error::{AdmissionFailure, MethodAdmissionFailure, RpcError};
+    use aoxchal::cpu_opt::CpuCapabilities;
     use aoxcvm::auth::scheme::SignatureAlgorithm;
     #[test]
     fn admitted_status_requires_api_key_or_higher() {
@@ -51,13 +53,22 @@ mod tests {
         let context = AdmissionContext {
             identity_tier: IdentityTier::Anonymous,
             signer_algorithms: vec![SignatureAlgorithm::Ed25519, SignatureAlgorithm::MlDsa65],
+            verified_signature_count: 2,
             remaining_budget_units: 10,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
         };
 
         let err = service
             .get_chain_status_admitted(100, false, &context)
             .expect_err("anonymous should be denied");
-        assert!(err.to_string().contains("ADMISSION_DENIED"));
+        assert!(matches!(
+            err,
+            RpcError::AdmissionDenied {
+                code: AdmissionFailure::Method(MethodAdmissionFailure::IdentityTierTooLow),
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -66,7 +77,10 @@ mod tests {
         let context = AdmissionContext {
             identity_tier: IdentityTier::ApiKey,
             signer_algorithms: vec![SignatureAlgorithm::Ed25519, SignatureAlgorithm::MlDsa65],
+            verified_signature_count: 2,
             remaining_budget_units: 10,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
         };
 
         let status = service

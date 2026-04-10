@@ -41,6 +41,22 @@ pub struct CryptoPolicy {
     pub allow_hybrid_fallback: bool,
 }
 
+/// Machine-readable proof composition summary provided by upper layers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ProofSummary {
+    pub classical_signatures: u8,
+    pub pq_signatures: u8,
+}
+
+/// Structured admission denial reasons.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AdmissionFailure {
+    InsufficientSignatureCount,
+    MissingClassicalSignature,
+    MissingPostQuantumSignature,
+    ClassicalNotPermitted,
+}
+
 impl CryptoPolicy {
     /// Conservative bootstrap policy for development and bring-up networks.
     #[must_use]
@@ -93,9 +109,55 @@ pub const fn choose_runtime_scheme(policy: CryptoPolicy, cpu: CpuCapabilities) -
     }
 }
 
+/// Evaluate request proof composition against policy and runtime scheme.
+pub fn evaluate_admission(
+    policy: CryptoPolicy,
+    cpu: CpuCapabilities,
+    proof: ProofSummary,
+) -> Result<CryptoScheme, AdmissionFailure> {
+    let total_signatures = proof
+        .classical_signatures
+        .saturating_add(proof.pq_signatures);
+
+    if total_signatures < policy.min_signatures {
+        return Err(AdmissionFailure::InsufficientSignatureCount);
+    }
+
+    let runtime_scheme = choose_runtime_scheme(policy, cpu);
+
+    match runtime_scheme {
+        CryptoScheme::Classical => {
+            if proof.classical_signatures == 0 {
+                return Err(AdmissionFailure::MissingClassicalSignature);
+            }
+        }
+        CryptoScheme::Hybrid => {
+            if proof.classical_signatures == 0 {
+                return Err(AdmissionFailure::MissingClassicalSignature);
+            }
+            if proof.pq_signatures == 0 {
+                return Err(AdmissionFailure::MissingPostQuantumSignature);
+            }
+        }
+        CryptoScheme::PostQuantumPrimary => {
+            if proof.pq_signatures == 0 {
+                return Err(AdmissionFailure::MissingPostQuantumSignature);
+            }
+            if proof.classical_signatures > 0 {
+                return Err(AdmissionFailure::ClassicalNotPermitted);
+            }
+        }
+    }
+
+    Ok(runtime_scheme)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{CryptoPolicy, CryptoScheme, ProfileStage, choose_runtime_scheme};
+    use super::{
+        AdmissionFailure, CryptoPolicy, CryptoScheme, ProfileStage, ProofSummary,
+        choose_runtime_scheme, evaluate_admission,
+    };
     use crate::cpu_opt::CpuCapabilities;
 
     #[test]
@@ -111,7 +173,10 @@ mod tests {
         let portable = CpuCapabilities::portable();
         let avx2 = CpuCapabilities::from_flags(true, true, false, false);
 
-        assert_eq!(choose_runtime_scheme(policy, portable), CryptoScheme::Hybrid);
+        assert_eq!(
+            choose_runtime_scheme(policy, portable),
+            CryptoScheme::Hybrid
+        );
         assert_eq!(choose_runtime_scheme(policy, avx2), CryptoScheme::Hybrid);
     }
 
@@ -148,5 +213,50 @@ mod tests {
             choose_runtime_scheme(policy, cpu),
             CryptoScheme::PostQuantumPrimary
         );
+    }
+
+    #[test]
+    fn admission_rejects_missing_minimum_signature_count() {
+        let err = evaluate_admission(
+            CryptoPolicy::hybrid_gate(),
+            CpuCapabilities::portable(),
+            ProofSummary {
+                classical_signatures: 1,
+                pq_signatures: 0,
+            },
+        )
+        .expect_err("should reject if count is below min signature threshold");
+
+        assert_eq!(err, AdmissionFailure::InsufficientSignatureCount);
+    }
+
+    #[test]
+    fn hybrid_runtime_requires_both_classical_and_pq() {
+        let err = evaluate_admission(
+            CryptoPolicy::hybrid_gate(),
+            CpuCapabilities::portable(),
+            ProofSummary {
+                classical_signatures: 2,
+                pq_signatures: 0,
+            },
+        )
+        .expect_err("hybrid runtime requires PQ signer evidence");
+
+        assert_eq!(err, AdmissionFailure::MissingPostQuantumSignature);
+    }
+
+    #[test]
+    fn pq_primary_rejects_mixed_fallback_proofs() {
+        let err = evaluate_admission(
+            CryptoPolicy::pq_primary(),
+            CpuCapabilities::portable(),
+            ProofSummary {
+                classical_signatures: 1,
+                pq_signatures: 1,
+            },
+        )
+        .expect_err("pq-primary runtime must reject classical signatures");
+
+        assert_eq!(err, AdmissionFailure::ClassicalNotPermitted);
     }
 }

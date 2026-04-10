@@ -45,8 +45,15 @@ pub struct TxSubmissionRequest {
     pub identity_tier: Option<String>,
     #[serde(default)]
     pub signer_algorithms: Vec<String>,
+    /// Count of cryptographically verified signatures produced by upstream
+    /// authentication middleware.
+    #[serde(default)]
+    pub verified_signature_count: Option<u8>,
     #[serde(default)]
     pub remaining_budget_units: Option<u32>,
+    /// True when caller was authenticated on an operator trust path.
+    #[serde(default)]
+    pub is_operator_authenticated: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
