@@ -16,8 +16,3 @@ Carries gas/fee/economic costing and resource-governance rules.
   - `quantum_assurance_bps` for validation, audit, and cryptographic assurance overhead.
 - `GovernancePolicy` enforces `max_quantum_reserve_bps` so combined post-quantum reserves cannot exceed ratified limits.
 - `EconomicFloorReport` exposes explicit post-quantum components for audit and deterministic cost-share attribution.
-
-## Kernel and Layer-Aligned Modeling
-- `FloorModelInputs.layer_costs` provides explicit kernel/consensus/execution/settlement/networking cost channels.
-- `EconomicFloorReport` returns per-layer cost totals and kernel ratio helpers for layered budget review.
-- `EnergyAnchorEngine::project_multi_scenario` computes deterministic demand projections for multiple throughput scenarios.
