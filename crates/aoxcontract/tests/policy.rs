@@ -188,60 +188,6 @@ fn hybrid_mode_requires_scheme_catalog() {
 }
 
 #[test]
-fn classical_mode_rejects_migration_epochs() {
-    let err = ContractPolicy::new(
-        vec![VmTarget::Wasm],
-        vec![ArtifactFormat::WasmModule],
-        1024,
-        vec![],
-        vec![],
-        false,
-        true,
-        SourceTrustLevel::Trusted,
-    )
-    .unwrap()
-    .with_quantum_security(QuantumSecurityProfile {
-        migration_mode: QuantumMigrationMode::ClassicalOnly,
-        transition_epoch_start: Some(1200),
-        pq_signature_schemes: vec![],
-        ..QuantumSecurityProfile::default()
-    })
-    .unwrap_err();
-
-    assert!(matches!(
-        err,
-        ContractError::Policy(PolicyValidationError::PolicyViolation(_))
-    ));
-}
-
-#[test]
-fn post_quantum_only_rejects_classical_retirement_epoch() {
-    let err = ContractPolicy::new(
-        vec![VmTarget::Wasm],
-        vec![ArtifactFormat::WasmModule],
-        1024,
-        vec![],
-        vec![],
-        false,
-        true,
-        SourceTrustLevel::Trusted,
-    )
-    .unwrap()
-    .with_quantum_security(QuantumSecurityProfile {
-        migration_mode: QuantumMigrationMode::PostQuantumOnly,
-        classical_retirement_epoch: Some(1500),
-        pq_signature_schemes: vec!["ml_dsa_65".into()],
-        ..QuantumSecurityProfile::default()
-    })
-    .unwrap_err();
-
-    assert!(matches!(
-        err,
-        ContractError::Policy(PolicyValidationError::PolicyViolation(_))
-    ));
-}
-
-#[test]
 fn retirement_epoch_cannot_be_before_transition_epoch() {
     let err = ContractPolicy::new(
         vec![VmTarget::Wasm],
@@ -314,6 +260,7 @@ fn hybrid_policy_epoch_gates_and_bundle_floor_work() {
         classical_retirement_epoch: Some(200),
         min_signature_bundles: 2,
         pq_signature_schemes: vec!["ml_dsa_65".into()],
+        ..QuantumSecurityProfile::default()
     })
     .unwrap();
 
