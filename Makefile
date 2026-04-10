@@ -280,7 +280,8 @@ endef
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
 	release-binary-list install-bin package-desktop repo-release-keygen repo-release-signed repo-release-signed-verify repo-release-prepare repo-release-validate \
-	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate quality quality-quick quality-release ci \
+	repo-secure-bundle repo-secure-bundle-verify install-binaries-root github-install-binaries \
+	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate versioning-gate quality quality-quick quality-release ci \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active runtime-snapshot runtime-snapshot-list runtime-snapshot-prune runtime-restore-latest \
@@ -318,6 +319,7 @@ help:
 	@printf "  make clippy\n"
 	@printf "  make audit\n"
 	@printf "  make code-size-gate\n"
+	@printf "  make versioning-gate\n"
 	@printf "  make repo-hygiene-gate\n"
 	@printf "  make quality\n\n"
 	@printf "  make production-full\n\n"
@@ -351,6 +353,10 @@ help:
 	@printf "  make repo-release-signed-verify\n"
 	@printf "  make repo-release-prepare\n"
 	@printf "  make repo-release-validate\n\n"
+	@printf "  make repo-secure-bundle RELEASE_SIGNING_KEY=<key.pem> RELEASE_SIGNING_CERT=<cert.pem>\n"
+	@printf "  make repo-secure-bundle-verify RELEASE_SIGNING_CERT=<cert.pem>\n"
+	@printf "  make install-binaries-root\n"
+	@printf "  make github-install-binaries GITHUB_REPO=<owner/repo> GITHUB_VERSION=<semver>\n\n"
 
 	@printf "Runtime lifecycle\n"
 	@printf "  make runtime-print\n"
@@ -605,6 +611,35 @@ repo-release-validate:
 	$(call print_banner,Validating repository release directory under ./releases)
 	@python3 scripts/release/validate_repo_release.py "releases/v$(RELEASE_VERSION)"
 
+repo-secure-bundle: build-release-all
+	$(call print_banner,Creating secure multi-hash signed binary bundle)
+	@RELEASE_SIGNING_KEY="$(RELEASE_SIGNING_KEY)" RELEASE_SIGNING_CERT="$(RELEASE_SIGNING_CERT)" \
+		./scripts/release/secure_binary_bundle.sh
+
+repo-secure-bundle-verify:
+	$(call print_banner,Verifying secure multi-hash signed binary bundle)
+	@RELEASE_SIGNING_CERT="$(RELEASE_SIGNING_CERT)" ./scripts/release/verify_secure_binary_bundle.sh
+
+install-binaries-root: build-release-all bootstrap-paths
+	$(call print_banner,Installing complete binary set to canonical root path)
+	@for bin in aoxc aoxchub aoxckit; do \
+		test -f "target/release/$$bin$(AOXC_EXE_SUFFIX)" || { echo "Missing built binary: target/release/$$bin$(AOXC_EXE_SUFFIX)"; exit 1; }; \
+		$(CP) "target/release/$$bin$(AOXC_EXE_SUFFIX)" "$(AOXC_BIN_CURRENT_DIR)/$$bin$(AOXC_EXE_SUFFIX)"; \
+		chmod +x "$(AOXC_BIN_CURRENT_DIR)/$$bin$(AOXC_EXE_SUFFIX)" 2>/dev/null || true; \
+	done
+	@echo "Installed binaries into canonical root: $(AOXC_BIN_CURRENT_DIR)"
+
+github-install-binaries:
+	$(call print_banner,Downloading and installing GitHub release binaries)
+	@./scripts/release/github_binary_install.sh \
+		--repo "$${GITHUB_REPO:?Set GITHUB_REPO=owner/repo}" \
+		--version "$${GITHUB_VERSION:?Set GITHUB_VERSION=<semver>}" \
+		$${GITHUB_PLATFORM:+--platform "$${GITHUB_PLATFORM}"} \
+		$${GITHUB_INSTALL_DIR:+--install-dir "$${GITHUB_INSTALL_DIR}"} \
+		$${GITHUB_DOWNLOADS_DIR:+--downloads-dir "$${GITHUB_DOWNLOADS_DIR}"} \
+		$${RELEASE_SIGNING_CERT:+--cert "$${RELEASE_SIGNING_CERT}"} \
+		$${GITHUB_BASE_URL:+--github-base-url "$${GITHUB_BASE_URL}"}
+
 test:
 	$(call print_banner,Running workspace tests)
 	$(CARGO) test $(TEST_FLAGS)
@@ -657,7 +692,12 @@ quality-quick:
 
 quality-release:
 	$(call print_banner,Running release quality gate)
+	./scripts/validation/versioning_gate.sh
 	./scripts/quality_gate.sh release
+
+versioning-gate:
+	$(call print_banner,Running version governance gate)
+	@./scripts/validation/versioning_gate.sh
 
 ci: fmt check test clippy audit
 

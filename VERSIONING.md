@@ -2,48 +2,124 @@
 
 ## Purpose
 
-This document defines how AOXChain versions are advanced in a slow, controlled, and reviewable way.
+This document defines how AOXChain version state is advanced in a controlled, auditable, and Git-compatible workflow.
 
 Current active release line target: `AOXC-QTR-V1` (communication label only).
 
-Current workspace release version: `0.2.0-alpha.1`.
+Current workspace release version: `0.2.0-alpha.3`.
 
-## Canonical Sources
+## Canonical Version Surfaces
+
+AOXChain version state is governed by three canonical surfaces:
 
 - Repository release version: `Cargo.toml` (`[workspace.package].version`)
-- Machine-readable governance policy: `configs/version-policy.toml`
-- Component schema versions: maintained in component-specific code and manifests (for example protocol/schema/policy version constants)
+- Machine-readable governance policy: `configs/version-policy.toml` (`[workspace].current`)
+- Git release tag namespace: `v<workspace-version>`
 
-All three surfaces must remain internally consistent.
+All three surfaces must remain synchronized for release-grade operation.
 
-## Version Model
+## Versioning Model
 
-AOXChain uses a **hybrid model**:
+AOXChain uses a hybrid model:
 
-1. **Global workspace version** (single release number)
+1. **Global workspace version** (single release identity)
    - Represents the release identity for the full repository.
-   - Bumped when merged changes alter shipped behavior, operator behavior, or release artifacts.
+   - Must advance when merged changes affect shipped behavior, operator behavior, or release artifacts.
 2. **Component schema tracks**
-   - Protocol/schema/policy versions evolve independently when a format or contract changes.
-   - Schema bumps are explicit and must be accompanied by migration/compatibility rationale.
+   - Protocol/schema/policy tracks advance independently when a schema contract changes.
+   - Schema bumps require compatibility rationale and migration posture.
 
-This means versioning is **not per-file** and **not per-folder by default**.
+Versioning is intentionally **not per-file** and **not per-folder by default**.
 
-## Bump Rules (Global Workspace Version)
+## Semantic Rules
 
-- **Patch-level bump**: bug fixes, hardening, tests/docs/scripts with no public compatibility break.
-- **Minor-level bump**: backward-compatible feature additions or new operator-visible capabilities.
-- **Major-level bump**: compatibility-breaking changes to protocol, APIs, storage, or governance contracts.
+### Global workspace SemVer rules
 
-## Change Discipline
+- `MAJOR`: compatibility-breaking protocol/API/storage/governance changes.
+- `MINOR`: backward-compatible capability additions.
+- `PATCH`: backward-compatible fixes, hardening, or operational corrections.
+- Pre-release suffixes (for example `-alpha.1`) are allowed for non-final release lines.
 
-When changing version-sensitive behavior:
+### Controlled-channel contract
 
-1. Update `Cargo.toml` workspace version when release identity changes.
-2. Update `configs/version-policy.toml` to match the new workspace version.
-3. If a schema contract changed, bump the relevant schema track and document compatibility impact.
-4. Ensure tests pass, including version-governance validation in `tests/`.
+`configs/version-policy.toml` must preserve:
+
+- `strategy = "global-workspace-version-with-component-schema-tracks"`
+- `release_channel = "controlled"`
+
+These keys are treated as release-governance controls and are verified by tests and gates.
+
+## Git-Compatible Change Enforcement
+
+Version governance is enforced through:
+
+- Rust tests in `tests/src/version_governance.rs`.
+- Shell gate: `scripts/validation/versioning_gate.sh`.
+- Make target: `make versioning-gate` (also run by `make quality-release`).
+
+The versioning gate verifies:
+
+1. `Cargo.toml` workspace version equals `configs/version-policy.toml` current version.
+2. Workspace version matches SemVer core format (`MAJOR.MINOR.PATCH[-PRERELEASE]`).
+3. If `HEAD` is tagged, the tag must be exactly `v<workspace-version>`.
+4. If version-sensitive files changed relative to the configured base ref, at least one canonical version surface must also change.
+5. Workspace version must be greater than the latest `v*` Git tag unless explicitly overridden.
+
+## Forced Version Advancement Policy
+
+When a change touches version-sensitive engineering surfaces (for example crates, contracts, runtime configs, release scripts, core build controls, or governance tests), version advancement is mandatory unless a reviewer-approved exception is explicitly documented.
+
+Default policy outcome:
+
+- version-sensitive changes without version-surface updates are rejected by `versioning_gate.sh`.
+
+Override path (exception only):
+
+- set `AOXC_ALLOW_NON_INCREMENTAL_VERSION=1` when a non-incremental version is intentionally required for controlled maintenance flow.
+
+## Standard Workflow
+
+1. Apply implementation changes.
+2. Decide required SemVer bump (`MAJOR`, `MINOR`, `PATCH`, optional pre-release suffix).
+3. Update:
+   - `Cargo.toml` `[workspace.package].version`
+   - `configs/version-policy.toml` `[workspace].current`
+4. If schema contracts changed, bump relevant schema track values and document compatibility posture.
+5. Run:
+   - `make versioning-gate`
+   - `cargo test -p tests version_governance -- --nocapture` (or repository test matrix)
+6. Create/validate release tags as `v<workspace-version>` in release workflow.
+
+## Reviewer Checklist
+
+For version-sensitive pull requests, reviewers should verify:
+
+- Canonical version surfaces are synchronized.
+- SemVer class is consistent with compatibility impact.
+- Schema track bumps exist where contract formats changed.
+- Versioning gate and governance tests are green.
+- Release tag plan aligns with `v<workspace-version>`.
 
 ## Operator Guidance
 
-If uncertain whether to bump global version, prefer conservative bump and document rationale in PR description.
+If bump scope is ambiguous, prefer conservative upward bump and document rationale in pull request notes.
+
+## Secure Binary Publication Contract
+
+Release publication should use cryptographic evidence surfaces in addition to
+version surfaces:
+
+- `manifest.secure.json` with release metadata and certificate fingerprint
+- `SHA256SUMS`
+- `SHA3-512SUMS`
+- `BLAKE3SUMS` (optional hash algorithm availability)
+- detached signatures for manifest and checksum files
+
+Recommended secure publication flow:
+
+1. Build binaries with `make build-release-all`.
+2. Produce secure bundle:
+   `make repo-secure-bundle RELEASE_SIGNING_KEY=<key.pem> RELEASE_SIGNING_CERT=<cert.pem>`.
+3. Verify secure bundle:
+   `make repo-secure-bundle-verify RELEASE_SIGNING_CERT=<cert.pem>`.
+4. Publish only verified artifacts under a version-scoped path (`v<workspace-version>`).
