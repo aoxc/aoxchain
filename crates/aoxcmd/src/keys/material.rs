@@ -288,7 +288,17 @@ impl KeyMaterial {
 /// - mainnet => hybrid surface reservation,
 /// - testnet / validation / devnet / localnet => classic Ed25519 operational mode.
 fn infer_crypto_profile(normalized_profile: &str, profile_hint: &str) -> CryptoProfile {
-    if matches!(profile_hint, "quantum" | "quntum" | "pq-preview") {
+    if matches!(
+        profile_hint,
+        "quantum"
+            | "quntum"
+            | "pq-preview"
+            | "pq-only"
+            | "pq-strict"
+            | "post-quantum"
+            | "postquantum"
+            | "quantum-only"
+    ) {
         return CryptoProfile::PqDilithium3Preview;
     }
 
