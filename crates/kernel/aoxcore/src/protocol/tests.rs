@@ -449,28 +449,20 @@ fn handshake_negotiation_rejects_invalid_peer_profile() {
 fn strict_profile_admits_valid_quantum_transaction() {
     let profile = QuantumKernelProfile::strict_default();
     let (pk, sk) = pq_keys::generate_keypair();
-    let payload = vec![7, 8, 9];
-    let nonce = 9;
-    let message = QuantumTransaction::canonical_signing_message(
-        nonce,
-        Capability::UserSigned,
-        TargetOutpost::EthMainnetGateway,
-        &payload,
-    )
-    .expect("message must be buildable");
+    let mut envelope = crate::transaction::TransactionEnvelope {
+        scheme_id: SignatureScheme::MlDsa65,
+        verification_key: pq_keys::serialize_public_key(&pk),
+        nonce: 9,
+        capability: Capability::UserSigned,
+        target: TargetOutpost::EthMainnetGateway,
+        payload: vec![7, 8, 9],
+        proof_bundle: Vec::new(),
+        profile_id: profile.profile_version,
+    };
+    envelope.proof_bundle =
+        pq_keys::sign_message_domain_separated(&envelope.signing_message(), &sk);
 
-    let signed_payload = pq_keys::sign_message_domain_separated(&message, &sk);
-    let tx = QuantumTransaction::new(
-        pq_keys::serialize_public_key(&pk),
-        nonce,
-        Capability::UserSigned,
-        TargetOutpost::EthMainnetGateway,
-        payload,
-        signed_payload,
-    )
-    .expect("transaction must be valid");
-
-    assert!(profile.admit_quantum_transaction(&tx).is_ok());
+    assert!(profile.admit_transaction_envelope(&envelope).is_ok());
 }
 
 #[test]
@@ -502,6 +494,60 @@ fn profile_rejects_invalid_quantum_transaction_during_admission() {
         profile
             .admit_quantum_transaction(&tx)
             .expect_err("tampered signature must be rejected"),
+        QuantumAdmissionError::InvalidTransactionPayload
+    );
+}
+
+#[test]
+fn strict_profile_rejects_ed25519_legacy_envelope() {
+    use ed25519_dalek::{Signer, SigningKey};
+
+    let profile = QuantumKernelProfile::strict_default();
+    let signing_key = SigningKey::from_bytes(&[42u8; 32]);
+    let mut envelope = crate::transaction::TransactionEnvelope {
+        scheme_id: SignatureScheme::Ed25519Legacy,
+        verification_key: signing_key.verifying_key().to_bytes().to_vec(),
+        nonce: 3,
+        capability: Capability::UserSigned,
+        target: TargetOutpost::EthMainnetGateway,
+        payload: vec![1, 2, 3],
+        proof_bundle: Vec::new(),
+        profile_id: profile.profile_version,
+    };
+    envelope.proof_bundle = signing_key
+        .sign(&envelope.signing_message())
+        .to_bytes()
+        .to_vec();
+
+    assert_eq!(
+        profile
+            .admit_transaction_envelope(&envelope)
+            .expect_err("strict profile must reject Ed25519 legacy scheme"),
+        QuantumAdmissionError::UnsupportedTransactionSignatureScheme
+    );
+}
+
+#[test]
+fn strict_profile_rejects_profile_id_mismatch() {
+    let profile = QuantumKernelProfile::strict_default();
+    let (pk, sk) = pq_keys::generate_keypair();
+    let mut envelope = crate::transaction::TransactionEnvelope {
+        scheme_id: SignatureScheme::MlDsa65,
+        verification_key: pq_keys::serialize_public_key(&pk),
+        nonce: 11,
+        capability: Capability::UserSigned,
+        target: TargetOutpost::EthMainnetGateway,
+        payload: vec![5, 6],
+        proof_bundle: Vec::new(),
+        profile_id: profile.profile_version + 1,
+    };
+    envelope.proof_bundle =
+        pq_keys::sign_message_domain_separated(&envelope.signing_message(), &sk);
+
+    assert_eq!(
+        profile
+            .admit_transaction_envelope(&envelope)
+            .expect_err("profile_id mismatch must be rejected"),
         QuantumAdmissionError::InvalidTransactionPayload
     );
 }
