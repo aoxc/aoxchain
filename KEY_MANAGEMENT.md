@@ -4,7 +4,6 @@ This document defines the repository-level key architecture for wallets, validat
 
 ## 1) Objectives
 
-
 The key system must provide:
 
 - quantum-resistant primary authorization,
