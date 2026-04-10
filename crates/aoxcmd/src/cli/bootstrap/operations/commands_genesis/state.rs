@@ -1,5 +1,5 @@
 use super::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const ALLOWED_GENESIS_ACCOUNT_ROLES: [&str; 12] = [
     "treasury",
@@ -74,6 +74,7 @@ pub fn cmd_genesis_start(args: &[String]) -> Result<(), AppError> {
 
     validate_genesis(&genesis)?;
     validate_binding_files(&genesis)?;
+    enforce_genesis_start_security(args, &genesis)?;
     if has_flag(args, "--strict") {
         validate_identity_against_repo_policy(&genesis)?;
     }
@@ -117,6 +118,13 @@ pub fn cmd_genesis_start(args: &[String]) -> Result<(), AppError> {
     forward_boolean_flag(args, "--bounded", &mut node_args);
     forward_boolean_flag(args, "--no-live-log", &mut node_args);
     forward_boolean_flag(args, "--no-rpc-serve", &mut node_args);
+    forward_flag_with_value(args, "--known-bootnode", &mut node_args);
+    forward_flag_with_value(args, "--known-bootnode-file", &mut node_args);
+    forward_flag_with_value(args, "--bootnodes-file", &mut node_args);
+    forward_flag_with_value(args, "--bootnodes-sha256", &mut node_args);
+    forward_flag_with_value(args, "--certificate-file", &mut node_args);
+    forward_flag_with_value(args, "--certificate-sha256", &mut node_args);
+    forward_boolean_flag(args, "--strict-bootnode-id", &mut node_args);
     forward_flag_with_value(args, "--format", &mut node_args);
 
     crate::cli::ops::cmd_node_run(&node_args)
@@ -160,7 +168,7 @@ pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
     emit_serialized(&genesis, output_format(args))
 }
 
-pub(super) fn apply_genesis_start_overrides(
+pub(in crate::cli::bootstrap::operations) fn apply_genesis_start_overrides(
     args: &[String],
     genesis: &mut BootstrapGenesisDocument,
 ) -> Result<usize, AppError> {
@@ -314,6 +322,112 @@ fn forward_boolean_flag(args: &[String], flag: &str, node_args: &mut Vec<String>
     if has_flag(args, flag) {
         node_args.push(flag.to_string());
     }
+}
+
+fn enforce_genesis_start_security(
+    args: &[String],
+    genesis: &BootstrapGenesisDocument,
+) -> Result<(), AppError> {
+    if has_flag(args, "--enforce-pq-consensus")
+        && !genesis
+            .consensus
+            .consensus_identity_profile
+            .to_ascii_lowercase()
+            .starts_with("pq")
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis start security gate failed: --enforce-pq-consensus requires a pq* consensus identity profile",
+        ));
+    }
+
+    if has_flag(args, "--enforce-block-validation-rules") {
+        let timing = &genesis.consensus.consensus_timing;
+        let block_time_ok = (500..=15_000).contains(&genesis.consensus.block_time_ms);
+        let base_ok = timing.pacemaker_base_timeout_ms > 0
+            && timing.pacemaker_base_timeout_ms <= genesis.consensus.block_time_ms;
+        let max_ok = timing.pacemaker_max_timeout_ms >= timing.pacemaker_base_timeout_ms
+            && timing.pacemaker_max_timeout_ms <= 120_000;
+        let finality_ok = timing.reconfiguration_finality_lag_blocks >= 2
+            && timing.reconfiguration_finality_lag_blocks <= 256;
+        if !(block_time_ok && base_ok && max_ok && finality_ok) {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis start security gate failed: timing rules violated (block_time_ms={}, base_timeout_ms={}, max_timeout_ms={}, finality_lag_blocks={})",
+                    genesis.consensus.block_time_ms,
+                    timing.pacemaker_base_timeout_ms,
+                    timing.pacemaker_max_timeout_ms,
+                    timing.reconfiguration_finality_lag_blocks
+                ),
+            ));
+        }
+    }
+
+    if let Some(expected) = parse_optional_text_arg(args, "--expected-genesis-sha256", true) {
+        verify_file_sha256(
+            &genesis_path()?,
+            &expected,
+            "Genesis start security gate failed: genesis hash mismatch",
+        )?;
+    }
+
+    let genesis_file = genesis_path()?;
+    let root = genesis_file.parent().ok_or_else(|| {
+        AppError::new(
+            ErrorCode::FilesystemIoFailed,
+            "Genesis start security gate failed: identity directory not accessible",
+        )
+    })?;
+
+    if let Some(expected) = parse_optional_text_arg(args, "--expected-validators-sha256", true) {
+        verify_file_sha256(
+            &root.join(&genesis.bindings.validators_file),
+            &expected,
+            "Genesis start security gate failed: validators binding hash mismatch",
+        )?;
+    }
+    if let Some(expected) = parse_optional_text_arg(args, "--expected-bootnodes-sha256", true) {
+        verify_file_sha256(
+            &root.join(&genesis.bindings.bootnodes_file),
+            &expected,
+            "Genesis start security gate failed: bootnodes binding hash mismatch",
+        )?;
+    }
+    if let Some(expected) = parse_optional_text_arg(args, "--expected-certificate-sha256", true) {
+        verify_file_sha256(
+            &root.join(&genesis.bindings.certificate_file),
+            &expected,
+            "Genesis start security gate failed: certificate binding hash mismatch",
+        )?;
+    }
+
+    Ok(())
+}
+
+fn verify_file_sha256(path: &Path, expected_hex: &str, message: &str) -> Result<(), AppError> {
+    if expected_hex.len() != 64 || !expected_hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Expected sha256 digest must be a 64-byte hexadecimal string",
+        ));
+    }
+
+    let raw = read_file(path)?;
+    let mut hasher = Sha256::new();
+    hasher.update(raw.as_bytes());
+    let digest = hex::encode(hasher.finalize());
+    if digest != expected_hex.to_ascii_lowercase() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "{message}: path={} expected={expected_hex} computed={digest}",
+                path.display()
+            ),
+        ));
+    }
+
+    Ok(())
 }
 
 pub fn cmd_genesis_add_account(args: &[String]) -> Result<(), AppError> {
