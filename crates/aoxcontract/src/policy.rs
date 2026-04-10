@@ -111,6 +111,44 @@ impl ContractPolicy {
         }
         Ok(())
     }
+
+    /// Returns true when post-quantum signatures are mandatory at `chain_epoch`.
+    pub fn requires_post_quantum_signatures_at(&self, chain_epoch: u64) -> bool {
+        match self.quantum_security.migration_mode {
+            QuantumMigrationMode::ClassicalOnly => false,
+            QuantumMigrationMode::PostQuantumOnly => self
+                .quantum_security
+                .transition_epoch_start
+                .map(|start| chain_epoch >= start)
+                .unwrap_or(true),
+            QuantumMigrationMode::HybridDualSign => self
+                .quantum_security
+                .classical_retirement_epoch
+                .map(|retire| chain_epoch >= retire)
+                .unwrap_or(false),
+        }
+    }
+
+    /// Returns required signature bundle count at `chain_epoch`.
+    pub fn minimum_required_signature_bundles_at(&self, chain_epoch: u64) -> u8 {
+        if self.requires_post_quantum_signatures_at(chain_epoch) {
+            return self.quantum_security.min_signature_bundles.max(1);
+        }
+        match self.quantum_security.migration_mode {
+            QuantumMigrationMode::HybridDualSign => self
+                .quantum_security
+                .transition_epoch_start
+                .map(|start| {
+                    if chain_epoch >= start {
+                        self.quantum_security.min_signature_bundles.max(2)
+                    } else {
+                        1
+                    }
+                })
+                .unwrap_or(self.quantum_security.min_signature_bundles.max(2)),
+            _ => 1,
+        }
+    }
 }
 
 impl Validate for ContractPolicy {
