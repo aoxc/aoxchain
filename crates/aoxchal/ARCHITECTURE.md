@@ -1,5 +1,6 @@
 # Architecture
 
+
 ## Main Components
 `aoxchal` is organized around focused modules under `src/`, with responsibilities separated by domain concern.
 
