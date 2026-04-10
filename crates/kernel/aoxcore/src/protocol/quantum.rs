@@ -288,11 +288,14 @@ impl QuantumKernelProfile {
         }
 
         transaction
-            .validate_with_policy(crate::transaction::EnvelopeVerificationPolicy {
-                allow_legacy_signature_fallback: self.legacy_signature_support,
-                expected_profile_id: Some(self.profile_version),
-            })
-            .map_err(|_| QuantumAdmissionError::InvalidTransactionPayload)
+            .validate()
+            .map_err(|_| QuantumAdmissionError::InvalidTransactionPayload)?;
+
+        if transaction.profile_id != self.profile_version {
+            return Err(QuantumAdmissionError::InvalidTransactionPayload);
+        }
+
+        Ok(())
     }
 
     /// Backward-compatible admission helper for legacy quantum transaction type.
@@ -300,7 +303,8 @@ impl QuantumKernelProfile {
         &self,
         transaction: &crate::transaction::quantum::QuantumTransaction,
     ) -> Result<(), QuantumAdmissionError> {
-        let envelope = crate::transaction::TransactionEnvelope::from(transaction.clone());
+        let mut envelope = crate::transaction::TransactionEnvelope::from(transaction.clone());
+        envelope.profile_id = self.profile_version;
         self.admit_transaction_envelope(&envelope)
     }
 }
