@@ -22,6 +22,11 @@ use crate::{
 /// - `quntum`
 /// - `qumtum`
 /// - `pq-preview`
+/// - `transition`
+/// - `quantum-transition`
+/// - `pq-hybrid`
+/// - `hybrid`
+/// - `gecis`
 /// - `testnet`
 /// - `validation`
 /// - `devnet`
@@ -43,10 +48,16 @@ fn normalize_profile(profile: &str) -> Result<&'static str, AppError> {
         "quntum" => Ok("mainnet"),
         "qumtum" => Ok("mainnet"),
         "pq-preview" => Ok("mainnet"),
+        "transition" => Ok("mainnet"),
+        "quantum-transition" => Ok("mainnet"),
+        "quntum-transition" => Ok("mainnet"),
+        "pq-hybrid" => Ok("mainnet"),
+        "hybrid" => Ok("mainnet"),
+        "gecis" => Ok("mainnet"),
         other => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             format!(
-                "Unsupported AOXC key-management profile `{}`; expected mainnet, quantum, quntum, qumtum, pq-preview, testnet, validation, devnet, or localnet",
+                "Unsupported AOXC key-management profile `{}`; expected mainnet, quantum, quntum, qumtum, pq-preview, transition, quantum-transition, pq-hybrid, hybrid, gecis, testnet, validation, devnet, or localnet",
                 other
             ),
         )),
@@ -333,6 +344,19 @@ mod tests {
         );
         assert_eq!(
             normalize_profile("qumtum").expect("qumtum profile should normalize"),
+            "mainnet"
+        );
+        assert_eq!(
+            normalize_profile("transition").expect("transition profile should normalize"),
+            "mainnet"
+        );
+        assert_eq!(
+            normalize_profile("quantum-transition")
+                .expect("quantum-transition profile should normalize"),
+            "mainnet"
+        );
+        assert_eq!(
+            normalize_profile("pq-hybrid").expect("pq-hybrid profile should normalize"),
             "mainnet"
         );
     }
