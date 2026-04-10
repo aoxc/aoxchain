@@ -168,6 +168,47 @@ Release artifact certification helper.
 This script validates and certifies release artifacts according to the
 repository’s release assurance expectations.
 
+### `scripts/release/secure_binary_bundle.sh`
+Secure binary bundling workflow with defense-in-depth hashing and signing.
+
+This script creates release bundles that include:
+
+- complete binary set (`aoxc`, `aoxchub`, `aoxckit`),
+- `SHA256SUMS`,
+- `SHA3-512SUMS`,
+- `BLAKE3SUMS` (`unavailable` marker when `b3sum` is not installed),
+- `manifest.secure.json` with git commit and certificate fingerprint,
+- detached signatures for manifest and every checksum surface.
+
+Required inputs:
+
+- `RELEASE_SIGNING_KEY` (private key),
+- `RELEASE_SIGNING_CERT` (X.509 certificate).
+
+### `scripts/release/verify_secure_binary_bundle.sh`
+Secure bundle verifier for signed multi-hash bundles.
+
+This script verifies:
+
+- detached signatures for secure manifest and checksum files,
+- manifest-to-binary hash parity for SHA-256 and SHA3-512,
+- BLAKE3 parity when BLAKE3 hashes are present.
+
+### `scripts/release/github_binary_install.sh`
+GitHub release binary download and installation workflow.
+
+This script supports:
+
+- downloading release archives from `releases/download/v<version>/`,
+- checksum verification before extraction,
+- optional certificate-based signature verification for checksums,
+- full binary installation (`aoxc`, `aoxchub`, `aoxckit`) into a target directory.
+
+Default install and download behavior is fail-closed and root-path oriented:
+
+- install path defaults to `<AOXC_ROOT>/bin/current`,
+- download cache defaults to `<AOXC_ROOT>/downloads/github/v<version>/<platform>`.
+
 ### Operator orchestration wrappers
 The following scripts provide high-level workflow wrappers and intentionally
 defer critical validation logic to `aoxc` and `make` surfaces:
@@ -234,6 +275,39 @@ The canonical single-runtime layout is:
   tmp/
   active-profile
 ```
+
+Unless an explicit install path is provided, binary installation flows should
+use `<AOXC_ROOT>/bin/current` as the canonical destination.
+
+---
+
+## GitHub Binary Distribution Paths
+
+For GitHub-hosted release consumption, use a dedicated path contract:
+
+```text
+<AOXC_ROOT>/
+  downloads/
+    github/
+      v<version>/
+        <platform>/
+          aoxc-v<version>-<platform>-portable.tar.gz
+          SHA256SUMS
+          SHA256SUMS.sig (optional but recommended)
+          extract/
+```
+
+Recommended installation destination:
+
+```text
+<AOXC_ROOT>/bin/current/
+  aoxc
+  aoxchub
+  aoxckit
+```
+
+This separation keeps downloaded artifacts, extraction scratch data, and active
+runtime binaries distinct for operational clarity and auditability.
 
 ---
 
