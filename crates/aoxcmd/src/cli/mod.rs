@@ -114,6 +114,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "node-run" => ops::cmd_node_run(&args[2..]),
         "node-health" => ops::cmd_node_health(&args[2..]),
         "network-smoke" => ops::cmd_network_smoke(&args[2..]),
+        "network-join-check" => ops::cmd_network_join_check(&args[2..]),
         "real-network" => ops::cmd_real_network(&args[2..]),
         "storage-smoke" => ops::cmd_storage_smoke(&args[2..]),
         "db-init" => db::cmd_db_init(&args[2..]),
@@ -126,6 +127,12 @@ pub fn run_cli() -> Result<(), AppError> {
         "treasury-transfer" => ops::cmd_treasury_transfer(&args[2..]),
         "stake-delegate" => ops::cmd_stake_delegate(&args[2..]),
         "stake-undelegate" => ops::cmd_stake_undelegate(&args[2..]),
+        "validator-join" => ops::cmd_validator_join(&args[2..]),
+        "validator-activate" => ops::cmd_validator_activate(&args[2..]),
+        "validator-bond" => ops::cmd_validator_bond(&args[2..]),
+        "validator-unbond" => ops::cmd_validator_unbond(&args[2..]),
+        "validator-set-status" => ops::cmd_validator_set_status(&args[2..]),
+        "validator-commission-set" => ops::cmd_validator_commission_set(&args[2..]),
         "economy-status" => ops::cmd_economy_status(&args[2..]),
         "faucet-status" => ops::cmd_faucet_status(&args[2..]),
         "faucet-history" => ops::cmd_faucet_history(&args[2..]),
@@ -225,31 +232,11 @@ fn route_validator_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "create" => bootstrap::cmd_key_bootstrap(tail),
-        "join" | "register" => {
-            let mapped = remap_flags(
-                tail,
-                &[
-                    ("--validator-id", "--name"),
-                    ("--name", "--name"),
-                    ("--profile", "--profile"),
-                ],
-            );
-            bootstrap::cmd_key_bootstrap(&mapped)
-        }
-        "activate" | "bond" => {
-            let mapped = remap_flags(
-                tail,
-                &[("--validator-id", "--validator"), ("--stake", "--amount")],
-            );
-            ops::cmd_stake_delegate(&mapped)
-        }
-        "unbond" => {
-            let mapped = remap_flags(
-                tail,
-                &[("--validator-id", "--validator"), ("--stake", "--amount")],
-            );
-            ops::cmd_stake_undelegate(&mapped)
-        }
+        "join" | "register" => ops::cmd_validator_join(tail),
+        "activate" | "bond" => ops::cmd_validator_activate(tail),
+        "unbond" => ops::cmd_validator_unbond(tail),
+        "set-status" => ops::cmd_validator_set_status(tail),
+        "commission-set" => ops::cmd_validator_commission_set(tail),
         "inspect" | "status" => bootstrap::cmd_keys_inspect(tail),
         "rotate-key" => bootstrap::cmd_key_rotate(tail),
         _ => invalid_group_usage("validator", "unsupported subcommand"),
@@ -296,18 +283,7 @@ fn route_node_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "init" => ops::cmd_node_bootstrap(tail),
-        "join" => {
-            let mapped = remap_flags(
-                tail,
-                &[
-                    ("--seed", "--known-bootnode"),
-                    ("--peer", "--known-bootnode"),
-                    ("--trust-root", "--certificate-file"),
-                    ("--allow-sync-from", "--known-bootnode"),
-                ],
-            );
-            ops::cmd_node_bootstrap(&mapped)
-        }
+        "join" => ops::cmd_node_join(tail),
         "start" => ops::cmd_node_run(tail),
         "status" => ops::cmd_node_health(tail),
         "doctor" => audit::cmd_diagnostics_doctor(tail),
@@ -325,6 +301,7 @@ fn route_network_group(args: &[String]) -> Result<(), AppError> {
         "join" | "peer-add" | "seed-add" | "bootstrap-peer-add" => route_node_join_alias(tail),
         "start" => ops::cmd_real_network(tail),
         "status" | "verify" => ops::cmd_network_smoke(tail),
+        "join-check" => ops::cmd_network_join_check(tail),
         "identity-gate" => ops::cmd_network_identity_gate(tail),
         "doctor" => audit::cmd_diagnostics_doctor(tail),
         _ => invalid_group_usage("network", "unsupported subcommand"),
