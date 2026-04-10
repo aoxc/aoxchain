@@ -155,6 +155,13 @@ pub struct PolicyInputs {
     /// Security reserve for adverse or hostile operating conditions.
     pub security_reserve_bps: u32,
 
+    /// Additional reserve for post-quantum migration and rollout hardening.
+    pub quantum_transition_reserve_bps: u32,
+
+    /// Ongoing assurance reserve for post-quantum validation, audits, and
+    /// verification operations.
+    pub quantum_assurance_bps: u32,
+
     /// Treasury formation component for durable reserve creation.
     pub treasury_build_bps: u32,
 
@@ -180,6 +187,7 @@ pub struct DemandInputs {
 pub struct GovernancePolicy {
     pub max_tax_bps: u32,
     pub max_treasury_build_bps: u32,
+    pub max_quantum_reserve_bps: u32,
     pub max_period_floor_increase_bps: u32,
     pub allow_emergency_override: bool,
 }
@@ -203,6 +211,8 @@ pub struct EconomicFloorReport {
     pub sustainable_cost: UnitAmount,
     pub continuity_component: UnitAmount,
     pub security_component: UnitAmount,
+    pub quantum_transition_component: UnitAmount,
+    pub quantum_assurance_component: UnitAmount,
     pub treasury_build_component: UnitAmount,
     pub target_margin_component: UnitAmount,
     pub pre_tax_full_cost: UnitAmount,
@@ -221,6 +231,8 @@ pub struct CostShareBps {
     pub operations: u32,
     pub continuity: u32,
     pub security: u32,
+    pub quantum_transition: u32,
+    pub quantum_assurance: u32,
     pub treasury_build: u32,
     pub target_margin: u32,
     pub tax: u32,
@@ -272,6 +284,8 @@ impl EconomicFloorReport {
                 .checked_add(self.continuity_component)
                 .ok()
                 .and_then(|v| v.checked_add(self.security_component).ok())
+                .and_then(|v| v.checked_add(self.quantum_transition_component).ok())
+                .and_then(|v| v.checked_add(self.quantum_assurance_component).ok())
         });
         let pre_tax = self
             .sustainable_cost
@@ -300,6 +314,8 @@ impl EconomicFloorReport {
         let operations = share_bps(self.total_operational_cost.micros(), total);
         let continuity = share_bps(self.continuity_component.micros(), total);
         let security = share_bps(self.security_component.micros(), total);
+        let quantum_transition = share_bps(self.quantum_transition_component.micros(), total);
+        let quantum_assurance = share_bps(self.quantum_assurance_component.micros(), total);
         let treasury_build = share_bps(self.treasury_build_component.micros(), total);
         let target_margin = share_bps(self.target_margin_component.micros(), total);
 
@@ -307,6 +323,8 @@ impl EconomicFloorReport {
             .saturating_add(operations)
             .saturating_add(continuity)
             .saturating_add(security)
+            .saturating_add(quantum_transition)
+            .saturating_add(quantum_assurance)
             .saturating_add(treasury_build)
             .saturating_add(target_margin);
         let tax = BPS_DENOMINATOR.saturating_sub(allocated);
@@ -316,6 +334,8 @@ impl EconomicFloorReport {
             operations,
             continuity,
             security,
+            quantum_transition,
+            quantum_assurance,
             treasury_build,
             target_margin,
             tax,
@@ -377,9 +397,15 @@ impl EnergyAnchorEngine {
             base_sustainable_cost.apply_bps(inputs.policy.continuity_buffer_bps)?;
         let security_component =
             base_sustainable_cost.apply_bps(inputs.policy.security_reserve_bps)?;
+        let quantum_transition_component =
+            base_sustainable_cost.apply_bps(inputs.policy.quantum_transition_reserve_bps)?;
+        let quantum_assurance_component =
+            base_sustainable_cost.apply_bps(inputs.policy.quantum_assurance_bps)?;
         let sustainable_cost = base_sustainable_cost
             .checked_add(continuity_component)?
-            .checked_add(security_component)?;
+            .checked_add(security_component)?
+            .checked_add(quantum_transition_component)?
+            .checked_add(quantum_assurance_component)?;
 
         let treasury_build_component =
             sustainable_cost.apply_bps(inputs.policy.treasury_build_bps)?;
@@ -409,6 +435,8 @@ impl EnergyAnchorEngine {
             sustainable_cost,
             continuity_component,
             security_component,
+            quantum_transition_component,
+            quantum_assurance_component,
             treasury_build_component,
             target_margin_component,
             pre_tax_full_cost,
@@ -460,6 +488,14 @@ fn validate_inputs(
         inputs.policy.security_reserve_bps,
     )?;
     validate_bps(
+        "policy.quantum_transition_reserve_bps",
+        inputs.policy.quantum_transition_reserve_bps,
+    )?;
+    validate_bps(
+        "policy.quantum_assurance_bps",
+        inputs.policy.quantum_assurance_bps,
+    )?;
+    validate_bps(
         "policy.treasury_build_bps",
         inputs.policy.treasury_build_bps,
     )?;
@@ -470,6 +506,10 @@ fn validate_inputs(
     validate_bps(
         "governance.max_treasury_build_bps",
         governance.max_treasury_build_bps,
+    )?;
+    validate_bps(
+        "governance.max_quantum_reserve_bps",
+        governance.max_quantum_reserve_bps,
     )?;
     validate_bps(
         "governance.max_period_floor_increase_bps",
@@ -487,6 +527,17 @@ fn validate_inputs(
         return Err(EnergyError::InvalidInput(format!(
             "treasury_build_bps '{}' exceeds governance maximum '{}'",
             inputs.policy.treasury_build_bps, governance.max_treasury_build_bps
+        )));
+    }
+
+    let total_quantum_bps = inputs
+        .policy
+        .quantum_transition_reserve_bps
+        .saturating_add(inputs.policy.quantum_assurance_bps);
+    if total_quantum_bps > governance.max_quantum_reserve_bps {
+        return Err(EnergyError::InvalidInput(format!(
+            "total quantum reserve bps '{}' exceeds governance maximum '{}'",
+            total_quantum_bps, governance.max_quantum_reserve_bps
         )));
     }
 
