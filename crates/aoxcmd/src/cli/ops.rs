@@ -65,8 +65,8 @@ pub use faucet::{
     cmd_faucet_reset, cmd_faucet_status,
 };
 pub use node_ops::{
-    cmd_network_smoke, cmd_node_bootstrap, cmd_node_health, cmd_node_run, cmd_produce_once,
-    cmd_real_network, cmd_storage_smoke,
+    cmd_network_join_check, cmd_network_smoke, cmd_node_bootstrap, cmd_node_health, cmd_node_join,
+    cmd_node_run, cmd_produce_once, cmd_real_network, cmd_storage_smoke,
 };
 pub use query_full_ops::cmd_query_full;
 pub use readiness_commands::{
