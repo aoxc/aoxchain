@@ -280,7 +280,7 @@ endef
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
 	release-binary-list install-bin package-desktop repo-release-keygen repo-release-signed repo-release-signed-verify repo-release-prepare repo-release-validate \
-	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate quality quality-quick quality-release ci \
+	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate versioning-gate quality quality-quick quality-release ci \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active runtime-snapshot runtime-snapshot-list runtime-snapshot-prune runtime-restore-latest \
@@ -318,6 +318,7 @@ help:
 	@printf "  make clippy\n"
 	@printf "  make audit\n"
 	@printf "  make code-size-gate\n"
+	@printf "  make versioning-gate\n"
 	@printf "  make repo-hygiene-gate\n"
 	@printf "  make quality\n\n"
 	@printf "  make production-full\n\n"
@@ -657,7 +658,12 @@ quality-quick:
 
 quality-release:
 	$(call print_banner,Running release quality gate)
+	./scripts/validation/versioning_gate.sh
 	./scripts/quality_gate.sh release
+
+versioning-gate:
+	$(call print_banner,Running version governance gate)
+	@./scripts/validation/versioning_gate.sh
 
 ci: fmt check test clippy audit
 

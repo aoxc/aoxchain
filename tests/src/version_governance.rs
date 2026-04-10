@@ -3,6 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 use std::fs;
+use std::path::Path;
 
 #[test]
 fn workspace_version_and_version_policy_remain_synchronized() {
@@ -37,6 +38,39 @@ fn version_policy_declares_required_tracks_for_controlled_rollout() {
             "version policy missing required key/value: {required}"
         );
     }
+}
+
+#[test]
+fn workspace_version_uses_semver_core_shape() {
+    let cargo_toml = fs::read_to_string("../Cargo.toml").expect("Cargo.toml must be readable");
+    let workspace_version = read_required_value(&cargo_toml, "version");
+
+    let core = workspace_version
+        .split('-')
+        .next()
+        .expect("version core must exist");
+    let mut parts = core.split('.');
+    let major = parts.next().expect("major segment");
+    let minor = parts.next().expect("minor segment");
+    let patch = parts.next().expect("patch segment");
+    assert!(
+        parts.next().is_none(),
+        "version must have exactly three numeric core segments"
+    );
+    assert!(
+        major.chars().all(|c| c.is_ascii_digit())
+            && minor.chars().all(|c| c.is_ascii_digit())
+            && patch.chars().all(|c| c.is_ascii_digit()),
+        "version core must be MAJOR.MINOR.PATCH with numeric segments"
+    );
+}
+
+#[test]
+fn versioning_gate_script_exists() {
+    assert!(
+        Path::new("../scripts/validation/versioning_gate.sh").exists(),
+        "version governance shell gate must exist"
+    );
 }
 
 fn read_required_value(contents: &str, key: &str) -> String {
