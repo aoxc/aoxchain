@@ -197,6 +197,9 @@ pub struct GovernancePolicy {
     pub max_treasury_build_bps: u32,
     pub max_quantum_reserve_bps: u32,
     pub max_period_floor_increase_bps: u32,
+    pub max_kernel_layer_share_bps: u32,
+    pub max_execution_layer_share_bps: u32,
+    pub min_quantum_readiness_bps: u32,
     pub allow_emergency_override: bool,
 }
 
@@ -497,12 +500,22 @@ impl EnergyAnchorEngine {
             security_component,
         );
 
-        let (governance_decision, audit_notes) = evaluate_governance(
+        let (period_decision, mut audit_notes) = evaluate_governance(
             per_unit_floor,
             previous_approved_per_unit_floor,
             governance,
             emergency_override,
         );
+        let (guardrail_decision, guardrail_notes) = evaluate_layer_and_quantum_guardrails(
+            total_layer_cost,
+            inputs.layer_costs.kernel_layer_cost_per_period,
+            inputs.layer_costs.execution_layer_cost_per_period,
+            quantum_readiness_index_bps,
+            governance,
+            emergency_override,
+        );
+        audit_notes.extend(guardrail_notes);
+        let governance_decision = combine_governance_decisions(period_decision, guardrail_decision);
 
         Ok(EconomicFloorReport {
             raw_energy_cost,
@@ -655,6 +668,18 @@ fn validate_inputs(
         "governance.max_period_floor_increase_bps",
         governance.max_period_floor_increase_bps,
     )?;
+    validate_bps(
+        "governance.max_kernel_layer_share_bps",
+        governance.max_kernel_layer_share_bps,
+    )?;
+    validate_bps(
+        "governance.max_execution_layer_share_bps",
+        governance.max_execution_layer_share_bps,
+    )?;
+    validate_bps(
+        "governance.min_quantum_readiness_bps",
+        governance.min_quantum_readiness_bps,
+    )?;
 
     if inputs.policy.tax_bps > governance.max_tax_bps {
         return Err(EnergyError::InvalidInput(format!(
@@ -682,6 +707,76 @@ fn validate_inputs(
     }
 
     Ok(())
+}
+
+fn combine_governance_decisions(
+    left: GovernanceDecision,
+    right: GovernanceDecision,
+) -> GovernanceDecision {
+    match (left, right) {
+        (GovernanceDecision::Rejected, _) | (_, GovernanceDecision::Rejected) => {
+            GovernanceDecision::Rejected
+        }
+        (GovernanceDecision::RequiresReview, _) | (_, GovernanceDecision::RequiresReview) => {
+            GovernanceDecision::RequiresReview
+        }
+        _ => GovernanceDecision::Approved,
+    }
+}
+
+fn evaluate_layer_and_quantum_guardrails(
+    total_layer_cost: UnitAmount,
+    kernel_layer_cost: UnitAmount,
+    execution_layer_cost: UnitAmount,
+    quantum_readiness_index_bps: u32,
+    governance: &GovernancePolicy,
+    emergency_override: bool,
+) -> (GovernanceDecision, Vec<String>) {
+    let mut notes = Vec::new();
+    let mut decision = GovernanceDecision::Approved;
+
+    if !total_layer_cost.is_zero() {
+        let kernel_share = share_bps(kernel_layer_cost.micros(), total_layer_cost.micros());
+        notes.push(format!(
+            "kernel layer share check: observed={} max={}",
+            kernel_share, governance.max_kernel_layer_share_bps
+        ));
+        if kernel_share > governance.max_kernel_layer_share_bps {
+            decision = GovernanceDecision::RequiresReview;
+            notes.push("kernel layer share exceeds configured maximum".to_owned());
+        }
+
+        let execution_share = share_bps(execution_layer_cost.micros(), total_layer_cost.micros());
+        notes.push(format!(
+            "execution layer share check: observed={} max={}",
+            execution_share, governance.max_execution_layer_share_bps
+        ));
+        if execution_share > governance.max_execution_layer_share_bps {
+            decision = GovernanceDecision::RequiresReview;
+            notes.push("execution layer share exceeds configured maximum".to_owned());
+        }
+    }
+
+    notes.push(format!(
+        "quantum readiness check: observed={} min={}",
+        quantum_readiness_index_bps, governance.min_quantum_readiness_bps
+    ));
+    if quantum_readiness_index_bps < governance.min_quantum_readiness_bps {
+        if emergency_override && governance.allow_emergency_override {
+            decision = combine_governance_decisions(decision, GovernanceDecision::RequiresReview);
+            notes.push(
+                "quantum readiness is below minimum but emergency override allows review path"
+                    .to_owned(),
+            );
+        } else {
+            return (
+                GovernanceDecision::Rejected,
+                vec!["quantum readiness is below governance minimum and is rejected".to_owned()],
+            );
+        }
+    }
+
+    (decision, notes)
 }
 
 fn evaluate_governance(

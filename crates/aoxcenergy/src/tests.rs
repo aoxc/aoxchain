@@ -42,6 +42,9 @@ fn base_governance() -> GovernancePolicy {
         max_treasury_build_bps: 2_500,
         max_quantum_reserve_bps: 1_000,
         max_period_floor_increase_bps: 1_000,
+        max_kernel_layer_share_bps: 4_000,
+        max_execution_layer_share_bps: 3_500,
+        min_quantum_readiness_bps: 800,
         allow_emergency_override: true,
     }
 }
