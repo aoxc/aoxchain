@@ -38,9 +38,9 @@ mod helpers_args;
 mod helpers_core;
 
 #[cfg(test)]
-use commands_genesis::evaluate_consensus_profile_audit;
-#[cfg(test)]
 use commands_genesis::apply_genesis_start_overrides;
+#[cfg(test)]
+use commands_genesis::evaluate_consensus_profile_audit;
 use commands_identity::genesis_path;
 use helpers_args::{
     is_decimal_string, is_non_zero_decimal_string, parse_optional_text_arg,
