@@ -1,22 +1,38 @@
 # AOXChain Documentation Index
 
-This mdBook is the operator-facing documentation path for runtime posture, readiness, and audit-oriented workflows.
+This mdBook is the structured documentation surface for operators and developers working on AOXChain runtime, governance, release, and readiness workflows.
 
-## Recommended Reading Order
+## Audience Paths
 
-1. `SYSTEM_STATUS.md` — current program posture and active constraints.
-2. `AI_TRAINING_AND_AUDIT_GUIDE.md` — evidence discipline for AI-assisted operations and review.
+### If you are an operator
+
+1. `Getting Started -> Quickstart`
+2. `Overview -> System Status and Operational Posture`
+3. `Operations -> Full Node Guide`
+4. `Testing -> Test Matrix`
+
+### If you are a developer
+
+1. `Getting Started -> Developer Onboarding`
+2. `Architecture` section for protocol and implementation blueprints
+3. `Testing` section for invariant and matrix coverage
+4. `Governance -> AI Training and Audit Guide`
 
 ## Canonical Root Documents
 
-Use the following root-level documents for authoritative repository policy and architecture:
+For repository-level policy and system boundaries, use root files as the final source of truth:
 
-- `README.md` — repository purpose and command entry points.
+- `README.md` — project purpose and entry points.
 - `READ.md` — canonical technical contract and boundary rules.
-- `WHITEPAPER.md` — full protocol architecture and production-closure narrative.
-- `SCOPE.md` — scope boundaries and compatibility posture.
-- `ARCHITECTURE.md` — component responsibilities and dependency direction.
-- `SECURITY.md` — private disclosure and security handling model.
-- `TESTING.md` — mandatory validation policy and testnet go/no-go criteria.
-- `ROADMAP.md` — execution roadmap.
-- `READ.md` — technical contract and profile-bound operational controls.
+- `WHITEPAPER.md` — protocol architecture and production closure narrative.
+- `SCOPE.md` — in-scope/out-of-scope and compatibility posture.
+- `ARCHITECTURE.md` — component boundaries and dependency direction.
+- `SECURITY.md` — disclosure handling and security posture.
+- `TESTING.md` — validation criteria and go/no-go expectations.
+- `ROADMAP.md` — staged execution roadmap.
+
+## mdBook Integrity Notes
+
+- Navigation is governed by `src/SUMMARY.md`.
+- Build configuration is defined in `book.toml`.
+- Generated output lives in `docs/book/`.

@@ -8,3 +8,9 @@ src = "src"
 [build]
 build-dir = "book"
 create-missing = false
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/aoxchain/aoxchain"
+no-section-label = false
