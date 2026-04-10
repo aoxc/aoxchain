@@ -38,6 +38,8 @@ mod helpers_args;
 mod helpers_core;
 
 #[cfg(test)]
+use commands_genesis::apply_genesis_start_overrides;
+#[cfg(test)]
 use commands_genesis::evaluate_consensus_profile_audit;
 use commands_identity::genesis_path;
 use helpers_args::{
@@ -63,9 +65,9 @@ pub use commands_bootstrap::{
 };
 pub use commands_genesis::{
     cmd_consensus_profile_audit, cmd_genesis_add_account, cmd_genesis_add_validator,
-    cmd_genesis_hash, cmd_genesis_init, cmd_genesis_inspect, cmd_genesis_production_gate,
-    cmd_genesis_security_audit, cmd_genesis_start, cmd_genesis_template_advanced,
-    cmd_genesis_validate, consensus_profile_gate_status,
+    cmd_genesis_advanced_system, cmd_genesis_hash, cmd_genesis_init, cmd_genesis_inspect,
+    cmd_genesis_production_gate, cmd_genesis_security_audit, cmd_genesis_start,
+    cmd_genesis_template_advanced, cmd_genesis_validate, consensus_profile_gate_status,
 };
 pub use commands_identity::{
     cmd_address_create, cmd_key_bootstrap, cmd_key_rotate, cmd_keys_inspect,

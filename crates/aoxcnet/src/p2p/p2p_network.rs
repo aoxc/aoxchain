@@ -8,6 +8,9 @@
 #[derive(Debug, Clone)]
 pub struct P2PNetwork {
     config: NetworkConfig,
+    local_genesis_fingerprint: String,
+    auto_discovery_enabled: bool,
+    discovery: DiscoveryTable,
     peers: HashMap<String, Peer>,
     sessions: HashMap<String, SessionTicket>,
     replay_cache: HashSet<String>,
@@ -22,8 +25,12 @@ impl P2PNetwork {
     /// network configuration.
     #[must_use]
     pub fn new(config: NetworkConfig) -> Self {
+        let local_genesis_fingerprint = default_genesis_fingerprint(&config);
         Self {
             config,
+            local_genesis_fingerprint,
+            auto_discovery_enabled: true,
+            discovery: DiscoveryTable::default(),
             peers: HashMap::new(),
             sessions: HashMap::new(),
             replay_cache: HashSet::new(),
@@ -76,6 +83,47 @@ impl P2PNetwork {
     #[must_use]
     pub fn config(&self) -> &NetworkConfig {
         &self.config
+    }
+
+    /// Sets the canonical local genesis fingerprint used by auto-discovery.
+    pub fn set_local_genesis_fingerprint(&mut self, fingerprint: impl Into<String>) {
+        self.local_genesis_fingerprint = fingerprint.into();
+    }
+
+    /// Returns the canonical local genesis fingerprint used by auto-discovery.
+    #[must_use]
+    pub fn local_genesis_fingerprint(&self) -> &str {
+        &self.local_genesis_fingerprint
+    }
+
+    /// Enables or disables automatic discovery ingestion.
+    pub fn set_auto_discovery_enabled(&mut self, enabled: bool) {
+        self.auto_discovery_enabled = enabled;
+    }
+
+    /// Returns whether automatic discovery ingestion is enabled.
+    #[must_use]
+    pub fn auto_discovery_enabled(&self) -> bool {
+        self.auto_discovery_enabled
+    }
+
+    /// Ingests a discovery candidate when auto-discovery is enabled and the
+    /// candidate belongs to the local genesis cohort.
+    ///
+    /// Returns `true` when the candidate is accepted.
+    pub fn ingest_discovery_candidate(&mut self, candidate: PeerCandidate) -> bool {
+        if !self.auto_discovery_enabled {
+            return false;
+        }
+
+        self.discovery
+            .add_seed_for_genesis(&self.local_genesis_fingerprint, candidate)
+    }
+
+    /// Returns deterministic RPC bootstrap surfaces selected from discovery.
+    #[must_use]
+    pub fn bootstrap_rpc_surfaces(&self, limit: usize) -> Vec<RpcSurface> {
+        self.discovery.select_bootstrap_rpc_surfaces(limit)
     }
 
     /// Registers a peer after capacity, certificate, policy, and ban-state
@@ -337,6 +385,14 @@ impl P2PNetwork {
 #[must_use]
 fn session_lifetime_secs(config: &NetworkConfig) -> u64 {
     (config.idle_timeout_ms / 1_000).max(1)
+}
+
+#[must_use]
+fn default_genesis_fingerprint(config: &NetworkConfig) -> String {
+    let mut hasher = Hasher::new();
+    hasher.update(config.interop.canonical_chain_id().as_bytes());
+    hasher.update(&config.interop.canonical_protocol_serial().to_le_bytes());
+    hasher.finalize().to_hex().to_string()
 }
 
 /// Returns the initial replay nonce derived from current time.

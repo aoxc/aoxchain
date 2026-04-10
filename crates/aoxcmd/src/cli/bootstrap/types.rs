@@ -305,6 +305,18 @@ pub(super) struct GenesisSecurityAuditReport {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub(super) struct GenesisAdvancedSystemOutput {
+    pub(super) profile: String,
+    pub(super) output_path: String,
+    pub(super) security_verdict: &'static str,
+    pub(super) security_score: u8,
+    pub(super) consensus_verdict: &'static str,
+    pub(super) consensus_score: u8,
+    pub(super) enforcement: bool,
+    pub(super) notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub(super) struct ConsensusProfileAuditReport {
     pub(super) genesis_path: String,
     pub(super) profile: String,

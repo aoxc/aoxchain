@@ -2,6 +2,7 @@
 mod tests {
     use super::{P2PNetwork, ProtocolEnvelope, SessionTicket, digest_payload};
     use crate::config::{ExternalDomainKind, NetworkConfig, SecurityMode};
+    use crate::discovery::{PeerCandidate, RpcSurface};
     use crate::error::NetworkError;
     use crate::gossip::peer::{NodeCertificate, Peer, PeerRole};
     use aoxcunity::messages::ConsensusMessage;
@@ -57,6 +58,22 @@ mod tests {
         })
     }
 
+    fn candidate(peer_id: &str, genesis: &str, quantum_ready: bool) -> PeerCandidate {
+        PeerCandidate {
+            peer_id: peer_id.to_string(),
+            advertise_addr: "10.0.0.1:2727".to_string(),
+            score: 10,
+            source: "bootnodes".to_string(),
+            last_seen_unix: 1_700_000_000,
+            genesis_fingerprint: genesis.to_string(),
+            rpc: RpcSurface {
+                http_endpoint: format!("http://{peer_id}.mesh.local:28657"),
+                jsonrpc_endpoint: format!("http://{peer_id}.mesh.local:28657/jsonrpc"),
+                quantum_ready,
+            },
+        }
+    }
+
     #[test]
     fn checked_constructor_rejects_invalid_config() {
         let config = NetworkConfig {
@@ -66,6 +83,25 @@ mod tests {
 
         let result = P2PNetwork::new_checked(config);
         assert!(matches!(result, Err(NetworkError::InvalidConfig(_))));
+    }
+
+    #[test]
+    fn discovery_ingestion_accepts_only_matching_genesis() {
+        let mut net = P2PNetwork::new(NetworkConfig::default());
+        let local = net.local_genesis_fingerprint().to_string();
+
+        assert!(net.ingest_discovery_candidate(candidate("peer-1", &local, false)));
+        assert!(!net.ingest_discovery_candidate(candidate("peer-2", "different-genesis", true)));
+    }
+
+    #[test]
+    fn discovery_ingestion_honors_disable_switch() {
+        let mut net = P2PNetwork::new(NetworkConfig::default());
+        net.set_auto_discovery_enabled(false);
+        let local = net.local_genesis_fingerprint().to_string();
+
+        assert!(!net.ingest_discovery_candidate(candidate("peer-1", &local, true)));
+        assert!(net.bootstrap_rpc_surfaces(8).is_empty());
     }
 
     #[test]
