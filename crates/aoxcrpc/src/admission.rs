@@ -3,6 +3,10 @@
 // This file is part of the AOXC pre-release codebase.
 
 use aoxcvm::auth::scheme::{AuthProfile, SignatureAlgorithm};
+use aoxchal::cpu_opt::CpuCapabilities;
+use aoxchal::crypto_profile::{
+    CryptoPolicy, CryptoScheme, ProfileStage, choose_runtime_scheme, verification_requirements,
+};
 
 use crate::error::RpcError;
 
@@ -116,7 +120,81 @@ pub fn evaluate_submit_tx_admission(
         cost_class: MethodCostClass::Critical,
         required_auth_profile: auth_profile,
     };
+    let crypto_policy = crypto_policy_from_stage(stage);
+    let (classical_signatures, pq_signatures) = proof_counts_from_signers(&context.signer_algorithms);
+
+    evaluate_crypto_admission_local(
+        crypto_policy,
+        CpuCapabilities::portable(),
+        classical_signatures,
+        pq_signatures,
+    )?;
     evaluate_admission_policy(&policy, context)
+}
+
+fn crypto_policy_from_stage(stage: QuantumTransitionStage) -> CryptoPolicy {
+    match stage {
+        QuantumTransitionStage::ClassicalAllowed => CryptoPolicy {
+            stage: ProfileStage::ClassicalOnly,
+            min_signatures: 1,
+            allow_hybrid_fallback: true,
+        },
+        QuantumTransitionStage::HybridRequired => CryptoPolicy::hybrid_gate(),
+        QuantumTransitionStage::PostQuantumOnly => CryptoPolicy::pq_primary(),
+    }
+}
+
+fn proof_counts_from_signers(signer_algorithms: &[SignatureAlgorithm]) -> (u8, u8) {
+    let mut classical = 0_u8;
+    let mut pq = 0_u8;
+    for algorithm in signer_algorithms {
+        if algorithm.is_post_quantum() {
+            pq = pq.saturating_add(1);
+        } else {
+            classical = classical.saturating_add(1);
+        }
+    }
+    (classical, pq)
+}
+
+fn evaluate_crypto_admission_local(
+    policy: CryptoPolicy,
+    cpu: CpuCapabilities,
+    classical_signatures: u8,
+    pq_signatures: u8,
+) -> Result<(), RpcError> {
+    let scheme = choose_runtime_scheme(policy, cpu);
+    let requirements = verification_requirements(scheme, policy);
+    let total = classical_signatures.saturating_add(pq_signatures);
+
+    if total < requirements.min_total_signatures {
+        return Err(RpcError::AdmissionDenied(format!(
+            "crypto policy admission failed: required {} signatures but received {}",
+            requirements.min_total_signatures, total
+        )));
+    }
+
+    if requirements.require_classical && classical_signatures == 0 {
+        return Err(RpcError::AdmissionDenied(
+            "crypto policy admission failed: classical signature required".to_string(),
+        ));
+    }
+
+    if requirements.require_post_quantum && pq_signatures == 0 {
+        return Err(RpcError::AdmissionDenied(
+            "crypto policy admission failed: post-quantum signature required".to_string(),
+        ));
+    }
+
+    if matches!(scheme, CryptoScheme::PostQuantumPrimary) && classical_signatures > 0 {
+        // Keep submit path strict once PQ-only mode is selected.
+        return Err(RpcError::AdmissionDenied(
+            "crypto policy admission failed: classical signatures are not allowed in PQ-only mode"
+                .to_string(),
+        ));
+    }
+
+    Ok(())
 }
 
 /// Evaluates method access before expensive RPC execution paths.
@@ -156,7 +234,10 @@ fn evaluate_admission_policy(
 
 #[cfg(test)]
 mod tests {
-    use super::{AdmissionContext, IdentityTier, evaluate_method_admission};
+    use super::{
+        AdmissionContext, IdentityTier, QuantumTransitionStage, evaluate_method_admission,
+        evaluate_submit_tx_admission,
+    };
     use aoxcvm::auth::scheme::SignatureAlgorithm;
 
     #[test]
@@ -210,5 +291,31 @@ mod tests {
             .expect_err("insufficient budget should be denied");
 
         assert!(error.to_string().contains("budget"));
+    }
+
+    #[test]
+    fn submit_tx_hybrid_stage_rejects_classical_only_signers() {
+        let context = AdmissionContext {
+            identity_tier: IdentityTier::SignedClient,
+            signer_algorithms: vec![SignatureAlgorithm::Ed25519],
+            remaining_budget_units: 80,
+        };
+
+        let error = evaluate_submit_tx_admission(&context, QuantumTransitionStage::HybridRequired)
+            .expect_err("hybrid stage must reject classical-only proofs");
+        assert!(error.to_string().contains("crypto policy admission failed"));
+    }
+
+    #[test]
+    fn submit_tx_post_quantum_stage_accepts_pq_signers() {
+        let context = AdmissionContext {
+            identity_tier: IdentityTier::SignedClient,
+            signer_algorithms: vec![SignatureAlgorithm::MlDsa65, SignatureAlgorithm::MlDsa87],
+            remaining_budget_units: 80,
+        };
+
+        assert!(
+            evaluate_submit_tx_admission(&context, QuantumTransitionStage::PostQuantumOnly).is_ok()
+        );
     }
 }
