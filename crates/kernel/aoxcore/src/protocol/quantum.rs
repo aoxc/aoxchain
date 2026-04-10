@@ -15,6 +15,7 @@ use std::fmt;
 /// Signature schemes supported by AOXC kernel policy.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum SignatureScheme {
+    Ed25519Legacy,
     MlDsa65,
     Dilithium3,
     SphincsSha2128f,
@@ -24,15 +25,17 @@ impl SignatureScheme {
     #[must_use]
     pub const fn code(self) -> u8 {
         match self {
-            Self::MlDsa65 => 0,
-            Self::Dilithium3 => 1,
-            Self::SphincsSha2128f => 2,
+            Self::Ed25519Legacy => 0,
+            Self::MlDsa65 => 1,
+            Self::Dilithium3 => 2,
+            Self::SphincsSha2128f => 3,
         }
     }
 
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::Ed25519Legacy => "ed25519-legacy",
             Self::MlDsa65 => "ml-dsa-65",
             Self::Dilithium3 => "dilithium3",
             Self::SphincsSha2128f => "sphincs+-sha2-128f",
@@ -273,19 +276,28 @@ impl QuantumKernelProfile {
     }
 
     /// Validates that a quantum transaction can be admitted by this profile.
-    pub fn admit_quantum_transaction(
+    pub fn admit_transaction_envelope(
         &self,
-        transaction: &crate::transaction::quantum::QuantumTransaction,
+        transaction: &crate::transaction::TransactionEnvelope,
     ) -> Result<(), QuantumAdmissionError> {
         self.validate()
             .map_err(QuantumAdmissionError::InvalidProfile)?;
 
-        if !self.supports_signature(transaction.signature_scheme()) {
+        if !self.supports_signature(transaction.scheme_id) {
             return Err(QuantumAdmissionError::UnsupportedTransactionSignatureScheme);
         }
 
         transaction
             .validate()
             .map_err(|_| QuantumAdmissionError::InvalidTransactionPayload)
+    }
+
+    /// Backward-compatible admission helper for legacy quantum transaction type.
+    pub fn admit_quantum_transaction(
+        &self,
+        transaction: &crate::transaction::quantum::QuantumTransaction,
+    ) -> Result<(), QuantumAdmissionError> {
+        let envelope = crate::transaction::TransactionEnvelope::from(transaction.clone());
+        self.admit_transaction_envelope(&envelope)
     }
 }
