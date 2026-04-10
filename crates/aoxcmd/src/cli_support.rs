@@ -78,7 +78,7 @@ USAGE
 
 GUIDED GROUPS
   chain init|create|start|status|doctor|demo
-  genesis init|add-validator|add-account|build|verify|inspect|fingerprint|production-gate
+  genesis init|add-validator|add-account|build|verify|inspect|fingerprint|production-gate|start
   validator create|inspect|status|rotate-key
   wallet create|balance
   account fund
@@ -118,6 +118,7 @@ BOOTSTRAP
   genesis-validate [--strict]
   genesis-inspect
   genesis-hash
+  genesis-start [--profile <localnet|devnet|validation|testnet|mainnet>] [--no-init] [--bootstrap-key-if-missing --password <value> --operator-name <name>] [--strict] [--production-gate] [--dry-run|--skip-node-run] [--family-id <u32>] [--family-name <text>] [--family-code <text>] [--chain-id <u64>] [--chain-name <text>] [--network-class <text>] [--network-serial <text>] [--network-id <text>] [--genesis-epoch <u64>] [--block-time-ms <u64>] [--validator-quorum-policy <text>] [--consensus-identity-profile <text>] [--epoch-length-blocks <u64>] [--pacemaker-base-timeout-ms <u64>] [--pacemaker-max-timeout-ms <u64>] [--reconfiguration-finality-lag-blocks <u64>] [--native-symbol <text>] [--native-decimals <u8>] [--treasury-account-id <text>] [--treasury-amount <decimal>] [--rounds <n>] [--interval-secs <2..600>] [--tx-prefix <value>] [--continuous|--bounded] [--log-level <info|debug>] [--no-live-log] [--no-rpc-serve]
   config-init [--profile <validation|testnet|mainnet>] [--bind-host <host>] [--json-logs]
   config-validate
   config-print

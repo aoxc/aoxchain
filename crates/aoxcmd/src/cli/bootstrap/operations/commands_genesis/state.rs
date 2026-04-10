@@ -20,6 +20,108 @@ fn is_allowed_genesis_account_role(role: &str) -> bool {
     ALLOWED_GENESIS_ACCOUNT_ROLES.contains(&role)
 }
 
+pub fn cmd_genesis_start(args: &[String]) -> Result<(), AppError> {
+    let profile_input = arg_value(args, "--profile")
+        .or_else(|| load().ok().map(|settings| settings.profile))
+        .unwrap_or_else(|| "validation".to_string());
+    let profile = EnvironmentProfile::parse(&profile_input)?;
+
+    let mut init_args = vec![
+        "--profile".to_string(),
+        profile.as_str().to_string(),
+        "--format".to_string(),
+        "json".to_string(),
+    ];
+    if has_flag(args, "--home") {
+        if let Some(home) = arg_value(args, "--home") {
+            init_args.push("--home".to_string());
+            init_args.push(home);
+        }
+    }
+
+    if !genesis_path()?.exists() && !has_flag(args, "--no-init") {
+        cmd_genesis_init(&init_args)?;
+    }
+
+    let mut genesis = load_genesis()?;
+    if genesis.environment != profile.as_str() {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!(
+                "Profile mismatch: genesis environment '{}' does not match --profile '{}'",
+                genesis.environment,
+                profile.as_str()
+            ),
+        ));
+    }
+
+    if has_flag(args, "--bootstrap-key-if-missing") {
+        let operator_name =
+            parse_required_or_default_text_arg(args, "--operator-name", "validator-01")?;
+        let password = parse_required_text_arg(
+            args,
+            "--password",
+            false,
+            "genesis start with --bootstrap-key-if-missing",
+        )?;
+        if inspect_operator_key().is_err() {
+            bootstrap_operator_key(&operator_name, profile.as_str(), &password)?;
+        }
+    }
+
+    let override_count = apply_genesis_start_overrides(args, &mut genesis)?;
+    persist_genesis(&genesis)?;
+
+    validate_genesis(&genesis)?;
+    validate_binding_files(&genesis)?;
+    if has_flag(args, "--strict") {
+        validate_identity_against_repo_policy(&genesis)?;
+    }
+    if has_flag(args, "--production-gate") {
+        let status = role_topology_core7_status(&genesis.environment)?;
+        if !status.missing.is_empty() || !status.non_core_active.is_empty() {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                "genesis start production gate failed: use `aoxc genesis production-gate` for details",
+            ));
+        }
+    }
+
+    if has_flag(args, "--dry-run") || has_flag(args, "--skip-node-run") {
+        let mut details = BTreeMap::new();
+        details.insert("action".to_string(), "genesis-start".to_string());
+        details.insert("result".to_string(), "validated".to_string());
+        details.insert("profile".to_string(), genesis.environment.clone());
+        details.insert(
+            "chain_id".to_string(),
+            genesis.identity.chain_id.to_string(),
+        );
+        details.insert(
+            "network_id".to_string(),
+            genesis.identity.network_id.clone(),
+        );
+        details.insert("overrides_applied".to_string(), override_count.to_string());
+        details.insert("node_run".to_string(), "skipped".to_string());
+        return emit_serialized(
+            &text_envelope("genesis-start", "ok", details),
+            output_format(args),
+        );
+    }
+
+    let mut node_args = Vec::<String>::new();
+    forward_flag_with_value(args, "--rounds", &mut node_args);
+    forward_flag_with_value(args, "--tx-prefix", &mut node_args);
+    forward_flag_with_value(args, "--interval-secs", &mut node_args);
+    forward_flag_with_value(args, "--log-level", &mut node_args);
+    forward_boolean_flag(args, "--continuous", &mut node_args);
+    forward_boolean_flag(args, "--bounded", &mut node_args);
+    forward_boolean_flag(args, "--no-live-log", &mut node_args);
+    forward_boolean_flag(args, "--no-rpc-serve", &mut node_args);
+    forward_flag_with_value(args, "--format", &mut node_args);
+
+    crate::cli::ops::cmd_node_run(&node_args)
+}
+
 pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
     let profile_input = arg_value(args, "--profile")
         .or_else(|| load().ok().map(|settings| settings.profile))
@@ -56,6 +158,162 @@ pub fn cmd_genesis_init(args: &[String]) -> Result<(), AppError> {
 
     write_file(&genesis_path()?, &content)?;
     emit_serialized(&genesis, output_format(args))
+}
+
+pub(super) fn apply_genesis_start_overrides(
+    args: &[String],
+    genesis: &mut BootstrapGenesisDocument,
+) -> Result<usize, AppError> {
+    let mut applied = 0usize;
+
+    if let Some(value) = parse_optional_text_arg(args, "--family-name", false) {
+        genesis.family_name = value;
+        applied += 1;
+    }
+    if let Some(value) = parse_optional_text_arg(args, "--family-code", false) {
+        genesis.family_code = value;
+        applied += 1;
+    }
+    if let Some(value) = parse_optional_text_arg(args, "--chain-name", false) {
+        genesis.identity.chain_name = value;
+        applied += 1;
+    }
+    if let Some(value) = parse_optional_text_arg(args, "--network-class", true) {
+        genesis.identity.network_class = value;
+        applied += 1;
+    }
+    if let Some(value) = parse_optional_text_arg(args, "--network-serial", false) {
+        genesis.identity.network_serial = value;
+        applied += 1;
+    }
+    if let Some(value) = parse_optional_text_arg(args, "--network-id", false) {
+        genesis.identity.network_id = value;
+        applied += 1;
+    }
+    if let Some(value) = parse_optional_text_arg(args, "--validator-quorum-policy", false) {
+        genesis.consensus.validator_quorum_policy = value;
+        applied += 1;
+    }
+    if let Some(value) = parse_optional_text_arg(args, "--consensus-identity-profile", true) {
+        genesis.consensus.consensus_identity_profile = value;
+        applied += 1;
+    }
+    if let Some(value) = parse_optional_text_arg(args, "--native-symbol", false) {
+        genesis.economics.native_symbol = value;
+        applied += 1;
+    }
+    if let Some(value) = parse_optional_text_arg(args, "--treasury-account-id", false) {
+        genesis.economics.initial_treasury.account_id = value;
+        applied += 1;
+    }
+    if let Some(value) = parse_optional_text_arg(args, "--treasury-amount", false) {
+        if !is_non_zero_decimal_string(&value) {
+            return Err(AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --treasury-amount must be a non-zero decimal string",
+            ));
+        }
+        genesis.economics.initial_treasury.amount = value;
+        applied += 1;
+    }
+
+    applied += apply_u32_override(args, "--family-id", &mut genesis.identity.family_id)?;
+    applied += apply_u64_override(args, "--chain-id", &mut genesis.identity.chain_id)?;
+    applied += apply_u64_override(
+        args,
+        "--genesis-epoch",
+        &mut genesis.consensus.genesis_epoch,
+    )?;
+    applied += apply_u64_override(
+        args,
+        "--block-time-ms",
+        &mut genesis.consensus.block_time_ms,
+    )?;
+    applied += apply_u64_override(
+        args,
+        "--epoch-length-blocks",
+        &mut genesis.consensus.consensus_timing.epoch_length_blocks,
+    )?;
+    applied += apply_u64_override(
+        args,
+        "--pacemaker-base-timeout-ms",
+        &mut genesis.consensus.consensus_timing.pacemaker_base_timeout_ms,
+    )?;
+    applied += apply_u64_override(
+        args,
+        "--pacemaker-max-timeout-ms",
+        &mut genesis.consensus.consensus_timing.pacemaker_max_timeout_ms,
+    )?;
+    applied += apply_u64_override(
+        args,
+        "--reconfiguration-finality-lag-blocks",
+        &mut genesis
+            .consensus
+            .consensus_timing
+            .reconfiguration_finality_lag_blocks,
+    )?;
+    applied += apply_u8_override(
+        args,
+        "--native-decimals",
+        &mut genesis.economics.native_decimals,
+    )?;
+
+    Ok(applied)
+}
+
+fn apply_u64_override(args: &[String], flag: &str, target: &mut u64) -> Result<usize, AppError> {
+    let Some(raw) = arg_value(args, flag) else {
+        return Ok(0);
+    };
+    let parsed = raw.parse::<u64>().map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Flag {flag} must be an unsigned integer"),
+        )
+    })?;
+    *target = parsed;
+    Ok(1)
+}
+
+fn apply_u32_override(args: &[String], flag: &str, target: &mut u32) -> Result<usize, AppError> {
+    let Some(raw) = arg_value(args, flag) else {
+        return Ok(0);
+    };
+    let parsed = raw.parse::<u32>().map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Flag {flag} must be an unsigned integer"),
+        )
+    })?;
+    *target = parsed;
+    Ok(1)
+}
+
+fn apply_u8_override(args: &[String], flag: &str, target: &mut u8) -> Result<usize, AppError> {
+    let Some(raw) = arg_value(args, flag) else {
+        return Ok(0);
+    };
+    let parsed = raw.parse::<u8>().map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Flag {flag} must be an unsigned integer in u8 range"),
+        )
+    })?;
+    *target = parsed;
+    Ok(1)
+}
+
+fn forward_flag_with_value(args: &[String], flag: &str, node_args: &mut Vec<String>) {
+    if let Some(value) = arg_value(args, flag) {
+        node_args.push(flag.to_string());
+        node_args.push(value);
+    }
+}
+
+fn forward_boolean_flag(args: &[String], flag: &str, node_args: &mut Vec<String>) {
+    if has_flag(args, flag) {
+        node_args.push(flag.to_string());
+    }
 }
 
 pub fn cmd_genesis_add_account(args: &[String]) -> Result<(), AppError> {
