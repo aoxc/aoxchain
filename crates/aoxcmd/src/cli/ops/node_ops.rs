@@ -18,6 +18,193 @@ const EVENT_PRODUCED: &str = "PRD";
 const BANNER_MIN_WIDTH: usize = 76;
 const BANNER_MAX_WIDTH: usize = 108;
 
+#[derive(Serialize)]
+struct NodeJoinReport {
+    action: &'static str,
+    status: &'static str,
+    seed: Option<String>,
+    peer: Option<String>,
+    chain_id: Option<String>,
+    genesis: Option<String>,
+    profile: String,
+    trust_root: Option<String>,
+    allow_sync_from: Option<String>,
+    attest_path: Option<String>,
+    notes: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct NetworkJoinCheckReport {
+    action: &'static str,
+    status: &'static str,
+    profile: String,
+    checks: BTreeMap<String, String>,
+    notes: Vec<String>,
+}
+
+pub fn cmd_node_join(args: &[String]) -> Result<(), AppError> {
+    let seed = parse_optional_text_arg(args, "--seed", false);
+    let peer = parse_optional_text_arg(args, "--peer", false);
+    let chain_id = parse_optional_text_arg(args, "--chain-id", false);
+    let genesis = parse_optional_text_arg(args, "--genesis", false);
+    let profile = parse_required_or_default_text_arg(args, "--profile", "testnet", true)?;
+    let trust_root = parse_optional_text_arg(args, "--trust-root", false);
+    let allow_sync_from = parse_optional_text_arg(args, "--allow-sync-from", false);
+    let prove = has_flag(args, "--prove");
+
+    if seed.is_none() && peer.is_none() {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "node join requires --seed or --peer",
+        ));
+    }
+
+    if genesis.is_none() {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "node join requires --genesis <path>",
+        ));
+    }
+
+    let _ = bootstrap_operator_home()?;
+    let _ = lifecycle::bootstrap_state()?;
+    let _ = refresh_runtime_metrics().ok();
+
+    let attest_path = if prove {
+        let home = resolve_home()?;
+        let evidence_dir = home.join("evidence");
+        fs::create_dir_all(&evidence_dir).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to create node join evidence directory {}",
+                    evidence_dir.display()
+                ),
+                error,
+            )
+        })?;
+
+        let file = evidence_dir.join(format!(
+            "node-join-attestation-{}.json",
+            Utc::now().format("%Y%m%dT%H%M%SZ")
+        ));
+
+        let mut details = BTreeMap::new();
+        details.insert("profile".to_string(), profile.clone());
+        details.insert("seed".to_string(), seed.clone().unwrap_or_default());
+        details.insert("peer".to_string(), peer.clone().unwrap_or_default());
+        details.insert("chain_id".to_string(), chain_id.clone().unwrap_or_default());
+        details.insert("genesis".to_string(), genesis.clone().unwrap_or_default());
+        details.insert(
+            "trust_root".to_string(),
+            trust_root.clone().unwrap_or_default(),
+        );
+        details.insert(
+            "allow_sync_from".to_string(),
+            allow_sync_from.clone().unwrap_or_default(),
+        );
+        details.insert("timestamp_utc".to_string(), Utc::now().to_rfc3339());
+
+        let attestation = text_envelope("node-join-attestation", "ok", details);
+        let encoded = serde_json::to_vec_pretty(&attestation).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::OutputEncodingFailed,
+                "Failed to encode node join attestation",
+                error,
+            )
+        })?;
+        fs::write(&file, encoded).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to write node join attestation file {}",
+                    file.display()
+                ),
+                error,
+            )
+        })?;
+        Some(file.display().to_string())
+    } else {
+        None
+    };
+
+    emit_serialized(
+        &NodeJoinReport {
+            action: "node-join",
+            status: "accepted",
+            seed,
+            peer,
+            chain_id,
+            genesis,
+            profile,
+            trust_root,
+            allow_sync_from,
+            attest_path,
+            notes: vec![
+                "Node bootstrap state was initialized for join lifecycle".to_string(),
+                "Use `aoxc network join-check` to validate local join preconditions".to_string(),
+            ],
+        },
+        output_format(args),
+    )
+}
+
+pub fn cmd_network_join_check(args: &[String]) -> Result<(), AppError> {
+    let profile = parse_required_or_default_text_arg(args, "--profile", "testnet", true)?;
+    let genesis = parse_optional_text_arg(args, "--genesis", false);
+    let trust_root = parse_optional_text_arg(args, "--trust-root", false);
+    let seed = parse_optional_text_arg(args, "--seed", false);
+    let peer = parse_optional_text_arg(args, "--peer", false);
+
+    let mut checks = BTreeMap::new();
+    checks.insert(
+        "seed_or_peer".to_string(),
+        if seed.is_some() || peer.is_some() {
+            "pass".to_string()
+        } else {
+            "warn".to_string()
+        },
+    );
+    checks.insert(
+        "genesis_file".to_string(),
+        match genesis {
+            Some(ref path) if Path::new(path).exists() => "pass".to_string(),
+            Some(_) => "fail".to_string(),
+            None => "warn".to_string(),
+        },
+    );
+    checks.insert(
+        "trust_root".to_string(),
+        if trust_root.is_some() {
+            "pass".to_string()
+        } else {
+            "warn".to_string()
+        },
+    );
+
+    let status = if checks.values().any(|value| value == "fail") {
+        "fail"
+    } else if checks.values().any(|value| value == "warn") {
+        "warn"
+    } else {
+        "pass"
+    };
+
+    emit_serialized(
+        &NetworkJoinCheckReport {
+            action: "network-join-check",
+            status,
+            profile,
+            checks,
+            notes: vec![
+                "Pass --seed or --peer for deterministic bootstrap source".to_string(),
+                "Pass --genesis and --trust-root to harden join identity checks".to_string(),
+            ],
+        },
+        output_format(args),
+    )
+}
+
 pub fn cmd_node_bootstrap(args: &[String]) -> Result<(), AppError> {
     bootstrap_operator_home()?;
     let state = lifecycle::bootstrap_state()?;

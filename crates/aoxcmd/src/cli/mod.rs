@@ -206,6 +206,7 @@ fn route_genesis_group(args: &[String]) -> Result<(), AppError> {
         "add-validator" => bootstrap::cmd_genesis_add_validator(tail),
         "add-account" => bootstrap::cmd_genesis_add_account(tail),
         "build" | "verify" => bootstrap::cmd_genesis_validate(tail),
+        "finalize" | "seal" | "sign" | "freeze" => bootstrap::cmd_genesis_production_gate(tail),
         "inspect" => bootstrap::cmd_genesis_inspect(tail),
         "template-advanced" => bootstrap::cmd_genesis_template_advanced(tail),
         "advanced-system" => bootstrap::cmd_genesis_advanced_system(tail),
@@ -224,6 +225,12 @@ fn route_validator_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "create" => bootstrap::cmd_key_bootstrap(tail),
+        "join" | "register" => ops::cmd_validator_join(tail),
+        "activate" => ops::cmd_validator_activate(tail),
+        "bond" => ops::cmd_validator_bond(tail),
+        "unbond" => ops::cmd_validator_unbond(tail),
+        "set-status" => ops::cmd_validator_set_status(tail),
+        "commission-set" => ops::cmd_validator_commission_set(tail),
         "inspect" | "status" => bootstrap::cmd_keys_inspect(tail),
         "rotate-key" => bootstrap::cmd_key_rotate(tail),
         _ => invalid_group_usage("validator", "unsupported subcommand"),
@@ -270,6 +277,7 @@ fn route_node_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "init" => ops::cmd_node_bootstrap(tail),
+        "join" => ops::cmd_node_join(tail),
         "start" => ops::cmd_node_run(tail),
         "status" => ops::cmd_node_health(tail),
         "doctor" => audit::cmd_diagnostics_doctor(tail),
@@ -284,6 +292,8 @@ fn route_network_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "create" => bootstrap::cmd_dual_profile_bootstrap(tail),
+        "join" | "peer-add" | "seed-add" | "bootstrap-peer-add" => route_node_join_alias(tail),
+        "join-check" | "join-plan" => ops::cmd_network_join_check(tail),
         "start" => ops::cmd_real_network(tail),
         "status" | "verify" => ops::cmd_network_smoke(tail),
         "identity-gate" => ops::cmd_network_identity_gate(tail),
@@ -482,6 +492,13 @@ fn remap_flags(args: &[String], mappings: &[(&str, &str)]) -> Vec<String> {
                 .unwrap_or_else(|| arg.clone())
         })
         .collect()
+}
+
+fn route_node_join_alias(args: &[String]) -> Result<(), AppError> {
+    let forwarded = std::iter::once("join".to_string())
+        .chain(args.iter().cloned())
+        .collect::<Vec<_>>();
+    route_node_group(&forwarded)
 }
 
 fn invalid_group_usage(group: &str, detail: &str) -> Result<(), AppError> {
