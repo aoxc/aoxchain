@@ -2,6 +2,10 @@
 
 - [Documentation Index](index.md)
 
+- [Getting Started](getting-started/QUICKSTART.md)
+  - [Developer Onboarding](getting-started/DEVELOPER_ONBOARDING.md)
+  - [Documentation Conventions](getting-started/DOCS_CONVENTIONS.md)
+
 - [Overview](overview/index.md)
   - [System Status and Operational Posture](overview/SYSTEM_STATUS.md)
   - [Repository Production Gap Report](overview/REPOSITORY_PRODUCTION_GAP_REPORT.md)
@@ -20,21 +24,21 @@
 - [Operations](operations/FULL_NODE_GUIDE.md)
   - [Advanced Node Role Blueprint](operations/ADVANCED_NODE_ROLE_BLUEPRINT.md)
   - [Genesis Identity Checklist](operations/GENESIS_IDENTITY_CHECKLIST.md)
-  - [Naming Versioning Simplification Plan](operations/NAMING_VERSIONING_SIMPLIFICATION_PLAN.md)
   - [Operator Surface](operations/OPERATOR_SURFACE.md)
   - [OS Compatibility](operations/OS_COMPATIBILITY.md)
-  - [Read Code Alignment and Production Plan 2026-04-04](operations/READ_CODE_ALIGNMENT_AND_PRODUCTION_PLAN_2026-04-04.md)
   - [Testnet Release Runbook](operations/TESTNET_RELEASE_RUNBOOK.md)
+  - [Naming Versioning Simplification Plan](operations/NAMING_VERSIONING_SIMPLIFICATION_PLAN.md)
+  - [Read Code Alignment and Production Plan 2026-04-04](operations/READ_CODE_ALIGNMENT_AND_PRODUCTION_PLAN_2026-04-04.md)
 
 - [Testing](testing/COVERAGE_STATUS.md)
   - [Critical Invariants](testing/CRITICAL_INVARIANTS.md)
   - [Test Matrix](testing/TEST_MATRIX.md)
 
+- [Bootstrap](bootstrap/BOOTSTRAP_RUNBOOK.md)
+
 - [Quantum](quantum/CLOSE_PLAN.md)
   - [Close Tracks](quantum/CLOSE_TRACKS.md)
   - [Cutover Runbook](quantum/CUTOVER_RUNBOOK.md)
   - [Evidence Package](quantum/EVIDENCE_PACKAGE.md)
-
-- [Bootstrap](bootstrap/BOOTSTRAP_RUNBOOK.md)
 
 - [Governance](governance/AI_TRAINING_AND_AUDIT_GUIDE.md)
