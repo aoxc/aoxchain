@@ -135,9 +135,11 @@ impl QuantumSecurityConfig {
         }
 
         if self.require_pq_for_validators
-            && self.key_policy.allowed_signature_schemes.iter().all(|s| {
-                s.security_bits() < self.min_security_level
-            })
+            && self
+                .key_policy
+                .allowed_signature_schemes
+                .iter()
+                .all(|s| s.security_bits() < self.min_security_level)
         {
             errors.push(
                 "no allowed signature scheme satisfies min_security_level for validators"
@@ -211,7 +213,10 @@ mod tests {
         assert!(errs.len() >= 3);
         assert!(errs.iter().any(|e| e.contains("min_security_level")));
         assert!(errs.iter().any(|e| e.contains("allowed_signature_schemes")));
-        assert!(errs.iter().any(|e| e.contains("periodic_crypto_audit_epochs")));
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("periodic_crypto_audit_epochs"))
+        );
     }
 
     #[test]
