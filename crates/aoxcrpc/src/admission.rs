@@ -24,6 +24,14 @@ pub enum MethodCostClass {
     Critical,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuantumTransitionStage {
+    ClassicalAllowed,
+    #[default]
+    HybridRequired,
+    PostQuantumOnly,
+}
+
 impl MethodCostClass {
     #[must_use]
     pub const fn budget_units(self) -> u32 {
@@ -93,11 +101,35 @@ pub struct AdmissionContext {
     pub remaining_budget_units: u32,
 }
 
+pub fn evaluate_submit_tx_admission(
+    context: &AdmissionContext,
+    stage: QuantumTransitionStage,
+) -> Result<(), RpcError> {
+    let auth_profile = match stage {
+        QuantumTransitionStage::ClassicalAllowed => AuthProfile::Legacy,
+        QuantumTransitionStage::HybridRequired => AuthProfile::HybridMandatory,
+        QuantumTransitionStage::PostQuantumOnly => AuthProfile::PostQuantumStrict,
+    };
+    let policy = MethodAdmissionPolicy {
+        method: "submit_tx",
+        min_identity_tier: IdentityTier::SignedClient,
+        cost_class: MethodCostClass::Critical,
+        required_auth_profile: auth_profile,
+    };
+    evaluate_admission_policy(&policy, context)
+}
+
 /// Evaluates method access before expensive RPC execution paths.
 pub fn evaluate_method_admission(method: &str, context: &AdmissionContext) -> Result<(), RpcError> {
     let policy = MethodAdmissionPolicy::for_method(method)
         .ok_or_else(|| RpcError::AdmissionDenied("unsupported RPC method".to_string()))?;
+    evaluate_admission_policy(&policy, context)
+}
 
+fn evaluate_admission_policy(
+    policy: &MethodAdmissionPolicy,
+    context: &AdmissionContext,
+) -> Result<(), RpcError> {
     if context.identity_tier < policy.min_identity_tier {
         return Err(RpcError::AdmissionDenied(
             "identity tier does not satisfy method policy".to_string(),

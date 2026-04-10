@@ -119,6 +119,14 @@ pub struct QuantumOpsPlaybook {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QuantumTransitionPolicy {
+    pub stages: Vec<String>,
+    pub default_stage: String,
+    pub submit_tx_requirement_by_stage: Vec<String>,
+    pub cutover_preconditions: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct QuantumFullProfile {
     pub profile_version: String,
     pub posture: String,
@@ -126,4 +134,5 @@ pub struct QuantumFullProfile {
     pub cli_capabilities: Vec<QuantumCliCapability>,
     pub controls: Vec<QuantumControl>,
     pub ops_playbook: QuantumOpsPlaybook,
+    pub transition_policy: QuantumTransitionPolicy,
 }

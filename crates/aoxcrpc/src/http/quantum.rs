@@ -5,6 +5,7 @@
 use crate::types::{
     QuantumApiCapability, QuantumCliCapability, QuantumControl, QuantumCryptoProfile,
     QuantumFullProfile, QuantumHashLevel, QuantumKeyLevel, QuantumOpsPlaybook,
+    QuantumTransitionPolicy,
 };
 
 /// Returns a baseline post-quantum cryptography profile for RPC clients.
@@ -136,6 +137,26 @@ pub fn quantum_full_profile() -> QuantumFullProfile {
                 "Post-incident report must include control effectiveness assessment".to_string(),
             ],
         },
+        transition_policy: QuantumTransitionPolicy {
+            stages: vec![
+                "classical_allowed".to_string(),
+                "hybrid_required".to_string(),
+                "post_quantum_only".to_string(),
+            ],
+            default_stage: "hybrid_required".to_string(),
+            submit_tx_requirement_by_stage: vec![
+                "classical_allowed: at least one supported signer".to_string(),
+                "hybrid_required: at least one classical and one PQ signer".to_string(),
+                "post_quantum_only: at least one PQ signer and no classical signer".to_string(),
+            ],
+            cutover_preconditions: vec![
+                "All operator and automation clients must submit PQ-capable signer sets"
+                    .to_string(),
+                "Rollback plan must preserve replay protection and audit evidence".to_string(),
+                "Readiness gate evidence must be archived for the active network profile"
+                    .to_string(),
+            ],
+        },
     }
 }
 
@@ -180,6 +201,14 @@ mod tests {
                 .api_capabilities
                 .iter()
                 .any(|entry| entry.name == "idempotency-key")
+        );
+        assert_eq!(profile.transition_policy.default_stage, "hybrid_required");
+        assert!(
+            profile
+                .transition_policy
+                .stages
+                .iter()
+                .any(|stage| stage == "post_quantum_only")
         );
     }
 }
