@@ -15,6 +15,3 @@ verification modes without non-deterministic runtime branching.
 - Any change should be evaluated together with its testing and compatibility impact.
 - `crypto_profile` centralizes migration-stage policy into explicit enums and
   deterministic runtime selection logic.
-- `crypto_profile` also exposes deterministic admission checks for proof bundles
-  (`evaluate_admission`) and monotonic transition guards (`can_transition_to`)
-  to make real-chain rollout policy safer and auditable.
