@@ -6,10 +6,6 @@ This document defines the production security contract for the AOXChain API kern
 
 The scope is the API security control plane (authentication, authorization, admission, transport, policy, telemetry, and failure behavior), not UI/client concerns.
 
-## Implementation Status Snapshot
-
-The repository now includes baseline API-kernel enforcement for rate limiting, JSON POST guards, max body-size checks, and privileged-route mTLS enforcement in the HTTP server path. This blueprint remains the contract for closure and downstream integration readiness.
-
 ## Non-Goals
 
 - Client UX design, wallet flows, and front-end state management.
@@ -70,8 +66,6 @@ The API kernel is considered complete for downstream integration only when all c
 - Security alerts wired to operational response runbooks.
 
 ## Interface Contract for the Separate Client Repository
-
-For downstream repository implementation details, see `docs/CLIENT_REPOSITORY_API_INTEGRATION_SPEC.md`.
 
 The downstream application repository can be started only after this repository publishes the following artifacts:
 

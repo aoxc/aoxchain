@@ -15,7 +15,6 @@ This directory contains the authoritative documentation system for AOXChain engi
 - `FULL_NODE_GUIDE.md` — step-by-step full-node setup, join flow, and re-bootstrap safety guidance.
 - `API_REFERENCE.md` — implementation-aligned HTTP/gRPC API surface and usage examples.
 - `API_KERNEL_SECURITY_BLUEPRINT.md` — API-first security kernel completion contract and cross-repository handoff checklist for downstream client implementations.
-- `CLIENT_REPOSITORY_API_INTEGRATION_SPEC.md` — exact implementation contract for the separate client repository consuming AOXChain APIs.
 - `PQ_COMPATIBILITY_GAP_AND_IMPLEMENTATION_PLAN.md` — implementation-aligned Dilithium/Falcon compatibility gap analysis and staged delivery plan.
 - `QUANTUM_ACCOUNT_MANAGEMENT_BLUEPRINT.md` — post-quantum authority/account blueprint covering scheme agility, policy roots, replay/recovery controls, validator integration, and phased validation-kernel rollout.
 
