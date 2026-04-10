@@ -101,7 +101,6 @@ Unsupported routes return structured RPC errors (e.g., `METHOD_NOT_FOUND`).
 Malformed JSON payloads return `INVALID_REQUEST` with a user hint to provide a valid JSON body matching the target schema.
 Rate-limited requests return `RATE_LIMIT_EXCEEDED` with `retry_after_ms`.
 Privileged mutation requests without valid mTLS identity return `MTLS_AUTH_FAILED`.
-Payloads above configured guard size return `PAYLOAD_TOO_LARGE` (`413`).
 
 ## 4. OpenAPI / Swagger Status
 

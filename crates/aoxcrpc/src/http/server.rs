@@ -87,20 +87,7 @@ impl HttpRpcServer {
         path: &str,
         body: Option<&str>,
     ) -> Result<HttpRpcResponse, HttpRpcResponse> {
-        self.handle_json_with_context(
-            method,
-            path,
-            body,
-            HttpRequestContext {
-                client_key: "legacy".to_string(),
-                content_type: if method == "POST" {
-                    Some("application/json".to_string())
-                } else {
-                    None
-                },
-                ..HttpRequestContext::default()
-            },
-        )
+        self.handle_json_with_context(method, path, body, HttpRequestContext::default())
     }
 
     pub fn handle_json_with_context(
@@ -197,11 +184,7 @@ impl HttpRpcServer {
     ) -> Result<(), RpcError> {
         if method == "POST" {
             match context.content_type.as_deref() {
-                Some(content_type)
-                    if content_type.eq_ignore_ascii_case("application/json")
-                        || content_type
-                            .to_ascii_lowercase()
-                            .starts_with("application/json;") => {}
+                Some("application/json") => {}
                 _ => return Err(RpcError::InvalidRequest),
             }
 
@@ -210,7 +193,7 @@ impl HttpRpcServer {
             };
 
             if payload.len() > self.config.max_json_body_bytes {
-                return Err(RpcError::PayloadTooLarge);
+                return Err(RpcError::InvalidRequest);
             }
         }
 
@@ -293,7 +276,12 @@ impl HttpRpcServer {
         }
     }
 
-    fn error_from_rpc_error(&self, status: u16, request_id: &str, error: RpcError) -> HttpRpcResponse {
+    fn error_from_rpc_error(
+        &self,
+        status: u16,
+        request_id: &str,
+        error: RpcError,
+    ) -> HttpRpcResponse {
         self.error_response(status, error.to_response(Some(request_id.to_string())))
     }
 
@@ -313,7 +301,6 @@ fn status_for_guard_error(error: &RpcError) -> u16 {
         RpcError::MtlsAuthFailed => 401,
         RpcError::RateLimitExceeded { .. } => 429,
         RpcError::InvalidRequest => 400,
-        RpcError::PayloadTooLarge => 413,
         _ => 403,
     }
 }
@@ -381,20 +368,6 @@ mod tests {
     }
 
     #[test]
-    fn legacy_handle_json_accepts_post_without_explicit_context() {
-        let mut server = HttpRpcServer::default();
-        let response = server
-            .handle_json(
-                "POST",
-                "/contracts/get",
-                Some(r#"{"request_id":"req-1","contract_id":"missing"}"#),
-            )
-            .expect_err("request should be processed and fail at business layer");
-
-        assert_eq!(response.status, 404);
-    }
-
-    #[test]
     fn privileged_route_requires_mtls() {
         let mut server = HttpRpcServer::default();
         let response = server
@@ -435,46 +408,5 @@ mod tests {
 
         assert_eq!(second.status, 429);
         assert!(second.body.contains("RATE_LIMIT_EXCEEDED"));
-    }
-
-    #[test]
-    fn post_with_json_charset_is_accepted_by_guard_layer() {
-        let mut server = HttpRpcServer::default();
-        let response = server
-            .handle_json_with_context(
-                "POST",
-                "/contracts/get",
-                Some(r#"{"request_id":"req-1","contract_id":"missing"}"#),
-                HttpRequestContext {
-                    content_type: Some("application/json; charset=utf-8".to_string()),
-                    ..HttpRequestContext::default()
-                },
-            )
-            .expect_err("request should pass guard and fail at business layer");
-
-        assert_eq!(response.status, 404);
-    }
-
-    #[test]
-    fn payload_too_large_returns_413() {
-        let mut server = HttpRpcServer::new(RpcConfig {
-            max_json_body_bytes: 8,
-            ..RpcConfig::default()
-        });
-
-        let response = server
-            .handle_json_with_context(
-                "POST",
-                "/contracts/get",
-                Some(r#"{"request_id":"req-1","contract_id":"missing"}"#),
-                HttpRequestContext {
-                    content_type: Some("application/json".to_string()),
-                    ..HttpRequestContext::default()
-                },
-            )
-            .expect_err("oversized payload should be rejected");
-
-        assert_eq!(response.status, 413);
-        assert!(response.body.contains("PAYLOAD_TOO_LARGE"));
     }
 }
