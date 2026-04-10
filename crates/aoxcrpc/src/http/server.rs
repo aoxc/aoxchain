@@ -276,7 +276,12 @@ impl HttpRpcServer {
         }
     }
 
-    fn error_from_rpc_error(&self, status: u16, request_id: &str, error: RpcError) -> HttpRpcResponse {
+    fn error_from_rpc_error(
+        &self,
+        status: u16,
+        request_id: &str,
+        error: RpcError,
+    ) -> HttpRpcResponse {
         self.error_response(status, error.to_response(Some(request_id.to_string())))
     }
 
