@@ -48,6 +48,7 @@ mod runtime_snapshot_ops;
 mod shared_helpers;
 mod tx_account_ops;
 mod types;
+mod validator_lifecycle_ops;
 mod vm_ops;
 
 use readiness_core::*;
@@ -92,6 +93,10 @@ pub use network_read_ops::{cmd_network_full, cmd_network_status, cmd_peer_list, 
 pub use rpc_serve_ops::cmd_rpc_serve;
 pub use rpc_status_ops::{cmd_api_contract, cmd_rpc_curl_smoke, cmd_rpc_status};
 pub use tx_account_ops::{cmd_account_get, cmd_balance_get, cmd_tx_get, cmd_tx_receipt};
+pub use validator_lifecycle_ops::{
+    cmd_validator_activate, cmd_validator_bond, cmd_validator_commission_set, cmd_validator_join,
+    cmd_validator_set_status, cmd_validator_unbond,
+};
 
 const FAUCET_MAX_CLAIM_AMOUNT: u64 = 10_000;
 const FAUCET_COOLDOWN_SECS: u64 = 3_600;
