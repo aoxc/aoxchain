@@ -11,7 +11,24 @@ Base form:
 http://<rpc-host>:<rpc-port>
 ```
 
-### 1.1 Health
+## 1.1 Global HTTP Security Controls (Implemented)
+
+The HTTP API kernel currently enforces the following guards before route execution:
+
+- Request-scoped rate limiting by client key.
+- JSON `POST` content-type requirement (`application/json`).
+- Maximum JSON body size (`RpcConfig.max_json_body_bytes`).
+- mTLS client fingerprint enforcement on privileged contract mutation routes.
+- Structured machine-readable error payloads including retry hints where applicable.
+
+### Privileged routes requiring mTLS
+
+- `/contracts/register`
+- `/contracts/activate`
+- `/contracts/deprecate`
+- `/contracts/revoke`
+
+## 1.2 Health
 
 - **Route:** `GET /health`
 - **Purpose:** Node RPC health and readiness summary.
@@ -22,7 +39,7 @@ Example:
 curl -s http://127.0.0.1:8545/health | jq .
 ```
 
-### 1.2 Prometheus Metrics
+## 1.3 Prometheus Metrics
 
 - **Route:** `GET /metrics`
 - **Purpose:** Prometheus exposition format for request counts, rejection counts, rate limiter state, and readiness score.
@@ -33,7 +50,7 @@ Example:
 curl -s http://127.0.0.1:8545/metrics
 ```
 
-### 1.3 Cryptographic Profile Endpoints
+## 1.4 Cryptographic Profile Endpoints
 
 - **Route:** `GET /quantum/profile`
 - **Purpose:** Active quantum/crypto profile summary.
@@ -47,7 +64,7 @@ Example:
 curl -s http://127.0.0.1:8545/quantum/profile/full | jq .
 ```
 
-### 1.4 Contract Control Endpoints
+## 1.5 Contract Control Endpoints
 
 All contract routes are JSON `POST` APIs:
 
@@ -66,7 +83,7 @@ Example (`list`):
 curl -s \
   -H 'Content-Type: application/json' \
   -X POST http://127.0.0.1:8545/contracts/list \
-  -d '{"page":1,"limit":20}' | jq .
+  -d '{"page":1,"page_size":20,"request_id":"req-1"}' | jq .
 ```
 
 ## 2. gRPC Method Catalog
@@ -82,6 +99,8 @@ Use the crate’s server metadata/tests as source of truth for the catalog durin
 
 Unsupported routes return structured RPC errors (e.g., `METHOD_NOT_FOUND`).
 Malformed JSON payloads return `INVALID_REQUEST` with a user hint to provide a valid JSON body matching the target schema.
+Rate-limited requests return `RATE_LIMIT_EXCEEDED` with `retry_after_ms`.
+Privileged mutation requests without valid mTLS identity return `MTLS_AUTH_FAILED`.
 
 ## 4. OpenAPI / Swagger Status
 
