@@ -34,12 +34,11 @@ impl TxSubmissionService {
         let context = AdmissionContext {
             identity_tier: parse_identity_tier(request.identity_tier.as_deref())?,
             signer_algorithms: parse_signer_algorithms(&request.signer_algorithms)?,
-            verified_signature_count: request.verified_signature_count.unwrap_or_else(|| {
-                u8::try_from(request.signer_algorithms.len()).unwrap_or(u8::MAX)
-            }),
+            verified_signature_count: u8::try_from(request.signer_algorithms.len())
+                .unwrap_or(u8::MAX),
             remaining_budget_units: request.remaining_budget_units.unwrap_or(0),
-            is_operator_authenticated: request.is_operator_authenticated.unwrap_or(false),
-            cpu_capabilities: aoxchal::cpu_opt::CpuCapabilities::detect(),
+            is_operator_authenticated: false,
+            cpu_capabilities: aoxchal::cpu_opt::CpuCapabilities::portable(),
         };
 
         evaluate_submit_tx_admission(&context, self.quantum_transition_stage)?;

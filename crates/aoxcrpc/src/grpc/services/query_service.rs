@@ -44,7 +44,6 @@ impl QueryService {
 mod tests {
     use super::QueryService;
     use crate::admission::{AdmissionContext, IdentityTier};
-    use crate::error::{AdmissionFailure, MethodAdmissionFailure, RpcError};
     use aoxchal::cpu_opt::CpuCapabilities;
     use aoxcvm::auth::scheme::SignatureAlgorithm;
     #[test]
