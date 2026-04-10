@@ -280,7 +280,6 @@ endef
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
 	release-binary-list install-bin package-desktop repo-release-keygen repo-release-signed repo-release-signed-verify repo-release-prepare repo-release-validate \
-	repo-secure-bundle repo-secure-bundle-verify install-binaries-root github-install-binaries \
 	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate versioning-gate quality quality-quick quality-release ci \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \

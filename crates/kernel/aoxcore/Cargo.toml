@@ -2,6 +2,11 @@
 name = "aoxcore"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
 
 [dependencies]
 serde = { workspace = true }
@@ -20,8 +25,8 @@ chrono = { workspace = true }
 hex = { workspace = true }
 libcrux-ml-dsa  = { workspace = true }
 
-aoxcunity = { path = "../aoxcunity" }
-aoxcontract = { path = "../../aoxcontract" }
+aoxcunity = { path = "../aoxcunity" , version = "0.2.0-alpha.1"}
+aoxcontract = { path = "../../aoxcontract" , version = "0.2.0-alpha.1"}
 bip39 = { version = "2", default-features = false, features = ["all-languages", "rand", "serde", "std", "zeroize"] }
 zeroize = "1.8.2"
 getrandom = "0.4.2"

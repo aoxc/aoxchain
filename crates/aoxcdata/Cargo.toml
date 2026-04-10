@@ -2,6 +2,11 @@
 name = "aoxcdata"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
 
 [dependencies]
 serde = { workspace = true }
@@ -10,5 +15,5 @@ tokio = { workspace = true }
 thiserror = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
-aoxcontract = { path = "../aoxcontract" }
-aoxcore = { path = "../kernel/aoxcore" }
+aoxcontract = { path = "../aoxcontract" , version = "0.2.0-alpha.1"}
+aoxcore = { path = "../kernel/aoxcore" , version = "0.2.0-alpha.1"}

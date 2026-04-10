@@ -113,7 +113,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "aoxcai"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcdata"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aoxcontract",
  "aoxcore",
@@ -143,7 +143,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcenergy"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "serde",
  "thiserror 2.0.18",
@@ -151,7 +151,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcexec"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "blake3",
  "ed25519-dalek",
@@ -163,7 +163,7 @@ dependencies = [
 
 [[package]]
 name = "aoxchal"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "serde",
  "thiserror 2.0.18",
@@ -171,7 +171,7 @@ dependencies = [
 
 [[package]]
 name = "aoxchub"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "async-stream",
  "axum",
@@ -188,7 +188,7 @@ dependencies = [
 
 [[package]]
 name = "aoxckit"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aoxcore",
  "assert_cmd",
@@ -201,7 +201,7 @@ dependencies = [
 
 [[package]]
 name = "aoxclibs"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "base64",
  "hex",
@@ -211,7 +211,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcmd"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aoxcai",
  "aoxcdata",
@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcmob"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aoxcore",
  "aoxcsdk",
@@ -247,7 +247,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcnet"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aoxcunity",
  "blake3",
@@ -263,7 +263,7 @@ dependencies = [
 
 [[package]]
 name = "aoxconfig"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aoxcontract",
  "serde",
@@ -273,7 +273,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcontract"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "chrono",
  "hex",
@@ -285,7 +285,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcore"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aes-gcm",
  "aoxcontract",
@@ -311,7 +311,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcrpc"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aoxcdata",
  "aoxconfig",
@@ -329,7 +329,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcsdk"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aoxcontract",
  "serde",
@@ -339,7 +339,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcunity"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "ed25519-dalek",
  "libcrux-ml-dsa",
@@ -352,7 +352,7 @@ dependencies = [
 
 [[package]]
 name = "aoxcvm"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aoxconfig",
  "aoxcontract",
@@ -2858,7 +2858,7 @@ checksum = "8f50febec83f5ee1df3015341d8bd429f2d1cc62bcba7ea2076759d315084683"
 
 [[package]]
 name = "tests"
-version = "0.2.0-alpha.3"
+version = "0.2.0-alpha.2"
 dependencies = [
  "aoxcdata",
  "aoxcmd",

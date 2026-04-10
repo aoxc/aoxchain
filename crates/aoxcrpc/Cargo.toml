@@ -2,6 +2,11 @@
 name = "aoxcrpc"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
 
 [dependencies]
 serde = { workspace = true }
@@ -10,9 +15,9 @@ tokio = { workspace = true }
 thiserror = { workspace = true }
 sha2 = { workspace = true }
 chrono = { workspace = true }
-aoxconfig = { path = "../aoxconfig" }
-aoxcontract = { path = "../aoxcontract" }
-aoxcore = { path = "../kernel/aoxcore" }
-aoxcdata = { path = "../aoxcdata" }
-aoxcvm = { path = "../aoxcvm" }
-aoxcsdk = { path = "../aoxcsdk" }
+aoxconfig = { path = "../aoxconfig" , version = "0.2.0-alpha.1"}
+aoxcontract = { path = "../aoxcontract" , version = "0.2.0-alpha.1"}
+aoxcore = { path = "../kernel/aoxcore" , version = "0.2.0-alpha.1"}
+aoxcdata = { path = "../aoxcdata" , version = "0.2.0-alpha.1"}
+aoxcvm = { path = "../aoxcvm" , version = "0.2.0-alpha.1"}
+aoxcsdk = { path = "../aoxcsdk" , version = "0.2.0-alpha.1"}

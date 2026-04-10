@@ -2,6 +2,11 @@
 name = "aoxcmob"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
 
 [dependencies]
 serde = { workspace = true }
@@ -12,5 +17,5 @@ sha3 = { workspace = true }
 hex = { workspace = true }
 base64 = { workspace = true }
 ed25519-dalek = { workspace = true }
-aoxcore = { path = "../kernel/aoxcore" }
-aoxcsdk = { path = "../aoxcsdk" }
+aoxcore = { path = "../kernel/aoxcore" , version = "0.2.0-alpha.1"}
+aoxcsdk = { path = "../aoxcsdk" , version = "0.2.0-alpha.1"}

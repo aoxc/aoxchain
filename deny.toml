@@ -70,7 +70,8 @@ allow = [
     "MPL-2.0",
     "Unicode-3.0",
     "Zlib",
-]
+
+    "CC0-1.0",]
 
 [licenses.private]
 # Internal workspace crates are exempt from registry-level license metadata.

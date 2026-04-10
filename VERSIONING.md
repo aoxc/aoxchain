@@ -6,7 +6,7 @@ This document defines how AOXChain version state is advanced in a controlled, au
 
 Current active release line target: `AOXC-QTR-V1` (communication label only).
 
-Current workspace release version: `0.2.0-alpha.3`.
+Current workspace release version: `0.2.0-alpha.2`.
 
 ## Canonical Version Surfaces
 
@@ -103,23 +103,3 @@ For version-sensitive pull requests, reviewers should verify:
 ## Operator Guidance
 
 If bump scope is ambiguous, prefer conservative upward bump and document rationale in pull request notes.
-
-## Secure Binary Publication Contract
-
-Release publication should use cryptographic evidence surfaces in addition to
-version surfaces:
-
-- `manifest.secure.json` with release metadata and certificate fingerprint
-- `SHA256SUMS`
-- `SHA3-512SUMS`
-- `BLAKE3SUMS` (optional hash algorithm availability)
-- detached signatures for manifest and checksum files
-
-Recommended secure publication flow:
-
-1. Build binaries with `make build-release-all`.
-2. Produce secure bundle:
-   `make repo-secure-bundle RELEASE_SIGNING_KEY=<key.pem> RELEASE_SIGNING_CERT=<cert.pem>`.
-3. Verify secure bundle:
-   `make repo-secure-bundle-verify RELEASE_SIGNING_CERT=<cert.pem>`.
-4. Publish only verified artifacts under a version-scoped path (`v<workspace-version>`).

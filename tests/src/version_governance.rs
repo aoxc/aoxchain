@@ -71,18 +71,6 @@ fn versioning_gate_script_exists() {
         Path::new("../scripts/validation/versioning_gate.sh").exists(),
         "version governance shell gate must exist"
     );
-    assert!(
-        Path::new("../scripts/release/secure_binary_bundle.sh").exists(),
-        "secure binary bundle script must exist"
-    );
-    assert!(
-        Path::new("../scripts/release/verify_secure_binary_bundle.sh").exists(),
-        "secure binary bundle verification script must exist"
-    );
-    assert!(
-        Path::new("../scripts/release/github_binary_install.sh").exists(),
-        "github binary install script must exist"
-    );
 }
 
 fn read_required_value(contents: &str, key: &str) -> String {
