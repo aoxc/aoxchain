@@ -250,7 +250,6 @@ fn route_validator_group(args: &[String]) -> Result<(), AppError> {
             );
             ops::cmd_stake_undelegate(&mapped)
         }
-        "set-status" | "commission-set" => bootstrap::cmd_keys_inspect(tail),
         "inspect" | "status" => bootstrap::cmd_keys_inspect(tail),
         "rotate-key" => bootstrap::cmd_key_rotate(tail),
         _ => invalid_group_usage("validator", "unsupported subcommand"),
@@ -297,7 +296,18 @@ fn route_node_group(args: &[String]) -> Result<(), AppError> {
 
     match subcommand.as_str() {
         "init" => ops::cmd_node_bootstrap(tail),
-        "join" => ops::cmd_node_join(tail),
+        "join" => {
+            let mapped = remap_flags(
+                tail,
+                &[
+                    ("--seed", "--known-bootnode"),
+                    ("--peer", "--known-bootnode"),
+                    ("--trust-root", "--certificate-file"),
+                    ("--allow-sync-from", "--known-bootnode"),
+                ],
+            );
+            ops::cmd_node_bootstrap(&mapped)
+        }
         "start" => ops::cmd_node_run(tail),
         "status" => ops::cmd_node_health(tail),
         "doctor" => audit::cmd_diagnostics_doctor(tail),
@@ -313,7 +323,6 @@ fn route_network_group(args: &[String]) -> Result<(), AppError> {
     match subcommand.as_str() {
         "create" => bootstrap::cmd_dual_profile_bootstrap(tail),
         "join" | "peer-add" | "seed-add" | "bootstrap-peer-add" => route_node_join_alias(tail),
-        "join-check" | "join-plan" => ops::cmd_network_join_check(tail),
         "start" => ops::cmd_real_network(tail),
         "status" | "verify" => ops::cmd_network_smoke(tail),
         "identity-gate" => ops::cmd_network_identity_gate(tail),
