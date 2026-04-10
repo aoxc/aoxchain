@@ -2,19 +2,24 @@
 name = "tests"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
 
 [dependencies]
 serde = { workspace = true }
 tokio = { workspace = true }
-aoxcmd = { path = "../crates/aoxcmd" }
-aoxcnet = { path = "../crates/aoxcnet" }
-aoxcunity = { path = "../crates/kernel/aoxcunity" }
-aoxconfig = { path = "../crates/aoxconfig" }
-aoxcontract = { path = "../crates/aoxcontract" }
-aoxcore = { path = "../crates/kernel/aoxcore" }
-aoxcdata = { path = "../crates/aoxcdata" }
-aoxcsdk = { path = "../crates/aoxcsdk" }
-aoxcvm = { path = "../crates/aoxcvm" }
+aoxcmd = { path = "../crates/aoxcmd" , version = "0.2.0-alpha.1"}
+aoxcnet = { path = "../crates/aoxcnet" , version = "0.2.0-alpha.1"}
+aoxcunity = { path = "../crates/kernel/aoxcunity" , version = "0.2.0-alpha.1"}
+aoxconfig = { path = "../crates/aoxconfig" , version = "0.2.0-alpha.1"}
+aoxcontract = { path = "../crates/aoxcontract" , version = "0.2.0-alpha.1"}
+aoxcore = { path = "../crates/kernel/aoxcore" , version = "0.2.0-alpha.1"}
+aoxcdata = { path = "../crates/aoxcdata" , version = "0.2.0-alpha.1"}
+aoxcsdk = { path = "../crates/aoxcsdk" , version = "0.2.0-alpha.1"}
+aoxcvm = { path = "../crates/aoxcvm" , version = "0.2.0-alpha.1"}
 serde_json = { workspace = true }
 rand = { workspace = true }
 hex = "0.4"

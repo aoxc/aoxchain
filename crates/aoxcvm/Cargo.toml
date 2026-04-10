@@ -6,9 +6,9 @@ license = "MIT"
 description = "AOXChain virtual machine kernel v1"
 
 [dependencies]
-aoxcontract = { path = "../aoxcontract" }
-aoxconfig = { path = "../aoxconfig" }
-aoxcore = { path = "../kernel/aoxcore" }
+aoxcontract = { path = "../aoxcontract" , version = "0.2.0-alpha.1"}
+aoxconfig = { path = "../aoxconfig" , version = "0.2.0-alpha.1"}
+aoxcore = { path = "../kernel/aoxcore" , version = "0.2.0-alpha.1"}
 serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 sha2.workspace = true
@@ -16,7 +16,7 @@ sha3.workspace = true
 blake3.workspace = true
 
 [dev-dependencies]
-aoxcsdk = { path = "../aoxcsdk" }
+aoxcsdk = { path = "../aoxcsdk" , version = "0.2.0-alpha.1"}
 
 
 [[bench]]

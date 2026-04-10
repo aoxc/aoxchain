@@ -19,10 +19,10 @@ sha3 = "0.11.0"
 hex = "0.4.3"
 chrono = { version = "0.4.44", features = ["serde", "clock"] }
 ed25519-dalek = "2.2.0"
-aoxcunity = { path = "../kernel/aoxcunity" }
-aoxcai = { path = "../aoxcai" }
-aoxcore = { path = "../kernel/aoxcore" }
-aoxcdata = { path = "../aoxcdata" }
+aoxcunity = { path = "../kernel/aoxcunity" , version = "0.2.0-alpha.1"}
+aoxcai = { path = "../aoxcai" , version = "0.2.0-alpha.1"}
+aoxcore = { path = "../kernel/aoxcore" , version = "0.2.0-alpha.1"}
+aoxcdata = { path = "../aoxcdata" , version = "0.2.0-alpha.1"}
 redb = "4.0.0"
 
 [build-dependencies]
