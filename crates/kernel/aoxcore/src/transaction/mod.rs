@@ -17,10 +17,12 @@
 //! - Clean interoperability with transaction hashing and pool admission
 //! - Explicit fail-closed guards against malformed sentinel states
 
+pub mod envelope;
 pub mod hash;
 pub mod pool;
 pub mod quantum;
 
+pub use envelope::{ENVELOPE_SIGNING_FORMAT_VERSION, EnvelopeError, TransactionEnvelope};
 pub use hash::{
     HASH_FORMAT_VERSION, HASH_SIZE, TransactionHashError, ZERO_HASH, calculate_transaction_root,
     compute_hash, empty_transaction_root, hash_internal_node, hash_signing_payload,
