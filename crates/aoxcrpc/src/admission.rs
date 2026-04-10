@@ -2,13 +2,13 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
-use aoxcvm::auth::scheme::{AuthProfile, SignatureAlgorithm};
 use aoxchal::cpu_opt::CpuCapabilities;
 use aoxchal::crypto_profile::{
     CryptoPolicy, ProfileStage, ProofSummary, evaluate_admission as evaluate_crypto_admission,
 };
+use aoxcvm::auth::scheme::{AuthProfile, SignatureAlgorithm};
 
-use crate::error::RpcError;
+use crate::error::{AdmissionFailure, CryptoAdmissionFailure, MethodAdmissionFailure, RpcError};
 
 /// Coarse identity tiers used by RPC admission and budgeting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -48,53 +48,103 @@ impl MethodCostClass {
     }
 }
 
-/// Policy requirement for a single RPC method.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Policy requirement for a canonical RPC method.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MethodAdmissionPolicy {
-    pub method: &'static str,
+    pub canonical_name: &'static str,
     pub min_identity_tier: IdentityTier,
     pub cost_class: MethodCostClass,
     pub required_auth_profile: AuthProfile,
 }
 
-impl MethodAdmissionPolicy {
-    /// Returns a production-oriented default policy for a method name.
-    #[must_use]
-    pub fn for_method(method: &str) -> Option<Self> {
-        match method {
-            "health" | "status" => Some(Self {
-                method: "health",
-                min_identity_tier: IdentityTier::Anonymous,
-                cost_class: MethodCostClass::Low,
-                required_auth_profile: AuthProfile::Legacy,
-            }),
-            "query_state" | "get_block" => Some(Self {
-                method: "query_state",
-                min_identity_tier: IdentityTier::ApiKey,
-                cost_class: MethodCostClass::Medium,
-                required_auth_profile: AuthProfile::HybridMandatory,
-            }),
-            "simulate_tx" | "trace_tx" => Some(Self {
-                method: "simulate_tx",
-                min_identity_tier: IdentityTier::SignedClient,
-                cost_class: MethodCostClass::High,
-                required_auth_profile: AuthProfile::HybridMandatory,
-            }),
-            "submit_tx" => Some(Self {
-                method: "submit_tx",
-                min_identity_tier: IdentityTier::SignedClient,
-                cost_class: MethodCostClass::Critical,
-                required_auth_profile: AuthProfile::HybridMandatory,
-            }),
-            "operator_rotate_keys" | "operator_set_profile" => Some(Self {
-                method: "operator_rotate_keys",
-                min_identity_tier: IdentityTier::Operator,
-                cost_class: MethodCostClass::Critical,
-                required_auth_profile: AuthProfile::PostQuantumStrict,
-            }),
-            _ => None,
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MethodAlias {
+    pub exposed_name: &'static str,
+    pub canonical_name: &'static str,
+}
+
+pub const METHOD_POLICIES: &[MethodAdmissionPolicy] = &[
+    MethodAdmissionPolicy {
+        canonical_name: "health",
+        min_identity_tier: IdentityTier::Anonymous,
+        cost_class: MethodCostClass::Low,
+        required_auth_profile: AuthProfile::Legacy,
+    },
+    MethodAdmissionPolicy {
+        canonical_name: "query_state",
+        min_identity_tier: IdentityTier::ApiKey,
+        cost_class: MethodCostClass::Medium,
+        required_auth_profile: AuthProfile::HybridMandatory,
+    },
+    MethodAdmissionPolicy {
+        canonical_name: "simulate_tx",
+        min_identity_tier: IdentityTier::SignedClient,
+        cost_class: MethodCostClass::High,
+        required_auth_profile: AuthProfile::HybridMandatory,
+    },
+    MethodAdmissionPolicy {
+        canonical_name: "submit_tx",
+        min_identity_tier: IdentityTier::SignedClient,
+        cost_class: MethodCostClass::Critical,
+        required_auth_profile: AuthProfile::HybridMandatory,
+    },
+    MethodAdmissionPolicy {
+        canonical_name: "operator_rotate_keys",
+        min_identity_tier: IdentityTier::Operator,
+        cost_class: MethodCostClass::Critical,
+        required_auth_profile: AuthProfile::PostQuantumStrict,
+    },
+];
+
+pub const METHOD_ALIASES: &[MethodAlias] = &[
+    MethodAlias {
+        exposed_name: "health",
+        canonical_name: "health",
+    },
+    MethodAlias {
+        exposed_name: "status",
+        canonical_name: "health",
+    },
+    MethodAlias {
+        exposed_name: "query_state",
+        canonical_name: "query_state",
+    },
+    MethodAlias {
+        exposed_name: "get_block",
+        canonical_name: "query_state",
+    },
+    MethodAlias {
+        exposed_name: "simulate_tx",
+        canonical_name: "simulate_tx",
+    },
+    MethodAlias {
+        exposed_name: "trace_tx",
+        canonical_name: "simulate_tx",
+    },
+    MethodAlias {
+        exposed_name: "submit_tx",
+        canonical_name: "submit_tx",
+    },
+    MethodAlias {
+        exposed_name: "operator_rotate_keys",
+        canonical_name: "operator_rotate_keys",
+    },
+    MethodAlias {
+        exposed_name: "operator_set_profile",
+        canonical_name: "operator_rotate_keys",
+    },
+];
+
+#[must_use]
+pub fn policy_for_method(method: &str) -> Option<&'static MethodAdmissionPolicy> {
+    let canonical_name = METHOD_ALIASES
+        .iter()
+        .find(|alias| alias.exposed_name == method)
+        .map(|alias| alias.canonical_name)?;
+
+    METHOD_POLICIES
+        .iter()
+        .find(|policy| policy.canonical_name == canonical_name)
 }
 
 /// Runtime context supplied to admission evaluation.
@@ -102,31 +152,47 @@ impl MethodAdmissionPolicy {
 pub struct AdmissionContext {
     pub identity_tier: IdentityTier,
     pub signer_algorithms: Vec<SignatureAlgorithm>,
+    pub verified_signature_count: u8,
     pub remaining_budget_units: u32,
+    pub is_operator_authenticated: bool,
+    pub cpu_capabilities: CpuCapabilities,
 }
 
 pub fn evaluate_submit_tx_admission(
     context: &AdmissionContext,
     stage: QuantumTransitionStage,
 ) -> Result<(), RpcError> {
-    let auth_profile = match stage {
-        QuantumTransitionStage::ClassicalAllowed => AuthProfile::Legacy,
-        QuantumTransitionStage::HybridRequired => AuthProfile::HybridMandatory,
-        QuantumTransitionStage::PostQuantumOnly => AuthProfile::PostQuantumStrict,
-    };
-    let policy = MethodAdmissionPolicy {
-        method: "submit_tx",
-        min_identity_tier: IdentityTier::SignedClient,
-        cost_class: MethodCostClass::Critical,
-        required_auth_profile: auth_profile,
-    };
-    let crypto_policy = crypto_policy_from_stage(stage);
-    let proof_summary = proof_summary_from_signers(&context.signer_algorithms);
+    evaluate_method_admission_with_stage("submit_tx", context, stage)
+}
 
-    evaluate_crypto_admission(crypto_policy, CpuCapabilities::portable(), proof_summary).map_err(
-        |e| RpcError::AdmissionDenied(format!("crypto policy admission failed: {e:?}")),
+pub fn evaluate_method_admission(method: &str, context: &AdmissionContext) -> Result<(), RpcError> {
+    evaluate_method_admission_with_stage(method, context, QuantumTransitionStage::HybridRequired)
+}
+
+pub fn evaluate_method_admission_with_stage(
+    method: &str,
+    context: &AdmissionContext,
+    stage: QuantumTransitionStage,
+) -> Result<(), RpcError> {
+    let policy = policy_for_method(method).ok_or(RpcError::AdmissionDenied {
+        code: AdmissionFailure::Method(MethodAdmissionFailure::UnsupportedMethod),
+        message: "unsupported RPC method",
+    })?;
+
+    let enforce_auth_profile = policy.canonical_name != "submit_tx";
+    evaluate_admission_policy(policy, context, enforce_auth_profile)?;
+
+    let crypto_policy = crypto_policy_from_stage(stage);
+    let proof_summary = proof_summary_from_context(context)?;
+
+    evaluate_crypto_admission(crypto_policy, context.cpu_capabilities, proof_summary).map_err(
+        |failure| RpcError::AdmissionDenied {
+            code: AdmissionFailure::Crypto(CryptoAdmissionFailure::from(failure)),
+            message: "request proof does not satisfy active cryptographic policy",
+        },
     )?;
-    evaluate_admission_policy(&policy, context)
+
+    Ok(())
 }
 
 fn crypto_policy_from_stage(stage: QuantumTransitionStage) -> CryptoPolicy {
@@ -141,48 +207,61 @@ fn crypto_policy_from_stage(stage: QuantumTransitionStage) -> CryptoPolicy {
     }
 }
 
-fn proof_summary_from_signers(signer_algorithms: &[SignatureAlgorithm]) -> ProofSummary {
+fn proof_summary_from_context(context: &AdmissionContext) -> Result<ProofSummary, RpcError> {
+    if usize::from(context.verified_signature_count) != context.signer_algorithms.len() {
+        return Err(RpcError::AdmissionDenied {
+            code: AdmissionFailure::Method(MethodAdmissionFailure::InvalidSignerSet),
+            message: "verified signature count does not match signer algorithm declarations",
+        });
+    }
+
     let mut summary = ProofSummary::default();
-    for algorithm in signer_algorithms {
+    for algorithm in &context.signer_algorithms {
         if algorithm.is_post_quantum() {
             summary.pq_signatures = summary.pq_signatures.saturating_add(1);
         } else {
             summary.classical_signatures = summary.classical_signatures.saturating_add(1);
         }
     }
-    summary
-}
 
-/// Evaluates method access before expensive RPC execution paths.
-pub fn evaluate_method_admission(method: &str, context: &AdmissionContext) -> Result<(), RpcError> {
-    let policy = MethodAdmissionPolicy::for_method(method)
-        .ok_or_else(|| RpcError::AdmissionDenied("unsupported RPC method".to_string()))?;
-    evaluate_admission_policy(&policy, context)
+    Ok(summary)
 }
 
 fn evaluate_admission_policy(
     policy: &MethodAdmissionPolicy,
     context: &AdmissionContext,
+    enforce_auth_profile: bool,
 ) -> Result<(), RpcError> {
     if context.identity_tier < policy.min_identity_tier {
-        return Err(RpcError::AdmissionDenied(
-            "identity tier does not satisfy method policy".to_string(),
-        ));
+        return Err(RpcError::AdmissionDenied {
+            code: AdmissionFailure::Method(MethodAdmissionFailure::IdentityTierTooLow),
+            message: "identity tier does not satisfy method policy",
+        });
     }
 
-    if !policy
-        .required_auth_profile
-        .signer_set_is_valid(&context.signer_algorithms)
+    if policy.min_identity_tier == IdentityTier::Operator && !context.is_operator_authenticated {
+        return Err(RpcError::AdmissionDenied {
+            code: AdmissionFailure::Method(MethodAdmissionFailure::IdentityTierTooLow),
+            message: "operator method requires operator-authenticated caller",
+        });
+    }
+
+    if enforce_auth_profile
+        && !policy
+            .required_auth_profile
+            .signer_set_is_valid(&context.signer_algorithms)
     {
-        return Err(RpcError::AdmissionDenied(
-            "signer set does not satisfy VM auth profile".to_string(),
-        ));
+        return Err(RpcError::AdmissionDenied {
+            code: AdmissionFailure::Method(MethodAdmissionFailure::InvalidSignerSet),
+            message: "signer set does not satisfy VM auth profile",
+        });
     }
 
     if context.remaining_budget_units < policy.cost_class.budget_units() {
-        return Err(RpcError::AdmissionDenied(
-            "request budget exhausted for method cost class".to_string(),
-        ));
+        return Err(RpcError::AdmissionDenied {
+            code: AdmissionFailure::Method(MethodAdmissionFailure::BudgetExhausted),
+            message: "request budget exhausted for method cost class",
+        });
     }
 
     Ok(())
@@ -191,17 +270,31 @@ fn evaluate_admission_policy(
 #[cfg(test)]
 mod tests {
     use super::{
-        AdmissionContext, IdentityTier, QuantumTransitionStage, evaluate_method_admission,
-        evaluate_submit_tx_admission,
+        AdmissionContext, IdentityTier, MethodAdmissionFailure, QuantumTransitionStage,
+        evaluate_method_admission, evaluate_method_admission_with_stage,
+        evaluate_submit_tx_admission, policy_for_method,
     };
+    use crate::error::{AdmissionFailure, CryptoAdmissionFailure, RpcError};
+    use aoxchal::cpu_opt::CpuCapabilities;
     use aoxcvm::auth::scheme::SignatureAlgorithm;
+
+    #[test]
+    fn method_alias_resolves_to_policy() {
+        let health = policy_for_method("health").expect("health policy must exist");
+        let status = policy_for_method("status").expect("status alias must exist");
+        assert_eq!(health, status);
+        assert_eq!(health.canonical_name, "health");
+    }
 
     #[test]
     fn submit_tx_accepts_hybrid_signer_set() {
         let context = AdmissionContext {
             identity_tier: IdentityTier::SignedClient,
             signer_algorithms: vec![SignatureAlgorithm::Ed25519, SignatureAlgorithm::MlDsa65],
+            verified_signature_count: 2,
             remaining_budget_units: 80,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
         };
 
         assert!(evaluate_method_admission("submit_tx", &context).is_ok());
@@ -212,13 +305,22 @@ mod tests {
         let context = AdmissionContext {
             identity_tier: IdentityTier::SignedClient,
             signer_algorithms: vec![SignatureAlgorithm::Ed25519],
+            verified_signature_count: 1,
             remaining_budget_units: 80,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
         };
 
         let error = evaluate_method_admission("submit_tx", &context)
             .expect_err("classic-only signer set should be denied");
 
-        assert!(error.to_string().contains("signer set"));
+        assert!(matches!(
+            error,
+            RpcError::AdmissionDenied {
+                code: AdmissionFailure::Crypto(CryptoAdmissionFailure::InsufficientSignatureCount),
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -226,13 +328,22 @@ mod tests {
         let context = AdmissionContext {
             identity_tier: IdentityTier::SignedClient,
             signer_algorithms: vec![SignatureAlgorithm::MlDsa87],
+            verified_signature_count: 1,
             remaining_budget_units: 80,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
         };
 
         let error = evaluate_method_admission("operator_set_profile", &context)
             .expect_err("non-operator tier should be denied");
 
-        assert!(error.to_string().contains("identity tier"));
+        assert!(matches!(
+            error,
+            RpcError::AdmissionDenied {
+                code: AdmissionFailure::Method(MethodAdmissionFailure::IdentityTierTooLow),
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -240,13 +351,22 @@ mod tests {
         let context = AdmissionContext {
             identity_tier: IdentityTier::SignedClient,
             signer_algorithms: vec![SignatureAlgorithm::Ed25519, SignatureAlgorithm::MlDsa65],
+            verified_signature_count: 2,
             remaining_budget_units: 10,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
         };
 
         let error = evaluate_method_admission("submit_tx", &context)
             .expect_err("insufficient budget should be denied");
 
-        assert!(error.to_string().contains("budget"));
+        assert!(matches!(
+            error,
+            RpcError::AdmissionDenied {
+                code: AdmissionFailure::Method(MethodAdmissionFailure::BudgetExhausted),
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -254,12 +374,22 @@ mod tests {
         let context = AdmissionContext {
             identity_tier: IdentityTier::SignedClient,
             signer_algorithms: vec![SignatureAlgorithm::Ed25519],
+            verified_signature_count: 1,
             remaining_budget_units: 80,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
         };
 
         let error = evaluate_submit_tx_admission(&context, QuantumTransitionStage::HybridRequired)
             .expect_err("hybrid stage must reject classical-only proofs");
-        assert!(error.to_string().contains("crypto policy admission failed"));
+
+        assert!(matches!(
+            error,
+            RpcError::AdmissionDenied {
+                code: AdmissionFailure::Crypto(CryptoAdmissionFailure::InsufficientSignatureCount),
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -267,11 +397,41 @@ mod tests {
         let context = AdmissionContext {
             identity_tier: IdentityTier::SignedClient,
             signer_algorithms: vec![SignatureAlgorithm::MlDsa65, SignatureAlgorithm::MlDsa87],
+            verified_signature_count: 2,
             remaining_budget_units: 80,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
         };
 
         assert!(
             evaluate_submit_tx_admission(&context, QuantumTransitionStage::PostQuantumOnly).is_ok()
         );
+    }
+
+    #[test]
+    fn verified_signature_count_mismatch_is_rejected() {
+        let context = AdmissionContext {
+            identity_tier: IdentityTier::SignedClient,
+            signer_algorithms: vec![SignatureAlgorithm::Ed25519, SignatureAlgorithm::MlDsa65],
+            verified_signature_count: 1,
+            remaining_budget_units: 80,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
+        };
+
+        let error = evaluate_method_admission_with_stage(
+            "submit_tx",
+            &context,
+            QuantumTransitionStage::ClassicalAllowed,
+        )
+        .expect_err("mismatch should be denied");
+
+        assert!(matches!(
+            error,
+            RpcError::AdmissionDenied {
+                code: AdmissionFailure::Method(MethodAdmissionFailure::InvalidSignerSet),
+                ..
+            }
+        ));
     }
 }

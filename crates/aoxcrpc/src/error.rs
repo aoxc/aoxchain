@@ -2,8 +2,43 @@
 // Experimental software under active construction.
 // This file is part of the AOXC pre-release codebase.
 
-use crate::types::RpcErrorResponse;
+use aoxchal::crypto_profile::AdmissionFailure as ChalAdmissionFailure;
 use thiserror::Error;
+
+use crate::types::RpcErrorResponse;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MethodAdmissionFailure {
+    IdentityTierTooLow,
+    UnsupportedMethod,
+    InvalidSignerSet,
+    BudgetExhausted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CryptoAdmissionFailure {
+    InsufficientSignatureCount,
+    MissingClassicalSignature,
+    MissingPostQuantumSignature,
+    ClassicalNotPermitted,
+}
+
+impl From<ChalAdmissionFailure> for CryptoAdmissionFailure {
+    fn from(value: ChalAdmissionFailure) -> Self {
+        match value {
+            ChalAdmissionFailure::InsufficientSignatureCount => Self::InsufficientSignatureCount,
+            ChalAdmissionFailure::MissingClassicalSignature => Self::MissingClassicalSignature,
+            ChalAdmissionFailure::MissingPostQuantumSignature => Self::MissingPostQuantumSignature,
+            ChalAdmissionFailure::ClassicalNotPermitted => Self::ClassicalNotPermitted,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmissionFailure {
+    Method(MethodAdmissionFailure),
+    Crypto(CryptoAdmissionFailure),
+}
 
 /// RPC subsystem errors.
 #[derive(Debug, Error)]
@@ -20,8 +55,11 @@ pub enum RpcError {
     ZkpValidationFailed(String),
     #[error("INTERNAL_ERROR")]
     InternalError,
-    #[error("ADMISSION_DENIED: {0}")]
-    AdmissionDenied(String),
+    #[error("ADMISSION_DENIED: {message} ({code:?})")]
+    AdmissionDenied {
+        code: AdmissionFailure,
+        message: &'static str,
+    },
     #[error("PAYLOAD_TOO_LARGE")]
     PayloadTooLarge,
 }
@@ -36,7 +74,7 @@ impl RpcError {
             Self::MtlsAuthFailed => "MTLS_AUTH_FAILED",
             Self::ZkpValidationFailed(_) => "ZKP_VALIDATION_FAILED",
             Self::InternalError => "INTERNAL_ERROR",
-            Self::AdmissionDenied(_) => "ADMISSION_DENIED",
+            Self::AdmissionDenied { .. } => "ADMISSION_DENIED",
             Self::PayloadTooLarge => "PAYLOAD_TOO_LARGE",
         }
     }
@@ -60,7 +98,7 @@ impl RpcError {
             Self::MtlsAuthFailed => Some("Verify client certificate chain and mTLS setup."),
             Self::ZkpValidationFailed(_) => Some("Regenerate and submit a valid ZKP proof."),
             Self::InternalError => None,
-            Self::AdmissionDenied(_) => Some(
+            Self::AdmissionDenied { .. } => Some(
                 "Reduce method cost, upgrade identity tier, or satisfy required signer policy.",
             ),
             Self::PayloadTooLarge => {
@@ -101,6 +139,18 @@ mod tests {
                 .as_deref()
                 .is_some_and(|hint| hint.contains("retry_after_ms"))
         );
+    }
+
+    #[test]
+    fn admission_error_exposes_structured_reason_code() {
+        let response = RpcError::AdmissionDenied {
+            code: AdmissionFailure::Method(MethodAdmissionFailure::InvalidSignerSet),
+            message: "signer set does not satisfy VM auth profile",
+        }
+        .to_response(Some("req-admission".to_string()));
+
+        assert_eq!(response.code, "ADMISSION_DENIED");
+        assert!(response.message.contains("InvalidSignerSet"));
     }
 
     #[test]
