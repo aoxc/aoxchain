@@ -131,28 +131,95 @@ pub fn cmd_genesis_template_advanced(args: &[String]) -> Result<(), AppError> {
     )
 }
 
-pub fn cmd_genesis_security_audit(args: &[String]) -> Result<(), AppError> {
-    let profile_input = arg_value(args, "--profile")
-        .or_else(|| load().ok().map(|settings| settings.profile))
-        .unwrap_or_else(|| "validation".to_string());
+pub fn cmd_genesis_advanced_system(args: &[String]) -> Result<(), AppError> {
+    let profile_input = arg_value(args, "--profile").unwrap_or_else(|| "testnet".to_string());
     let profile = EnvironmentProfile::parse(&profile_input)?;
 
-    let path = arg_value(args, "--genesis")
+    let mut genesis = profile.genesis_document();
+    genesis.metadata.status = "advanced-system-v1".to_string();
+    genesis.metadata.description =
+        "AOXC advanced genesis system with deterministic integrity, strict pq identity, and audit gates".to_string();
+    genesis.consensus.consensus_identity_profile = "pq-strict".to_string();
+    genesis.consensus.validator_quorum_policy = "pq-threshold-3of5".to_string();
+    genesis.state.accounts.push(BootstrapAccountRecord {
+        account_id: "AOXC_GOVERNANCE_TREASURY".to_string(),
+        balance: "500000000".to_string(),
+        role: "governance".to_string(),
+    });
+    genesis.state.accounts.push(BootstrapAccountRecord {
+        account_id: "AOXC_PROTOCOL_RESERVE".to_string(),
+        balance: "250000000".to_string(),
+        role: "system".to_string(),
+    });
+
+    let output_path = arg_value(args, "--out")
         .map(PathBuf::from)
-        .unwrap_or(genesis_path()?);
+        .unwrap_or_else(|| {
+            resolve_home()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join("support")
+                .join(format!("genesis.{}.advanced.system.json", profile.as_str()))
+        });
 
-    let raw = read_file(&path)?;
-    let genesis = serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|error| {
-        AppError::with_source(
-            ErrorCode::ConfigInvalid,
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!(
+                    "Failed to create advanced genesis system directory {}",
+                    parent.display()
+                ),
+                error,
+            )
+        })?;
+    }
+
+    write_json_pretty(
+        &output_path,
+        &genesis,
+        "Failed to encode advanced AOXC genesis system document",
+    )?;
+
+    let security_report =
+        cmd_genesis_security_audit_report(&genesis, profile, output_path.display().to_string());
+    let consensus_report =
+        evaluate_consensus_profile_audit(&genesis, profile, output_path.display().to_string());
+
+    let enforce = !has_flag(args, "--no-enforce");
+    if enforce && (security_report.verdict != "pass" || consensus_report.verdict != "pass") {
+        return Err(AppError::new(
+            ErrorCode::PolicyGateFailed,
             format!(
-                "Failed to decode AOXC genesis document for security audit: {}",
-                path.display()
+                "Advanced genesis system enforcement failed: security={} consensus={}",
+                security_report.verdict, consensus_report.verdict
             ),
-            error,
-        )
-    })?;
+        ));
+    }
 
+    emit_serialized(
+        &GenesisAdvancedSystemOutput {
+            profile: profile.as_str().to_string(),
+            output_path: output_path.display().to_string(),
+            security_verdict: security_report.verdict,
+            security_score: security_report.score,
+            consensus_verdict: consensus_report.verdict,
+            consensus_score: consensus_report.score,
+            enforcement: enforce,
+            notes: vec![
+                "Generated with strict pq identity and deterministic integrity defaults".to_string(),
+                "Review validator/bootnode/certificate bindings before production usage".to_string(),
+                "Use `aoxc genesis-security-audit --enforce` and `aoxc consensus-profile-audit --enforce` on updated files".to_string(),
+            ],
+        },
+        output_format(args),
+    )
+}
+
+fn cmd_genesis_security_audit_report(
+    genesis: &BootstrapGenesisDocument,
+    profile: EnvironmentProfile,
+    genesis_path: String,
+) -> GenesisSecurityAuditReport {
     let mut passed = Vec::new();
     let mut warnings = Vec::new();
     let mut blockers = Vec::new();
@@ -217,15 +284,40 @@ pub fn cmd_genesis_security_audit(args: &[String]) -> Result<(), AppError> {
         "fail"
     };
 
-    let report = GenesisSecurityAuditReport {
-        genesis_path: path.display().to_string(),
+    GenesisSecurityAuditReport {
+        genesis_path,
         profile: profile.as_str().to_string(),
         score,
         verdict,
         passed,
         warnings,
         blockers,
-    };
+    }
+}
+
+pub fn cmd_genesis_security_audit(args: &[String]) -> Result<(), AppError> {
+    let profile_input = arg_value(args, "--profile")
+        .or_else(|| load().ok().map(|settings| settings.profile))
+        .unwrap_or_else(|| "validation".to_string());
+    let profile = EnvironmentProfile::parse(&profile_input)?;
+
+    let path = arg_value(args, "--genesis")
+        .map(PathBuf::from)
+        .unwrap_or(genesis_path()?);
+
+    let raw = read_file(&path)?;
+    let genesis = serde_json::from_str::<BootstrapGenesisDocument>(&raw).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Failed to decode AOXC genesis document for security audit: {}",
+                path.display()
+            ),
+            error,
+        )
+    })?;
+
+    let report = cmd_genesis_security_audit_report(&genesis, profile, path.display().to_string());
 
     if has_flag(args, "--enforce") && report.verdict != "pass" {
         return Err(AppError::new(
