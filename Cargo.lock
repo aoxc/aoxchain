@@ -266,6 +266,7 @@ name = "aoxconfig"
 version = "0.2.0-alpha.2"
 dependencies = [
  "aoxcontract",
+ "aoxcore",
  "serde",
  "serde_json",
  "tokio",
