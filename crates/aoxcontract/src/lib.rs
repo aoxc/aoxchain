@@ -96,7 +96,7 @@ pub use execution_profile::{CapabilityProfile, ContractClass, ExecutionProfile, 
 pub use id::{CONTRACT_ID_DOMAIN_SEPARATOR, ContractId};
 pub use manifest::{ContractManifest, ContractVersion, VmTarget};
 pub use metadata::ContractMetadata;
-pub use policy::ContractPolicy;
+pub use policy::{ContractPolicy, QuantumMigrationMode, QuantumSecurityProfile};
 pub use registry_types::{
     ContractActivationMode, ContractRecordVersion, ContractStatus, RegisteredContract,
 };
