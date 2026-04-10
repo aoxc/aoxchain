@@ -211,11 +211,11 @@ impl Validate for ContractPolicy {
             )
             .into());
         }
-        if self.quantum_security.migration_mode == QuantumMigrationMode::PostQuantumOnly
+        if self.quantum_security.migration_mode != QuantumMigrationMode::ClassicalOnly
             && self.quantum_security.pq_signature_schemes.is_empty()
         {
             return Err(PolicyValidationError::PolicyViolation(
-                "post_quantum_only requires at least one pq signature scheme".into(),
+                "non-classical quantum migration requires at least one pq signature scheme".into(),
             )
             .into());
         }
@@ -230,6 +230,12 @@ impl Validate for ContractPolicy {
         let mut seen_schemes = BTreeSet::new();
         for scheme in &self.quantum_security.pq_signature_schemes {
             let canonical = scheme.trim();
+            if canonical != scheme {
+                return Err(PolicyValidationError::PolicyViolation(
+                    "pq signature scheme id cannot contain leading/trailing whitespace".into(),
+                )
+                .into());
+            }
             if canonical.is_empty()
                 || !canonical
                     .chars()
