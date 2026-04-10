@@ -108,8 +108,6 @@ fn excessive_tax_burden_is_rejected() {
 }
 
 #[test]
-<<<<<<< HEAD
-=======
 fn excessive_treasury_build_ratio_is_rejected() {
     let engine = EnergyAnchorEngine::new();
     let mut inputs = base_inputs();
@@ -150,7 +148,6 @@ fn zero_throughput_is_rejected() {
 }
 
 #[test]
->>>>>>> e4bc159 (Codex/gelismis ozellikler ekle (#1020))
 fn large_period_jump_requires_rejection_without_override() {
     let engine = EnergyAnchorEngine::new();
     let inputs = base_inputs();
@@ -196,56 +193,29 @@ fn economic_zone_classification_works() {
         .compute(&base_inputs(), &base_governance(), None, false)
         .expect("computation must succeed");
 
-    // Loss Zone
     let loss_val = UnitAmount::from_micros(report.per_unit_floor.micros().saturating_sub(1));
-    assert_eq!(report.classify_realized_value(loss_val, 1_000), EconomicZone::LossZone);
+    assert_eq!(
+        report.classify_realized_value(loss_val, 1_000),
+        EconomicZone::LossZone
+    );
 
-    // Survival Zone
-    let survival_val = report.per_unit_floor.checked_add(UnitAmount::from_micros(1)).unwrap();
-    assert_eq!(report.classify_realized_value(survival_val, 1_000), EconomicZone::SurvivalZone);
+    let survival_val = report
+        .per_unit_floor
+        .checked_add(UnitAmount::from_micros(1))
+        .expect("addition must succeed");
+    assert_eq!(
+        report.classify_realized_value(survival_val, 1_000),
+        EconomicZone::SurvivalZone
+    );
 }
 
 #[test]
-fn quantum_readiness_logic_checks() {
+fn treasury_build_zone_classification_works() {
     let engine = EnergyAnchorEngine::new();
     let report = engine
         .compute(&base_inputs(), &base_governance(), None, false)
         .expect("computation must succeed");
 
-    assert!(report.quantum_readiness_index_bps > 0);
-    
-    // Test rejection on low readiness
-    let mut inputs = base_inputs();
-    inputs.policy.quantum_transition_reserve_bps = 0;
-    inputs.policy.quantum_assurance_bps = 0;
-    
-    let report_low = engine
-        .compute(&inputs, &base_governance(), None, false)
-        .expect("computation must succeed");
-    
-    assert_eq!(report_low.governance_decision, GovernanceDecision::Rejected);
-}
-
-#[test]
-fn compute_integrated_full_flow() {
-    let engine = EnergyAnchorEngine::new();
-    let request = IntegratedFloorRequest {
-        inputs: base_inputs(),
-        governance: base_governance(),
-        previous_approved_per_unit_floor: None,
-        emergency_override: false,
-        scenario_multipliers_bps: vec![8_000, 10_000, 12_000],
-    };
-
-<<<<<<< HEAD
-    let integrated = engine
-        .compute_integrated(&request)
-        .expect("integrated compute must succeed");
-
-    assert_eq!(integrated.summary.scenario_count, 3);
-    assert_eq!(integrated.projections.len(), 3);
-    assert!(integrated.base_report.is_consistent());
-=======
     let margin = report
         .per_unit_floor
         .apply_bps(2_000)
@@ -259,6 +229,26 @@ fn compute_integrated_full_flow() {
     let zone = report.classify_realized_value(realized, 1_000);
 
     assert_eq!(zone, EconomicZone::TreasuryBuildZone);
+}
+
+#[test]
+fn quantum_readiness_logic_checks() {
+    let engine = EnergyAnchorEngine::new();
+    let report = engine
+        .compute(&base_inputs(), &base_governance(), None, false)
+        .expect("computation must succeed");
+
+    assert!(report.quantum_readiness_index_bps > 0);
+
+    let mut inputs = base_inputs();
+    inputs.policy.quantum_transition_reserve_bps = 0;
+    inputs.policy.quantum_assurance_bps = 0;
+
+    let report_low = engine
+        .compute(&inputs, &base_governance(), None, false)
+        .expect("computation must succeed");
+
+    assert_eq!(report_low.governance_decision, GovernanceDecision::Rejected);
 }
 
 #[test]
@@ -306,7 +296,6 @@ fn cost_share_bps_sums_to_full_denominator() {
         .saturating_add(shares.tax);
 
     assert_eq!(sum, BPS_DENOMINATOR);
->>>>>>> e4bc159 (Codex/gelismis ozellikler ekle (#1020))
 }
 
 #[test]
