@@ -283,10 +283,24 @@ impl KeyMaterial {
 /// Current policy:
 /// - explicit quantum profile aliases (`quantum`, `quntum`, `pq-preview`) =>
 ///   `PqDilithium3Preview`,
+/// - strict quantum aliases (`pq-only`, `pq-strict`, `post-quantum`) =>
+///   `PqDilithium3Preview`,
+/// - explicit transition aliases (`transition`, `quantum-transition`,
+///   `pq-hybrid`) => `HybridEd25519Dilithium3`,
 /// - mainnet => hybrid surface reservation,
 /// - testnet / validation / devnet / localnet => classic Ed25519 operational mode.
 fn infer_crypto_profile(normalized_profile: &str, profile_hint: &str) -> CryptoProfile {
-    if matches!(profile_hint, "quantum" | "quntum" | "pq-preview") {
+    if matches!(
+        profile_hint,
+        "quantum"
+            | "quntum"
+            | "pq-preview"
+            | "pq-only"
+            | "pq-strict"
+            | "post-quantum"
+            | "postquantum"
+            | "quantum-only"
+    ) {
         return CryptoProfile::PqDilithium3Preview;
     }
 
@@ -310,10 +324,21 @@ fn normalize_profile(profile: &str) -> Result<&'static str, AppError> {
         "quntum" => Ok("mainnet"),
         "qumtum" => Ok("mainnet"),
         "pq-preview" => Ok("mainnet"),
+        "pq-only" => Ok("mainnet"),
+        "pq-strict" => Ok("mainnet"),
+        "post-quantum" => Ok("mainnet"),
+        "postquantum" => Ok("mainnet"),
+        "quantum-only" => Ok("mainnet"),
+        "transition" => Ok("mainnet"),
+        "quantum-transition" => Ok("mainnet"),
+        "quntum-transition" => Ok("mainnet"),
+        "pq-hybrid" => Ok("mainnet"),
+        "hybrid" => Ok("mainnet"),
+        "gecis" => Ok("mainnet"),
         other => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             format!(
-                "Unsupported AOXC key-material profile `{}`; expected mainnet, quantum, quntum, qumtum, pq-preview, testnet, validation, devnet, or localnet",
+                "Unsupported AOXC key-material profile `{}`; expected mainnet, quantum, quntum, qumtum, pq-preview, pq-only, pq-strict, post-quantum, postquantum, quantum-only, transition, quantum-transition, pq-hybrid, hybrid, gecis, testnet, validation, devnet, or localnet",
                 other
             ),
         )),
@@ -454,6 +479,30 @@ mod tests {
     fn pq_preview_profile_alias_uses_pq_preview_crypto_profile() {
         let material = KeyMaterial::generate("validator-10", "pq-preview", "Preview#2026!")
             .expect("pq-preview profile should succeed");
+
+        assert_eq!(material.bundle.profile, "mainnet");
+        assert_eq!(
+            material.bundle.crypto_profile.as_str(),
+            "pq-dilithium3-preview"
+        );
+    }
+
+    #[test]
+    fn transition_profile_alias_uses_hybrid_crypto_profile() {
+        let material = KeyMaterial::generate("validator-11", "transition", "Transition#2026!")
+            .expect("transition profile should succeed");
+
+        assert_eq!(material.bundle.profile, "mainnet");
+        assert_eq!(
+            material.bundle.crypto_profile.as_str(),
+            "hybrid-ed25519-dilithium3"
+        );
+    }
+
+    #[test]
+    fn pq_only_profile_alias_uses_pq_preview_crypto_profile() {
+        let material = KeyMaterial::generate("validator-12", "pq-only", "PQOnly#2026!")
+            .expect("pq-only profile should succeed");
 
         assert_eq!(material.bundle.profile, "mainnet");
         assert_eq!(
