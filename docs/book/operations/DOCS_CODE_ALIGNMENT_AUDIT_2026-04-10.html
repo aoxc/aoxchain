@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Read Code Alignment and Production Plan 2026-04-04 - AOXChain Documentation</title>
+        <title>Docs Code Alignment Audit 2026-04-10 - AOXChain Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -177,90 +177,95 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="read--kod-uyum-denetimi-ve-üretim-planı-2026-04-04"><a class="header" href="#read--kod-uyum-denetimi-ve-üretim-planı-2026-04-04">READ ↔ Kod Uyum Denetimi ve Üretim Planı (2026-04-04)</a></h1>
-<h2 id="1-yönetici-özeti"><a class="header" href="#1-yönetici-özeti">1) Yönetici Özeti</a></h2>
-<p>Bu denetimde <code>READ.md</code> içindeki teknik sözleşme ile depo gerçekliği karşılaştırıldı.</p>
+                        <h1 id="system-wide-code--documentation-alignment-audit-2026-04-10"><a class="header" href="#system-wide-code--documentation-alignment-audit-2026-04-10">System-Wide Code ↔ Documentation Alignment Audit (2026-04-10)</a></h1>
+<h2 id="1-executive-summary"><a class="header" href="#1-executive-summary">1) Executive Summary</a></h2>
+<p>This audit evaluates alignment between repository governance documents and the current workspace implementation surface.</p>
+<p>Overall conclusion:</p>
 <ul>
-<li><strong>Mimari yüzey tanımı genel olarak uyumlu</strong> (çekirdek crate/surface adları ve make gate hedefleri mevcut).</li>
-<li><strong>Üretim seviyesi için kritik boşluklar devam ediyor</strong> (roadmap release blocker’ları açık, production checklist kapatılmamış).</li>
-<li><strong>Kalite kapısında somut hata yakalandı ve düzeltildi</strong> (<code>aoxcrpc</code> içinde unused import).</li>
-</ul>
-<p>Sonuç: Depo bu revizyon anında <strong>production-ready değil</strong>, ancak üretim hazırlığı için net bir kapanış planı mevcut.</p>
-<hr>
-<h2 id="2-read-ile-kod-uyum-kontrolü"><a class="header" href="#2-read-ile-kod-uyum-kontrolü">2) READ ile Kod Uyum Kontrolü</a></h2>
-<h3 id="21-katmansorumluluk-yüzeyleri"><a class="header" href="#21-katmansorumluluk-yüzeyleri">2.1 Katman/sorumluluk yüzeyleri</a></h3>
-<p><code>READ.md</code> içinde belirtilen katmanlar (<code>aoxcore</code>, <code>aoxcunity</code>, <code>aoxcvm</code>, <code>aoxcexec</code>, <code>aoxcenergy</code>, <code>aoxcnet</code>, <code>aoxcrpc</code>, <code>aoxcdata</code>, <code>aoxconfig</code>, <code>aoxcmd</code>, <code>aoxckit</code>, <code>aoxchub</code>) depo içinde crate olarak bulunuyor.</p>
-<h3 id="22-readiness-komut-yüzeyi"><a class="header" href="#22-readiness-komut-yüzeyi">2.2 Readiness komut yüzeyi</a></h3>
-<p><code>READ.md</code> ve <code>README.md</code> içinde belirtilen readiness hedefleri (<code>build</code>, <code>quality</code>, <code>audit</code>, <code>testnet-gate</code>, <code>testnet-readiness-gate</code>, <code>quantum-readiness-gate</code>) Makefile içinde tanımlı.</p>
-<h3 id="23-üretim-iddiası-uyumu"><a class="header" href="#23-üretim-iddiası-uyumu">2.3 Üretim iddiası uyumu</a></h3>
-<ul>
-<li><code>README.md</code> depo durumunu <strong>aktif geliştirme</strong> ve <strong>üretim garantisi yok</strong> olarak tanımlıyor.</li>
-<li><code>docs/PRODUCTION_READINESS_CHECKLIST.md</code> zorunlu üretim maddelerini kapatılmış göstermiyor.</li>
-<li><code>ROADMAP.md</code> release blocker’ların açık olduğunu net yazıyor.</li>
-</ul>
-<p>Bu üç kaynak birlikte değerlendirildiğinde, <code>READ.md</code> sözleşmesi ile gerçek repo durumu arasında “hedef var / closure yok” tipi bir uyumsuzluk var: mimari yön doğru, üretim kapanışı eksik.</p>
-<hr>
-<h2 id="3-bu-revizyonda-yapılan-somut-düzeltmeler"><a class="header" href="#3-bu-revizyonda-yapılan-somut-düzeltmeler">3) Bu Revizyonda Yapılan Somut Düzeltmeler</a></h2>
+<li>The documentation framework is structurally strong and largely aligned with the codebase.</li>
+<li>Most critical crate surfaces include baseline documentation (<code>README</code>, <code>SCOPE</code>, <code>ARCHITECTURE</code>).</li>
+<li>Two improvement areas remain material for full governance maturity:
 <ol>
-<li>
-<p><strong>Kalite kapısı hatası düzeltildi</strong></p>
+<li>documentation-surface heterogeneity across selected workspace members,</li>
+<li>lack of an automated, fail-closed documentation completeness gate.</li>
+</ol>
+</li>
+</ul>
+<p>In this revision, the direct documentation gap for <code>crates/aoxchub</code> was closed by adding <code>SCOPE.md</code>.</p>
+<hr>
+<h2 id="2-audit-method"><a class="header" href="#2-audit-method">2) Audit Method</a></h2>
+<p>The audit was performed using the following controls:</p>
+<ol>
+<li>Verification of repository-root governance surfaces and declared purpose.</li>
+<li>Baseline crate-surface completeness check across workspace members (<code>README.md</code>, <code>SCOPE.md</code>, <code>ARCHITECTURE.md</code>).</li>
+<li>Validation that operational surfaces declared in documentation (e.g., quality/readiness gates) map to repository artifacts.</li>
+<li>Cross-check of architecture-level component claims (kernel, VM, RPC, networking, CLI, hub) against actual crate presence.</li>
+</ol>
+<hr>
+<h2 id="3-findings"><a class="header" href="#3-findings">3) Findings</a></h2>
+<h2 id="31-strong-alignment-areas"><a class="header" href="#31-strong-alignment-areas">3.1 Strong Alignment Areas</a></h2>
 <ul>
-<li><code>crates/aoxcrpc/src/grpc/server.rs</code> test modülündeki kullanılmayan import kaldırıldı.</li>
+<li>Repository-root governance set (<code>README</code>, <code>SCOPE</code>, <code>ARCHITECTURE</code>, <code>SECURITY</code>, <code>TESTING</code>) is explicit, production-oriented, and internally coherent.</li>
+<li>Workspace component mapping broadly matches the layer model described in root documentation.</li>
+<li>Release, quality, and readiness posture is clearly expressed as evidence-driven rather than claim-driven.</li>
+</ul>
+<h2 id="32-gaps-and-risks"><a class="header" href="#32-gaps-and-risks">3.2 Gaps and Risks</a></h2>
+<ul>
+<li><code>crates/aoxchub</code> previously lacked <code>SCOPE.md</code>; this has been remediated in the current change.</li>
+<li>The <code>tests</code> workspace member does not yet follow the same canonical documentation triplet (<code>README/SCOPE/ARCHITECTURE</code>).
+<ul>
+<li><code>tests/READ.md</code> exists, but naming and scope conventions are not normalized relative to most crates.</li>
 </ul>
 </li>
-<li>
-<p><strong>Tamamlanmış/tekrarlı READ temizliği</strong></p>
+<li>No mandatory CI gate currently enforces documentation-surface completeness for workspace members.</li>
+</ul>
+<hr>
+<h2 id="4-recommendations-toward-full-and-detailed-alignment"><a class="header" href="#4-recommendations-toward-full-and-detailed-alignment">4) Recommendations (Toward Full and Detailed Alignment)</a></h2>
+<h2 id="p0--standardization-near-term"><a class="header" href="#p0--standardization-near-term">P0 — Standardization (Near Term)</a></h2>
+<ol>
+<li>Add at least <code>README.md</code> and <code>SCOPE.md</code> under the <code>tests</code> workspace member.</li>
+<li>Standardize a minimum crate documentation set across workspace members:
 <ul>
-<li><code>models/READ.md</code> silindi (aynı içerik <code>models/README.md</code> içinde mevcut).</li>
+<li><code>README.md</code></li>
+<li><code>SCOPE.md</code></li>
+<li><code>ARCHITECTURE.md</code></li>
 </ul>
 </li>
-<li>
-<p><strong>Önceki kısa değerlendirme notu kaldırıldı</strong></p>
+<li>Declare this minimum set as an explicit merge expectation in root governance/process documentation.</li>
+</ol>
+<h2 id="p1--automation-mid-term"><a class="header" href="#p1--automation-mid-term">P1 — Automation (Mid Term)</a></h2>
+<ol>
+<li>Add a dedicated validation script (e.g., <code>scripts/validation/doc_surface_gate.sh</code>).</li>
+<li>Implement deterministic workspace-member discovery from <code>Cargo.toml</code> and validate required documentation files.</li>
+<li>Integrate the gate into <code>make quality</code> or <code>make audit</code> in fail-closed mode.</li>
+</ol>
+<h2 id="p2--depth-and-traceability-midlong-term"><a class="header" href="#p2--depth-and-traceability-midlong-term">P2 — Depth and Traceability (Mid/Long Term)</a></h2>
+<ol>
+<li>Normalize <code>SCOPE.md</code> structure across crates with explicit sections for:
 <ul>
-<li><code>docs/PRODUCTION_READINESS_REVIEW_2026-04-04.md</code> silinip bu kapsamlı plan/uyum dokümanı ile değiştirildi.</li>
+<li>in-scope / out-of-scope,</li>
+<li>sensitive change classes,</li>
+<li>compatibility expectations,</li>
+<li>validation expectations.</li>
 </ul>
 </li>
+<li>For architecture-critical crates (<code>aoxcore</code>, <code>aoxcunity</code>, <code>aoxcvm</code>, <code>aoxcrpc</code>, <code>aoxcnet</code>), require explicit cross-links between architecture statements and testing matrices.</li>
+<li>Add <code>last verified date</code> and command-level verification metadata to operational runbooks where feasible.</li>
 </ol>
 <hr>
-<h2 id="4-üretim-seviyesine-çıkış-planı-execution-plan"><a class="header" href="#4-üretim-seviyesine-çıkış-planı-execution-plan">4) Üretim Seviyesine Çıkış Planı (Execution Plan)</a></h2>
-<h2 id="p0--zorunlu-kapanış-release-blocking"><a class="header" href="#p0--zorunlu-kapanış-release-blocking">P0 — Zorunlu Kapanış (Release-blocking)</a></h2>
-<ol>
-<li><code>make testnet-readiness-gate</code> komutunu tam PASS noktasına getirmek.</li>
-<li><code>ROADMAP.md</code> içindeki 5 release blocker’ı kapatmak.</li>
-<li><code>docs/PRODUCTION_READINESS_CHECKLIST.md</code> içindeki tüm zorunlu maddeleri evidence ile işaretlemek.</li>
-<li>CI’da fail-closed gate: skip/warn ile release’e izin vermemek.</li>
-</ol>
-<h2 id="p1--güvenceyi-derinleştirme"><a class="header" href="#p1--güvenceyi-derinleştirme">P1 — Güvenceyi Derinleştirme</a></h2>
-<ol>
-<li>Adversarial + fuzz + reorg matrislerini default kalite akışına bağlamak.</li>
-<li>Replay-ledger ve forensics çıktısını operatör doğrulanabilir artefact olarak üretmek.</li>
-<li>Proof/finality verifier surface için deterministik test kapsamını CI zorunlu hale getirmek.</li>
-</ol>
-<h2 id="p2--kurumsal-üretim-sertliği"><a class="header" href="#p2--kurumsal-üretim-sertliği">P2 — Kurumsal Üretim Sertliği</a></h2>
-<ol>
-<li>SBOM + provenance + imza doğrulamasını release paketine bağlamak.</li>
-<li>Incident response rehearsal çıktısını release evidence bundle’a eklemek.</li>
-<li>Operatör runbook tatbikatlarını per-release zorunlu kontrol olarak sabitlemek.</li>
-</ol>
-<hr>
-<h2 id="5-definition-of-done-production"><a class="header" href="#5-definition-of-done-production">5) Definition of Done (Production)</a></h2>
-<p>Aşağıdakiler birlikte sağlanmadan <code>Status: PRODUCTION_READY</code> beyanı yapılmamalı:</p>
-<ul>
-<li>tüm zorunlu gate komutları PASS,</li>
-<li>checklist maddeleri evidence ile kapalı,</li>
-<li>roadmap release blocker’ları kapalı,</li>
-<li>commit SHA ile bağlanan denetlenebilir artefact paketi mevcut.</li>
-</ul>
+<h2 id="5-closing-statement"><a class="header" href="#5-closing-statement">5) Closing Statement</a></h2>
+<p>System-wide code and documentation are fundamentally aligned, but full governance-quality completeness requires stricter normalization and automated enforcement.</p>
+<p>This revision removes a concrete surface gap (<code>aoxchub/SCOPE.md</code>). Executing the P0/P1/P2 recommendations will improve reviewability, policy consistency, and audit readiness across the repository.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../operations/NAMING_VERSIONING_SIMPLIFICATION_PLAN.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../operations/READ_CODE_ALIGNMENT_AND_PRODUCTION_PLAN_2026-04-04.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../operations/DOCS_CODE_ALIGNMENT_AUDIT_2026-04-10.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../testing/COVERAGE_STATUS.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -270,11 +275,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../operations/NAMING_VERSIONING_SIMPLIFICATION_PLAN.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../operations/READ_CODE_ALIGNMENT_AND_PRODUCTION_PLAN_2026-04-04.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../operations/DOCS_CODE_ALIGNMENT_AUDIT_2026-04-10.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../testing/COVERAGE_STATUS.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
