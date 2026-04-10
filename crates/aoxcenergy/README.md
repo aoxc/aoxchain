@@ -9,3 +9,24 @@ Carries gas/fee/economic costing and resource-governance rules.
 - The code and files in this directory define the runtime behavior of this scope.
 - The folder contains modules and supporting assets bounded by this responsibility domain.
 - Any change should be evaluated together with its testing and compatibility impact.
+
+## Advanced Post-Quantum Cost Controls
+- `PolicyInputs` supports dedicated post-quantum cost reserves:
+  - `quantum_transition_reserve_bps` for migration and staged rollout impact.
+  - `quantum_assurance_bps` for validation, audit, and cryptographic assurance overhead.
+- `GovernancePolicy` enforces `max_quantum_reserve_bps` so combined post-quantum reserves cannot exceed ratified limits.
+- `EconomicFloorReport` exposes explicit post-quantum components for audit and deterministic cost-share attribution.
+
+## Kernel and Layer-Aligned Modeling
+- `FloorModelInputs.layer_costs` provides explicit kernel/consensus/execution/settlement/networking cost channels.
+- `EconomicFloorReport` returns per-layer cost totals and kernel ratio helpers for layered budget review.
+- `EnergyAnchorEngine::project_multi_scenario` computes deterministic demand projections for multiple throughput scenarios.
+- `EnergyAnchorEngine::summarize_projection` returns deterministic min/max/average floor metrics across scenario sets.
+- `EnergyAnchorEngine::compute_integrated` orchestrates base compute + scenario projection + summary in one deterministic call.
+
+## Governance Guardrails
+- `GovernancePolicy` now supports:
+  - `max_kernel_layer_share_bps`,
+  - `max_execution_layer_share_bps`,
+  - `min_quantum_readiness_bps`.
+- Guardrails are evaluated deterministically and can downgrade decisions to `RequiresReview` or `Rejected` depending on policy and override posture.
