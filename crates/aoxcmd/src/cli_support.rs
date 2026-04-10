@@ -130,7 +130,7 @@ BOOTSTRAP
 NODE AND ECONOMY
   node-bootstrap
   produce-once
-  node-run [--rounds <n>] [--continuous] [--bounded] [--interval-secs <2..600>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log] [--no-rpc-serve]
+  node-run [--rounds <n>] [--continuous] [--bounded] [--interval-secs <2..600>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log] [--no-rpc-serve] [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc]
   node-health
   economy-init
   treasury-transfer
@@ -184,8 +184,8 @@ NODE AND ECONOMY
   query vm trace
   query full [--account-id <id>] [--tx-hash <hash>]
   query network status
-  query network peers
-  query network full
+  query network peers [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc]
+  query network full [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc]
   query runtime [status|snapshot] [--action <snapshot|list|prune|restore-latest>] [--keep <n>] [--runtime-root <path>] [--snapshot-dir <path>]
   query state-root
   query rpc
@@ -202,7 +202,7 @@ NODE AND ECONOMY
   tx-receipt --hash <tx-hash>
   account-get --id <account-id>
   balance-get --id <account-id>
-  peer-list
+  peer-list [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc]
   network-status
   state-root [--height <n>]
   metrics
