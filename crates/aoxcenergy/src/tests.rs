@@ -17,6 +17,8 @@ fn base_inputs() -> FloorModelInputs {
         policy: PolicyInputs {
             continuity_buffer_bps: 1_000,
             security_reserve_bps: 500,
+            quantum_transition_reserve_bps: 250,
+            quantum_assurance_bps: 250,
             treasury_build_bps: 1_500,
             target_margin_bps: 1_000,
             tax_bps: 1_800,
@@ -31,6 +33,7 @@ fn base_governance() -> GovernancePolicy {
     GovernancePolicy {
         max_tax_bps: 2_500,
         max_treasury_build_bps: 2_500,
+        max_quantum_reserve_bps: 1_000,
         max_period_floor_increase_bps: 1_000,
         allow_emergency_override: true,
     }
@@ -82,6 +85,20 @@ fn excessive_treasury_build_ratio_is_rejected() {
     let err = engine
         .compute(&inputs, &base_governance(), None, false)
         .expect_err("excessive treasury ratio must fail");
+
+    assert!(matches!(err, EnergyError::InvalidInput(_)));
+}
+
+#[test]
+fn excessive_quantum_reserve_is_rejected() {
+    let engine = EnergyAnchorEngine::new();
+    let mut inputs = base_inputs();
+    inputs.policy.quantum_transition_reserve_bps = 700;
+    inputs.policy.quantum_assurance_bps = 500;
+
+    let err = engine
+        .compute(&inputs, &base_governance(), None, false)
+        .expect_err("excessive quantum reserve must fail");
 
     assert!(matches!(err, EnergyError::InvalidInput(_)));
 }
@@ -217,6 +234,8 @@ fn cost_share_bps_sums_to_full_denominator() {
         .saturating_add(shares.operations)
         .saturating_add(shares.continuity)
         .saturating_add(shares.security)
+        .saturating_add(shares.quantum_transition)
+        .saturating_add(shares.quantum_assurance)
         .saturating_add(shares.treasury_build)
         .saturating_add(shares.target_margin)
         .saturating_add(shares.tax);
