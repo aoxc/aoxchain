@@ -29,6 +29,7 @@
   - [Testnet Release Runbook](operations/TESTNET_RELEASE_RUNBOOK.md)
   - [Naming Versioning Simplification Plan](operations/NAMING_VERSIONING_SIMPLIFICATION_PLAN.md)
   - [Read Code Alignment and Production Plan 2026-04-04](operations/READ_CODE_ALIGNMENT_AND_PRODUCTION_PLAN_2026-04-04.md)
+  - [Docs Code Alignment Audit 2026-04-10](operations/DOCS_CODE_ALIGNMENT_AUDIT_2026-04-10.md)
 
 - [Testing](testing/COVERAGE_STATUS.md)
   - [Critical Invariants](testing/CRITICAL_INVARIANTS.md)
