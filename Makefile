@@ -281,6 +281,7 @@ endef
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
 	release-binary-list install-bin package-desktop repo-release-keygen repo-release-signed repo-release-signed-verify repo-release-prepare repo-release-validate \
 	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate versioning-gate quality quality-quick quality-release ci \
+	cargo-deny-gate \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active runtime-snapshot runtime-snapshot-list runtime-snapshot-prune runtime-restore-latest \
@@ -317,6 +318,7 @@ help:
 	@printf "  make test-inventory\n"
 	@printf "  make clippy\n"
 	@printf "  make audit\n"
+	@printf "  make cargo-deny-gate\n"
 	@printf "  make code-size-gate\n"
 	@printf "  make versioning-gate\n"
 	@printf "  make repo-hygiene-gate\n"
@@ -1216,6 +1218,10 @@ aoxcvm-phase3-gate:
 aoxcvm-production-closure-gate:
 	$(call print_banner,Running AOXCVM full production closure gate)
 	@./scripts/validation/aoxcvm_production_closure_gate.sh
+
+cargo-deny-gate:
+	$(call print_banner,Running cargo-deny dependency policy gate)
+	@./scripts/validation/cargo_deny_gate.sh
 
 reset:
 	$(call print_banner,Resetting AOXC operator runtime)

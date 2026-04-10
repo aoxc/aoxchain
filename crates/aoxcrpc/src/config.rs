@@ -19,6 +19,7 @@ pub struct RpcConfig {
     pub max_requests_per_minute: u64,
     pub rate_limiter_window_secs: u64,
     pub rate_limiter_max_tracked_keys: usize,
+    pub max_json_body_bytes: usize,
 }
 
 impl Default for RpcConfig {
@@ -35,6 +36,7 @@ impl Default for RpcConfig {
             max_requests_per_minute: 600,
             rate_limiter_window_secs: 60,
             rate_limiter_max_tracked_keys: 100_000,
+            max_json_body_bytes: 1_048_576,
         }
     }
 }
@@ -67,6 +69,10 @@ impl RpcConfig {
 
         if self.rate_limiter_max_tracked_keys == 0 {
             errors.push("rate_limiter_max_tracked_keys must be greater than zero".to_string());
+        }
+
+        if self.max_json_body_bytes == 0 {
+            errors.push("max_json_body_bytes must be greater than zero".to_string());
         }
 
         if self.genesis_hash.is_none() {
@@ -192,6 +198,7 @@ mod tests {
             max_requests_per_minute: 0,
             rate_limiter_window_secs: 0,
             rate_limiter_max_tracked_keys: 0,
+            max_json_body_bytes: 0,
             ..RpcConfig::default()
         };
 
@@ -220,6 +227,12 @@ mod tests {
                 .errors
                 .iter()
                 .any(|error| error.contains("rate_limiter_max_tracked_keys"))
+        );
+        assert!(
+            validation
+                .errors
+                .iter()
+                .any(|error| error.contains("max_json_body_bytes"))
         );
         assert_eq!(validation.readiness_score(), 0);
     }

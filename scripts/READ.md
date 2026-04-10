@@ -156,6 +156,15 @@ This gate enforces all closure classes together:
 The gate is fail-closed: overall PASS is reported only when every class passes.
 It emits `artifacts/aoxcvm-phase3/production-closure-summary.json` for traceable review evidence.
 
+### `scripts/validation/cargo_deny_gate.sh`
+Dependency policy gate used by `make cargo-deny-gate`.
+
+This gate:
+
+- verifies `cargo-deny` is available on the operator host,
+- executes `cargo deny check` against repository policy (`deny.toml`),
+- fails with a clear installation message when `cargo-deny` is missing.
+
 ### `scripts/release/generate_release_evidence.sh`
 Release evidence generation workflow.
 
