@@ -136,7 +136,6 @@ mod tests {
         domains::AuthDomain,
         envelope::{AuthEnvelope, SignatureEntry},
         scheme::SignatureAlgorithm,
-        test_fixtures::fixture_signature_len,
     };
 
     #[test]

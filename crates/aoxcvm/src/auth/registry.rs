@@ -175,7 +175,6 @@ mod tests {
         policy::QuorumPolicy,
         scheme::{AuthProfile, SignatureAlgorithm},
         signer::SignerClass,
-        test_fixtures::fixture_signature_len,
         threshold::ThresholdPolicy,
     };
 

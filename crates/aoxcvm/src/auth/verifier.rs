@@ -148,7 +148,6 @@ mod tests {
         registry::{AuthProfileId, AuthProfileRecord, AuthProfileRegistry},
         scheme::{AuthProfile, SignatureAlgorithm},
         signer::SignerClass,
-        test_fixtures::fixture_signature_len,
         threshold::ThresholdPolicy,
         verifier::{
             QrkfVerification, verify_envelope, verify_envelope_under_constitution,
