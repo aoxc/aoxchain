@@ -22,6 +22,8 @@ pub enum RpcError {
     InternalError,
     #[error("ADMISSION_DENIED: {0}")]
     AdmissionDenied(String),
+    #[error("PAYLOAD_TOO_LARGE")]
+    PayloadTooLarge,
 }
 
 impl RpcError {
@@ -35,6 +37,7 @@ impl RpcError {
             Self::ZkpValidationFailed(_) => "ZKP_VALIDATION_FAILED",
             Self::InternalError => "INTERNAL_ERROR",
             Self::AdmissionDenied(_) => "ADMISSION_DENIED",
+            Self::PayloadTooLarge => "PAYLOAD_TOO_LARGE",
         }
     }
 
@@ -60,6 +63,9 @@ impl RpcError {
             Self::AdmissionDenied(_) => Some(
                 "Reduce method cost, upgrade identity tier, or satisfy required signer policy.",
             ),
+            Self::PayloadTooLarge => {
+                Some("Reduce payload size or split request content into smaller units.")
+            }
         }
     }
 
@@ -119,5 +125,19 @@ mod tests {
                 .is_some_and(|hint| hint.contains("valid ZKP proof"))
         );
         assert!(response.message.contains("bad proof"));
+    }
+
+    #[test]
+    fn payload_too_large_has_actionable_hint() {
+        let response = RpcError::PayloadTooLarge.to_response(Some("req-big".to_string()));
+
+        assert_eq!(response.code, "PAYLOAD_TOO_LARGE");
+        assert_eq!(response.request_id.as_deref(), Some("req-big"));
+        assert!(
+            response
+                .user_hint
+                .as_deref()
+                .is_some_and(|hint| hint.contains("Reduce payload size"))
+        );
     }
 }
