@@ -25,12 +25,10 @@ impl SignatureScheme {
     #[must_use]
     pub const fn code(self) -> u8 {
         match self {
-            // Keep existing PQ codepoints stable for wire compatibility.
-            Self::MlDsa65 => 0,
-            Self::Dilithium3 => 1,
-            Self::SphincsSha2128f => 2,
-            // Legacy scheme is explicitly outside strict PQ default set.
-            Self::Ed25519Legacy => u8::MAX,
+            Self::Ed25519Legacy => 0,
+            Self::MlDsa65 => 1,
+            Self::Dilithium3 => 2,
+            Self::SphincsSha2128f => 3,
         }
     }
 
@@ -302,23 +300,7 @@ impl QuantumKernelProfile {
         &self,
         transaction: &crate::transaction::quantum::QuantumTransaction,
     ) -> Result<(), QuantumAdmissionError> {
-        self.validate()
-            .map_err(QuantumAdmissionError::InvalidProfile)?;
-
-        let mut envelope = crate::transaction::TransactionEnvelope::from(transaction.clone());
-        envelope.profile_id = self.profile_version;
-
-        if !self.supports_signature(envelope.scheme_id) {
-            return Err(QuantumAdmissionError::UnsupportedTransactionSignatureScheme);
-        }
-
-        envelope
-            .validate_with_policy(crate::transaction::EnvelopeVerificationPolicy {
-                // Transitional compatibility: legacy quantum transaction type signs a
-                // pre-envelope message layout and therefore still requires fallback.
-                allow_legacy_signature_fallback: true,
-                expected_profile_id: Some(self.profile_version),
-            })
-            .map_err(|_| QuantumAdmissionError::InvalidTransactionPayload)
+        let envelope = crate::transaction::TransactionEnvelope::from(transaction.clone());
+        self.admit_transaction_envelope(&envelope)
     }
 }

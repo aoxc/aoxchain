@@ -44,9 +44,7 @@ pub enum EnvelopeError {
     InvalidNonce,
     EmptyPayload,
     PayloadTooLarge { size: usize, max: usize },
-    ProfileIdMismatch { expected: u16, found: u16 },
     SignatureMismatch,
-    LegacyFallbackRejected,
     UnsupportedScheme,
 }
 
@@ -64,15 +62,8 @@ impl fmt::Display for EnvelopeError {
                 f,
                 "envelope payload size {size} bytes exceeds maximum {max} bytes"
             ),
-            Self::ProfileIdMismatch { expected, found } => write!(
-                f,
-                "envelope profile_id mismatch: expected profile_id {expected}, found {found}"
-            ),
             Self::SignatureMismatch => {
                 f.write_str("envelope proof bundle does not verify canonical signing message")
-            }
-            Self::LegacyFallbackRejected => {
-                f.write_str("envelope signature is valid only under legacy fallback policy")
             }
             Self::UnsupportedScheme => f.write_str("envelope signature scheme is unsupported"),
         }
@@ -81,39 +72,8 @@ impl fmt::Display for EnvelopeError {
 
 impl std::error::Error for EnvelopeError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EnvelopeVerificationPolicy {
-    pub allow_legacy_signature_fallback: bool,
-    pub expected_profile_id: Option<u16>,
-}
-
-impl EnvelopeVerificationPolicy {
-    #[must_use]
-    pub const fn permissive_default() -> Self {
-        Self {
-            allow_legacy_signature_fallback: true,
-            expected_profile_id: None,
-        }
-    }
-
-    #[must_use]
-    pub const fn strict_for_profile(profile_id: u16) -> Self {
-        Self {
-            allow_legacy_signature_fallback: false,
-            expected_profile_id: Some(profile_id),
-        }
-    }
-}
-
 impl TransactionEnvelope {
     pub fn validate(&self) -> Result<(), EnvelopeError> {
-        self.validate_with_policy(EnvelopeVerificationPolicy::permissive_default())
-    }
-
-    pub fn validate_with_policy(
-        &self,
-        policy: EnvelopeVerificationPolicy,
-    ) -> Result<(), EnvelopeError> {
         if self.verification_key.is_empty() {
             return Err(EnvelopeError::EmptyVerificationKey);
         }
@@ -133,26 +93,10 @@ impl TransactionEnvelope {
             });
         }
 
-        if let Some(expected_profile_id) = policy.expected_profile_id
-            && expected_profile_id != self.profile_id
-        {
-            return Err(EnvelopeError::ProfileIdMismatch {
-                expected: expected_profile_id,
-                found: self.profile_id,
-            });
-        }
-
-        self.verify_signature_with_policy(policy)
+        self.verify_signature()
     }
 
     pub fn verify_signature(&self) -> Result<(), EnvelopeError> {
-        self.verify_signature_with_policy(EnvelopeVerificationPolicy::permissive_default())
-    }
-
-    pub fn verify_signature_with_policy(
-        &self,
-        policy: EnvelopeVerificationPolicy,
-    ) -> Result<(), EnvelopeError> {
         match self.scheme_id {
             SignatureScheme::Ed25519Legacy => {
                 if self.verification_key.len() != 32 {
@@ -171,19 +115,11 @@ impl TransactionEnvelope {
                     .map_err(|_| EnvelopeError::InvalidVerificationKey)?;
                 let signature = Signature::from_bytes(&signature);
 
-                if public_key
-                    .verify(&self.signing_message(), &signature)
-                    .is_ok()
-                {
-                    return Ok(());
-                }
-
-                if !policy.allow_legacy_signature_fallback {
-                    return Err(EnvelopeError::LegacyFallbackRejected);
-                }
-
                 public_key
-                    .verify(&self.legacy_classic_signing_message(), &signature)
+                    .verify(&self.signing_message(), &signature)
+                    .or_else(|_| {
+                        public_key.verify(&self.legacy_classic_signing_message(), &signature)
+                    })
                     .map_err(|_| EnvelopeError::SignatureMismatch)
             }
             SignatureScheme::MlDsa65 => {
@@ -193,14 +129,10 @@ impl TransactionEnvelope {
                     pq_keys::verify_message_domain_separated(&self.proof_bundle, &public_key)
                         .map_err(|_| EnvelopeError::InvalidProofBundle)?;
 
-                if opened == self.signing_message() {
+                if opened == self.signing_message()
+                    || opened == self.legacy_quantum_signing_message()
+                {
                     Ok(())
-                } else if opened == self.legacy_quantum_signing_message() {
-                    if policy.allow_legacy_signature_fallback {
-                        Ok(())
-                    } else {
-                        Err(EnvelopeError::LegacyFallbackRejected)
-                    }
                 } else {
                     Err(EnvelopeError::SignatureMismatch)
                 }
@@ -361,39 +293,5 @@ mod tests {
 
         let envelope: TransactionEnvelope = tx.into();
         assert_eq!(envelope.validate(), Ok(()));
-    }
-
-    #[test]
-    fn strict_policy_rejects_legacy_fallback_signature() {
-        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
-        let sender = signing_key.verifying_key().to_bytes();
-        let legacy_signed_message = {
-            let mut message = Vec::new();
-            message.extend_from_slice(LEGACY_CLASSIC_DOMAIN);
-            message.push(1);
-            message.extend_from_slice(&sender);
-            message.extend_from_slice(&9u64.to_le_bytes());
-            message.push(Capability::UserSigned.code());
-            message.extend_from_slice(&TargetOutpost::EthMainnetGateway.code().to_le_bytes());
-            message.extend_from_slice(&(3u32).to_le_bytes());
-            message.extend_from_slice(&[1u8, 2u8, 3u8]);
-            message
-        };
-
-        let envelope = TransactionEnvelope {
-            scheme_id: SignatureScheme::Ed25519Legacy,
-            verification_key: sender.to_vec(),
-            nonce: 9,
-            capability: Capability::UserSigned,
-            target: TargetOutpost::EthMainnetGateway,
-            payload: vec![1, 2, 3],
-            proof_bundle: signing_key.sign(&legacy_signed_message).to_bytes().to_vec(),
-            profile_id: 2,
-        };
-
-        assert_eq!(
-            envelope.validate_with_policy(EnvelopeVerificationPolicy::strict_for_profile(2)),
-            Err(EnvelopeError::LegacyFallbackRejected)
-        );
     }
 }
