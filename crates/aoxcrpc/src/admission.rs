@@ -3,6 +3,10 @@
 // This file is part of the AOXC pre-release codebase.
 
 use aoxcvm::auth::scheme::{AuthProfile, SignatureAlgorithm};
+use aoxchal::cpu_opt::CpuCapabilities;
+use aoxchal::crypto_profile::{
+    CryptoPolicy, ProfileStage, ProofSummary, evaluate_admission as evaluate_crypto_admission,
+};
 
 use crate::error::RpcError;
 
@@ -116,7 +120,37 @@ pub fn evaluate_submit_tx_admission(
         cost_class: MethodCostClass::Critical,
         required_auth_profile: auth_profile,
     };
+    let crypto_policy = crypto_policy_from_stage(stage);
+    let proof_summary = proof_summary_from_signers(&context.signer_algorithms);
+
+    evaluate_crypto_admission(crypto_policy, CpuCapabilities::portable(), proof_summary).map_err(
+        |e| RpcError::AdmissionDenied(format!("crypto policy admission failed: {e:?}")),
+    )?;
     evaluate_admission_policy(&policy, context)
+}
+
+fn crypto_policy_from_stage(stage: QuantumTransitionStage) -> CryptoPolicy {
+    match stage {
+        QuantumTransitionStage::ClassicalAllowed => CryptoPolicy {
+            stage: ProfileStage::ClassicalOnly,
+            min_signatures: 1,
+            allow_hybrid_fallback: true,
+        },
+        QuantumTransitionStage::HybridRequired => CryptoPolicy::hybrid_gate(),
+        QuantumTransitionStage::PostQuantumOnly => CryptoPolicy::pq_primary(),
+    }
+}
+
+fn proof_summary_from_signers(signer_algorithms: &[SignatureAlgorithm]) -> ProofSummary {
+    let mut summary = ProofSummary::default();
+    for algorithm in signer_algorithms {
+        if algorithm.is_post_quantum() {
+            summary.pq_signatures = summary.pq_signatures.saturating_add(1);
+        } else {
+            summary.classical_signatures = summary.classical_signatures.saturating_add(1);
+        }
+    }
+    summary
 }
 
 /// Evaluates method access before expensive RPC execution paths.
@@ -156,7 +190,10 @@ fn evaluate_admission_policy(
 
 #[cfg(test)]
 mod tests {
-    use super::{AdmissionContext, IdentityTier, evaluate_method_admission};
+    use super::{
+        AdmissionContext, IdentityTier, QuantumTransitionStage, evaluate_method_admission,
+        evaluate_submit_tx_admission,
+    };
     use aoxcvm::auth::scheme::SignatureAlgorithm;
 
     #[test]
@@ -210,5 +247,31 @@ mod tests {
             .expect_err("insufficient budget should be denied");
 
         assert!(error.to_string().contains("budget"));
+    }
+
+    #[test]
+    fn submit_tx_hybrid_stage_rejects_classical_only_signers() {
+        let context = AdmissionContext {
+            identity_tier: IdentityTier::SignedClient,
+            signer_algorithms: vec![SignatureAlgorithm::Ed25519],
+            remaining_budget_units: 80,
+        };
+
+        let error = evaluate_submit_tx_admission(&context, QuantumTransitionStage::HybridRequired)
+            .expect_err("hybrid stage must reject classical-only proofs");
+        assert!(error.to_string().contains("crypto policy admission failed"));
+    }
+
+    #[test]
+    fn submit_tx_post_quantum_stage_accepts_pq_signers() {
+        let context = AdmissionContext {
+            identity_tier: IdentityTier::SignedClient,
+            signer_algorithms: vec![SignatureAlgorithm::MlDsa65, SignatureAlgorithm::MlDsa87],
+            remaining_budget_units: 80,
+        };
+
+        assert!(
+            evaluate_submit_tx_admission(&context, QuantumTransitionStage::PostQuantumOnly).is_ok()
+        );
     }
 }

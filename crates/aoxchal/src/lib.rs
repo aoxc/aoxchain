@@ -3,6 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 pub mod cpu_opt;
+pub mod crypto_profile;
 pub mod mem_manager;
 
 use serde::{Deserialize, Serialize};
