@@ -319,3 +319,85 @@ fn project_multi_scenario_returns_deterministic_projections() {
 
     assert!(projections[0].report.per_unit_floor > projections[2].report.per_unit_floor);
 }
+<<<<<<< HEAD
+
+#[test]
+fn low_quantum_readiness_is_rejected_without_override() {
+    let engine = EnergyAnchorEngine::new();
+    let mut inputs = base_inputs();
+    inputs.policy.security_reserve_bps = 0;
+    inputs.policy.quantum_transition_reserve_bps = 0;
+    inputs.policy.quantum_assurance_bps = 0;
+
+    let mut governance = base_governance();
+    governance.min_quantum_readiness_bps = 500;
+
+    let report = engine
+        .compute(&inputs, &governance, None, false)
+        .expect("computation must succeed");
+
+    assert_eq!(report.governance_decision, GovernanceDecision::Rejected);
+}
+
+#[test]
+fn projection_summary_returns_expected_bounds() {
+    let engine = EnergyAnchorEngine::new();
+    let projections = engine
+        .project_multi_scenario(
+            &base_inputs(),
+            &base_governance(),
+            None,
+            false,
+            &[8_000, 10_000, 12_000],
+        )
+        .expect("projection must succeed");
+
+    let summary = engine
+        .summarize_projection(&projections)
+        .expect("summary must succeed");
+
+    assert_eq!(summary.scenario_count, 3);
+    assert!(summary.min_per_unit_floor <= summary.avg_per_unit_floor);
+    assert!(summary.avg_per_unit_floor <= summary.max_per_unit_floor);
+}
+
+#[test]
+fn compute_integrated_runs_full_pipeline() {
+    let engine = EnergyAnchorEngine::new();
+    let request = IntegratedFloorRequest {
+        inputs: base_inputs(),
+        governance: base_governance(),
+        previous_approved_per_unit_floor: None,
+        emergency_override: false,
+        scenario_multipliers_bps: vec![8_000, 10_000, 12_000],
+    };
+
+    let integrated = engine
+        .compute_integrated(&request)
+        .expect("integrated compute must succeed");
+
+    assert!(integrated.base_report.full_network_cost_floor.micros() > 0);
+    assert_eq!(integrated.summary.scenario_count, 3);
+    assert_eq!(integrated.projections.len(), 3);
+}
+
+#[test]
+fn compute_integrated_uses_default_scenario_when_not_provided() {
+    let engine = EnergyAnchorEngine::new();
+    let request = IntegratedFloorRequest {
+        inputs: base_inputs(),
+        governance: base_governance(),
+        previous_approved_per_unit_floor: None,
+        emergency_override: false,
+        scenario_multipliers_bps: vec![],
+    };
+
+    let integrated = engine
+        .compute_integrated(&request)
+        .expect("integrated compute must succeed");
+
+    assert_eq!(integrated.summary.scenario_count, 1);
+    assert_eq!(integrated.projections[0].demand_multiplier_bps, 10_000);
+}
+=======
+>>>>>>> develop
