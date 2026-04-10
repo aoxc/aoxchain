@@ -283,8 +283,6 @@ impl KeyMaterial {
 /// Current policy:
 /// - explicit quantum profile aliases (`quantum`, `quntum`, `pq-preview`) =>
 ///   `PqDilithium3Preview`,
-/// - strict quantum aliases (`pq-only`, `pq-strict`, `post-quantum`) =>
-///   `PqDilithium3Preview`,
 /// - explicit transition aliases (`transition`, `quantum-transition`,
 ///   `pq-hybrid`) => `HybridEd25519Dilithium3`,
 /// - mainnet => hybrid surface reservation,
@@ -324,11 +322,6 @@ fn normalize_profile(profile: &str) -> Result<&'static str, AppError> {
         "quntum" => Ok("mainnet"),
         "qumtum" => Ok("mainnet"),
         "pq-preview" => Ok("mainnet"),
-        "pq-only" => Ok("mainnet"),
-        "pq-strict" => Ok("mainnet"),
-        "post-quantum" => Ok("mainnet"),
-        "postquantum" => Ok("mainnet"),
-        "quantum-only" => Ok("mainnet"),
         "transition" => Ok("mainnet"),
         "quantum-transition" => Ok("mainnet"),
         "quntum-transition" => Ok("mainnet"),
@@ -338,7 +331,7 @@ fn normalize_profile(profile: &str) -> Result<&'static str, AppError> {
         other => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             format!(
-                "Unsupported AOXC key-material profile `{}`; expected mainnet, quantum, quntum, qumtum, pq-preview, pq-only, pq-strict, post-quantum, postquantum, quantum-only, transition, quantum-transition, pq-hybrid, hybrid, gecis, testnet, validation, devnet, or localnet",
+                "Unsupported AOXC key-material profile `{}`; expected mainnet, quantum, quntum, qumtum, pq-preview, transition, quantum-transition, pq-hybrid, hybrid, gecis, testnet, validation, devnet, or localnet",
                 other
             ),
         )),
@@ -496,18 +489,6 @@ mod tests {
         assert_eq!(
             material.bundle.crypto_profile.as_str(),
             "hybrid-ed25519-dilithium3"
-        );
-    }
-
-    #[test]
-    fn pq_only_profile_alias_uses_pq_preview_crypto_profile() {
-        let material = KeyMaterial::generate("validator-12", "pq-only", "PQOnly#2026!")
-            .expect("pq-only profile should succeed");
-
-        assert_eq!(material.bundle.profile, "mainnet");
-        assert_eq!(
-            material.bundle.crypto_profile.as_str(),
-            "pq-dilithium3-preview"
         );
     }
 
