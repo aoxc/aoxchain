@@ -1,6 +1,10 @@
 [book]
-title = "AOXChain Engineering Docs"
-authors = ["AOXChain Contributors"]
+title = "AOXChain Documentation"
+authors = ["AOXC"]
+description = "AOXChain technical, operational, and governance documentation."
 language = "en"
-multilingual = false
 src = "src"
+
+[build]
+build-dir = "book"
+create-missing = false
