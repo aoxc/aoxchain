@@ -18,13 +18,19 @@ Carries gas/fee/economic costing and resource-governance rules.
 - `GovernancePolicy` enforces `max_quantum_reserve_bps` so combined post-quantum reserves cannot exceed ratified limits.
 - `EconomicFloorReport` exposes explicit post-quantum components for audit and deterministic cost-share attribution.
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e4bc159 (Codex/gelismis ozellikler ekle (#1020))
 
 ## Kernel and Layer-Aligned Modeling
 - `FloorModelInputs.layer_costs` provides explicit kernel/consensus/execution/settlement/networking cost channels.
 - `EconomicFloorReport` returns per-layer cost totals and kernel ratio helpers for layered budget review.
 - `EnergyAnchorEngine::project_multi_scenario` computes deterministic demand projections for multiple throughput scenarios.
 - `EnergyAnchorEngine::summarize_projection` returns deterministic min/max/average floor metrics across scenario sets.
+<<<<<<< HEAD
 - `EnergyAnchorEngine::compute_integrated` orchestrates base compute + scenario projection + summary in one deterministic call.
+=======
+>>>>>>> e4bc159 (Codex/gelismis ozellikler ekle (#1020))
 
 ## Governance Guardrails
 - `GovernancePolicy` now supports:
@@ -32,5 +38,8 @@ Carries gas/fee/economic costing and resource-governance rules.
   - `max_execution_layer_share_bps`,
   - `min_quantum_readiness_bps`.
 - Guardrails are evaluated deterministically and can downgrade decisions to `RequiresReview` or `Rejected` depending on policy and override posture.
+<<<<<<< HEAD
 =======
 >>>>>>> develop
+=======
+>>>>>>> e4bc159 (Codex/gelismis ozellikler ekle (#1020))

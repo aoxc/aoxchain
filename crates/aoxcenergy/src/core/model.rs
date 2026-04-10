@@ -227,24 +227,6 @@ pub struct ScenarioProjectionSummary {
     pub avg_per_unit_floor: UnitAmount,
 }
 
-/// Full integrated request surface for single-call engine orchestration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IntegratedFloorRequest {
-    pub inputs: FloorModelInputs,
-    pub governance: GovernancePolicy,
-    pub previous_approved_per_unit_floor: Option<UnitAmount>,
-    pub emergency_override: bool,
-    pub scenario_multipliers_bps: Vec<u32>,
-}
-
-/// Integrated deterministic output containing base and scenario analysis.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IntegratedFloorOutput {
-    pub base_report: EconomicFloorReport,
-    pub projections: Vec<ScenarioFloorProjection>,
-    pub summary: ScenarioProjectionSummary,
-}
-
 impl EconomicFloorReport {
     #[must_use]
     pub fn classify_realized_value(

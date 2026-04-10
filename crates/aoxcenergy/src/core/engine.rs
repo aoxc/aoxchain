@@ -4,8 +4,8 @@ use super::governance::{
 };
 use super::math::{quantum_readiness_index_bps, scale_u64_by_bps};
 use super::model::{
-    EconomicFloorReport, EnergyError, FloorModelInputs, GovernancePolicy, IntegratedFloorOutput,
-    IntegratedFloorRequest, ScenarioFloorProjection, ScenarioProjectionSummary, UnitAmount,
+    EconomicFloorReport, EnergyError, FloorModelInputs, GovernancePolicy, ScenarioFloorProjection,
+    ScenarioProjectionSummary, UnitAmount,
 };
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -202,43 +202,6 @@ impl EnergyAnchorEngine {
             min_per_unit_floor: min_floor,
             max_per_unit_floor: max_floor,
             avg_per_unit_floor: UnitAmount::from_micros(sum / projections.len() as u128),
-        })
-    }
-
-    /// Fully integrated end-to-end computation:
-    /// - computes base floor,
-    /// - runs deterministic scenario projections,
-    /// - returns aggregate summary in one call.
-    pub fn compute_integrated(
-        &self,
-        request: &IntegratedFloorRequest,
-    ) -> Result<IntegratedFloorOutput, EnergyError> {
-        let base_report = self.compute(
-            &request.inputs,
-            &request.governance,
-            request.previous_approved_per_unit_floor,
-            request.emergency_override,
-        )?;
-
-        let scenario_multipliers = if request.scenario_multipliers_bps.is_empty() {
-            vec![10_000]
-        } else {
-            request.scenario_multipliers_bps.clone()
-        };
-
-        let projections = self.project_multi_scenario(
-            &request.inputs,
-            &request.governance,
-            request.previous_approved_per_unit_floor,
-            request.emergency_override,
-            &scenario_multipliers,
-        )?;
-        let summary = self.summarize_projection(&projections)?;
-
-        Ok(IntegratedFloorOutput {
-            base_report,
-            projections,
-            summary,
         })
     }
 }

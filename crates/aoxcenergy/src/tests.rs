@@ -108,6 +108,49 @@ fn excessive_tax_burden_is_rejected() {
 }
 
 #[test]
+<<<<<<< HEAD
+=======
+fn excessive_treasury_build_ratio_is_rejected() {
+    let engine = EnergyAnchorEngine::new();
+    let mut inputs = base_inputs();
+    inputs.policy.treasury_build_bps = 9_000;
+
+    let err = engine
+        .compute(&inputs, &base_governance(), None, false)
+        .expect_err("excessive treasury ratio must fail");
+
+    assert!(matches!(err, EnergyError::InvalidInput(_)));
+}
+
+#[test]
+fn excessive_quantum_reserve_is_rejected() {
+    let engine = EnergyAnchorEngine::new();
+    let mut inputs = base_inputs();
+    inputs.policy.quantum_transition_reserve_bps = 700;
+    inputs.policy.quantum_assurance_bps = 500;
+
+    let err = engine
+        .compute(&inputs, &base_governance(), None, false)
+        .expect_err("excessive quantum reserve must fail");
+
+    assert!(matches!(err, EnergyError::InvalidInput(_)));
+}
+
+#[test]
+fn zero_throughput_is_rejected() {
+    let engine = EnergyAnchorEngine::new();
+    let mut inputs = base_inputs();
+    inputs.demand.units_per_period = 0;
+
+    let err = engine
+        .compute(&inputs, &base_governance(), None, false)
+        .expect_err("zero throughput must fail");
+
+    assert!(matches!(err, EnergyError::InvalidInput(_)));
+}
+
+#[test]
+>>>>>>> e4bc159 (Codex/gelismis ozellikler ekle (#1020))
 fn large_period_jump_requires_rejection_without_override() {
     let engine = EnergyAnchorEngine::new();
     let inputs = base_inputs();
@@ -194,6 +237,7 @@ fn compute_integrated_full_flow() {
         scenario_multipliers_bps: vec![8_000, 10_000, 12_000],
     };
 
+<<<<<<< HEAD
     let integrated = engine
         .compute_integrated(&request)
         .expect("integrated compute must succeed");
@@ -201,4 +245,141 @@ fn compute_integrated_full_flow() {
     assert_eq!(integrated.summary.scenario_count, 3);
     assert_eq!(integrated.projections.len(), 3);
     assert!(integrated.base_report.is_consistent());
+=======
+    let margin = report
+        .per_unit_floor
+        .apply_bps(2_000)
+        .expect("bps application must succeed");
+
+    let realized = report
+        .per_unit_floor
+        .checked_add(margin)
+        .expect("addition must succeed");
+
+    let zone = report.classify_realized_value(realized, 1_000);
+
+    assert_eq!(zone, EconomicZone::TreasuryBuildZone);
+}
+
+#[test]
+fn report_consistency_checks_pass_on_compute() {
+    let engine = EnergyAnchorEngine::new();
+    let report = engine
+        .compute(&base_inputs(), &base_governance(), None, false)
+        .expect("computation must succeed");
+
+    assert!(report.is_consistent());
+}
+
+#[test]
+fn quantum_readiness_index_is_non_zero_for_quantum_budget() {
+    let engine = EnergyAnchorEngine::new();
+    let report = engine
+        .compute(&base_inputs(), &base_governance(), None, false)
+        .expect("computation must succeed");
+
+    assert!(report.quantum_readiness_index_bps > 0);
+    assert!(report.quantum_readiness_index_bps <= BPS_DENOMINATOR);
+}
+
+#[test]
+fn cost_share_bps_sums_to_full_denominator() {
+    let engine = EnergyAnchorEngine::new();
+    let report = engine
+        .compute(&base_inputs(), &base_governance(), None, false)
+        .expect("computation must succeed");
+
+    let shares = report
+        .cost_share_bps()
+        .expect("non-zero full floor must produce shares");
+
+    let sum = shares
+        .energy
+        .saturating_add(shares.operations)
+        .saturating_add(shares.layers)
+        .saturating_add(shares.continuity)
+        .saturating_add(shares.security)
+        .saturating_add(shares.quantum_transition)
+        .saturating_add(shares.quantum_assurance)
+        .saturating_add(shares.treasury_build)
+        .saturating_add(shares.target_margin)
+        .saturating_add(shares.tax);
+
+    assert_eq!(sum, BPS_DENOMINATOR);
+>>>>>>> e4bc159 (Codex/gelismis ozellikler ekle (#1020))
+}
+
+#[test]
+fn kernel_layer_ratio_is_reported() {
+    let engine = EnergyAnchorEngine::new();
+    let report = engine
+        .compute(&base_inputs(), &base_governance(), None, false)
+        .expect("computation must succeed");
+
+    let ratio = report
+        .kernel_layer_ratio_bps()
+        .expect("layer ratio must exist for non-zero layer cost");
+    assert!(ratio > 0);
+}
+
+#[test]
+fn project_multi_scenario_returns_deterministic_projections() {
+    let engine = EnergyAnchorEngine::new();
+    let base = base_inputs();
+    let projections = engine
+        .project_multi_scenario(
+            &base,
+            &base_governance(),
+            None,
+            false,
+            &[8_000, 10_000, 12_000],
+        )
+        .expect("projection must succeed");
+
+    assert_eq!(projections.len(), 3);
+    assert_eq!(projections[0].projected_units_per_period, 80);
+    assert_eq!(projections[1].projected_units_per_period, 100);
+    assert_eq!(projections[2].projected_units_per_period, 120);
+
+    assert!(projections[0].report.per_unit_floor > projections[2].report.per_unit_floor);
+}
+
+#[test]
+fn low_quantum_readiness_is_rejected_without_override() {
+    let engine = EnergyAnchorEngine::new();
+    let mut inputs = base_inputs();
+    inputs.policy.security_reserve_bps = 0;
+    inputs.policy.quantum_transition_reserve_bps = 0;
+    inputs.policy.quantum_assurance_bps = 0;
+
+    let mut governance = base_governance();
+    governance.min_quantum_readiness_bps = 500;
+
+    let report = engine
+        .compute(&inputs, &governance, None, false)
+        .expect("computation must succeed");
+
+    assert_eq!(report.governance_decision, GovernanceDecision::Rejected);
+}
+
+#[test]
+fn projection_summary_returns_expected_bounds() {
+    let engine = EnergyAnchorEngine::new();
+    let projections = engine
+        .project_multi_scenario(
+            &base_inputs(),
+            &base_governance(),
+            None,
+            false,
+            &[8_000, 10_000, 12_000],
+        )
+        .expect("projection must succeed");
+
+    let summary = engine
+        .summarize_projection(&projections)
+        .expect("summary must succeed");
+
+    assert_eq!(summary.scenario_count, 3);
+    assert!(summary.min_per_unit_floor <= summary.avg_per_unit_floor);
+    assert!(summary.avg_per_unit_floor <= summary.max_per_unit_floor);
 }
