@@ -319,6 +319,7 @@ fn project_multi_scenario_returns_deterministic_projections() {
 
     assert!(projections[0].report.per_unit_floor > projections[2].report.per_unit_floor);
 }
+<<<<<<< HEAD
 
 #[test]
 fn low_quantum_readiness_is_rejected_without_override() {
@@ -398,3 +399,5 @@ fn compute_integrated_uses_default_scenario_when_not_provided() {
     assert_eq!(integrated.summary.scenario_count, 1);
     assert_eq!(integrated.projections[0].demand_multiplier_bps, 10_000);
 }
+=======
+>>>>>>> develop

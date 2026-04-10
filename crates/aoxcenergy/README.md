@@ -1,5 +1,6 @@
 # README.md
 
+
 > Scope: `crates/aoxcenergy`
 
 ## Purpose
@@ -16,6 +17,7 @@ Carries gas/fee/economic costing and resource-governance rules.
   - `quantum_assurance_bps` for validation, audit, and cryptographic assurance overhead.
 - `GovernancePolicy` enforces `max_quantum_reserve_bps` so combined post-quantum reserves cannot exceed ratified limits.
 - `EconomicFloorReport` exposes explicit post-quantum components for audit and deterministic cost-share attribution.
+<<<<<<< HEAD
 
 ## Kernel and Layer-Aligned Modeling
 - `FloorModelInputs.layer_costs` provides explicit kernel/consensus/execution/settlement/networking cost channels.
@@ -30,3 +32,5 @@ Carries gas/fee/economic costing and resource-governance rules.
   - `max_execution_layer_share_bps`,
   - `min_quantum_readiness_bps`.
 - Guardrails are evaluated deterministically and can downgrade decisions to `RequiresReview` or `Rejected` depending on policy and override posture.
+=======
+>>>>>>> develop
