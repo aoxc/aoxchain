@@ -23,13 +23,27 @@ pub enum QuantumMigrationMode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QuantumSecurityProfile {
     pub migration_mode: QuantumMigrationMode,
+    #[serde(default)]
+    pub transition_epoch_start: Option<u64>,
+    #[serde(default)]
+    pub classical_retirement_epoch: Option<u64>,
+    #[serde(default = "default_min_signature_bundles")]
+    pub min_signature_bundles: u8,
+    #[serde(default)]
     pub pq_signature_schemes: Vec<String>,
+}
+
+const fn default_min_signature_bundles() -> u8 {
+    1
 }
 
 impl Default for QuantumSecurityProfile {
     fn default() -> Self {
         Self {
             migration_mode: QuantumMigrationMode::ClassicalOnly,
+            transition_epoch_start: None,
+            classical_retirement_epoch: None,
+            min_signature_bundles: default_min_signature_bundles(),
             pq_signature_schemes: vec![],
         }
     }
@@ -217,9 +231,9 @@ impl Validate for ContractPolicy {
         for scheme in &self.quantum_security.pq_signature_schemes {
             let canonical = scheme.trim();
             if canonical.is_empty()
-                || !canonical.chars().all(|c| {
-                    c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '_' | '-')
-                })
+                || !canonical
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '_' | '-'))
             {
                 return Err(PolicyValidationError::PolicyViolation(
                     "pq signature scheme id must be canonical snake-like lowercase".into(),
@@ -232,6 +246,39 @@ impl Validate for ContractPolicy {
                 ))
                 .into());
             }
+        }
+        if self.quantum_security.min_signature_bundles == 0 {
+            return Err(PolicyValidationError::PolicyViolation(
+                "min_signature_bundles must be at least 1".into(),
+            )
+            .into());
+        }
+        if self.quantum_security.migration_mode == QuantumMigrationMode::ClassicalOnly
+            && (self.quantum_security.transition_epoch_start.is_some()
+                || self.quantum_security.classical_retirement_epoch.is_some())
+        {
+            return Err(PolicyValidationError::PolicyViolation(
+                "classical_only cannot define migration epochs".into(),
+            )
+            .into());
+        }
+        if let (Some(start), Some(retire)) = (
+            self.quantum_security.transition_epoch_start,
+            self.quantum_security.classical_retirement_epoch,
+        ) && retire < start
+        {
+            return Err(PolicyValidationError::PolicyViolation(
+                "classical_retirement_epoch cannot be before transition_epoch_start".into(),
+            )
+            .into());
+        }
+        if self.quantum_security.migration_mode == QuantumMigrationMode::PostQuantumOnly
+            && self.quantum_security.classical_retirement_epoch.is_some()
+        {
+            return Err(PolicyValidationError::PolicyViolation(
+                "post_quantum_only cannot define classical_retirement_epoch".into(),
+            )
+            .into());
         }
 
         Ok(())
