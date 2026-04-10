@@ -2,7 +2,7 @@
 # This file is consumed by tests to ensure release metadata remains synchronized.
 
 [workspace]
-current = "0.2.0-alpha.1"
+current = "0.2.0-alpha.2"
 strategy = "global-workspace-version-with-component-schema-tracks"
 release_channel = "controlled"
 
