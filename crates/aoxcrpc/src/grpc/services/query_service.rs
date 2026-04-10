@@ -44,6 +44,7 @@ impl QueryService {
 mod tests {
     use super::QueryService;
     use crate::admission::{AdmissionContext, IdentityTier};
+    use aoxchal::cpu_opt::CpuCapabilities;
     use aoxcvm::auth::scheme::SignatureAlgorithm;
     #[test]
     fn admitted_status_requires_api_key_or_higher() {
@@ -51,7 +52,10 @@ mod tests {
         let context = AdmissionContext {
             identity_tier: IdentityTier::Anonymous,
             signer_algorithms: vec![SignatureAlgorithm::Ed25519, SignatureAlgorithm::MlDsa65],
+            verified_signature_count: 2,
             remaining_budget_units: 10,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
         };
 
         let err = service
@@ -66,7 +70,10 @@ mod tests {
         let context = AdmissionContext {
             identity_tier: IdentityTier::ApiKey,
             signer_algorithms: vec![SignatureAlgorithm::Ed25519, SignatureAlgorithm::MlDsa65],
+            verified_signature_count: 2,
             remaining_budget_units: 10,
+            is_operator_authenticated: false,
+            cpu_capabilities: CpuCapabilities::portable(),
         };
 
         let status = service
