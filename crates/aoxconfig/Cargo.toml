@@ -13,3 +13,4 @@ serde = { workspace = true }
 tokio = { workspace = true }
 serde_json = { workspace = true }
 aoxcontract = { path = "../aoxcontract" , version = "0.2.0-alpha.1"}
+aoxcore = { path = "../kernel/aoxcore" , version = "0.2.0-alpha.1" }

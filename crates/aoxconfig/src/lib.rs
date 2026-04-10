@@ -15,10 +15,12 @@
 pub mod blockchain;
 pub mod contracts;
 pub mod mainnet;
+pub mod quantum;
 
 pub use blockchain::ChainConfig;
 pub use contracts::ContractsConfig;
 pub use mainnet::MainnetProgram;
+pub use quantum::QuantumSecurityConfig;
 
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +34,7 @@ pub struct AoxConfig {
     pub chain: ChainConfig,
     pub contracts: ContractsConfig,
     pub mainnet: MainnetProgram,
+    pub quantum: QuantumSecurityConfig,
 }
 
 impl AoxConfig {
@@ -55,6 +58,13 @@ impl AoxConfig {
                 .validate()
                 .into_iter()
                 .map(|e| format!("mainnet: {e}")),
+        );
+
+        errors.extend(
+            self.quantum
+                .validate()
+                .into_iter()
+                .map(|e| format!("quantum: {e}")),
         );
 
         if errors.is_empty() {
@@ -81,11 +91,14 @@ mod tests {
         cfg.chain.block_time_secs = 1;
         cfg.contracts.registry.local_manifest_directory.clear();
         cfg.mainnet.milestones.pop();
+        cfg.quantum.min_security_level = 64;
+        cfg.quantum.key_policy.allowed_signature_schemes.clear();
 
         let errs = cfg.validate().expect_err("config should be invalid");
-        assert_eq!(errs.len(), 4);
+        assert_eq!(errs.len(), 8);
         assert!(errs.iter().any(|e| e.starts_with("chain:")));
         assert!(errs.iter().any(|e| e.starts_with("contracts:")));
         assert!(errs.iter().any(|e| e.starts_with("mainnet:")));
+        assert!(errs.iter().any(|e| e.starts_with("quantum:")));
     }
 }
