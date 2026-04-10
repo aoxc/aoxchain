@@ -6,10 +6,6 @@ This document defines the production security contract for the AOXChain API kern
 
 The scope is the API security control plane (authentication, authorization, admission, transport, policy, telemetry, and failure behavior), not UI/client concerns.
 
-## Implementation Status Snapshot
-
-The repository now includes baseline API-kernel enforcement for rate limiting, JSON POST guards, max body-size checks, and privileged-route mTLS enforcement in the HTTP server path. This blueprint remains the contract for closure and downstream integration readiness.
-
 ## Non-Goals
 
 - Client UX design, wallet flows, and front-end state management.
