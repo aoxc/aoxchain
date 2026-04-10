@@ -78,12 +78,12 @@ USAGE
 
 GUIDED GROUPS
   chain init|create|start|status|doctor|demo
-  genesis init|add-validator|add-account|build|verify|inspect|template-advanced|advanced-system|security-audit|fingerprint|production-gate|start
-  validator create|inspect|status|rotate-key
+  genesis init|add-validator|add-account|build|verify|finalize|seal|sign|freeze|inspect|template-advanced|advanced-system|security-audit|fingerprint|production-gate|start
+  validator create|join|register|activate|bond|unbond|set-status|commission-set|inspect|status|rotate-key
   wallet create|balance
   account fund
-  node init|start|status|doctor
-  network create|start|status|verify|identity-gate|doctor
+  node init|join|start|status|doctor
+  network create|join|peer-add|seed-add|bootstrap-peer-add|join-check|join-plan|start|status|verify|identity-gate|doctor
   role list|status|activate-core7
   api [status|contract|smoke|metrics|health|full|chain|consensus|vm|block|tx|receipt|account|balance|state-root|network|runtime]
   query chain|consensus|vm|full|block|tx|receipt|account|balance|network|runtime|state-root|rpc
@@ -116,6 +116,10 @@ BOOTSTRAP
   genesis-add-account --account-id <id> --balance <amount> [--role <treasury|validator|system|user|governance|forge|quorum|seal|archive|sentinel|relay|pocket>]
   genesis-add-validator --validator-id <id> --consensus-public-key <hex> --network-public-key <hex> [--consensus-fingerprint <hex>] [--network-fingerprint <hex>] [--bootnode-address <host:port>] [--balance <amount>] [--display-name <label>]
   genesis-validate [--strict]
+  genesis-finalize [--profile <localnet|devnet|validation|testnet|mainnet>] [--strict]
+  genesis-seal [--profile <localnet|devnet|validation|testnet|mainnet>] [--strict]
+  genesis-sign [--profile <localnet|devnet|validation|testnet|mainnet>] [--strict]
+  genesis-freeze [--profile <localnet|devnet|validation|testnet|mainnet>] [--strict]
   genesis-inspect
   genesis-hash
   genesis-advanced-system [--profile <localnet|devnet|validation|testnet|mainnet>] [--out <path>] [--no-enforce]
@@ -129,11 +133,20 @@ BOOTSTRAP
 
 NODE AND ECONOMY
   node-bootstrap
+  node join --seed <multiaddr|ip:port> [--peer <id>] [--chain-id <id>] --genesis <path> [--profile <testnet|mainnet|...>] [--home <path>] [--trust-root <path|fingerprint>] [--allow-sync-from <peer-id>] [--prove]
   produce-once
   node-run [--rounds <n>] [--continuous] [--bounded] [--interval-secs <2..600>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log] [--no-rpc-serve] [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc]
   node-health
   economy-init
   treasury-transfer
+  validator join --validator-id <id> [--consensus-key <path|hex>] [--network-key <path|hex>] [--stake <amount>] [--commission-bps <n>] [--name <display-name>] [--metadata <path>] [--activation-height <n>|--activation-epoch <n>] [--via-governance] [--from <wallet|authority>] [--profile <validation|testnet|mainnet>]
+  validator activate --validator-id <id> [--stake <amount>]
+  validator bond --validator-id <id> [--stake <amount>]
+  validator unbond --validator-id <id> [--stake <amount>]
+  validator set-status --validator-id <id> --status <active|inactive|jailed>
+  validator commission-set --validator-id <id> --commission-bps <0..10000>
+  network join-check [--profile <testnet|mainnet>] [--seed <addr>] [--peer <id>] [--genesis <path>] [--trust-root <path|fingerprint>]
+  network join-plan [--profile <testnet|mainnet>] [--seed <addr>] [--peer <id>] [--genesis <path>] [--trust-root <path|fingerprint>]
   stake-delegate
   stake-undelegate
   economy-status
