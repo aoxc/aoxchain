@@ -3,17 +3,14 @@
 // This file is part of the AOXC pre-release codebase.
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 
 /// Post-quantum signature primitives supported by AOXC policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SignatureScheme {
-    MlDsa65,
     Dilithium2,
     Dilithium3,
     Falcon1024,
-    SphincsSha2128f,
     HybridEd25519Dilithium3,
 }
 
@@ -21,11 +18,9 @@ impl SignatureScheme {
     /// Estimated quantum-resistant security level in bits.
     pub fn security_bits(self) -> u16 {
         match self {
-            Self::MlDsa65 => 192,
             Self::Dilithium2 => 128,
             Self::Dilithium3 => 192,
             Self::Falcon1024 => 256,
-            Self::SphincsSha2128f => 128,
             Self::HybridEd25519Dilithium3 => 192,
         }
     }
@@ -35,7 +30,6 @@ impl SignatureScheme {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum KexScheme {
-    MlKem768,
     Kyber768,
     Kyber1024,
     HybridX25519Kyber768,
@@ -45,7 +39,6 @@ impl KexScheme {
     /// Estimated quantum-resistant security level in bits.
     pub fn security_bits(self) -> u16 {
         match self {
-            Self::MlKem768 => 192,
             Self::Kyber768 => 128,
             Self::Kyber1024 => 256,
             Self::HybridX25519Kyber768 => 128,
@@ -84,50 +77,6 @@ pub struct QuantumSecurityConfig {
 }
 
 impl QuantumSecurityConfig {
-    fn to_genesis_signature_name(scheme: SignatureScheme) -> Option<&'static str> {
-        match scheme {
-            SignatureScheme::MlDsa65 => Some("ML-DSA-65"),
-            SignatureScheme::SphincsSha2128f => Some("SLH-DSA-SHA2-128f"),
-            SignatureScheme::Dilithium3 => Some("DILITHIUM3"),
-            SignatureScheme::Dilithium2
-            | SignatureScheme::Falcon1024
-            | SignatureScheme::HybridEd25519Dilithium3 => None,
-        }
-    }
-
-    fn to_genesis_kem_name(scheme: KexScheme) -> Option<&'static str> {
-        match scheme {
-            KexScheme::MlKem768 => Some("ML-KEM-768"),
-            KexScheme::Kyber1024 => Some("ML-KEM-1024"),
-            KexScheme::Kyber768 => Some("KYBER-768"),
-            KexScheme::HybridX25519Kyber768 => Some("X25519+KYBER-768"),
-        }
-    }
-
-    fn to_kernel_signature_scheme(
-        scheme: SignatureScheme,
-    ) -> Option<aoxcore::protocol::quantum::SignatureScheme> {
-        match scheme {
-            SignatureScheme::MlDsa65 => Some(aoxcore::protocol::quantum::SignatureScheme::MlDsa65),
-            SignatureScheme::Dilithium3 => {
-                Some(aoxcore::protocol::quantum::SignatureScheme::Dilithium3)
-            }
-            SignatureScheme::SphincsSha2128f => {
-                Some(aoxcore::protocol::quantum::SignatureScheme::SphincsSha2128f)
-            }
-            SignatureScheme::Dilithium2
-            | SignatureScheme::Falcon1024
-            | SignatureScheme::HybridEd25519Dilithium3 => None,
-        }
-    }
-
-    fn to_kernel_kem(scheme: KexScheme) -> Option<aoxcore::protocol::quantum::KemScheme> {
-        match scheme {
-            KexScheme::MlKem768 => Some(aoxcore::protocol::quantum::KemScheme::MlKem768),
-            KexScheme::Kyber768 | KexScheme::Kyber1024 | KexScheme::HybridX25519Kyber768 => None,
-        }
-    }
-
     /// Returns true if the scheme is explicitly allowed by policy.
     pub fn is_signature_scheme_allowed(&self, scheme: SignatureScheme) -> bool {
         self.key_policy.allowed_signature_schemes.contains(&scheme)
@@ -145,154 +94,6 @@ impl QuantumSecurityConfig {
             .iter()
             .map(|s| s.security_bits())
             .max()
-    }
-
-    /// Converts this config into the kernel quantum profile.
-    ///
-    /// This is the concrete integration point that turns operator policy
-    /// into runtime protocol enforcement.
-    pub fn to_kernel_profile(
-        &self,
-    ) -> Result<aoxcore::protocol::quantum::QuantumKernelProfile, String> {
-        let validation_errors = self.validate();
-        if !validation_errors.is_empty() {
-            return Err(format!(
-                "quantum config must validate before kernel integration: {}",
-                validation_errors.join("; ")
-            ));
-        }
-
-        let mut allowed_signatures = BTreeSet::new();
-        for scheme in &self.key_policy.allowed_signature_schemes {
-            if let Some(kernel_scheme) = Self::to_kernel_signature_scheme(*scheme) {
-                allowed_signatures.insert(kernel_scheme);
-            }
-        }
-
-        if allowed_signatures.is_empty() {
-            return Err(
-                "none of the configured signature schemes are supported by kernel profile"
-                    .to_string(),
-            );
-        }
-
-        let default_signature = if allowed_signatures
-            .contains(&aoxcore::protocol::quantum::SignatureScheme::MlDsa65)
-        {
-            aoxcore::protocol::quantum::SignatureScheme::MlDsa65
-        } else {
-            *allowed_signatures
-                .iter()
-                .next()
-                .expect("allowed_signatures is not empty")
-        };
-
-        let transport_kem = self
-            .key_policy
-            .allowed_kex_schemes
-            .iter()
-            .find_map(|k| Self::to_kernel_kem(*k))
-            .ok_or_else(|| {
-                "none of the configured kex schemes are supported by kernel profile".to_string()
-            })?;
-
-        let profile = aoxcore::protocol::quantum::QuantumKernelProfile {
-            profile_version: 2,
-            default_signature,
-            fallback_signature: None,
-            allowed_signatures: allowed_signatures.into_iter().collect(),
-            transport_kem,
-            tx_hash_policy: aoxcore::protocol::quantum::HashPolicy::Sha3_256,
-            state_hash_policy: aoxcore::protocol::quantum::HashPolicy::Blake3,
-            legacy_signature_support: false,
-        };
-
-        profile
-            .validate()
-            .map_err(|e| format!("generated kernel profile is invalid: {e}"))?;
-
-        Ok(profile)
-    }
-
-    /// Builds a deterministic genesis quantum policy from runtime config.
-    pub fn to_genesis_quantum_policy(
-        &self,
-    ) -> Result<aoxcore::genesis::QuantumPolicy, String> {
-        let validation_errors = self.validate();
-        if !validation_errors.is_empty() {
-            return Err(format!(
-                "quantum config must validate before genesis conversion: {}",
-                validation_errors.join("; ")
-            ));
-        }
-
-        let pq_signature_schemes = self
-            .key_policy
-            .allowed_signature_schemes
-            .iter()
-            .filter_map(|s| Self::to_genesis_signature_name(*s).map(ToString::to_string))
-            .collect::<Vec<_>>();
-
-        if pq_signature_schemes.is_empty() {
-            return Err(
-                "none of the configured signature schemes can be mapped to genesis quantum policy"
-                    .to_string(),
-            );
-        }
-
-        let handshake_kem = self
-            .key_policy
-            .allowed_kex_schemes
-            .iter()
-            .find_map(|k| Self::to_genesis_kem_name(*k).map(ToString::to_string))
-            .ok_or_else(|| {
-                "none of the configured kex schemes can be mapped to genesis quantum policy"
-                    .to_string()
-            })?;
-
-        Ok(aoxcore::genesis::QuantumPolicy {
-            pq_signature_schemes,
-            classical_signature_schemes: vec!["Ed25519".to_string()],
-            handshake_kem,
-            state_hash: "SHA3-256".to_string(),
-            commitment_hash: "BLAKE3".to_string(),
-            min_signature_threshold: u16::from(self.key_policy.required_signatures),
-            rotation_epoch_blocks: self.key_policy.min_key_rotation_epochs,
-        })
-    }
-
-    /// Builds native-token quantum policy directly from config and network target.
-    pub fn to_native_token_quantum_policy(
-        &self,
-        network: aoxcore::native_token::NativeTokenNetwork,
-    ) -> Result<aoxcore::native_token::NativeTokenQuantumPolicyV1, String> {
-        let profile = self.to_kernel_profile()?;
-        let signature_suite = profile
-            .allowed_signatures
-            .iter()
-            .map(|s| s.as_str().to_string())
-            .collect::<Vec<_>>()
-            .join("+");
-
-        let anti_replay_domain = match network {
-            aoxcore::native_token::NativeTokenNetwork::Mainnet => {
-                "AOXC/NATIVE_TOKEN/MAINNET/V2".to_string()
-            }
-            aoxcore::native_token::NativeTokenNetwork::Testnet => {
-                "AOXC/NATIVE_TOKEN/TESTNET/V2".to_string()
-            }
-            aoxcore::native_token::NativeTokenNetwork::Devnet => {
-                "AOXC/NATIVE_TOKEN/DEVNET/V2".to_string()
-            }
-        };
-
-        Ok(aoxcore::native_token::NativeTokenQuantumPolicyV1 {
-            signature_suite,
-            anti_replay_domain,
-            max_transfer_amount: 10_000_000 * 10_u128.pow(18),
-            max_total_supply: 10_000_000_000 * 10_u128.pow(18),
-            max_proof_tag_len: 4096,
-        })
     }
 
     /// Validate policy integrity and return all violations.
@@ -313,14 +114,6 @@ impl QuantumSecurityConfig {
 
         if self.key_policy.required_signatures == 0 {
             errors.push("key_policy.required_signatures must be greater than zero".to_string());
-        }
-
-        if self.key_policy.required_signatures as usize > self.key_policy.allowed_signature_schemes.len()
-        {
-            errors.push(
-                "key_policy.required_signatures cannot exceed allowed_signature_schemes length"
-                    .to_string(),
-            );
         }
 
         if self.key_policy.allowed_signature_schemes.is_empty() {
@@ -378,17 +171,11 @@ impl Default for QuantumSecurityConfig {
                 required_signatures: 2,
                 enable_hybrid_signatures: true,
                 allowed_signature_schemes: vec![
-                    SignatureScheme::MlDsa65,
                     SignatureScheme::Dilithium3,
                     SignatureScheme::Falcon1024,
-                    SignatureScheme::SphincsSha2128f,
                     SignatureScheme::HybridEd25519Dilithium3,
                 ],
-                allowed_kex_schemes: vec![
-                    KexScheme::MlKem768,
-                    KexScheme::Kyber1024,
-                    KexScheme::HybridX25519Kyber768,
-                ],
+                allowed_kex_schemes: vec![KexScheme::Kyber1024, KexScheme::HybridX25519Kyber768],
             },
             audit_policy: QuantumAuditPolicy {
                 enforce_attestation: true,
@@ -435,56 +222,5 @@ mod tests {
         cfg.key_policy.allowed_kex_schemes.clear();
 
         assert!(cfg.validate().is_empty());
-    }
-
-    #[test]
-    fn quantum_config_converts_into_valid_kernel_profile() {
-        let cfg = QuantumSecurityConfig::default();
-        let profile = cfg
-            .to_kernel_profile()
-            .expect("default config should convert to kernel profile");
-
-        assert!(profile.validate().is_ok());
-        assert!(profile.supports_signature(aoxcore::protocol::quantum::SignatureScheme::MlDsa65));
-    }
-
-    #[test]
-    fn kernel_profile_conversion_fails_when_schemes_are_not_kernel_compatible() {
-        let mut cfg = QuantumSecurityConfig::default();
-        cfg.key_policy.allowed_signature_schemes = vec![
-            SignatureScheme::Dilithium2,
-            SignatureScheme::Falcon1024,
-            SignatureScheme::HybridEd25519Dilithium3,
-        ];
-        cfg.key_policy.allowed_kex_schemes = vec![KexScheme::Kyber1024];
-
-        let err = cfg
-            .to_kernel_profile()
-            .expect_err("conversion should fail without kernel-compatible algorithms");
-        assert!(err.contains("supported by kernel profile"));
-    }
-
-    #[test]
-    fn quantum_config_converts_to_genesis_policy() {
-        let cfg = QuantumSecurityConfig::default();
-        let policy = cfg
-            .to_genesis_quantum_policy()
-            .expect("default config should convert to genesis policy");
-
-        assert_eq!(policy.handshake_kem, "ML-KEM-768");
-        assert!(!policy.pq_signature_schemes.is_empty());
-        assert_eq!(policy.state_hash, "SHA3-256");
-    }
-
-    #[test]
-    fn quantum_config_converts_to_native_token_policy() {
-        let cfg = QuantumSecurityConfig::default();
-        let policy = cfg
-            .to_native_token_quantum_policy(aoxcore::native_token::NativeTokenNetwork::Mainnet)
-            .expect("default config should convert to native token policy");
-
-        assert_eq!(policy.anti_replay_domain, "AOXC/NATIVE_TOKEN/MAINNET/V2");
-        assert!(policy.signature_suite.contains("ml-dsa-65"));
-        assert!(policy.max_proof_tag_len > 0);
     }
 }

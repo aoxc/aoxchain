@@ -95,7 +95,7 @@ mod tests {
         cfg.quantum.key_policy.allowed_signature_schemes.clear();
 
         let errs = cfg.validate().expect_err("config should be invalid");
-        assert_eq!(errs.len(), 8);
+        assert_eq!(errs.len(), 7);
         assert!(errs.iter().any(|e| e.starts_with("chain:")));
         assert!(errs.iter().any(|e| e.starts_with("contracts:")));
         assert!(errs.iter().any(|e| e.starts_with("mainnet:")));
