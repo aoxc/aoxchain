@@ -10,6 +10,7 @@ use std::fmt;
 ///
 /// `10_000 bps = 100.00%`
 pub const BPS_DENOMINATOR: u32 = 10_000;
+const MAX_SCENARIO_MULTIPLIER_BPS: u32 = 50_000;
 
 /// Represents a non-negative fixed-point monetary amount in micro-units.
 ///
@@ -146,6 +147,16 @@ pub struct OperationsInputs {
     pub maintenance_cost_per_period: UnitAmount,
 }
 
+/// Inputs representing explicit costs across AOXChain runtime layers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LayerCostInputs {
+    pub kernel_layer_cost_per_period: UnitAmount,
+    pub consensus_layer_cost_per_period: UnitAmount,
+    pub execution_layer_cost_per_period: UnitAmount,
+    pub settlement_layer_cost_per_period: UnitAmount,
+    pub networking_layer_cost_per_period: UnitAmount,
+}
+
 /// Inputs representing policy-controlled economic components.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyInputs {
@@ -176,9 +187,6 @@ pub struct PolicyInputs {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DemandInputs {
     /// Expected number of economic units supported by the period.
-    ///
-    /// This may represent transferable units, billing units, fee-bearing units,
-    /// or another governance-defined economic denominator.
     pub units_per_period: u64,
 }
 
@@ -197,6 +205,7 @@ pub struct GovernancePolicy {
 pub struct FloorModelInputs {
     pub energy: EnergyInputs,
     pub operations: OperationsInputs,
+    pub layer_costs: LayerCostInputs,
     pub policy: PolicyInputs,
     pub demand: DemandInputs,
 }
@@ -208,6 +217,12 @@ pub struct EconomicFloorReport {
     pub energy_overhead_cost: UnitAmount,
     pub total_energy_cost: UnitAmount,
     pub total_operational_cost: UnitAmount,
+    pub total_layer_cost: UnitAmount,
+    pub kernel_layer_cost: UnitAmount,
+    pub consensus_layer_cost: UnitAmount,
+    pub execution_layer_cost: UnitAmount,
+    pub settlement_layer_cost: UnitAmount,
+    pub networking_layer_cost: UnitAmount,
     pub sustainable_cost: UnitAmount,
     pub continuity_component: UnitAmount,
     pub security_component: UnitAmount,
@@ -219,6 +234,7 @@ pub struct EconomicFloorReport {
     pub tax_component: UnitAmount,
     pub full_network_cost_floor: UnitAmount,
     pub per_unit_floor: UnitAmount,
+    pub quantum_readiness_index_bps: u32,
     pub governance_decision: GovernanceDecision,
     pub audit_notes: Vec<String>,
 }
@@ -229,6 +245,7 @@ pub struct EconomicFloorReport {
 pub struct CostShareBps {
     pub energy: u32,
     pub operations: u32,
+    pub layers: u32,
     pub continuity: u32,
     pub security: u32,
     pub quantum_transition: u32,
@@ -236,6 +253,15 @@ pub struct CostShareBps {
     pub treasury_build: u32,
     pub target_margin: u32,
     pub tax: u32,
+}
+
+/// Scenario projection output for demand sensitivity analysis.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScenarioFloorProjection {
+    pub scenario_label: String,
+    pub demand_multiplier_bps: u32,
+    pub projected_units_per_period: u64,
+    pub report: EconomicFloorReport,
 }
 
 impl EconomicFloorReport {
@@ -250,7 +276,6 @@ impl EconomicFloorReport {
             return EconomicZone::LossZone;
         }
 
-        // HATA DÜZELTİLDİ: BPS 10.000 sınırını aşmamak için marjı (markup) hesaplayıp topluyoruz.
         let markup = self
             .per_unit_floor
             .apply_bps(treasury_build_threshold_bps)
@@ -278,7 +303,8 @@ impl EconomicFloorReport {
         let base_sustainable = self
             .total_energy_cost
             .checked_add(self.total_operational_cost)
-            .ok();
+            .ok()
+            .and_then(|value| value.checked_add(self.total_layer_cost).ok());
         let sustainable = base_sustainable.and_then(|value| {
             value
                 .checked_add(self.continuity_component)
@@ -312,6 +338,7 @@ impl EconomicFloorReport {
         let total = self.full_network_cost_floor.micros();
         let energy = share_bps(self.total_energy_cost.micros(), total);
         let operations = share_bps(self.total_operational_cost.micros(), total);
+        let layers = share_bps(self.total_layer_cost.micros(), total);
         let continuity = share_bps(self.continuity_component.micros(), total);
         let security = share_bps(self.security_component.micros(), total);
         let quantum_transition = share_bps(self.quantum_transition_component.micros(), total);
@@ -321,6 +348,7 @@ impl EconomicFloorReport {
 
         let allocated = energy
             .saturating_add(operations)
+            .saturating_add(layers)
             .saturating_add(continuity)
             .saturating_add(security)
             .saturating_add(quantum_transition)
@@ -332,6 +360,7 @@ impl EconomicFloorReport {
         Some(CostShareBps {
             energy,
             operations,
+            layers,
             continuity,
             security,
             quantum_transition,
@@ -340,6 +369,19 @@ impl EconomicFloorReport {
             target_margin,
             tax,
         })
+    }
+
+    /// Returns kernel-layer ratio within the complete layer-cost bucket.
+    #[must_use]
+    pub fn kernel_layer_ratio_bps(&self) -> Option<u32> {
+        if self.total_layer_cost.is_zero() {
+            return None;
+        }
+
+        Some(share_bps(
+            self.kernel_layer_cost.micros(),
+            self.total_layer_cost.micros(),
+        ))
     }
 }
 
@@ -352,11 +394,30 @@ fn share_bps(part: u128, total: u128) -> u32 {
     (numerator / total) as u32
 }
 
+fn scale_u64_by_bps(value: u64, bps: u32) -> u64 {
+    let weighted = (value as u128).saturating_mul(bps as u128);
+    (weighted / BPS_DENOMINATOR as u128) as u64
+}
+
+fn quantum_readiness_index_bps(
+    sustainable_cost: UnitAmount,
+    quantum_transition_component: UnitAmount,
+    quantum_assurance_component: UnitAmount,
+    security_component: UnitAmount,
+) -> u32 {
+    if sustainable_cost.is_zero() {
+        return 0;
+    }
+
+    let quantum_total = quantum_transition_component
+        .micros()
+        .saturating_add(quantum_assurance_component.micros())
+        .saturating_add(security_component.micros());
+
+    share_bps(quantum_total, sustainable_cost.micros()).min(BPS_DENOMINATOR)
+}
+
 /// AOXC energy and economic floor engine.
-///
-/// This engine does not attempt to predict or command market price. It computes
-/// a deterministic full economic floor representing the minimum sustainable and
-/// treasury-aware cost basis of the network.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct EnergyAnchorEngine;
 
@@ -392,7 +453,17 @@ impl EnergyAnchorEngine {
             .checked_add(inputs.operations.bandwidth_cost_per_period)?
             .checked_add(inputs.operations.maintenance_cost_per_period)?;
 
-        let base_sustainable_cost = total_energy_cost.checked_add(total_operational_cost)?;
+        let total_layer_cost = inputs
+            .layer_costs
+            .kernel_layer_cost_per_period
+            .checked_add(inputs.layer_costs.consensus_layer_cost_per_period)?
+            .checked_add(inputs.layer_costs.execution_layer_cost_per_period)?
+            .checked_add(inputs.layer_costs.settlement_layer_cost_per_period)?
+            .checked_add(inputs.layer_costs.networking_layer_cost_per_period)?;
+
+        let base_sustainable_cost = total_energy_cost
+            .checked_add(total_operational_cost)?
+            .checked_add(total_layer_cost)?;
         let continuity_component =
             base_sustainable_cost.apply_bps(inputs.policy.continuity_buffer_bps)?;
         let security_component =
@@ -419,6 +490,12 @@ impl EnergyAnchorEngine {
         let full_network_cost_floor = pre_tax_full_cost.checked_add(tax_component)?;
         let per_unit_floor =
             full_network_cost_floor.checked_div_u64_ceil(inputs.demand.units_per_period)?;
+        let quantum_readiness_index_bps = quantum_readiness_index_bps(
+            sustainable_cost,
+            quantum_transition_component,
+            quantum_assurance_component,
+            security_component,
+        );
 
         let (governance_decision, audit_notes) = evaluate_governance(
             per_unit_floor,
@@ -432,6 +509,12 @@ impl EnergyAnchorEngine {
             energy_overhead_cost,
             total_energy_cost,
             total_operational_cost,
+            total_layer_cost,
+            kernel_layer_cost: inputs.layer_costs.kernel_layer_cost_per_period,
+            consensus_layer_cost: inputs.layer_costs.consensus_layer_cost_per_period,
+            execution_layer_cost: inputs.layer_costs.execution_layer_cost_per_period,
+            settlement_layer_cost: inputs.layer_costs.settlement_layer_cost_per_period,
+            networking_layer_cost: inputs.layer_costs.networking_layer_cost_per_period,
             sustainable_cost,
             continuity_component,
             security_component,
@@ -443,9 +526,51 @@ impl EnergyAnchorEngine {
             tax_component,
             full_network_cost_floor,
             per_unit_floor,
+            quantum_readiness_index_bps,
             governance_decision,
             audit_notes,
         })
+    }
+
+    /// Runs deterministic demand projections using basis-point multipliers.
+    pub fn project_multi_scenario(
+        &self,
+        base_inputs: &FloorModelInputs,
+        governance: &GovernancePolicy,
+        previous_approved_per_unit_floor: Option<UnitAmount>,
+        emergency_override: bool,
+        demand_multipliers_bps: &[u32],
+    ) -> Result<Vec<ScenarioFloorProjection>, EnergyError> {
+        if demand_multipliers_bps.is_empty() {
+            return Err(EnergyError::InvalidInput(
+                "demand_multipliers_bps must contain at least one scenario".to_owned(),
+            ));
+        }
+
+        let mut projections = Vec::with_capacity(demand_multipliers_bps.len());
+        for multiplier in demand_multipliers_bps {
+            validate_scenario_multiplier_bps(*multiplier)?;
+
+            let mut scenario_inputs = base_inputs.clone();
+            scenario_inputs.demand.units_per_period =
+                scale_u64_by_bps(base_inputs.demand.units_per_period, *multiplier).max(1);
+
+            let report = self.compute(
+                &scenario_inputs,
+                governance,
+                previous_approved_per_unit_floor,
+                emergency_override,
+            )?;
+
+            projections.push(ScenarioFloorProjection {
+                scenario_label: format!("demand-{}bps", multiplier),
+                demand_multiplier_bps: *multiplier,
+                projected_units_per_period: scenario_inputs.demand.units_per_period,
+                report,
+            });
+        }
+
+        Ok(projections)
     }
 }
 
@@ -454,6 +579,21 @@ fn validate_bps(field: &str, value: u32) -> Result<(), EnergyError> {
         return Err(EnergyError::InvalidInput(format!(
             "{field} exceeds maximum basis-point value '{}'",
             BPS_DENOMINATOR
+        )));
+    }
+    Ok(())
+}
+
+fn validate_scenario_multiplier_bps(value: u32) -> Result<(), EnergyError> {
+    if value == 0 {
+        return Err(EnergyError::InvalidInput(
+            "scenario.demand_multiplier_bps must be greater than zero".to_owned(),
+        ));
+    }
+    if value > MAX_SCENARIO_MULTIPLIER_BPS {
+        return Err(EnergyError::InvalidInput(format!(
+            "scenario.demand_multiplier_bps exceeds maximum value '{}'",
+            MAX_SCENARIO_MULTIPLIER_BPS
         )));
     }
     Ok(())

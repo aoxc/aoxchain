@@ -14,6 +14,13 @@ fn base_inputs() -> FloorModelInputs {
             bandwidth_cost_per_period: UnitAmount::from_micros(3_000_000),
             maintenance_cost_per_period: UnitAmount::from_micros(2_000_000),
         },
+        layer_costs: LayerCostInputs {
+            kernel_layer_cost_per_period: UnitAmount::from_micros(4_000_000),
+            consensus_layer_cost_per_period: UnitAmount::from_micros(3_000_000),
+            execution_layer_cost_per_period: UnitAmount::from_micros(2_000_000),
+            settlement_layer_cost_per_period: UnitAmount::from_micros(1_500_000),
+            networking_layer_cost_per_period: UnitAmount::from_micros(1_000_000),
+        },
         policy: PolicyInputs {
             continuity_buffer_bps: 1_000,
             security_reserve_bps: 500,
@@ -49,6 +56,27 @@ fn compute_produces_non_zero_full_floor() {
     assert!(report.full_network_cost_floor.micros() > 0);
     assert!(report.per_unit_floor.micros() > 0);
     assert_eq!(report.governance_decision, GovernanceDecision::Approved);
+}
+
+#[test]
+fn layer_costs_are_tracked_and_consistent() {
+    let engine = EnergyAnchorEngine::new();
+    let report = engine
+        .compute(&base_inputs(), &base_governance(), None, false)
+        .expect("computation must succeed");
+
+    let recomputed = report
+        .kernel_layer_cost
+        .checked_add(report.consensus_layer_cost)
+        .expect("addition must succeed")
+        .checked_add(report.execution_layer_cost)
+        .expect("addition must succeed")
+        .checked_add(report.settlement_layer_cost)
+        .expect("addition must succeed")
+        .checked_add(report.networking_layer_cost)
+        .expect("addition must succeed");
+
+    assert_eq!(recomputed, report.total_layer_cost);
 }
 
 #[test]
@@ -192,7 +220,6 @@ fn realized_value_well_above_floor_is_treasury_build_zone() {
         .compute(&base_inputs(), &base_governance(), None, false)
         .expect("computation must succeed");
 
-    // HATA DÜZELTİLDİ: apply_bps(12_000) yerine marjı alıp üstüne ekliyoruz.
     let margin = report
         .per_unit_floor
         .apply_bps(2_000)
@@ -219,6 +246,17 @@ fn report_consistency_checks_pass_on_compute() {
 }
 
 #[test]
+fn quantum_readiness_index_is_non_zero_for_quantum_budget() {
+    let engine = EnergyAnchorEngine::new();
+    let report = engine
+        .compute(&base_inputs(), &base_governance(), None, false)
+        .expect("computation must succeed");
+
+    assert!(report.quantum_readiness_index_bps > 0);
+    assert!(report.quantum_readiness_index_bps <= BPS_DENOMINATOR);
+}
+
+#[test]
 fn cost_share_bps_sums_to_full_denominator() {
     let engine = EnergyAnchorEngine::new();
     let report = engine
@@ -232,6 +270,7 @@ fn cost_share_bps_sums_to_full_denominator() {
     let sum = shares
         .energy
         .saturating_add(shares.operations)
+        .saturating_add(shares.layers)
         .saturating_add(shares.continuity)
         .saturating_add(shares.security)
         .saturating_add(shares.quantum_transition)
@@ -241,4 +280,39 @@ fn cost_share_bps_sums_to_full_denominator() {
         .saturating_add(shares.tax);
 
     assert_eq!(sum, BPS_DENOMINATOR);
+}
+
+#[test]
+fn kernel_layer_ratio_is_reported() {
+    let engine = EnergyAnchorEngine::new();
+    let report = engine
+        .compute(&base_inputs(), &base_governance(), None, false)
+        .expect("computation must succeed");
+
+    let ratio = report
+        .kernel_layer_ratio_bps()
+        .expect("layer ratio must exist for non-zero layer cost");
+    assert!(ratio > 0);
+}
+
+#[test]
+fn project_multi_scenario_returns_deterministic_projections() {
+    let engine = EnergyAnchorEngine::new();
+    let base = base_inputs();
+    let projections = engine
+        .project_multi_scenario(
+            &base,
+            &base_governance(),
+            None,
+            false,
+            &[8_000, 10_000, 12_000],
+        )
+        .expect("projection must succeed");
+
+    assert_eq!(projections.len(), 3);
+    assert_eq!(projections[0].projected_units_per_period, 80);
+    assert_eq!(projections[1].projected_units_per_period, 100);
+    assert_eq!(projections[2].projected_units_per_period, 120);
+
+    assert!(projections[0].report.per_unit_floor > projections[2].report.per_unit_floor);
 }
