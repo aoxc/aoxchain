@@ -1,6 +1,6 @@
 use super::*;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{collections::BTreeSet, net::IpAddr, path::PathBuf};
 
 pub fn cmd_peer_list(args: &[String]) -> Result<(), AppError> {
     let settings = effective_settings_for_ops()?;
@@ -90,6 +90,11 @@ struct DiscoveryOptions {
     certificate_file_override: Option<PathBuf>,
     certificate_sha256: Option<String>,
     strict_bootnode_id: bool,
+    strict_security: bool,
+    require_official_peers: bool,
+    deny_private_peers: bool,
+    require_bootnodes_sha256: bool,
+    min_peer_count: usize,
 }
 
 impl DiscoveryOptions {
@@ -113,6 +118,13 @@ impl DiscoveryOptions {
         let certificate_sha256 =
             arg_value(args, "--certificate-sha256").and_then(|value| normalize_text(&value, true));
         let strict_bootnode_id = has_flag(args, "--strict-bootnode-id");
+        let strict_security = has_flag(args, "--strict-security");
+        let require_official_peers = strict_security || has_flag(args, "--require-official-peers");
+        let deny_private_peers = strict_security || has_flag(args, "--deny-private-peers");
+        let require_bootnodes_sha256 =
+            strict_security || has_flag(args, "--require-bootnodes-sha256");
+        let min_peer_count =
+            parse_positive_u64_arg(args, "--min-peer-count", 1, "network")?.clamp(1, 256) as usize;
 
         Ok(Self {
             discovery_enabled,
@@ -127,6 +139,11 @@ impl DiscoveryOptions {
             certificate_file_override,
             certificate_sha256,
             strict_bootnode_id,
+            strict_security,
+            require_official_peers,
+            deny_private_peers,
+            require_bootnodes_sha256,
+            min_peer_count,
         })
     }
 }
@@ -135,6 +152,13 @@ fn build_network_snapshot(
     settings: &Settings,
     options: &DiscoveryOptions,
 ) -> Result<NetworkSnapshot, AppError> {
+    if options.require_official_peers && !settings.network.enforce_official_peers {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Official peer enforcement must be enabled for this network query",
+        ));
+    }
+
     let now = Utc::now().to_rfc3339();
     let local_genesis_fp = options
         .genesis_fingerprint_override
@@ -168,6 +192,17 @@ fn build_network_snapshot(
     if options.discovery_enabled {
         let mut discovered = load_profile_bootnodes(settings, &local_genesis_fp, options)?;
         peers.append(&mut discovered);
+    }
+
+    if peers.len() < options.min_peer_count {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Insufficient peer inventory: expected at least {} peer(s), discovered {}",
+                options.min_peer_count,
+                peers.len()
+            ),
+        ));
     }
 
     let probe_target = format!(
@@ -210,6 +245,13 @@ fn load_profile_bootnodes(
             error,
         )
     })?;
+    if options.require_bootnodes_sha256 && options.bootnodes_sha256.is_none() {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Bootnodes integrity hash is required: pass --bootnodes-sha256",
+        ));
+    }
+
     if let Some(expected) = options.bootnodes_sha256.as_ref() {
         verify_sha256_hex(&raw, expected, "bootnodes file")?;
     }
@@ -279,6 +321,9 @@ fn load_profile_bootnodes(
             if options.quantum_only && !quantum_ready {
                 return None;
             }
+            if options.strict_security && !is_strong_bootnode_id(&node_id) {
+                return None;
+            }
             if !known_bootnodes.is_empty() && !known_bootnodes.contains(&node_id) {
                 return None;
             }
@@ -287,6 +332,10 @@ fn load_profile_bootnodes(
                     .bytes()
                     .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
             {
+                return None;
+            }
+
+            if options.deny_private_peers && is_private_or_loopback_peer(&address) {
                 return None;
             }
 
@@ -382,4 +431,62 @@ pub fn cmd_state_root(args: &[String]) -> Result<(), AppError> {
     };
 
     emit_serialized(&response, output_format(args))
+}
+
+fn is_strong_bootnode_id(node_id: &str) -> bool {
+    node_id.len() >= 16
+        && node_id.bytes().any(|byte| byte.is_ascii_lowercase())
+        && node_id.bytes().any(|byte| byte.is_ascii_digit())
+        && node_id
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+}
+
+fn is_private_or_loopback_peer(address: &str) -> bool {
+    let host = address
+        .rsplit_once(':')
+        .map(|(host, _)| host.trim_matches(|c| c == '[' || c == ']'))
+        .unwrap_or(address);
+
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+
+    match host.parse::<IpAddr>() {
+        Ok(IpAddr::V4(ip)) => ip.is_private() || ip.is_loopback() || ip.is_link_local(),
+        Ok(IpAddr::V6(ip)) => {
+            ip.is_loopback() || ip.is_unique_local() || ip.is_unicast_link_local()
+        }
+        Err(_) => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_enables_strict_security_bundle() {
+        let args = vec!["--strict-security".to_string()];
+        let options = DiscoveryOptions::parse(&args).expect("strict parse should succeed");
+        assert!(options.strict_security);
+        assert!(options.require_official_peers);
+        assert!(options.deny_private_peers);
+        assert!(options.require_bootnodes_sha256);
+    }
+
+    #[test]
+    fn private_or_loopback_peer_detection_handles_common_hosts() {
+        assert!(is_private_or_loopback_peer("127.0.0.1:26656"));
+        assert!(is_private_or_loopback_peer("10.0.0.15:26656"));
+        assert!(is_private_or_loopback_peer("localhost:26656"));
+        assert!(!is_private_or_loopback_peer("8.8.8.8:26656"));
+    }
+
+    #[test]
+    fn strict_bootnode_rule_requires_entropy() {
+        assert!(is_strong_bootnode_id("peeralpha9beta123"));
+        assert!(!is_strong_bootnode_id("short-id1"));
+        assert!(!is_strong_bootnode_id("onlylettersbootnode"));
+    }
 }

@@ -112,12 +112,37 @@ impl P2PNetwork {
     ///
     /// Returns `true` when the candidate is accepted.
     pub fn ingest_discovery_candidate(&mut self, candidate: PeerCandidate) -> bool {
+        self.ingest_discovery_candidate_checked(candidate).is_ok()
+    }
+
+    /// Ingests a discovery candidate with explicit error reporting.
+    ///
+    /// This method enforces structural candidate validation, local policy
+    /// toggles, and genesis-fingerprint cohort matching before admission.
+    pub fn ingest_discovery_candidate_checked(
+        &mut self,
+        candidate: PeerCandidate,
+    ) -> Result<(), NetworkError> {
         if !self.auto_discovery_enabled {
-            return false;
+            return Err(NetworkError::PeerAdmissionDenied(
+                "auto-discovery ingestion is disabled".to_string(),
+            ));
         }
 
-        self.discovery
+        candidate
+            .validate()
+            .map_err(|code| NetworkError::InvalidDiscoveryCandidate(code.to_string()))?;
+
+        if !self
+            .discovery
             .add_seed_for_genesis(&self.local_genesis_fingerprint, candidate)
+        {
+            return Err(NetworkError::PeerAdmissionDenied(
+                "discovery candidate denied by local admission policy".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 
     /// Returns deterministic RPC bootstrap surfaces selected from discovery.

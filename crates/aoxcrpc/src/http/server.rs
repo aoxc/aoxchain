@@ -22,6 +22,7 @@ pub struct HttpRequestContext {
     pub request_id: Option<String>,
     pub client_key: String,
     pub content_type: Option<String>,
+    pub authorization_bearer: Option<String>,
     pub mtls_fingerprint: Option<String>,
 }
 
@@ -31,6 +32,7 @@ impl Default for HttpRequestContext {
             request_id: None,
             client_key: "anonymous".to_string(),
             content_type: None,
+            authorization_bearer: None,
             mtls_fingerprint: None,
         }
     }
@@ -193,7 +195,7 @@ impl HttpRpcServer {
             };
 
             if payload.len() > self.config.max_json_body_bytes {
-                return Err(RpcError::InvalidRequest);
+                return Err(RpcError::PayloadTooLarge);
             }
         }
 
@@ -209,7 +211,36 @@ impl HttpRpcServer {
             }
         }
 
+        if self.requires_api_key(method, path) {
+            let api_key = context
+                .authorization_bearer
+                .as_deref()
+                .ok_or(RpcError::ApiKeyAuthFailed)?;
+
+            if !self.is_valid_api_key(api_key) {
+                return Err(RpcError::ApiKeyAuthFailed);
+            }
+        }
+
         Ok(())
+    }
+
+    fn requires_api_key(&self, method: &str, path: &str) -> bool {
+        self.config.require_api_key_for_write_routes
+            && method == "POST"
+            && matches!(
+                path,
+                "/contracts/register"
+                    | "/contracts/activate"
+                    | "/contracts/deprecate"
+                    | "/contracts/revoke"
+            )
+    }
+
+    fn is_valid_api_key(&self, presented_key: &str) -> bool {
+        self.config.api_keys.iter().any(|configured_key| {
+            constant_time_eq(configured_key.as_bytes(), presented_key.as_bytes())
+        })
     }
 
     fn requires_mtls(&self, path: &str) -> bool {
@@ -299,10 +330,24 @@ impl HttpRpcServer {
 fn status_for_guard_error(error: &RpcError) -> u16 {
     match error {
         RpcError::MtlsAuthFailed => 401,
+        RpcError::ApiKeyAuthFailed => 401,
         RpcError::RateLimitExceeded { .. } => 429,
+        RpcError::PayloadTooLarge => 413,
         RpcError::InvalidRequest => 400,
         _ => 403,
     }
+}
+
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+
+    let diff = left
+        .iter()
+        .zip(right.iter())
+        .fold(0_u8, |acc, (&a, &b)| acc | (a ^ b));
+    diff == 0
 }
 
 fn parse_error(message: &str, request_id: Option<String>) -> RpcErrorResponse {
@@ -408,5 +453,82 @@ mod tests {
 
         assert_eq!(second.status, 429);
         assert!(second.body.contains("RATE_LIMIT_EXCEEDED"));
+    }
+
+    #[test]
+    fn write_route_requires_api_key_when_enabled() {
+        let config = RpcConfig {
+            api_keys: vec!["ops-token".to_string()],
+            ..RpcConfig::default()
+        };
+        let mut server = HttpRpcServer::new(config);
+        server.set_mtls_policy(Some(MtlsPolicy::new(vec!["fp-1".to_string()])));
+
+        let response = server
+            .handle_json_with_context(
+                "POST",
+                "/contracts/register",
+                Some("{\"contract_id\":\"c1\",\"manifest\":\"m\"}"),
+                HttpRequestContext {
+                    content_type: Some("application/json".to_string()),
+                    mtls_fingerprint: Some("fp-1".to_string()),
+                    ..HttpRequestContext::default()
+                },
+            )
+            .expect_err("missing api key must be rejected");
+
+        assert_eq!(response.status, 401);
+        assert!(response.body.contains("API_KEY_AUTH_FAILED"));
+    }
+
+    #[test]
+    fn write_route_accepts_valid_api_key() {
+        let config = RpcConfig {
+            api_keys: vec!["ops-token".to_string()],
+            ..RpcConfig::default()
+        };
+        let mut server = HttpRpcServer::new(config);
+        server.set_mtls_policy(Some(MtlsPolicy::new(vec!["fp-1".to_string()])));
+
+        let response = server
+            .handle_json_with_context(
+                "POST",
+                "/contracts/register",
+                Some("{}"),
+                HttpRequestContext {
+                    content_type: Some("application/json".to_string()),
+                    mtls_fingerprint: Some("fp-1".to_string()),
+                    authorization_bearer: Some("ops-token".to_string()),
+                    ..HttpRequestContext::default()
+                },
+            )
+            .expect_err("request body should fail schema validation after auth");
+
+        assert_ne!(response.status, 401);
+        assert!(!response.body.contains("API_KEY_AUTH_FAILED"));
+    }
+
+    #[test]
+    fn oversized_payload_returns_413() {
+        let config = RpcConfig {
+            max_json_body_bytes: 4,
+            ..RpcConfig::default()
+        };
+        let mut server = HttpRpcServer::new(config);
+
+        let response = server
+            .handle_json_with_context(
+                "POST",
+                "/contracts/get",
+                Some("{\"a\":1}"),
+                HttpRequestContext {
+                    content_type: Some("application/json".to_string()),
+                    ..HttpRequestContext::default()
+                },
+            )
+            .expect_err("oversized body must be rejected");
+
+        assert_eq!(response.status, 413);
+        assert!(response.body.contains("PAYLOAD_TOO_LARGE"));
     }
 }

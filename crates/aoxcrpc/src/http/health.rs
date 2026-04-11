@@ -208,6 +208,7 @@ mod tests {
             tls_cert_path: "Cargo.toml".to_string(),
             tls_key_path: "README.md".to_string(),
             mtls_ca_cert_path: Some("Cargo.toml".to_string()),
+            api_keys: vec!["ops-token".to_string()],
             ..RpcConfig::default()
         };
 

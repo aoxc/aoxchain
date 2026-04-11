@@ -55,10 +55,290 @@ pub fn detect_language(_args: &[String]) -> &'static str {
 
 /// Returns a stable unknown-command application error.
 pub fn localized_unknown_command(_lang: &str, command: &str) -> AppError {
+    let suggestion = suggest_command(command)
+        .map(|value| format!(" Did you mean '{value}'?"))
+        .unwrap_or_else(|| " Use 'aoxc --help' to list supported commands.".to_string());
+
     AppError::new(
         ErrorCode::UsageUnknownCommand,
-        format!("Unknown command: {command}"),
+        format!("Unknown command: {command}.{suggestion}"),
     )
+}
+
+/// Returns true when the argument slice requests command help.
+pub fn asks_for_help(args: &[String]) -> bool {
+    args.first()
+        .map(|value| matches!(value.as_str(), "help" | "--help" | "-h"))
+        .unwrap_or(false)
+}
+
+/// Returns true when a single token requests help.
+pub fn is_help_token(value: &str) -> bool {
+    matches!(value, "help" | "--help" | "-h")
+}
+
+/// Prints help for a group/subcommand pair.
+///
+/// Returns `true` when a dedicated subcommand help surface exists.
+pub fn print_subcommand_usage(group: &str, subcommand: &str) -> bool {
+    let body = match (group, subcommand) {
+        ("chain", "init") => {
+            "USAGE\n  aoxc chain init [--profile <localnet|devnet|validation|testnet|mainnet>]"
+        }
+        ("chain", "create") => {
+            "USAGE\n  aoxc chain create --password <secret> [--profile <testnet|mainnet>]"
+        }
+        ("chain", "start") => "USAGE\n  aoxc chain start [--continuous|--bounded] [--rounds <n>]",
+        ("chain", "status") => "USAGE\n  aoxc chain status",
+        ("chain", "doctor") => "USAGE\n  aoxc chain doctor",
+        ("chain", "consensus-audit") => "USAGE\n  aoxc chain consensus-audit [--profile <name>]",
+        ("chain", "demo") => "USAGE\n  aoxc chain demo",
+
+        ("genesis", "init") => "USAGE\n  aoxc genesis init",
+        ("genesis", "add-validator") => {
+            "USAGE\n  aoxc genesis add-validator --validator-id <id> --consensus-public-key <hex> --network-public-key <hex>"
+        }
+        ("genesis", "add-account") => {
+            "USAGE\n  aoxc genesis add-account --account-id <id> --balance <amount>"
+        }
+        ("genesis", "build" | "verify") => {
+            "USAGE\n  aoxc genesis build [--strict]\n  aoxc genesis verify [--strict]"
+        }
+        ("genesis", "finalize" | "seal" | "sign" | "freeze" | "production-gate") => {
+            "USAGE\n  aoxc genesis finalize [--profile <localnet|devnet|validation|testnet|mainnet>] [--strict]"
+        }
+        ("genesis", "inspect") => "USAGE\n  aoxc genesis inspect",
+        ("genesis", "template-advanced") => {
+            "USAGE\n  aoxc genesis template-advanced [--out <path>]"
+        }
+        ("genesis", "advanced-system") => {
+            "USAGE\n  aoxc genesis advanced-system [--profile <name>] [--out <path>]"
+        }
+        ("genesis", "security-audit") => "USAGE\n  aoxc genesis security-audit",
+        ("genesis", "start") => "USAGE\n  aoxc genesis start [--profile <name>] [--strict]",
+        ("genesis", "fingerprint") => "USAGE\n  aoxc genesis fingerprint",
+
+        ("validator", "create") => "USAGE\n  aoxc validator create --password <secret>",
+        ("validator", "join" | "register") => {
+            "USAGE\n  aoxc validator join --validator-id <id> --password <secret>"
+        }
+        ("validator", "activate" | "bond") => {
+            "USAGE\n  aoxc validator activate --validator-id <id> [--stake <amount>]"
+        }
+        ("validator", "unbond") => {
+            "USAGE\n  aoxc validator unbond --validator-id <id> [--stake <amount>]"
+        }
+        ("validator", "set-status") => {
+            "USAGE\n  aoxc validator set-status --validator-id <id> --status <active|jailed|inactive>"
+        }
+        ("validator", "commission-set") => {
+            "USAGE\n  aoxc validator commission-set --validator-id <id> --commission-bps <0-10000>"
+        }
+        ("validator", "inspect" | "status") => "USAGE\n  aoxc validator inspect",
+        ("validator", "rotate-key") => "USAGE\n  aoxc validator rotate-key --password <secret>",
+
+        ("wallet", "create") => {
+            "USAGE\n  aoxc wallet create --name <name> --profile <name> --password <secret>"
+        }
+        ("wallet", "balance") => "USAGE\n  aoxc wallet balance",
+
+        ("account", "fund") => "USAGE\n  aoxc account fund --to <account-id> --amount <value>",
+
+        ("node", "init") => "USAGE\n  aoxc node init",
+        ("node", "join") => "USAGE\n  aoxc node join --seed <multiaddr|ip:port>",
+        ("node", "start") => "USAGE\n  aoxc node start [--continuous|--bounded]",
+        ("node", "status") => "USAGE\n  aoxc node status",
+        ("node", "doctor") => "USAGE\n  aoxc node doctor",
+
+        ("network", "create") => "USAGE\n  aoxc network create --password <secret>",
+        ("network", "join" | "peer-add" | "seed-add" | "bootstrap-peer-add") => {
+            "USAGE\n  aoxc network join --seed <multiaddr|ip:port>"
+        }
+        ("network", "start") => "USAGE\n  aoxc network start",
+        ("network", "status" | "verify") => "USAGE\n  aoxc network status",
+        ("network", "join-check") => "USAGE\n  aoxc network join-check",
+        ("network", "identity-gate") => "USAGE\n  aoxc network identity-gate [--enforce]",
+        ("network", "doctor") => "USAGE\n  aoxc network doctor",
+
+        ("query", "chain") => "USAGE\n  aoxc query chain [status|block|tx|receipt]",
+        ("query", "consensus") => {
+            "USAGE\n  aoxc query consensus [status|validators|proposer|round|finality|commits|evidence]"
+        }
+        ("consensus", "status") => {
+            "USAGE\n  aoxc consensus status [--strict] [--expected-network-id <u32>] [--min-finalized-height <u64>] [--format <text|json|yaml>]"
+        }
+        ("consensus", "validators" | "validator-set") => {
+            "USAGE\n  aoxc consensus validators [--only-active] [--min-voting-power <u64>] [--validator-id <id>] [--format <text|json|yaml>]"
+        }
+        ("consensus", "proposer") => {
+            "USAGE\n  aoxc consensus proposer [--height <u64>] [--round <u64>] [--expected-proposer <id>] [--format <text|json|yaml>]"
+        }
+        ("consensus", "round") => {
+            "USAGE\n  aoxc consensus round [--min-round <u64>] [--expect-quorum] [--format <text|json|yaml>]"
+        }
+        ("consensus", "finality") => {
+            "USAGE\n  aoxc consensus finality [--max-pending-height <u64>] [--require-quorum-certificate] [--format <text|json|yaml>]"
+        }
+        ("consensus", "commits") => {
+            "USAGE\n  aoxc consensus commits [--round <u64>] [--min-commits <u64>] [--format <text|json|yaml>]"
+        }
+        ("consensus", "evidence") => {
+            "USAGE\n  aoxc consensus evidence [--require-qc] [--require-evidence <prevote|precommit|commit>] [--format <text|json|yaml>]"
+        }
+        ("query", "vm") => {
+            "USAGE\n  aoxc query vm [status|call|simulate|storage|contract|code|estimate-gas|trace]"
+        }
+        ("query", "full") => "USAGE\n  aoxc query full",
+        (
+            "query",
+            "block" | "tx" | "receipt" | "account" | "balance" | "network" | "runtime"
+            | "state-root" | "rpc",
+        ) => {
+            "USAGE\n  aoxc query <block|tx|receipt|account|balance|network|runtime|state-root|rpc>"
+        }
+
+        ("tx", "transfer") => "USAGE\n  aoxc tx transfer --to <account-id> --amount <value>",
+        ("tx", "stake") => {
+            "USAGE\n  aoxc tx stake <delegate|undelegate> --to <validator-id> --amount <value>"
+        }
+
+        ("api", "status" | "rpc") => "USAGE\n  aoxc api status",
+        ("api", "contract" | "api-contract") => "USAGE\n  aoxc api contract",
+        ("api", "smoke" | "curl-smoke") => "USAGE\n  aoxc api smoke",
+        ("api", "metrics") => "USAGE\n  aoxc api metrics",
+        ("api", "health") => "USAGE\n  aoxc api health",
+        ("api", "full") => "USAGE\n  aoxc api full",
+        (
+            "api",
+            "chain" | "consensus" | "vm" | "block" | "tx" | "receipt" | "account" | "balance"
+            | "state-root" | "network" | "runtime",
+        ) => {
+            "USAGE\n  aoxc api <chain|consensus|vm|block|tx|receipt|account|balance|state-root|network|runtime>"
+        }
+
+        ("stake", "delegate") => {
+            "USAGE\n  aoxc stake delegate --to <validator-id> --amount <value>"
+        }
+        ("stake", "undelegate") => {
+            "USAGE\n  aoxc stake undelegate --to <validator-id> --amount <value>"
+        }
+        ("stake", "validators" | "rewards") => "USAGE\n  aoxc stake <validators|rewards>",
+
+        ("doctor", "network" | "node" | "runtime") => "USAGE\n  aoxc doctor <network|node|runtime>",
+
+        ("audit", "chain" | "genesis" | "validator-set") => {
+            "USAGE\n  aoxc audit <chain|genesis|validator-set>"
+        }
+        _ => return false,
+    };
+
+    println!("{body}");
+    true
+}
+
+/// Prints concise help for a routed command group.
+pub fn print_group_usage(group: &str) {
+    let body = match group {
+        "chain" => {
+            "GROUP: chain\n  init             Initialize local chain configuration\n  create           Bootstrap production profile and keys\n  start            Run node production loop\n  status           Query runtime status\n  doctor           Run diagnostics doctor\n  consensus-audit  Validate consensus profile coherence\n  demo             Run deterministic local demo\n\nEXAMPLES\n  aoxc chain init --profile testnet\n  aoxc chain create --password <secret> --profile mainnet\n  aoxc chain status"
+        }
+        "genesis" => {
+            "GROUP: genesis\n  init              Initialize genesis document\n  add-validator     Add validator entry\n  add-account       Add funded account\n  build|verify      Validate genesis integrity\n  finalize|seal|sign|freeze\n                    Run production gate and freeze semantics\n  inspect           Print genesis document\n  fingerprint       Print deterministic genesis hash\n\nEXAMPLES\n  aoxc genesis init\n  aoxc genesis add-validator --validator-id val1 --consensus-public-key <hex> --network-public-key <hex>\n  aoxc genesis finalize --profile mainnet --strict"
+        }
+        "validator" => {
+            "GROUP: validator\n  create            Create validator keys and identity\n  join|register     Register validator in runtime\n  activate          Activate validator\n  unbond            Unbond validator stake\n  set-status        Update validator status\n  commission-set    Update validator commission\n  inspect|status    Inspect local validator key material\n  rotate-key        Rotate validator keys\n\nEXAMPLES\n  aoxc validator create --password <secret>\n  aoxc validator join --validator-id val1 --password <secret>"
+        }
+        "wallet" => {
+            "GROUP: wallet\n  create            Create operator wallet/account\n  balance           Show runtime economy status\n\nEXAMPLES\n  aoxc wallet create --name validator-01 --profile testnet --password <secret>\n  aoxc wallet balance"
+        }
+        "account" => {
+            "GROUP: account\n  fund              Treasury transfer to an account\n\nEXAMPLES\n  aoxc account fund --to <account-id> --amount 100"
+        }
+        "node" => {
+            "GROUP: node\n  init              Bootstrap local node runtime\n  join              Join network using a seed peer\n  start             Run node loop\n  status            Probe node health\n  doctor            Run diagnostics doctor\n\nEXAMPLES\n  aoxc node join --seed 127.0.0.1:19101\n  aoxc node start --continuous"
+        }
+        "network" => {
+            "GROUP: network\n  create            Create dual profile network artifacts\n  join              Alias for node join\n  start             Run network smoke/demo flow\n  status|verify     Execute network smoke checks\n  join-check        Verify network join preconditions\n  identity-gate     Enforce network identity policy\n  doctor            Run diagnostics doctor\n\nEXAMPLES\n  aoxc network status\n  aoxc network identity-gate --enforce"
+        }
+        "role" => {
+            "GROUP: role\n  list              List role model\n  status            Render role model status\n  activate-core7    Activate core7 profile\n\nEXAMPLES\n  aoxc role list\n  aoxc role activate-core7"
+        }
+        "query" => {
+            "GROUP: query\n  chain             Chain status and block/tx queries\n  consensus         Consensus diagnostics\n  vm                VM diagnostics and contract inspection\n  full              Aggregate account/tx/network projection\n  block|tx|receipt|account|balance\n                    Direct single-surface queries\n  network           Network status/peer/full projection\n  runtime           Runtime status and snapshots\n  state-root        Query state root\n  rpc               Query RPC status\n\nEXAMPLES\n  aoxc query chain status\n  aoxc query vm trace"
+        }
+        "consensus" => {
+            "GROUP: consensus\n  status            Consensus status with strict assertions\n  validators        Validator set and voting-power filters\n  proposer          Proposer projection with expectation checks\n  round             Round diagnostics with quorum expectation\n  finality          Finality projection and pending-bound enforcement\n  commits           Commit vote projection with minimum-count checks\n  evidence          Evidence/QC projection with required-item checks\n\nEXAMPLES\n  aoxc consensus status --strict --expected-network-id 2626\n  aoxc consensus validators --only-active --min-voting-power 1\n  aoxc consensus evidence --require-qc --require-evidence commit"
+        }
+        "api" => {
+            "GROUP: api\n  status|rpc        RPC status\n  contract          API contract descriptor\n  smoke             RPC curl smoke validation\n  metrics           Metrics projection\n  health            Runtime health surface\n  full              Aggregate projection\n  chain|consensus|vm|network|runtime\n                    Routed query aliases\n\nEXAMPLES\n  aoxc api status\n  aoxc api full --account-id <id>"
+        }
+        "tx" => {
+            "GROUP: tx\n  transfer          Treasury transfer alias\n  stake delegate    Stake delegation flow\n  stake undelegate  Stake undelegation flow\n\nEXAMPLES\n  aoxc tx transfer --to <account-id> --amount 10\n  aoxc tx stake delegate --to validator-01 --amount 100"
+        }
+        "stake" => {
+            "GROUP: stake\n  delegate          Delegate stake to validator\n  undelegate        Undelegate stake\n  validators        Runtime validator staking overview\n  rewards           Runtime reward overview\n\nEXAMPLES\n  aoxc stake delegate --to validator-01 --amount 250"
+        }
+        "doctor" => {
+            "GROUP: doctor\n  node|network|runtime  Run diagnostics doctor by domain\n\nEXAMPLES\n  aoxc doctor network"
+        }
+        "audit" => {
+            "GROUP: audit\n  chain|genesis|validator-set  Run production audit view\n\nEXAMPLES\n  aoxc audit chain"
+        }
+        _ => "No dedicated help exists for this group yet. Use 'aoxc --help' for the full surface.",
+    };
+
+    println!("{body}");
+}
+
+fn suggest_command(command: &str) -> Option<&'static str> {
+    const CANDIDATES: &[&str] = &[
+        "chain",
+        "genesis",
+        "validator",
+        "wallet",
+        "account",
+        "node",
+        "network",
+        "role",
+        "api",
+        "query",
+        "consensus",
+        "tx",
+        "stake",
+        "doctor",
+        "audit",
+        "version",
+        "help",
+    ];
+
+    CANDIDATES
+        .iter()
+        .map(|candidate| (*candidate, levenshtein(command, candidate)))
+        .filter(|(_, distance)| *distance <= 3)
+        .min_by_key(|(_, distance)| *distance)
+        .map(|(candidate, _)| candidate)
+}
+
+fn levenshtein(a: &str, b: &str) -> usize {
+    let b_chars: Vec<char> = b.chars().collect();
+    let mut costs: Vec<usize> = (0..=b_chars.len()).collect();
+
+    for (i, a_char) in a.chars().enumerate() {
+        let mut diagonal = i;
+        costs[0] = i + 1;
+
+        for (j, b_char) in b_chars.iter().enumerate() {
+            let previous = costs[j + 1];
+            let substitution = diagonal + usize::from(a_char != *b_char);
+            let insertion = costs[j + 1] + 1;
+            let deletion = costs[j] + 1;
+
+            costs[j + 1] = substitution.min(insertion).min(deletion);
+            diagonal = previous;
+        }
+    }
+
+    *costs.last().unwrap_or(&0)
 }
 
 /// Prints the top-level AOXC operator help surface.
@@ -87,6 +367,7 @@ GUIDED GROUPS
   role list|status|activate-core7
   api [status|contract|smoke|metrics|health|full|chain|consensus|vm|block|tx|receipt|account|balance|state-root|network|runtime]
   query chain|consensus|vm|full|block|tx|receipt|account|balance|network|runtime|state-root|rpc
+  consensus status|validators|validator-set|proposer|round|finality|commits|evidence
   tx transfer|stake delegate|stake undelegate
   stake delegate|undelegate|validators|rewards
   doctor [node|network|runtime]
@@ -183,6 +464,13 @@ NODE AND ECONOMY
   query consensus finality
   query consensus commits
   query consensus evidence
+  consensus status [--strict] [--expected-network-id <u32>] [--min-finalized-height <u64>] [--format <text|json|yaml>]
+  consensus validators [--only-active] [--min-voting-power <u64>] [--validator-id <id>] [--format <text|json|yaml>]
+  consensus proposer [--height <u64>] [--round <u64>] [--expected-proposer <id>] [--format <text|json|yaml>]
+  consensus round [--min-round <u64>] [--expect-quorum] [--format <text|json|yaml>]
+  consensus finality [--max-pending-height <u64>] [--require-quorum-certificate] [--format <text|json|yaml>]
+  consensus commits [--round <u64>] [--min-commits <u64>] [--format <text|json|yaml>]
+  consensus evidence [--require-qc] [--require-evidence <prevote|precommit|commit>] [--format <text|json|yaml>]
   query vm status
   query vm call
   query vm simulate
@@ -193,8 +481,8 @@ NODE AND ECONOMY
   query vm trace
   query full [--account-id <id>] [--tx-hash <hash>]
   query network status
-  query network peers [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id]
-  query network full [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id]
+  query network peers [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id] [--strict-security] [--require-official-peers] [--require-bootnodes-sha256] [--deny-private-peers] [--min-peer-count <1..256>]
+  query network full [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id] [--strict-security] [--require-official-peers] [--require-bootnodes-sha256] [--deny-private-peers] [--min-peer-count <1..256>]
   query runtime [status|snapshot] [--action <snapshot|list|prune|restore-latest>] [--keep <n>] [--runtime-root <path>] [--snapshot-dir <path>]
   query state-root
   query rpc
@@ -211,7 +499,7 @@ NODE AND ECONOMY
   tx-receipt --hash <tx-hash>
   account-get --id <account-id>
   balance-get --id <account-id>
-  peer-list [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id]
+  peer-list [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id] [--strict-security] [--require-official-peers] [--require-bootnodes-sha256] [--deny-private-peers] [--min-peer-count <1..256>]
   network-status
   state-root [--height <n>]
   metrics
@@ -413,5 +701,25 @@ fn scalar_to_text(value: &Value) -> String {
         Value::Number(number) => number.to_string(),
         Value::String(text) => text.clone(),
         Value::Array(_) | Value::Object(_) => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{asks_for_help, localized_unknown_command};
+
+    #[test]
+    fn asks_for_help_detects_primary_forms() {
+        assert!(asks_for_help(&["--help".to_string()]));
+        assert!(asks_for_help(&["-h".to_string()]));
+        assert!(asks_for_help(&["help".to_string()]));
+        assert!(!asks_for_help(&["status".to_string()]));
+    }
+
+    #[test]
+    fn unknown_command_error_includes_suggestion_when_close_match_exists() {
+        let error = localized_unknown_command("en", "genessis");
+        let message = error.to_string();
+        assert!(message.contains("Did you mean 'genesis'?"));
     }
 }
