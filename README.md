@@ -1,91 +1,143 @@
-# AOXChain
+<div align="center">
+  <img src="logos/aoxc_transparent.png" alt="AOXChain Logo" width="220" />
 
-AOXChain is a deterministic Layer-1 engineering program focused on policy-governed authority, cryptographic agility, and evidence-gated release operations.
+  # AOXChain
 
-> **Warning — Experimental Repository**
->
-> AOXChain is under active development. Interfaces, runtime behavior, policy profiles, and configuration semantics may change between commits. Do not infer production readiness unless a specific release artifact and associated evidence bundle state it explicitly.
+  **Deterministic Layer-1 Engineering Program**  
+  Policy-governed authority • Cryptographic agility • Evidence-driven operations
 
-## 1. Repository Purpose
+  ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+  ![Status: Experimental](https://img.shields.io/badge/Status-Experimental-orange)
+  ![Rust](https://img.shields.io/badge/Stack-Rust-informational)
+</div>
 
-AOXChain exists to build a blockchain runtime and operational platform that is:
+---
 
-- deterministic under adversarial and concurrent execution conditions,
-- classically secure in current deployment profiles,
-- post-quantum transition capable through explicit governance,
-- auditable through synchronized architecture, scope, security, and testing controls.
+> [!WARNING]
+> **Experimental Repository**  
+> AOXChain is under active development. Interfaces, runtime behavior, policy profiles, and command surfaces may change between commits. Do not infer production readiness unless a specific release artifact and evidence bundle explicitly states it.
 
-No readiness assertion is considered valid without reproducible evidence.
+## 📘 Overview
 
-## 2. Repository Layout
+AOXChain is a policy-first, deterministic blockchain stack designed for auditable, migration-safe operation.
 
-Primary top-level directories and responsibilities:
+Core engineering goals:
 
-- `crates/`: Rust workspace crates for protocol, execution, networking, and operator tooling.
-- `configs/`: environment profiles, topology definitions, policy metadata, and release controls.
-- `docs/`: technical references, implementation blueprints, and operational playbooks.
-- `scripts/`: validation, build, release, and evidence-collection automation.
-- `tests/`: cross-crate and integration-level validation surfaces.
-- `artifacts/`: generated evidence outputs and release-grade records.
-- `models/`: machine-readable governance and readiness models.
-- `contracts/`: contract-facing reference and integration surfaces.
+- deterministic state transitions under adversarial conditions,
+- fail-closed validation before execution,
+- explicit authority domains and policy roots,
+- cryptographic profile agility (including migration windows),
+- evidence-backed readiness assertions.
 
-## 3. Canonical Governance Documents
+---
 
-The following root documents form the repository-level engineering contract:
+## 🧭 Quick Navigation
 
-- `READ.md`: technical contract and non-negotiable invariants.
-- `SCOPE.md`: in-scope boundaries, exclusions, and sensitive change classes.
-- `ARCHITECTURE.md`: component topology, dependency direction, and trust boundaries.
-- `TESTING.md`: required validation gates and readiness evidence expectations.
-- `SECURITY.md`: security posture, disclosure workflow, and priority risk classes.
-- `ROADMAP.md`: phased implementation plan with evidence-based closure criteria.
-- `VERSIONING.md`: version-governance policy and release synchronization requirements.
-- `CONTRIBUTING.md`: contribution protocol, review standards, and merge readiness expectations.
+- [Repository Structure](#-repository-structure)
+- [Governance and Contract Documents](#-governance-and-contract-documents)
+- [Chain Execution Model](#-chain-execution-model)
+- [Primary Components](#-primary-components)
+- [Prerequisites](#-prerequisites)
+- [Command Catalog](#-command-catalog)
+- [Minimum Readiness Baseline](#-minimum-readiness-baseline)
+- [Security, License, and Liability](#-security-license-and-liability)
 
-`READ.md` is intentionally named as the technical contract; it is not a typographical variant of `README.md`.
+---
 
-## 4. Core Components (Representative)
+## 🗂 Repository Structure
 
-- `crates/aoxcmd`: operator CLI for runtime control and readiness workflows.
-- `crates/aoxcvm`: VM and deterministic execution surfaces.
-- `crates/kernel/aoxcore`: canonical protocol domain structures.
-- `crates/kernel/aoxcunity`: consensus kernel and safety-critical transitions.
-- `crates/aoxcnet`: networking, peer transport, and resilience controls.
-- `crates/aoxchub`: operator-facing web and orchestration interface.
-- `crates/aoxconfig`: typed configuration and profile composition surfaces.
+| Path | Purpose |
+|---|---|
+| `crates/` | Rust workspace crates for protocol, consensus, execution, networking, CLI, and operator tooling. |
+| `configs/` | Environment profiles, runtime source files, topology metadata, and policy configuration. |
+| `docs/` | Architecture, operations, and technical references. |
+| `scripts/` | Operational automation and evidence collection helpers. |
+| `tests/` | Integration and cross-component validation surfaces. |
+| `artifacts/` | Generated evidence outputs and release-grade records. |
+| `models/` | Machine-readable governance and readiness models. |
+| `contracts/` | Contract-facing references and integration surfaces. |
 
-For component-specific constraints, review the nearest crate-level `README.md`, `SCOPE.md`, and `ARCHITECTURE.md` files.
+---
 
-## 5. Build and Validation Quick Start
+## 🏛 Governance and Contract Documents
 
-- Rust toolchain compatible with `Cargo.toml` + `Cargo.lock`,
-- POSIX shell,
-- `make`,
-- optional: Docker or Podman for containerized workflows.
+The repository-level engineering contract is anchored by:
 
-- Rust toolchain compatible with `Cargo.toml` and `Cargo.lock`.
-- POSIX-compatible shell environment.
-- `make` for repository-level orchestration.
+- `READ.md` — technical contract and non-negotiable invariants,
+- `SCOPE.md` — in-scope boundaries and sensitive change classes,
+- `ARCHITECTURE.md` — component topology and trust boundaries,
+- `TESTING.md` — validation and release-readiness expectations,
+- `SECURITY.md` — security posture and disclosure process,
+- `ROADMAP.md` — phased execution and closure criteria,
+- `VERSIONING.md` — release and compatibility governance,
+- `CONTRIBUTING.md` — contribution protocol and review discipline.
 
-### Build primary binaries
+`README.md` is the operational entrypoint; `READ.md` is the technical contract.
 
-```bash
-cargo build -p aoxcmd --release
-cargo build -p aoxchub --release
-cargo build -p aoxckit --release
+---
+
+## ⛓ Chain Execution Model
+
+AOXChain follows a strict policy-first pipeline:
+
+1. untrusted ingress enters via operator/service surfaces,
+2. validation executes before any state transition,
+3. kernel-owned consensus truth decides admission,
+4. deterministic execution runs only after admission,
+5. state and evidence records are persisted.
+
+Normative authority sequence:
+
+```text
+actor -> scheme_id -> policy_root -> proof_bundle -> replay_check -> execute
 ```
 
-### Baseline runtime checks
+This model prevents ad-hoc operational override of consensus-relevant truth.
+
+---
+
+## 🧩 Primary Components
+
+- **`aoxc`** (`crates/aoxcmd`) — primary operator CLI.
+- **`aoxchub`** (`crates/aoxchub`) — hub/service orchestration surface.
+- **`aoxckit`** (`crates/aoxckit`) — companion toolkit.
+- **Kernel crates** (`crates/kernel/*`) — canonical consensus and protocol domain ownership.
+
+---
+
+## ⚙️ Prerequisites
+
+Required:
+
+- Rust toolchain compatible with `Cargo.toml` and `Cargo.lock`,
+- POSIX shell,
+- GNU `make`.
+
+Optional:
+
+- Docker or Podman for containerized workflows.
+
+---
+
+## 🛠 Command Catalog
+
+### 1) Discover Available Targets
 
 ```bash
-cargo run -p aoxcmd --bin aoxc -- --help
-cargo run -p aoxchub -- --help
-cargo run -p aoxckit -- --help
 make help
 ```
 
-### Baseline quality and readiness gates
+Use this first to inspect all supported targets for your host and runtime profile.
+
+### 2) Build
+
+```bash
+make build
+make build-release
+make build-release-all
+```
+
+### 3) Code Quality and Validation
 
 ```bash
 make fmt
@@ -96,41 +148,101 @@ make audit
 make quality
 ```
 
-Extended policy/release gates (use as required by scope):
+### 4) Readiness and Extended Assurance Gates
 
 ```bash
-make cargo-deny-gate
-make code-size-gate
-make versioning-gate
-make repo-hygiene-gate
 make production-full
 make phase1-full
 make quantum-readiness-gate
 make aoxcvm-production-closure-gate
 make quantum-full
-```
-
-Testnet readiness surfaces:
-
-```bash
 make testnet-gate
 make testnet-readiness-gate
 ```
 
-## 6. Audit-Readiness Expectations
+### 5) Runtime Lifecycle
 
-For audit-facing changes, contributors should include:
+```bash
+make runtime-source-check
+make runtime-install
+make runtime-verify
+make runtime-activate
+make runtime-status
+make runtime-doctor
+```
 
-- explicit scope statement,
-- risk and trust-boundary impact notes,
-- compatibility or migration implications,
-- command transcript and artifact references tied to commit SHA,
-- synchronized updates to affected governance documents.
+Recommended operational order:
 
-A successful local build is necessary but insufficient for release readiness.
+1. `runtime-source-check`
+2. `runtime-install`
+3. `runtime-verify`
+4. `runtime-activate`
+5. `runtime-status`
+6. `runtime-doctor`
 
-## 7. Security and Liability Context
+### 6) Persistent Chain Bootstrap
 
-AOXChain is licensed under MIT and distributed on an **"AS IS"** basis, without implied warranties.
+```bash
+make chain-help
+make chain-init AOXC_BOOTSTRAP_PROFILE=validation AOXC_VALIDATOR_NAME=validator-01 AOXC_VALIDATOR_PASSWORD='StrongPass#2026'
+make chain-add-account AOXC_NEW_ACCOUNT_ID=AOXC_USER_0001 AOXC_NEW_ACCOUNT_BALANCE=1000000 AOXC_NEW_ACCOUNT_ROLE=user
+make chain-add-validator AOXC_VALIDATOR_ID=aoxc-val-custom-001 AOXC_CONSENSUS_PUBLIC_KEY=<hex> AOXC_NETWORK_PUBLIC_KEY=<hex> AOXC_VALIDATOR_BALANCE=50000000
+make chain-start-persistent
+```
 
-Security posture, disclosure process, and high-priority risk classes are defined in `SECURITY.md`.
+### 7) Operator Workflows
+
+```bash
+make demo
+make localnet
+make devnet
+make testnet
+make doctor
+make audit-chain
+make reset
+```
+
+### 8) Packaging and Release
+
+```bash
+make package-bin
+make package-all-bin
+make package-versioned-bin
+make package-versioned-archive
+make publish-release
+```
+
+Signed release workflow:
+
+```bash
+make repo-release-keygen
+make repo-release-signed
+make repo-release-signed-verify
+make repo-release-prepare
+make repo-release-validate
+```
+
+---
+
+## ✅ Minimum Readiness Baseline
+
+A minimum readiness claim should include the following gates:
+
+```bash
+make build
+make test
+make quality
+make audit
+make testnet-gate
+make testnet-readiness-gate
+```
+
+If required gates fail (or are skipped without approved exception), readiness state should be treated as `NOT_READY`.
+
+---
+
+## 🔐 Security, License, and Liability
+
+AOXChain is distributed under the MIT License and provided on an **"AS IS"** basis, without warranty.
+
+Security posture, disclosure workflow, and high-priority risk classes are documented in `SECURITY.md`.
