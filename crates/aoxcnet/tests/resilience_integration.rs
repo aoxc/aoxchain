@@ -18,7 +18,7 @@ const TEST_DOMAIN_ATTESTATION_HASH: &str = "attestation-1";
 
 const TEST_NETWORK_ID: u32 = 2626;
 const TEST_EPOCH: u64 = 1;
-const TEST_SIGNATURE_SCHEME: u16 = 1;
+const TEST_SIGNATURE_SCHEME: u16 = 2;
 const TEST_MAX_INFLIGHT_FRAMES: usize = 64;
 const TEST_MESSAGE_COUNT: u64 = 12;
 
@@ -26,6 +26,8 @@ const TEST_VOTER: [u8; 32] = [7u8; 32];
 const TEST_VALIDATOR_SET_ROOT: [u8; 32] = [9u8; 32];
 const TEST_PQ_ATTESTATION_ROOT: [u8; 32] = [11u8; 32];
 const TEST_SIGNATURE: [u8; 96] = [1u8; 96];
+const TEST_PQ_PUBLIC_KEY: [u8; 32] = [2u8; 32];
+const TEST_PQ_SIGNATURE: [u8; 32] = [3u8; 32];
 
 fn make_peer() -> Peer {
     let certificate = NodeCertificate {
@@ -70,8 +72,8 @@ fn make_vote(height: u64) -> ConsensusMessage {
         },
         context: make_vote_authentication_context(),
         signature: TEST_SIGNATURE.to_vec(),
-        pq_public_key: None,
-        pq_signature: None,
+        pq_public_key: Some(TEST_PQ_PUBLIC_KEY.to_vec()),
+        pq_signature: Some(TEST_PQ_SIGNATURE.to_vec()),
     })
 }
 

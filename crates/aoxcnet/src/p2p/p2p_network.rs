@@ -244,6 +244,7 @@ impl P2PNetwork {
         let security_mode = self.config.security_mode;
         let canonical_chain_id = self.config.interop.canonical_chain_id().to_string();
         let canonical_protocol_serial = self.config.interop.canonical_protocol_serial();
+        enforce_quantum_resistance_policy(&payload, security_mode)?;
 
         let envelope = {
             let ticket = self
@@ -542,5 +543,74 @@ fn describe_handshake_reject(reason: HandshakeRejectReason) -> &'static str {
         HandshakeRejectReason::CompressionForbidden => "compression is forbidden",
         HandshakeRejectReason::RetryTokenMissing => "retry token missing",
         HandshakeRejectReason::PostQuantumKemMissing => "post-quantum KEM missing",
+    }
+}
+
+fn enforce_quantum_resistance_policy(
+    payload: &ConsensusMessage,
+    security_mode: SecurityMode,
+) -> Result<(), NetworkError> {
+    if matches!(security_mode, SecurityMode::Insecure) {
+        return Ok(());
+    }
+
+    match payload {
+        ConsensusMessage::Vote(vote) => {
+            enforce_vote_signature_scheme(vote.context.signature_scheme, security_mode)?;
+            if vote.context.signature_scheme != SIGNATURE_SCHEME_ED25519 {
+                if vote.pq_public_key.as_ref().is_none_or(|key| key.is_empty()) {
+                    return Err(NetworkError::QuantumPolicyViolation(
+                        "vote is missing post-quantum public key material".to_string(),
+                    ));
+                }
+                if vote.pq_signature.as_ref().is_none_or(|sig| sig.is_empty()) {
+                    return Err(NetworkError::QuantumPolicyViolation(
+                        "vote is missing post-quantum signature material".to_string(),
+                    ));
+                }
+                if vote.context.pq_attestation_root == [0u8; 32] {
+                    return Err(NetworkError::QuantumPolicyViolation(
+                        "vote is missing post-quantum attestation root".to_string(),
+                    ));
+                }
+            }
+        }
+        ConsensusMessage::Finalize { certificate, .. } => {
+            enforce_vote_signature_scheme(certificate.signature_scheme, security_mode)?;
+        }
+        ConsensusMessage::BlockProposal { .. } => {}
+    }
+
+    Ok(())
+}
+
+fn enforce_vote_signature_scheme(
+    signature_scheme: u16,
+    security_mode: SecurityMode,
+) -> Result<(), NetworkError> {
+    match security_mode {
+        SecurityMode::Insecure => Ok(()),
+        SecurityMode::MutualAuth => {
+            if matches!(
+                signature_scheme,
+                SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 | SIGNATURE_SCHEME_DILITHIUM3
+            ) {
+                Ok(())
+            } else {
+                Err(NetworkError::QuantumPolicyViolation(
+                    "mutual-auth mode requires hybrid or post-quantum signature scheme"
+                        .to_string(),
+                ))
+            }
+        }
+        SecurityMode::AuditStrict => {
+            if signature_scheme == SIGNATURE_SCHEME_DILITHIUM3 {
+                Ok(())
+            } else {
+                Err(NetworkError::QuantumPolicyViolation(
+                    "audit-strict mode requires post-quantum signature scheme".to_string(),
+                ))
+            }
+        }
     }
 }

@@ -39,6 +39,8 @@ pub enum NetworkError {
     TransportUnavailable(String),
     #[error("serialization failure: {0}")]
     Serialization(String),
+    #[error("quantum policy violation: {0}")]
+    QuantumPolicyViolation(String),
 }
 
 impl NetworkError {
@@ -61,6 +63,7 @@ impl NetworkError {
             Self::InvalidSyncRequest(_) => "AOXCNET_INVALID_SYNC_REQUEST",
             Self::TransportUnavailable(_) => "AOXCNET_TRANSPORT_UNAVAILABLE",
             Self::Serialization(_) => "AOXCNET_SERIALIZATION",
+            Self::QuantumPolicyViolation(_) => "AOXCNET_QUANTUM_POLICY_VIOLATION",
         }
     }
 }
