@@ -305,8 +305,8 @@ NODE AND ECONOMY
   query vm trace
   query full [--account-id <id>] [--tx-hash <hash>]
   query network status
-  query network peers [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id]
-  query network full [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id]
+  query network peers [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id] [--strict-security] [--require-official-peers] [--require-bootnodes-sha256] [--deny-private-peers] [--min-peer-count <1..256>]
+  query network full [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id] [--strict-security] [--require-official-peers] [--require-bootnodes-sha256] [--deny-private-peers] [--min-peer-count <1..256>]
   query runtime [status|snapshot] [--action <snapshot|list|prune|restore-latest>] [--keep <n>] [--runtime-root <path>] [--snapshot-dir <path>]
   query state-root
   query rpc
@@ -323,7 +323,7 @@ NODE AND ECONOMY
   tx-receipt --hash <tx-hash>
   account-get --id <account-id>
   balance-get --id <account-id>
-  peer-list [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id]
+  peer-list [--no-auto-discovery] [--genesis-fingerprint <hex>] [--bootstrap-limit <1..128>] [--quantum-only] [--include-rpc] [--known-bootnode <node-id>] [--known-bootnode-file <path>] [--bootnodes-file <path>] [--bootnodes-sha256 <hex>] [--certificate-file <path>] [--certificate-sha256 <hex>] [--strict-bootnode-id] [--strict-security] [--require-official-peers] [--require-bootnodes-sha256] [--deny-private-peers] [--min-peer-count <1..256>]
   network-status
   state-root [--height <n>]
   metrics
