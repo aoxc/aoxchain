@@ -9,6 +9,26 @@ use std::{
     sync::{OnceLock, RwLock},
 };
 
+const LEGACY_HOME_CANDIDATES: [&str; 2] = [".aoxc", ".AOXC"];
+const MAIN_LAYOUT_DIRS: [&str; 14] = [
+    "config",
+    "identity",
+    "keys",
+    "wallets",
+    "ledger",
+    "runtime",
+    "runtime/db",
+    "runtime/bin",
+    "runtime/logs",
+    "runtime/snapshots",
+    "telemetry",
+    "reports",
+    "support",
+    "backups",
+];
+const NETWORKS: [&str; 3] = ["mainnet", "testnet", "devnet"];
+const NETWORK_LAYOUT_DIRS: [&str; 5] = ["config", "db", "ledger", "logs", "wallets"];
+
 /// Process-local AOXC home override registry.
 ///
 /// Design rationale:
@@ -128,26 +148,20 @@ pub fn resolve_home() -> Result<PathBuf, AppError> {
 /// - `config/`
 /// - `identity/`
 /// - `keys/`
+/// - `wallets/`
 /// - `ledger/`
-/// - `runtime/`
-/// - `runtime/db/`
-/// - `telemetry/`
-/// - `reports/`
-/// - `support/`
+/// - `runtime/{db,bin,logs,snapshots}`
+/// - `networks/{mainnet,testnet,devnet}/{config,db,ledger,logs,wallets}`
+/// - `telemetry/`, `reports/`, `support/`, `backups/`
+///
+/// Compatibility and safety policy:
+/// - Migrates legacy `$HOME/.aoxc` and `$HOME/.AOXC` content into the canonical
+///   default home on first initialization.
+/// - Writes a deletion guard marker in `support/delete-protection.md`.
 pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
-    let required_dirs = [
-        "config",
-        "identity",
-        "keys",
-        "ledger",
-        "runtime",
-        "runtime/db",
-        "telemetry",
-        "reports",
-        "support",
-    ];
+    maybe_migrate_legacy_home(home)?;
 
-    for relative in required_dirs {
+    for relative in MAIN_LAYOUT_DIRS {
         let dir = home.join(relative);
         fs::create_dir_all(&dir).map_err(|error| {
             AppError::with_source(
@@ -157,6 +171,30 @@ pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
             )
         })?;
     }
+
+    for network in NETWORKS {
+        for relative in NETWORK_LAYOUT_DIRS {
+            let dir = home.join("networks").join(network).join(relative);
+            fs::create_dir_all(&dir).map_err(|error| {
+                AppError::with_source(
+                    ErrorCode::FilesystemIoFailed,
+                    format!("Failed to create directory {}", dir.display()),
+                    error,
+                )
+            })?;
+        }
+    }
+
+    let deletion_protection = home.join("support").join("delete-protection.md");
+    if !deletion_protection.exists() {
+        write_file(
+            &deletion_protection,
+            "AOXC deletion protection guard.\n\nDo not remove this home root recursively without verified backup snapshots and key export validation.\n",
+        )?;
+    }
+
+    harden_directory_permissions(&home.join("keys"))?;
+    harden_directory_permissions(&home.join("wallets"))?;
 
     Ok(())
 }
@@ -221,6 +259,91 @@ pub fn file_permissions_are_hardened(path: &Path) -> Result<bool, AppError> {
     }
 }
 
+fn maybe_migrate_legacy_home(target_home: &Path) -> Result<(), AppError> {
+    let canonical_home = default_home_dir()?;
+    if target_home != canonical_home {
+        return Ok(());
+    }
+
+    if target_home.exists() {
+        return Ok(());
+    }
+
+    let user_home = env::var("HOME").map(PathBuf::from).map_err(|_| {
+        AppError::new(
+            ErrorCode::HomeResolutionFailed,
+            "HOME environment variable is not set",
+        )
+    })?;
+
+    for candidate in LEGACY_HOME_CANDIDATES {
+        let legacy = user_home.join(candidate);
+        if legacy.is_dir() {
+            copy_directory_tree(&legacy, target_home)?;
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+fn copy_directory_tree(source: &Path, destination: &Path) -> Result<(), AppError> {
+    fs::create_dir_all(destination).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to create directory {}", destination.display()),
+            error,
+        )
+    })?;
+
+    for entry in fs::read_dir(source).map_err(|error| {
+        AppError::with_source(
+            ErrorCode::FilesystemIoFailed,
+            format!("Failed to read directory {}", source.display()),
+            error,
+        )
+    })? {
+        let entry = entry.map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!("Failed to read entry in {}", source.display()),
+                error,
+            )
+        })?;
+
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let file_type = entry.file_type().map_err(|error| {
+            AppError::with_source(
+                ErrorCode::FilesystemIoFailed,
+                format!("Failed to inspect {}", source_path.display()),
+                error,
+            )
+        })?;
+
+        if file_type.is_dir() {
+            copy_directory_tree(&source_path, &destination_path)?;
+            continue;
+        }
+
+        if file_type.is_file() && !destination_path.exists() {
+            fs::copy(&source_path, &destination_path).map_err(|error| {
+                AppError::with_source(
+                    ErrorCode::FilesystemIoFailed,
+                    format!(
+                        "Failed to copy {} to {}",
+                        source_path.display(),
+                        destination_path.display()
+                    ),
+                    error,
+                )
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Hardens file permissions for sensitive AOXC artifacts.
 fn harden_file_permissions(path: &Path) -> Result<(), AppError> {
     #[cfg(unix)]
@@ -234,6 +357,28 @@ fn harden_file_permissions(path: &Path) -> Result<(), AppError> {
                 error,
             )
         })?;
+    }
+
+    Ok(())
+}
+
+fn harden_directory_permissions(path: &Path) -> Result<(), AppError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        if path.exists() {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(|error| {
+                AppError::with_source(
+                    ErrorCode::FilesystemIoFailed,
+                    format!(
+                        "Failed to harden directory permissions on {}",
+                        path.display()
+                    ),
+                    error,
+                )
+            })?;
+        }
     }
 
     Ok(())
@@ -295,14 +440,24 @@ mod tests {
             "config",
             "identity",
             "keys",
+            "wallets",
             "ledger",
             "runtime",
             "runtime/db",
+            "runtime/bin",
+            "runtime/logs",
+            "runtime/snapshots",
             "telemetry",
             "reports",
             "support",
+            "backups",
+            "networks/mainnet/config",
+            "networks/mainnet/db",
+            "networks/testnet/ledger",
+            "networks/devnet/logs",
+            "support/delete-protection.md",
         ] {
-            assert!(root.join(relative).is_dir());
+            assert!(root.join(relative).exists(), "missing {relative}");
         }
 
         let _ = std::fs::remove_dir_all(root);
