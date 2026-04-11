@@ -3,4 +3,5 @@
 // This file is part of the AOXC pre-release codebase.
 
 pub mod api;
+pub mod http;
 pub mod mock;
