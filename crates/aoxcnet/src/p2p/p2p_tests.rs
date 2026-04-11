@@ -127,6 +127,33 @@ mod tests {
     }
 
     #[test]
+    fn discovery_ingestion_checked_rejects_invalid_candidate_shape() {
+        let mut net = P2PNetwork::new(NetworkConfig::default());
+        let local = net.local_genesis_fingerprint().to_string();
+        let mut invalid = candidate("peer-1", &local, true);
+        invalid.advertise_addr = "invalid-addr".to_string();
+
+        let err = net
+            .ingest_discovery_candidate_checked(invalid)
+            .expect_err("invalid candidate shape must fail");
+
+        assert!(matches!(err, NetworkError::InvalidDiscoveryCandidate(_)));
+    }
+
+    #[test]
+    fn discovery_ingestion_checked_reports_disabled_auto_discovery() {
+        let mut net = P2PNetwork::new(NetworkConfig::default());
+        net.set_auto_discovery_enabled(false);
+        let local = net.local_genesis_fingerprint().to_string();
+
+        let err = net
+            .ingest_discovery_candidate_checked(candidate("peer-1", &local, true))
+            .expect_err("disabled discovery must reject candidate");
+
+        assert!(matches!(err, NetworkError::PeerAdmissionDenied(_)));
+    }
+
+    #[test]
     fn secure_broadcast_requires_active_session() {
         let mut net = P2PNetwork::new(NetworkConfig::default());
         net.register_peer(test_peer())

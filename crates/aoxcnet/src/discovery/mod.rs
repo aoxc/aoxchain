@@ -3,6 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +19,15 @@ pub struct RpcSurface {
     /// Indicates whether the endpoint profile satisfies elevated
     /// post-quantum readiness policy expectations.
     pub quantum_ready: bool,
+}
+
+impl RpcSurface {
+    /// Validates operator-facing RPC endpoints under strict discovery hygiene.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        validate_endpoint(&self.http_endpoint, false)?;
+        validate_endpoint(&self.jsonrpc_endpoint, true)?;
+        Ok(())
+    }
 }
 
 /// Peer candidate observed by discovery.
@@ -37,6 +47,30 @@ pub struct PeerCandidate {
 
     /// RPC surface metadata published by the candidate.
     pub rpc: RpcSurface,
+}
+
+impl PeerCandidate {
+    /// Validates discovery candidate fields before admission.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.peer_id.trim().is_empty() {
+            return Err("PEER_ID_EMPTY");
+        }
+
+        if self.source.trim().is_empty() {
+            return Err("SOURCE_EMPTY");
+        }
+
+        if self.genesis_fingerprint.trim().is_empty() {
+            return Err("GENESIS_FINGERPRINT_EMPTY");
+        }
+
+        if self.advertise_addr.parse::<SocketAddr>().is_err() {
+            return Err("ADVERTISE_ADDR_INVALID");
+        }
+
+        self.rpc.validate()?;
+        Ok(())
+    }
 }
 
 /// Deterministic discovery table supporting seed registration, genesis-scoped
@@ -61,6 +95,10 @@ impl DiscoveryTable {
         local_genesis_fingerprint: &str,
         candidate: PeerCandidate,
     ) -> bool {
+        if candidate.validate().is_err() {
+            return false;
+        }
+
         if self.denylist.contains(&candidate.peer_id) {
             return false;
         }
@@ -75,7 +113,7 @@ impl DiscoveryTable {
 
     /// Backward-compatible seed insertion that bypasses genesis filtering.
     pub fn add_seed(&mut self, candidate: PeerCandidate) {
-        if !self.denylist.contains(&candidate.peer_id) {
+        if candidate.validate().is_ok() && !self.denylist.contains(&candidate.peer_id) {
             self.seeds.insert(candidate.peer_id.clone(), candidate);
         }
     }
@@ -116,6 +154,31 @@ impl DiscoveryTable {
             .map(|candidate| candidate.rpc)
             .collect()
     }
+}
+
+fn validate_endpoint(endpoint: &str, require_jsonrpc_suffix: bool) -> Result<(), &'static str> {
+    let endpoint = endpoint.trim();
+    if endpoint.is_empty() {
+        return Err("RPC_ENDPOINT_EMPTY");
+    }
+
+    let protocol_ok = endpoint.starts_with("https://")
+        || endpoint.starts_with("http://")
+        || endpoint.starts_with("wss://")
+        || endpoint.starts_with("ws://");
+    if !protocol_ok {
+        return Err("RPC_ENDPOINT_SCHEME_INVALID");
+    }
+
+    if endpoint.chars().any(char::is_whitespace) {
+        return Err("RPC_ENDPOINT_WHITESPACE_FORBIDDEN");
+    }
+
+    if require_jsonrpc_suffix && !endpoint.ends_with("/jsonrpc") {
+        return Err("JSONRPC_ENDPOINT_SUFFIX_INVALID");
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -169,5 +232,21 @@ mod tests {
         assert_eq!(rpc.len(), 2);
         assert!(rpc[0].quantum_ready);
         assert!(!rpc[1].quantum_ready);
+    }
+
+    #[test]
+    fn candidate_with_invalid_advertise_addr_is_rejected() {
+        let mut table = DiscoveryTable::new();
+        let mut bad = peer("a", 5, "g1", true);
+        bad.advertise_addr = "bad-address".to_string();
+        assert!(!table.add_seed_for_genesis("g1", bad));
+    }
+
+    #[test]
+    fn candidate_with_invalid_jsonrpc_endpoint_is_rejected() {
+        let mut table = DiscoveryTable::new();
+        let mut bad = peer("a", 5, "g1", true);
+        bad.rpc.jsonrpc_endpoint = "https://node.mesh.local/rpc".to_string();
+        assert!(!table.add_seed_for_genesis("g1", bad));
     }
 }
