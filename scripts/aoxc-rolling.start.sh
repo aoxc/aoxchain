@@ -77,6 +77,7 @@ require_uint() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --action) AOXC_Q_ACTION="$2"; shift 2 ;;
+    --action=*) AOXC_Q_ACTION="${1#*=}"; shift ;;
     --home) AOXC_Q_HOME="$2"; shift 2 ;;
     --home=*) AOXC_Q_HOME="${1#*=}"; shift ;;
     --env) AOXC_Q_ENV="$2"; shift 2 ;;
@@ -85,7 +86,9 @@ while [[ $# -gt 0 ]]; do
     --mode) AOXC_Q_MODE="$2"; shift 2 ;;
     --mode=*) AOXC_Q_MODE="${1#*=}"; shift ;;
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
+    --nodes=*) AOXC_Q_NODE_COUNT="${1#*=}"; shift ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
+    --rounds=*) AOXC_Q_ROUNDS="${1#*=}"; shift ;;
     --sleep-secs) AOXC_Q_SLEEP_SECS="$2"; shift 2 ;;
     --sleep-min-secs) AOXC_Q_SLEEP_MIN_SECS="$2"; shift 2 ;;
     --sleep-max-secs) AOXC_Q_SLEEP_MAX_SECS="$2"; shift 2 ;;
@@ -219,7 +222,6 @@ STATE_FILE="${node_state_file}"
 mkdir -p "\$(dirname "\${LOG_FILE}")"
 
 while true; do
-  ts_start="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
   if AOXC_HOME="\${NODE_HOME}" "\${WRAPPER}" node-run --home "\${NODE_HOME}" --rounds "\${ROUNDS}" --tx-prefix "\${NODE_NAME^^}-TX" --format json --no-live-log >>"\${LOG_FILE}" 2>&1; then
     ts_end="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
     printf '%s\tstatus=ok\tnode=%s\n' "\${ts_end}" "\${NODE_NAME}" > "\${STATE_FILE}"
@@ -261,7 +263,12 @@ provision_testnet() {
   write_wrapper_script "${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
 
   local accounts_file="${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
+  local key_bootstrap_force=0
   printf 'node\tvalidator_name\toperator_name\n' > "${accounts_file}"
+
+  if [[ "${AOXC_Q_MODE}" == "local" ]]; then
+    key_bootstrap_force=1
+  fi
 
   for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
