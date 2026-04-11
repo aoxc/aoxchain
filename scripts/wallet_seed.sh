@@ -6,7 +6,6 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/runtime_common.sh"
 ACCOUNT_ID="${AOXC_NEW_ACCOUNT_ID:-AOXC_USER_ALICE}"
 BALANCE="${AOXC_NEW_ACCOUNT_BALANCE:-1000000}"
 ROLE="${AOXC_NEW_ACCOUNT_ROLE:-user}"
-ALLOW_ZERO_BALANCE="${AOXC_ALLOW_ZERO_BALANCE:-0}"
 ALLOWED_ROLES=(
   treasury
   validator
@@ -31,9 +30,7 @@ if [[ ! "${ACCOUNT_ID}" =~ ^[A-Za-z0-9_.:-]{3,64}$ ]]; then
 fi
 
 if (( BALANCE == 0 )); then
-  if [[ "${ALLOW_ZERO_BALANCE}" != "1" ]]; then
-    die "AOXC_NEW_ACCOUNT_BALANCE must be greater than zero (set AOXC_ALLOW_ZERO_BALANCE=1 to override)" 2
-  fi
+  die "AOXC_NEW_ACCOUNT_BALANCE must be greater than zero" 2
 fi
 
 ROLE="$(printf '%s' "${ROLE}" | tr '[:upper:]' '[:lower:]')"
