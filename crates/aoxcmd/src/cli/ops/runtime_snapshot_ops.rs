@@ -89,13 +89,13 @@ fn run_snapshot_guard(
         ));
     }
 
-    if let Some(raw) = keep {
-        if !raw.chars().all(|ch| ch.is_ascii_digit()) || raw.parse::<u32>().ok().unwrap_or(0) == 0 {
-            return Err(AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                format!("Invalid --keep value: {raw}. Expected positive integer."),
-            ));
-        }
+    if let Some(raw) = keep
+        && (!raw.chars().all(|ch| ch.is_ascii_digit()) || raw.parse::<u32>().ok().unwrap_or(0) == 0)
+    {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Invalid --keep value: {raw}. Expected positive integer."),
+        ));
     }
 
     let script_path = Path::new(env!("CARGO_MANIFEST_DIR"))

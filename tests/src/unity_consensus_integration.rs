@@ -113,8 +113,10 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
             .admit_block(proposal.clone())
             .expect("proposal should be admitted");
 
-        let mut network_config = NetworkConfig::default();
-        network_config.security_mode = SecurityMode::Insecure;
+        let network_config = NetworkConfig {
+            security_mode: SecurityMode::Insecure,
+            ..NetworkConfig::default()
+        };
         let mut gossip = GossipEngine::new(network_config);
         gossip
             .register_peer(consensus_peer())

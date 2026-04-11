@@ -192,20 +192,19 @@ fn route_rpc(method: &str, target: &str, body: &str) -> String {
         return http_ok("text/plain; version=0.0.4", &metrics_payload());
     }
 
-    if method == "POST" {
-        if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
-            if v.get("method") == Some(&serde_json::Value::String("status".to_string())) {
-                return http_ok(
-                    "application/json",
-                    &json!({
-                        "jsonrpc":"2.0",
-                        "id":v.get("id").cloned().unwrap_or(json!(1)),
-                        "result":chain_status_json()
-                    })
-                    .to_string(),
-                );
-            }
-        }
+    if method == "POST"
+        && let Ok(v) = serde_json::from_str::<serde_json::Value>(body)
+        && v.get("method") == Some(&serde_json::Value::String("status".to_string()))
+    {
+        return http_ok(
+            "application/json",
+            &json!({
+                "jsonrpc":"2.0",
+                "id":v.get("id").cloned().unwrap_or(json!(1)),
+                "result":chain_status_json()
+            })
+            .to_string(),
+        );
     }
 
     match (method, target) {

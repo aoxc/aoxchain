@@ -204,8 +204,10 @@ mod tests {
 
     #[test]
     fn invalid_quantum_values_are_reported() {
-        let mut cfg = QuantumSecurityConfig::default();
-        cfg.min_security_level = 42;
+        let mut cfg = QuantumSecurityConfig {
+            min_security_level: 42,
+            ..QuantumSecurityConfig::default()
+        };
         cfg.key_policy.allowed_signature_schemes.clear();
         cfg.audit_policy.periodic_crypto_audit_epochs = 0;
 
@@ -221,9 +223,11 @@ mod tests {
 
     #[test]
     fn disabled_quantum_policy_skips_strict_validation() {
-        let mut cfg = QuantumSecurityConfig::default();
-        cfg.enabled = false;
-        cfg.min_security_level = 7;
+        let mut cfg = QuantumSecurityConfig {
+            enabled: false,
+            min_security_level: 7,
+            ..QuantumSecurityConfig::default()
+        };
         cfg.key_policy.allowed_kex_schemes.clear();
 
         assert!(cfg.validate().is_empty());

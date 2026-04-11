@@ -66,7 +66,7 @@ pub fn cmd_node_join(args: &[String]) -> Result<(), AppError> {
         ));
     }
 
-    let _ = bootstrap_operator_home()?;
+    bootstrap_operator_home()?;
     let _ = lifecycle::bootstrap_state()?;
     let _ = refresh_runtime_metrics().ok();
 
@@ -258,21 +258,21 @@ pub fn cmd_node_run(args: &[String]) -> Result<(), AppError> {
 
     let mut listener_status = ListenerBootstrapStatus::NotRequested;
 
-    if !has_flag(args, "--no-rpc-serve") {
-        if let Ok(settings) = effective_settings_for_ops() {
-            listener_status = match super::rpc_serve_ops::spawn_rpc_and_metrics_listeners(
-                &settings.network.bind_host,
-                settings.network.rpc_port,
-                settings.telemetry.prometheus_port,
-            ) {
-                Ok(()) => ListenerBootstrapStatus::Started {
-                    bind_host: settings.network.bind_host,
-                    rpc_port: settings.network.rpc_port,
-                    metrics_port: settings.telemetry.prometheus_port,
-                },
-                Err(error) => ListenerBootstrapStatus::Failed(error.to_string()),
-            };
-        }
+    if !has_flag(args, "--no-rpc-serve")
+        && let Ok(settings) = effective_settings_for_ops()
+    {
+        listener_status = match super::rpc_serve_ops::spawn_rpc_and_metrics_listeners(
+            &settings.network.bind_host,
+            settings.network.rpc_port,
+            settings.telemetry.prometheus_port,
+        ) {
+            Ok(()) => ListenerBootstrapStatus::Started {
+                bind_host: settings.network.bind_host,
+                rpc_port: settings.network.rpc_port,
+                metrics_port: settings.telemetry.prometheus_port,
+            },
+            Err(error) => ListenerBootstrapStatus::Failed(error.to_string()),
+        };
     }
 
     if format == crate::cli_support::OutputFormat::Text && live_log_enabled {
