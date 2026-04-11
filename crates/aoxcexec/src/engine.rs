@@ -1,8 +1,16 @@
 use crate::*;
 use blake3::Hasher;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use libcrux_ml_dsa::ml_dsa_65::{
+    MLDSA65Signature, MLDSA65VerificationKey, verify as verify_ml_dsa_65,
+};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+
+const ML_DSA_65_SIGNATURE_SIZE: usize = 3309;
+const ML_DSA_65_VERIFICATION_KEY_SIZE: usize = 1952;
+const ML_DSA_65_CONTEXT: &[u8] = b"";
+const DOMAIN_EXEC_PQ_ML_DSA_65_V1: &[u8] = b"AOXC_EXEC_PQ_ML_DSA_65_V1";
 
 impl ExecutionOrchestrator for DeterministicOrchestrator {
     fn execute_batch(
@@ -477,6 +485,37 @@ fn validate_payload_shape(payload: &ExecutionPayload) -> Result<(), ReceiptFailu
     if payload.replay_domain.len() > 128 {
         return Err(ReceiptFailure::InvalidPayload("replay_domain is too long"));
     }
+    match payload.auth_scheme {
+        AuthScheme::Ed25519 => {
+            if payload.pq_public_key.is_some() || payload.pq_signature.is_some() {
+                return Err(ReceiptFailure::InvalidPayload(
+                    "pq material is not allowed for Ed25519 transactions",
+                ));
+            }
+        }
+        AuthScheme::HybridEd25519MlDsa65 => {
+            let Some(pq_public_key) = payload.pq_public_key.as_ref() else {
+                return Err(ReceiptFailure::InvalidPayload(
+                    "hybrid auth requires pq_public_key",
+                ));
+            };
+            let Some(pq_signature) = payload.pq_signature.as_ref() else {
+                return Err(ReceiptFailure::InvalidPayload(
+                    "hybrid auth requires pq_signature",
+                ));
+            };
+            if pq_public_key.len() != ML_DSA_65_VERIFICATION_KEY_SIZE {
+                return Err(ReceiptFailure::InvalidPayload(
+                    "hybrid pq_public_key has invalid length",
+                ));
+            }
+            if pq_signature.len() != ML_DSA_65_SIGNATURE_SIZE {
+                return Err(ReceiptFailure::InvalidPayload(
+                    "hybrid pq_signature has invalid length",
+                ));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -516,6 +555,42 @@ fn validate_transaction_auth(
             let signature = Signature::from_bytes(&signature_bytes);
             verifying_key
                 .verify(&digest, &signature)
+                .map_err(|_| ReceiptFailure::InvalidSignature)?;
+        }
+        AuthScheme::HybridEd25519MlDsa65 => {
+            let verifying_key = VerifyingKey::from_bytes(&payload.sender)
+                .map_err(|_| ReceiptFailure::InvalidSignature)?;
+            let digest =
+                hash_payload_core(payload).map_err(|_| ReceiptFailure::InvalidSignature)?;
+            let signature_bytes: [u8; 64] = payload
+                .signature
+                .as_slice()
+                .try_into()
+                .map_err(|_| ReceiptFailure::InvalidSignature)?;
+            let signature = Signature::from_bytes(&signature_bytes);
+            verifying_key
+                .verify(&digest, &signature)
+                .map_err(|_| ReceiptFailure::InvalidSignature)?;
+
+            let pq_public_key = payload
+                .pq_public_key
+                .as_ref()
+                .ok_or(ReceiptFailure::InvalidSignature)?;
+            let pq_signature = payload
+                .pq_signature
+                .as_ref()
+                .ok_or(ReceiptFailure::InvalidSignature)?;
+
+            let mut public_key_bytes = [0u8; ML_DSA_65_VERIFICATION_KEY_SIZE];
+            public_key_bytes.copy_from_slice(pq_public_key);
+            let public_key = MLDSA65VerificationKey::new(public_key_bytes);
+
+            let mut signature_bytes = [0u8; ML_DSA_65_SIGNATURE_SIZE];
+            signature_bytes.copy_from_slice(pq_signature);
+            let signature = MLDSA65Signature::new(signature_bytes);
+            let pq_message = hash_payload_ml_dsa_65_message(payload)
+                .map_err(|_| ReceiptFailure::InvalidSignature)?;
+            verify_ml_dsa_65(&public_key, &pq_message, ML_DSA_65_CONTEXT, &signature)
                 .map_err(|_| ReceiptFailure::InvalidSignature)?;
         }
     }
@@ -638,6 +713,18 @@ pub(crate) fn hash_payload_core(payload: &ExecutionPayload) -> Result<[u8; 32], 
         hasher.update(DOMAIN_EXEC_PAYLOAD_V1);
         hasher.update(&bytes);
         *hasher.finalize().as_bytes()
+    })
+}
+
+pub(crate) fn hash_payload_ml_dsa_65_message(
+    payload: &ExecutionPayload,
+) -> Result<Vec<u8>, ExecutionError> {
+    hash_payload_core(payload).map(|core| {
+        let mut message = Vec::with_capacity(DOMAIN_EXEC_PQ_ML_DSA_65_V1.len() + 1 + core.len());
+        message.extend_from_slice(DOMAIN_EXEC_PQ_ML_DSA_65_V1);
+        message.push(0x00);
+        message.extend_from_slice(&core);
+        message
     })
 }
 

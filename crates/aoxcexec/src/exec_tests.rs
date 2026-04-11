@@ -2,6 +2,8 @@
 mod tests {
     use super::*;
     use ed25519_dalek::{Signer, SigningKey};
+    use libcrux_ml_dsa::ml_dsa_65::generate_key_pair;
+    use rand::random;
 
     fn sample_context() -> ExecutionContext {
         ExecutionContext {
@@ -46,10 +48,50 @@ mod tests {
             replay_domain: "aoxc-mainnet".to_string(),
             auth_scheme: AuthScheme::Ed25519,
             signature: vec![0u8; 64],
+            pq_public_key: None,
+            pq_signature: None,
             data: vec![7u8; size],
         }
         .sign_with_ed25519(&signing_key)
         .expect("signature generation should succeed")
+    }
+
+    fn sample_hybrid_payload(
+        tx_hash: [u8; 32],
+        signer_seed: u8,
+        nonce: u64,
+        lane_id: &str,
+        gas_limit: Gas,
+        size: usize,
+    ) -> ExecutionPayload {
+        let ed25519_signing_key = signing_key_from_seed(signer_seed);
+        let ml_dsa_key_pair = generate_key_pair(random());
+        ExecutionPayload {
+            version: 1,
+            chain_id: 42,
+            tx_hash,
+            lane_id: lane_id.to_string(),
+            sender: [0u8; 32],
+            nonce,
+            gas_limit,
+            max_fee: gas_limit,
+            max_priority_fee: gas_limit / 10,
+            expiration_timestamp: 1_735_689_900,
+            payload_type: PayloadType::Call,
+            access_scope: vec![lane_id.to_string()],
+            replay_domain: "aoxc-mainnet".to_string(),
+            auth_scheme: AuthScheme::HybridEd25519MlDsa65,
+            signature: vec![],
+            pq_public_key: None,
+            pq_signature: None,
+            data: vec![7u8; size],
+        }
+        .sign_with_hybrid_ed25519_ml_dsa65(
+            &ed25519_signing_key,
+            &ml_dsa_key_pair.signing_key,
+            &ml_dsa_key_pair.verification_key,
+        )
+        .expect("hybrid signature generation should succeed")
     }
 
     #[test]
@@ -139,6 +181,25 @@ mod tests {
     }
 
     #[test]
+    fn hybrid_ed25519_ml_dsa65_payload_is_accepted_and_deterministic() {
+        let orchestrator = DeterministicOrchestrator::default();
+        let context = sample_context();
+        let payload = sample_hybrid_payload([5; 32], 41, 0, "native", 65_000, 32);
+
+        let first = orchestrator
+            .execute_batch(&context, std::slice::from_ref(&payload))
+            .expect("hybrid batch should execute");
+        let second = orchestrator
+            .execute_batch(&context, std::slice::from_ref(&payload))
+            .expect("hybrid batch should replay deterministically");
+
+        assert_eq!(first.receipts, second.receipts);
+        assert_eq!(first.block_execution_root, second.block_execution_root);
+        assert_eq!(first.summary.success_count, 1);
+        assert_eq!(first.summary.failure_count, 0);
+    }
+
+    #[test]
     fn nonce_gap_yields_canonical_rejection() {
         let orchestrator = DeterministicOrchestrator::default();
         let context = sample_context();
@@ -201,7 +262,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join(",");
         let expected = format!(
-            "{{\"version\":1,\"chain_id\":42,\"tx_hash\":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],\"lane_id\":\"wasm\",\"sender\":[{sender_json}],\"nonce\":3,\"gas_limit\":90000,\"max_fee\":90000,\"max_priority_fee\":9000,\"expiration_timestamp\":1735689900,\"payload_type\":\"Call\",\"access_scope\":[\"wasm\"],\"replay_domain\":\"aoxc-mainnet\",\"auth_scheme\":\"Ed25519\",\"signature\":[{signature_json}],\"data\":[7,7,7,7]}}",
+            "{{\"version\":1,\"chain_id\":42,\"tx_hash\":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],\"lane_id\":\"wasm\",\"sender\":[{sender_json}],\"nonce\":3,\"gas_limit\":90000,\"max_fee\":90000,\"max_priority_fee\":9000,\"expiration_timestamp\":1735689900,\"payload_type\":\"Call\",\"access_scope\":[\"wasm\"],\"replay_domain\":\"aoxc-mainnet\",\"auth_scheme\":\"Ed25519\",\"signature\":[{signature_json}],\"pq_public_key\":null,\"pq_signature\":null,\"data\":[7,7,7,7]}}",
         );
         assert_eq!(encoded, expected);
     }

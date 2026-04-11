@@ -15,3 +15,5 @@ hex = { workspace = true }
 blake3 = { workspace = true }
 serde_json = { workspace = true }
 ed25519-dalek = { workspace = true }
+libcrux-ml-dsa = { workspace = true }
+rand = { workspace = true }
