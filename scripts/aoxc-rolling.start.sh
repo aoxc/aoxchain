@@ -11,10 +11,13 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 AOXC_Q_HOME="${AOXC_Q_HOME:-/mnt/xdbx/aoxc}"
 AOXC_Q_ENV="${AOXC_Q_ENV:-testnet}"
 AOXC_Q_PROFILE="${AOXC_Q_PROFILE:-testnet}"
+AOXC_Q_MODE="${AOXC_Q_MODE:-local}"
 AOXC_Q_NODE_COUNT="${AOXC_Q_NODE_COUNT:-7}"
 AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
 AOXC_Q_START="${AOXC_Q_START:-1}"
 AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-1}"
+AOXC_Q_SLEEP_MIN_SECS="${AOXC_Q_SLEEP_MIN_SECS:-1}"
+AOXC_Q_SLEEP_MAX_SECS="${AOXC_Q_SLEEP_MAX_SECS:-1}"
 AOXC_Q_FORCE="${AOXC_Q_FORCE:-0}"
 AOXC_Q_ACTION="${AOXC_Q_ACTION:-up}"
 
@@ -37,16 +40,20 @@ Options:
   --home <path>        base path for generated testnet root (default: ${AOXC_Q_HOME})
   --env <name>         configs/environments/<name> source (default: ${AOXC_Q_ENV})
   --profile <name>     AOXC profile for bootstrap (default: ${AOXC_Q_PROFILE})
+  --mode <name>        run mode label for audit/report metadata (default: ${AOXC_Q_MODE})
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; minimum: 7)
   --rounds <n>         rounds per node-run cycle (default: ${AOXC_Q_ROUNDS})
   --sleep-secs <n>     sleep between cycles in daemon loop (default: ${AOXC_Q_SLEEP_SECS})
+  --sleep-min-secs <n> minimum daemon-loop sleep for compatibility with Make surfaces
+  --sleep-max-secs <n> maximum daemon-loop sleep for compatibility with Make surfaces
   --no-start           alias for --action provision
   --force              recreate existing testnet root during provision
   -h, --help           show this help
 
 Environment overrides:
-  AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_NODE_COUNT,
-  AOXC_Q_ROUNDS, AOXC_Q_START, AOXC_Q_SLEEP_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION
+  AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_MODE, AOXC_Q_NODE_COUNT,
+  AOXC_Q_ROUNDS, AOXC_Q_START, AOXC_Q_SLEEP_SECS, AOXC_Q_SLEEP_MIN_SECS,
+  AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION
 USAGE
 }
 
@@ -70,14 +77,25 @@ require_uint() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --action) AOXC_Q_ACTION="$2"; shift 2 ;;
+    --action=*) AOXC_Q_ACTION="${1#*=}"; shift ;;
     --home) AOXC_Q_HOME="$2"; shift 2 ;;
     --home=*) AOXC_Q_HOME="${1#*=}"; shift ;;
     --env) AOXC_Q_ENV="$2"; shift 2 ;;
     --env=*) AOXC_Q_ENV="${1#*=}"; shift ;;
     --profile) AOXC_Q_PROFILE="$2"; shift 2 ;;
+    --profile=*) AOXC_Q_PROFILE="${1#*=}"; shift ;;
+    --mode) AOXC_Q_MODE="$2"; shift 2 ;;
+    --mode=*) AOXC_Q_MODE="${1#*=}"; shift ;;
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
+    --nodes=*) AOXC_Q_NODE_COUNT="${1#*=}"; shift ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
+    --rounds=*) AOXC_Q_ROUNDS="${1#*=}"; shift ;;
     --sleep-secs) AOXC_Q_SLEEP_SECS="$2"; shift 2 ;;
+    --sleep-secs=*) AOXC_Q_SLEEP_SECS="${1#*=}"; shift ;;
+    --sleep-min-secs) AOXC_Q_SLEEP_MIN_SECS="$2"; shift 2 ;;
+    --sleep-min-secs=*) AOXC_Q_SLEEP_MIN_SECS="${1#*=}"; shift ;;
+    --sleep-max-secs) AOXC_Q_SLEEP_MAX_SECS="$2"; shift 2 ;;
+    --sleep-max-secs=*) AOXC_Q_SLEEP_MAX_SECS="${1#*=}"; shift ;;
     --no-start) AOXC_Q_ACTION="provision"; AOXC_Q_START=0; shift ;;
     --force) AOXC_Q_FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -88,6 +106,8 @@ done
 require_uint "${AOXC_Q_NODE_COUNT}" "AOXC_Q_NODE_COUNT"
 require_uint "${AOXC_Q_ROUNDS}" "AOXC_Q_ROUNDS"
 require_uint "${AOXC_Q_SLEEP_SECS}" "AOXC_Q_SLEEP_SECS"
+require_uint "${AOXC_Q_SLEEP_MIN_SECS}" "AOXC_Q_SLEEP_MIN_SECS"
+require_uint "${AOXC_Q_SLEEP_MAX_SECS}" "AOXC_Q_SLEEP_MAX_SECS"
 
 if (( AOXC_Q_NODE_COUNT < 7 )); then
   die "AOXC_Q_NODE_COUNT must be >= 7 for production-like persistent topology." 2
@@ -104,9 +124,9 @@ case "${AOXC_Q_ACTION}" in
   *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
 esac
 
-case "${AOXC_Q_ACTION}" in
-  up|provision|start|stop|restart|status) ;;
-  *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
+case "${AOXC_Q_MODE}" in
+  local|public) ;;
+  *) die "Invalid --mode value: ${AOXC_Q_MODE} (expected: local|public)" 2 ;;
 esac
 
 TARGET_ROOT="${AOXC_Q_HOME%/}/aoxc-rolling-${AOXC_Q_ENV}-${AOXC_Q_NODE_COUNT}n"
@@ -187,6 +207,8 @@ render_node_runner() {
   local node_home="$3"
   local node_log="$4"
   local node_state_file="$5"
+  local sleep_min_secs="$6"
+  local sleep_max_secs="$7"
 
   cat > "${node_root}/run-node.sh" <<RUNNER
 #!/usr/bin/env bash
@@ -195,6 +217,8 @@ NODE_NAME="${node_name}"
 NODE_HOME="${node_home}"
 ROUNDS="${AOXC_Q_ROUNDS}"
 SLEEP_SECS="${AOXC_Q_SLEEP_SECS}"
+SLEEP_MIN_SECS="${sleep_min_secs}"
+SLEEP_MAX_SECS="${sleep_max_secs}"
 WRAPPER="${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
 LOG_FILE="${node_log}"
 STATE_FILE="${node_state_file}"
@@ -202,7 +226,6 @@ STATE_FILE="${node_state_file}"
 mkdir -p "\$(dirname "\${LOG_FILE}")"
 
 while true; do
-  ts_start="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
   if AOXC_HOME="\${NODE_HOME}" "\${WRAPPER}" node-run --home "\${NODE_HOME}" --rounds "\${ROUNDS}" --tx-prefix "\${NODE_NAME^^}-TX" --format json --no-live-log >>"\${LOG_FILE}" 2>&1; then
     ts_end="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
     printf '%s\tstatus=ok\tnode=%s\n' "\${ts_end}" "\${NODE_NAME}" > "\${STATE_FILE}"
@@ -210,7 +233,14 @@ while true; do
     ts_end="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
     printf '%s\tstatus=error\tnode=%s\n' "\${ts_end}" "\${NODE_NAME}" > "\${STATE_FILE}"
   fi
-  sleep "\${SLEEP_SECS}"
+  effective_sleep="\${SLEEP_SECS}"
+  if (( SLEEP_MAX_SECS > SLEEP_MIN_SECS )); then
+    span=\$((SLEEP_MAX_SECS - SLEEP_MIN_SECS + 1))
+    effective_sleep=\$((SLEEP_MIN_SECS + RANDOM % span))
+  elif (( SLEEP_MIN_SECS > 0 )); then
+    effective_sleep="\${SLEEP_MIN_SECS}"
+  fi
+  sleep "\${effective_sleep}"
 done
 RUNNER
   chmod +x "${node_root}/run-node.sh"
@@ -237,7 +267,12 @@ provision_testnet() {
   write_wrapper_script "${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
 
   local accounts_file="${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
+  local key_bootstrap_force=0
   printf 'node\tvalidator_name\toperator_name\n' > "${accounts_file}"
+
+  if [[ "${AOXC_Q_MODE}" == "local" ]]; then
+    key_bootstrap_force=1
+  fi
 
   for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
@@ -264,6 +299,9 @@ provision_testnet() {
     mkdir -p "${node_home}/identity" "${node_home}/config" "${node_home}/runtime" "${node_home}/audit" "${run_dir}" "${log_dir}"
 
     cp "${TARGET_ROOT}/system/genesis/genesis.json" "${node_home}/identity/genesis.json"
+    cp "${TARGET_ROOT}/system/config/validators.json" "${node_home}/identity/validators.json"
+    cp "${TARGET_ROOT}/system/config/bootnodes.json" "${node_home}/identity/bootnodes.json"
+    cp "${TARGET_ROOT}/system/config/certificate.json" "${node_home}/identity/certificate.json"
     cp "${TARGET_ROOT}/system/config/profile.toml" "${node_home}/config/profile.toml"
     cp "${TARGET_ROOT}/system/config/validators.json" "${node_home}/config/validators.json"
     cp "${TARGET_ROOT}/system/config/bootnodes.json" "${node_home}/config/bootnodes.json"
@@ -274,11 +312,15 @@ provision_testnet() {
     run_aoxc "${node_home}" config-init --profile "${AOXC_Q_PROFILE}" --json-logs > "${run_dir}/config-init.json"
     run_aoxc "${node_home}" address-create --name "${operator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-operator.json"
     run_aoxc "${node_home}" address-create --name "${validator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-validator.json"
-    run_aoxc "${node_home}" key-bootstrap --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
+    if [[ "${key_bootstrap_force}" == "1" ]]; then
+      run_aoxc "${node_home}" key-bootstrap --force --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
+    else
+      run_aoxc "${node_home}" key-bootstrap --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
+    fi
     run_aoxc "${node_home}" keys-verify --password "${password}" > "${run_dir}/keys-verify.json"
     run_aoxc "" node-bootstrap --home "${node_home}" > "${run_dir}/node-bootstrap.json"
 
-    render_node_runner "${node_root}" "${node_name}" "${node_home}" "${log_dir}/node-run.log" "${state_file}"
+    render_node_runner "${node_root}" "${node_name}" "${node_home}" "${log_dir}/node-run.log" "${state_file}" "${AOXC_Q_SLEEP_MIN_SECS}" "${AOXC_Q_SLEEP_MAX_SECS}"
 
     printf '%s\t%s\t%s\n' "${node_name}" "${validator_name}" "${operator_name}" >> "${accounts_file}"
   done
@@ -296,6 +338,9 @@ mode=${AOXC_Q_MODE}
 node_count=${AOXC_Q_NODE_COUNT}
 rounds=${AOXC_Q_ROUNDS}
 sleep_secs=${AOXC_Q_SLEEP_SECS}
+sleep_min_secs=${AOXC_Q_SLEEP_MIN_SECS}
+sleep_max_secs=${AOXC_Q_SLEEP_MAX_SECS}
+key_bootstrap_force=${key_bootstrap_force}
 root=${TARGET_ROOT}
 REPORT
 
