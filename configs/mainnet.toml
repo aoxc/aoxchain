@@ -1,8 +1,42 @@
+# Canonical mainnet preset.
+# Keep top-level fields for compatibility with existing scripts.
+
 chain_id = "aox-mainnet-1"
 listen_addr = "0.0.0.0:26656"
 rpc_addr = "0.0.0.0:8545"
+security_mode = "audit_strict"
+consensus_profile = "aoxcq-hardened"
+crypto_profile = "hybrid_pq"
+quantum_policy = "configs/quantum-resilience-policy.toml"
+
 peers = [
   "seed-1.aoxc.net:26656",
   "seed-2.aoxc.net:26656",
 ]
-security_mode = "audit_strict"
+
+feature_flags = [
+  "state-sync-v2",
+  "deterministic-replay",
+  "evidence-hardening",
+  "rpc-rate-limit-v2",
+]
+
+[identity]
+network_kind = "mainnet"
+network_id = "AOX-MAINNET"
+operator_change_control = "required"
+
+[network]
+transport = "tcp+quic"
+p2p_max_peers = 120
+rpc_max_connections = 200
+
+[consensus]
+engine = "aoxcq_hybrid_bft"
+finality_target_seconds = 3
+min_validator_uptime = 0.98
+
+[security]
+key_rotation_days = 30
+require_attestation = true
+require_binary_provenance = true
