@@ -14,7 +14,7 @@ BOOTNODES="${AOXC_TESTNET_BOOTNODES:-3}"
 RPC_NODES="${AOXC_TESTNET_RPC_NODES:-2}"
 ARCHIVE_NODES="${AOXC_TESTNET_ARCHIVE_NODES:-2}"
 SENTRY_PER_VALIDATOR="${AOXC_TESTNET_SENTRY_PER_VALIDATOR:-2}"
-PASSWORD="${AOXC_TESTNET_PASSWORD:-change-me-strong-password}"
+PASSWORD="${AOXC_TESTNET_PASSWORD:-}"
 BIND_HOST="${AOXC_TESTNET_BIND_HOST:-0.0.0.0}"
 EXECUTE=0
 FORCE=0
@@ -49,6 +49,27 @@ require_uint() {
   if ! [[ "${value}" =~ ^[0-9]+$ ]]; then
     echo "${label} must be an unsigned integer: ${value}" >&2
     exit 2
+  fi
+}
+
+validate_password() {
+  local value="$1"
+  if [[ -z "${value}" ]]; then
+    echo "Password is required for --execute mode. Set --password or AOXC_TESTNET_PASSWORD." >&2
+    exit 6
+  fi
+  if [[ "${#value}" -lt 16 ]]; then
+    echo "Password must be at least 16 characters for production-grade testnet orchestration." >&2
+    exit 6
+  fi
+  if [[ "${value}" =~ [[:space:]] ]]; then
+    echo "Password must not contain whitespace." >&2
+    exit 6
+  fi
+  if [[ ! "${value}" =~ [[:upper:]] ]] || [[ ! "${value}" =~ [[:lower:]] ]] || \
+     [[ ! "${value}" =~ [0-9] ]] || [[ ! "${value}" =~ [^[:alnum:]] ]]; then
+    echo "Password must include uppercase, lowercase, numeric, and symbol characters." >&2
+    exit 6
   fi
 }
 
@@ -95,6 +116,7 @@ if [[ -e "${ROOT_DIR}" ]]; then
 fi
 
 mkdir -p "${ROOT_DIR}/nodes" "${ROOT_DIR}/plans" "${ROOT_DIR}/logs"
+chmod 700 "${ROOT_DIR}" "${ROOT_DIR}/nodes" "${ROOT_DIR}/plans" "${ROOT_DIR}/logs"
 
 node_file="${ROOT_DIR}/plans/nodes.csv"
 command_file="${ROOT_DIR}/plans/commands.sh"
@@ -119,7 +141,7 @@ create_node() {
 
   cat >> "${command_file}" <<SCRIPT
 mkdir -p "${home}"
-AOXC_HOME="${home}" "${AOXC_BIN}" production-bootstrap --profile "${PROFILE}" --password "${PASSWORD}" --name "${name}" --bind-host "${BIND_HOST}"
+AOXC_HOME="${home}" "${AOXC_BIN}" production-bootstrap --profile "${PROFILE}" --password "\${AOXC_TESTNET_PASSWORD:?AOXC_TESTNET_PASSWORD is required}" --name "${name}" --bind-host "${BIND_HOST}"
 AOXC_HOME="${home}" "${AOXC_BIN}" node start --home "${home}"
 SCRIPT
 }
@@ -144,6 +166,7 @@ for i in $(seq 1 "${ARCHIVE_NODES}"); do
 done
 
 chmod +x "${command_file}"
+chmod 700 "${command_file}"
 
 total_nodes=$(($(wc -l < "${node_file}") - 1))
 cat > "${summary_file}" <<SUMMARY
@@ -160,13 +183,15 @@ total_nodes=${total_nodes}
 strict_testnet_minimum=validators>=3,bootnodes>=2
 execute_mode=${EXECUTE}
 SUMMARY
+chmod 600 "${node_file}" "${summary_file}"
 
 if [[ "${EXECUTE}" -eq 1 ]]; then
+  validate_password "${PASSWORD}"
   if [[ ! -x "${AOXC_BIN}" ]]; then
     echo "AOXC binary is not executable: ${AOXC_BIN}" >&2
     exit 5
   fi
-  "${command_file}" | tee "${ROOT_DIR}/logs/execute.log"
+  AOXC_TESTNET_PASSWORD="${PASSWORD}" "${command_file}" | tee "${ROOT_DIR}/logs/execute.log"
 fi
 
 echo "Plan generated: ${summary_file}"
