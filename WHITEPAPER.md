@@ -2,6 +2,7 @@
 
 ## Abstract
 
+
 AOXChain is a deterministic Layer-1 protocol program centered on kernel-first trust interpretation, deterministic execution, and profile-governed cryptographic agility. This whitepaper defines architectural intent, threat boundaries, governance posture, and evidence-based production controls.
 
 ## 1. Design Objectives
