@@ -200,6 +200,47 @@ mod tests {
     }
 
     #[test]
+    fn hybrid_payload_missing_pq_signature_is_rejected() {
+        let orchestrator = DeterministicOrchestrator::default();
+        let context = sample_context();
+        let mut payload = sample_hybrid_payload([6; 32], 42, 0, "native", 65_000, 32);
+        payload.pq_signature = None;
+
+        let outcome = orchestrator
+            .execute_batch(&context, &[payload])
+            .expect("batch should return receipts");
+
+        assert_eq!(outcome.results.len(), 0);
+        assert_eq!(outcome.receipts.len(), 1);
+        assert!(!outcome.receipts[0].success);
+        assert!(outcome.receipts[0]
+            .error_message
+            .as_deref()
+            .expect("error message should exist")
+            .contains("hybrid auth requires pq_signature"));
+    }
+
+    #[test]
+    fn hybrid_payload_with_tampered_pq_signature_is_rejected_without_state_mutation() {
+        let orchestrator = DeterministicOrchestrator::default();
+        let context = sample_context();
+        let mut payload = sample_hybrid_payload([7; 32], 43, 0, "native", 65_000, 32);
+        payload.pq_signature = Some(vec![0u8; 3309]);
+
+        let outcome = orchestrator
+            .execute_batch(&context, &[payload])
+            .expect("batch should return receipts");
+
+        assert_eq!(outcome.results.len(), 0);
+        assert_eq!(outcome.receipts.len(), 1);
+        assert!(!outcome.receipts[0].success);
+        assert_eq!(
+            outcome.state_root,
+            InMemoryStateStore::default().snapshot_root().expect("root")
+        );
+    }
+
+    #[test]
     fn nonce_gap_yields_canonical_rejection() {
         let orchestrator = DeterministicOrchestrator::default();
         let context = sample_context();

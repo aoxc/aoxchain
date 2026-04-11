@@ -43,6 +43,8 @@ The following repository-root documents are the primary governance and engineeri
 - `VERSIONING.md` — compatibility and versioning posture.
 - `CONTRIBUTING.md` — contribution workflow and review expectations.
 
+`READ.md` is intentionally named as the repository technical contract (it is not a typo for `README.md`).
+
 When implementation changes affect architecture, compatibility, or security posture, update the corresponding governance document in the same change set.
 
 ## 4) Core Components
