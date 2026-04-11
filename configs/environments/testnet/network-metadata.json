@@ -64,6 +64,19 @@
   ],
   "metadata": {
     "description": "Temporary AOXC testnet network metadata for local operator bring-up.",
-    "status": "staging"
+    "status": "staging",
+    "localhost_compat": {
+      "rpc": {
+        "primary": "https://127.0.0.1:8545",
+        "secondary": "https://127.0.0.1:8546",
+        "ws": "wss://127.0.0.1:8545/ws"
+      },
+      "public_endpoints": {
+        "faucet": "http://127.0.0.1:18080",
+        "explorer": "http://127.0.0.1:18081",
+        "status": "http://127.0.0.1:18082"
+      },
+      "note": "Localhost compatibility endpoints for local operator bring-up; published public endpoints remain transport-hardened."
+    }
   }
 }
