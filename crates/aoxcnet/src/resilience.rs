@@ -241,11 +241,11 @@ mod tests {
                 epoch: 0,
                 validator_set_root: [3u8; 32],
                 pq_attestation_root: [5u8; 32],
-                signature_scheme: 1,
+                signature_scheme: 2,
             },
             signature: vec![4u8; 64],
-            pq_public_key: None,
-            pq_signature: None,
+            pq_public_key: Some(vec![7u8; 32]),
+            pq_signature: Some(vec![8u8; 32]),
         })
     }
 

@@ -6,6 +6,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use aoxcunity::messages::ConsensusMessage;
+use aoxcunity::vote::{
+    SIGNATURE_SCHEME_DILITHIUM3, SIGNATURE_SCHEME_ED25519,
+    SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3,
+};
 use blake3::Hasher;
 use serde::{Deserialize, Serialize};
 

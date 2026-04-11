@@ -50,6 +50,28 @@ mod tests {
                 epoch: 0,
                 validator_set_root: [3u8; 32],
                 pq_attestation_root: [5u8; 32],
+                signature_scheme: 2,
+            },
+            signature: vec![4u8; 64],
+            pq_public_key: Some(vec![7u8; 32]),
+            pq_signature: Some(vec![8u8; 32]),
+        })
+    }
+
+    fn classical_vote() -> ConsensusMessage {
+        ConsensusMessage::Vote(AuthenticatedVote {
+            vote: Vote {
+                voter: [1u8; 32],
+                block_hash: [6u8; 32],
+                height: 2,
+                round: 0,
+                kind: VoteKind::Prepare,
+            },
+            context: VoteAuthenticationContext {
+                network_id: 2626,
+                epoch: 0,
+                validator_set_root: [3u8; 32],
+                pq_attestation_root: [0u8; 32],
                 signature_scheme: 1,
             },
             signature: vec![4u8; 64],
@@ -251,6 +273,20 @@ mod tests {
         session.expires_at_unix = 0;
 
         assert!(net.broadcast_secure("node-1", test_vote()).is_ok());
+    }
+
+    #[test]
+    fn mutual_auth_rejects_classical_vote_payload() {
+        let mut net = P2PNetwork::new(NetworkConfig::default());
+        net.register_peer(test_peer())
+            .expect("peer should register");
+        net.establish_session("node-1")
+            .expect("session should be established");
+
+        let err = net
+            .broadcast_secure("node-1", classical_vote())
+            .expect_err("classical vote must be rejected");
+        assert!(matches!(err, NetworkError::QuantumPolicyViolation(_)));
     }
 
     #[test]
