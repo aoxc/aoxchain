@@ -26,9 +26,10 @@ AOXC_Q_PROFILE="${AOXC_Q_PROFILE:-testnet}"
 AOXC_Q_MODE="${AOXC_Q_MODE:-local}"
 AOXC_Q_NODE_COUNT="${AOXC_Q_NODE_COUNT:-7}"
 AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
-AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-1}"
-AOXC_Q_SLEEP_MIN_SECS="${AOXC_Q_SLEEP_MIN_SECS:-1}"
-AOXC_Q_SLEEP_MAX_SECS="${AOXC_Q_SLEEP_MAX_SECS:-1}"
+AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-3}"
+AOXC_Q_SLEEP_MIN_SECS="${AOXC_Q_SLEEP_MIN_SECS:-3}"
+AOXC_Q_SLEEP_MAX_SECS="${AOXC_Q_SLEEP_MAX_SECS:-3}"
+AOXC_Q_HEALTH_INTERVAL_SECS="${AOXC_Q_HEALTH_INTERVAL_SECS:-3}"
 AOXC_Q_FORCE="${AOXC_Q_FORCE:-0}"
 AOXC_Q_ACTION="${AOXC_Q_ACTION:-up}"
 
@@ -63,6 +64,7 @@ Options:
   --sleep-secs <n>     fixed sleep between daemon cycles
   --sleep-min-secs <n> minimum daemon-loop sleep
   --sleep-max-secs <n> maximum daemon-loop sleep
+  --health-interval-secs <n> monitor/recovery loop interval
   --rpc-base-port <n>      base RPC port
   --p2p-base-port <n>      base P2P port
   --metrics-base-port <n>  base metrics port
@@ -76,6 +78,7 @@ Environment overrides:
   AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_MODE, AOXC_Q_NODE_COUNT,
   AOXC_Q_ROUNDS, AOXC_Q_SLEEP_SECS, AOXC_Q_SLEEP_MIN_SECS,
   AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION,
+  AOXC_Q_HEALTH_INTERVAL_SECS,
   AOXC_Q_RPC_BASE_PORT, AOXC_Q_P2P_BASE_PORT, AOXC_Q_METRICS_BASE_PORT,
   AOXC_Q_ADMIN_BASE_PORT, AOXC_Q_VALIDATE_GENESIS
 USAGE
@@ -128,6 +131,8 @@ while [[ $# -gt 0 ]]; do
     --sleep-min-secs=*) AOXC_Q_SLEEP_MIN_SECS="${1#*=}"; shift ;;
     --sleep-max-secs) AOXC_Q_SLEEP_MAX_SECS="$2"; shift 2 ;;
     --sleep-max-secs=*) AOXC_Q_SLEEP_MAX_SECS="${1#*=}"; shift ;;
+    --health-interval-secs) AOXC_Q_HEALTH_INTERVAL_SECS="$2"; shift 2 ;;
+    --health-interval-secs=*) AOXC_Q_HEALTH_INTERVAL_SECS="${1#*=}"; shift ;;
     --rpc-base-port) AOXC_Q_RPC_BASE_PORT="$2"; shift 2 ;;
     --rpc-base-port=*) AOXC_Q_RPC_BASE_PORT="${1#*=}"; shift ;;
     --p2p-base-port) AOXC_Q_P2P_BASE_PORT="$2"; shift 2 ;;
@@ -149,6 +154,7 @@ require_uint "${AOXC_Q_ROUNDS}" "AOXC_Q_ROUNDS"
 require_uint "${AOXC_Q_SLEEP_SECS}" "AOXC_Q_SLEEP_SECS"
 require_uint "${AOXC_Q_SLEEP_MIN_SECS}" "AOXC_Q_SLEEP_MIN_SECS"
 require_uint "${AOXC_Q_SLEEP_MAX_SECS}" "AOXC_Q_SLEEP_MAX_SECS"
+require_uint "${AOXC_Q_HEALTH_INTERVAL_SECS}" "AOXC_Q_HEALTH_INTERVAL_SECS"
 require_uint "${AOXC_Q_RPC_BASE_PORT}" "AOXC_Q_RPC_BASE_PORT"
 require_uint "${AOXC_Q_P2P_BASE_PORT}" "AOXC_Q_P2P_BASE_PORT"
 require_uint "${AOXC_Q_METRICS_BASE_PORT}" "AOXC_Q_METRICS_BASE_PORT"
@@ -162,6 +168,9 @@ if (( AOXC_Q_SLEEP_MIN_SECS < 1 )); then
 fi
 if (( AOXC_Q_SLEEP_MAX_SECS < AOXC_Q_SLEEP_MIN_SECS )); then
   die "AOXC_Q_SLEEP_MAX_SECS must be >= AOXC_Q_SLEEP_MIN_SECS." 2
+fi
+if (( AOXC_Q_HEALTH_INTERVAL_SECS < 1 )); then
+  die "AOXC_Q_HEALTH_INTERVAL_SECS must be >= 1." 2
 fi
 ensure_port_in_range "${AOXC_Q_RPC_BASE_PORT}" "AOXC_Q_RPC_BASE_PORT"
 ensure_port_in_range "${AOXC_Q_P2P_BASE_PORT}" "AOXC_Q_P2P_BASE_PORT"
@@ -560,6 +569,7 @@ WRAPPER="${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
 LOG_FILE="${node_log}"
 STATE_FILE="${node_state_file}"
 PORTS_FILE="${node_root}/ports.env"
+HEARTBEAT_FILE="${node_root}/run/heartbeat.state"
 
 mkdir -p "\$(dirname "\${LOG_FILE}")"
 
@@ -567,8 +577,15 @@ if [[ -f "\${PORTS_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "\${PORTS_FILE}"
 fi
+cleanup() {
+  ts_end="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
+  printf '%s\tstatus=terminated\tnode=%s\n' "\${ts_end}" "\${NODE_NAME}" > "\${STATE_FILE}"
+}
+trap cleanup INT TERM
 
 while true; do
+  ts_start="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
+  printf '%s\tstatus=running\tnode=%s\n' "\${ts_start}" "\${NODE_NAME}" > "\${HEARTBEAT_FILE}"
   if AOXC_HOME="\${NODE_HOME}" "\${WRAPPER}" node-run \
       --home "\${NODE_HOME}" \
       --rounds "\${ROUNDS}" \
@@ -591,6 +608,8 @@ while true; do
       > "\${STATE_FILE}"
   fi
 
+  ts_sleep="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
+  printf '%s\tstatus=idle\tnode=%s\n' "\${ts_sleep}" "\${NODE_NAME}" > "\${HEARTBEAT_FILE}"
   effective_sleep="\${SLEEP_SECS}"
   if (( SLEEP_MAX_SECS > SLEEP_MIN_SECS )); then
     span=\$((SLEEP_MAX_SECS - SLEEP_MIN_SECS + 1))
@@ -603,6 +622,74 @@ done
 RUNNER
 
   chmod +x "${node_root}/run-node.sh"
+}
+
+write_cluster_monitor() {
+  cat > "${TARGET_ROOT}/system/scripts/cluster-monitor.sh" <<MONITOR
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+TARGET_ROOT="${TARGET_ROOT}"
+NODE_COUNT="${AOXC_Q_NODE_COUNT}"
+HEALTH_INTERVAL_SECS="${AOXC_Q_HEALTH_INTERVAL_SECS}"
+LOG_FILE="${TARGET_ROOT}/system/logs/cluster-monitor.log"
+STATE_FILE="${TARGET_ROOT}/system/logs/cluster-monitor.state"
+
+mkdir -p "\$(dirname "\${LOG_FILE}")"
+
+log_line() {
+  local level="\$1"
+  shift
+  printf '%s\t%s\t%s\n' "\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)" "\${level}" "\$*" >> "\${LOG_FILE}"
+}
+
+restart_node() {
+  local node_root="\$1"
+  local node_name="\$2"
+  nohup "\${node_root}/run-node.sh" > "\${node_root}/logs/supervisor.log" 2>&1 &
+  echo "\$!" > "\${node_root}/node.pid"
+  log_line info "restarted \${node_name} pid=\$(cat "\${node_root}/node.pid")"
+}
+
+while true; do
+  local_running=0
+  local_restarted=0
+  for i in \$(seq 1 "\${NODE_COUNT}"); do
+    node_name="node\$(printf '%02d' "\${i}")"
+    node_root="\${TARGET_ROOT}/nodes/\${node_name}"
+    pid_file="\${node_root}/node.pid"
+
+    if [[ ! -f "\${node_root}/run-node.sh" ]]; then
+      log_line warn "missing runner for \${node_name}"
+      continue
+    fi
+
+    pid=""
+    if [[ -f "\${pid_file}" ]]; then
+      pid="\$(cat "\${pid_file}")"
+    fi
+
+    if [[ -n "\${pid}" ]] && kill -0 "\${pid}" 2>/dev/null; then
+      local_running=\$((local_running + 1))
+      continue
+    fi
+
+    restart_node "\${node_root}" "\${node_name}"
+    local_restarted=\$((local_restarted + 1))
+  done
+
+  printf '%s\trunning=%s\trestarted=%s\tinterval=%s\n' \
+    "\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)" \
+    "\${local_running}" \
+    "\${local_restarted}" \
+    "\${HEALTH_INTERVAL_SECS}" \
+    > "\${STATE_FILE}"
+
+  sleep "\${HEALTH_INTERVAL_SECS}"
+done
+MONITOR
+
+  chmod +x "${TARGET_ROOT}/system/scripts/cluster-monitor.sh"
 }
 
 provision_testnet() {
@@ -630,6 +717,7 @@ provision_testnet() {
     validate_genesis_checksum
   fi
   write_wrapper_script "${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
+  write_cluster_monitor
   write_topology_checksums
 
   local accounts_file="${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
@@ -845,6 +933,7 @@ rounds=${AOXC_Q_ROUNDS}
 sleep_secs=${AOXC_Q_SLEEP_SECS}
 sleep_min_secs=${AOXC_Q_SLEEP_MIN_SECS}
 sleep_max_secs=${AOXC_Q_SLEEP_MAX_SECS}
+health_interval_secs=${AOXC_Q_HEALTH_INTERVAL_SECS}
 rpc_base_port=${AOXC_Q_RPC_BASE_PORT}
 p2p_base_port=${AOXC_Q_P2P_BASE_PORT}
 metrics_base_port=${AOXC_Q_METRICS_BASE_PORT}
@@ -895,12 +984,42 @@ start_testnet() {
     echo "$!" > "${pid_file}"
     log_info "started ${node_name} pid=$(cat "${pid_file}")"
   done
+
+  local monitor_pid_file="${TARGET_ROOT}/system/logs/cluster-monitor.pid"
+  local monitor_pid=""
+  if [[ -f "${monitor_pid_file}" ]]; then
+    monitor_pid="$(cat "${monitor_pid_file}")"
+  fi
+  if [[ -n "${monitor_pid}" ]] && kill -0 "${monitor_pid}" 2>/dev/null; then
+    log_info "cluster monitor already running pid=${monitor_pid}"
+  else
+    nohup "${TARGET_ROOT}/system/scripts/cluster-monitor.sh" > "${TARGET_ROOT}/system/logs/cluster-monitor.nohup.log" 2>&1 &
+    echo "$!" > "${monitor_pid_file}"
+    log_info "cluster monitor started pid=$(cat "${monitor_pid_file}")"
+  fi
 }
 
 stop_testnet() {
   [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
 
   local i
+  local monitor_pid_file="${TARGET_ROOT}/system/logs/cluster-monitor.pid"
+  local monitor_pid=""
+  if [[ -f "${monitor_pid_file}" ]]; then
+    monitor_pid="$(cat "${monitor_pid_file}")"
+    if [[ -n "${monitor_pid}" ]] && kill -0 "${monitor_pid}" 2>/dev/null; then
+      kill "${monitor_pid}" || true
+      sleep 1
+      if kill -0 "${monitor_pid}" 2>/dev/null; then
+        kill -9 "${monitor_pid}" || true
+      fi
+      log_info "stopped cluster monitor pid=${monitor_pid}"
+    else
+      log_warn "cluster monitor pid file stale (${monitor_pid})"
+    fi
+    rm -f "${monitor_pid_file}"
+  fi
+
   for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
     local node_root
@@ -930,6 +1049,18 @@ stop_testnet() {
 
 status_testnet() {
   [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
+  local monitor_pid_file="${TARGET_ROOT}/system/logs/cluster-monitor.pid"
+  local monitor_state="stopped"
+  if [[ -f "${monitor_pid_file}" ]]; then
+    local monitor_pid
+    monitor_pid="$(cat "${monitor_pid_file}")"
+    if [[ -n "${monitor_pid}" ]] && kill -0 "${monitor_pid}" 2>/dev/null; then
+      monitor_state="running(pid=${monitor_pid})"
+    else
+      monitor_state="stale-pid(${monitor_pid})"
+    fi
+  fi
+  printf 'cluster_monitor\t%s\n' "${monitor_state}"
   printf 'node\tprocess\tpid\trpc\tp2p\tmetrics\tadmin\theight\tupdated_at\n'
 
   local i
