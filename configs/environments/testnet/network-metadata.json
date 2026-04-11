@@ -1,6 +1,8 @@
 {
   "schema_version": 2,
   "environment": "testnet",
+  "chain_id": 2626010001,
+  "network_id": "aoxc-testnet-2626-002",
   "identity": {
     "chain_name": "AOXC PUSULA",
     "network_class": "public_testnet",
@@ -12,14 +14,14 @@
     "native_symbol": "AOXC"
   },
   "rpc": {
-    "primary": "http://127.0.0.1:8545",
-    "secondary": "http://127.0.0.1:8546",
-    "ws": "ws://127.0.0.1:8545/ws"
+    "primary": "https://127.0.0.1:8545",
+    "secondary": "https://127.0.0.1:8546",
+    "ws": "wss://127.0.0.1:8545/ws"
   },
   "public_endpoints": {
-    "faucet": null,
-    "explorer": null,
-    "status": null
+    "faucet": "https://testnet-faucet.aoxchain.invalid",
+    "explorer": "https://testnet-explorer.aoxchain.invalid",
+    "status": "https://testnet-status.aoxchain.invalid"
   },
   "genesis": {
     "file": "genesis.v1.json",
