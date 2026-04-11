@@ -3,7 +3,10 @@
 // This file is part of the AOXC pre-release codebase.
 
 use crate::{
-    cli_support::{arg_value, detect_language, localized_unknown_command, print_usage},
+    cli_support::{
+        arg_value, asks_for_help, detect_language, localized_unknown_command, print_group_usage,
+        print_usage,
+    },
     data_home::ScopedHomeOverride,
     error::{AppError, ErrorCode},
 };
@@ -187,6 +190,11 @@ pub fn run_cli() -> Result<(), AppError> {
 }
 
 fn route_chain_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("chain");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("chain", "missing subcommand");
     };
@@ -204,6 +212,11 @@ fn route_chain_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_genesis_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("genesis");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("genesis", "missing subcommand");
     };
@@ -226,6 +239,11 @@ fn route_genesis_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_validator_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("validator");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("validator", "missing subcommand");
     };
@@ -244,6 +262,11 @@ fn route_validator_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_wallet_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("wallet");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("wallet", "missing subcommand");
     };
@@ -256,6 +279,11 @@ fn route_wallet_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_account_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("account");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("account", "missing subcommand");
     };
@@ -277,6 +305,11 @@ fn route_account_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_node_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("node");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("node", "missing subcommand");
     };
@@ -292,6 +325,11 @@ fn route_node_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_network_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("network");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("network", "missing subcommand");
     };
@@ -309,6 +347,11 @@ fn route_network_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_role_group(args: &[String]) -> Result<(), AppError> {
+    if asks_for_help(args) {
+        print_group_usage("role");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return ops::cmd_role_model_status(args);
     };
@@ -322,6 +365,11 @@ fn route_role_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_query_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("query");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("query", "missing subcommand");
     };
@@ -407,6 +455,11 @@ fn route_query_network_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_tx_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("tx");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("tx", "missing subcommand");
     };
@@ -422,6 +475,11 @@ fn route_tx_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_api_group(args: &[String]) -> Result<(), AppError> {
+    if asks_for_help(args) {
+        print_group_usage("api");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return ops::cmd_rpc_status(args);
     };
@@ -449,6 +507,11 @@ fn route_api_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_stake_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("stake");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("stake", "missing subcommand");
     };
@@ -468,6 +531,11 @@ fn route_stake_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_doctor_group(args: &[String]) -> Result<(), AppError> {
+    if asks_for_help(args) {
+        print_group_usage("doctor");
+        return Ok(());
+    }
+
     if args.is_empty() {
         return audit::cmd_diagnostics_doctor(args);
     }
@@ -479,6 +547,11 @@ fn route_doctor_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_audit_group(args: &[String]) -> Result<(), AppError> {
+    if asks_for_help(args) {
+        print_group_usage("audit");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return audit::cmd_production_audit(args);
     };
