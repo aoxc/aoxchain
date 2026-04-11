@@ -27,6 +27,7 @@ pub use gateway::native::NativeGateway;
 pub use security::keystore::{InMemorySecureStore, SecureStore};
 pub use session::protocol::{SessionContext, SessionPermit};
 pub use transport::api::{AoxcMobileTransport, TaskSubmissionResult};
+pub use transport::http::HttpRelayTransport;
 pub use transport::mock::MockRelayTransport;
 pub use types::{
     ChainHealth, DevicePlatform, DeviceProfile, SignedTaskReceipt, TaskDescriptor, TaskKind,
