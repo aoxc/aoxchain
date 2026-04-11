@@ -6,6 +6,7 @@ Repository-root instructions for contributors, maintainers, reviewers, and autom
 
 ## Scope
 
+
 These instructions apply to the **entire repository** unless a deeper `AGENTS.md` defines a more specific rule set for a subdirectory or component.
 
 Where multiple `AGENTS.md` files exist, the **nearest applicable file takes precedence** for that subtree.
