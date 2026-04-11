@@ -4,6 +4,7 @@ This document defines the repository-level architectural baseline after the plan
 
 ## 1. Design Intent
 
+
 AOXChain is designed as a deterministic Layer-1 system in which:
 
 - authority is policy-defined,

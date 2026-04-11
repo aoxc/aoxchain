@@ -43,6 +43,5 @@ Mark each item only after attaching evidence for the same commit SHA and runtime
 - [ ] `aoxc testnet-readiness --enforce --format json` returns no blockers.
 - [ ] Checksum/signature verification logs are archived with release evidence.
 - [ ] Announcement approval recorded with operator/date/commit SHA.
-- [ ] Optional live verification completed with `NODE_HOME=<node-home> ./scripts/validation/testnet_live_smoke.sh`.
 
 If any required item is not closed, release status remains **NOT_READY**.
