@@ -41,6 +41,8 @@ pub enum NetworkError {
     Serialization(String),
     #[error("quantum policy violation: {0}")]
     QuantumPolicyViolation(String),
+    #[error("discovery candidate invalid: {0}")]
+    InvalidDiscoveryCandidate(String),
 }
 
 impl NetworkError {
@@ -64,6 +66,7 @@ impl NetworkError {
             Self::TransportUnavailable(_) => "AOXCNET_TRANSPORT_UNAVAILABLE",
             Self::Serialization(_) => "AOXCNET_SERIALIZATION",
             Self::QuantumPolicyViolation(_) => "AOXCNET_QUANTUM_POLICY_VIOLATION",
+            Self::InvalidDiscoveryCandidate(_) => "AOXCNET_INVALID_DISCOVERY_CANDIDATE",
         }
     }
 }
