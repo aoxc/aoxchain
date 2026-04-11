@@ -1,26 +1,26 @@
 # Podman Operational Notes
 
-This file defines the supported Podman workflow for AOXChain local runtime usage.
+This document defines the supported Podman workflow for AOXChain local execution.
 
-## Scope
+## 1. Scope
 
-- Local developer execution on Linux/macOS with Podman.
-- Rootless-first operation.
-- Parity with Docker commands where feasible.
+- local developer execution on Linux/macOS,
+- rootless-first operation,
+- parity with Docker workflows where feasible.
 
-## Prerequisites
+## 2. Prerequisites
 
-- Podman 4.x+
-- Podman Compose plugin (`podman compose`)
-- Available host ports: `26656-26659`, `8545-8548`
+- Podman 4.x or newer,
+- Podman Compose plugin (`podman compose`),
+- available host ports: `26656-26659`, `8545-8548`.
 
-## Build
+## 3. Image Build
 
 ```bash
 podman build -t aoxchain-node:local .
 ```
 
-## Single Node Run
+## 4. Single-Node Runtime
 
 ```bash
 podman run --rm \
@@ -29,7 +29,7 @@ podman run --rm \
   aoxchain-node:local
 ```
 
-## Multi-Node Run (compose)
+## 5. Multi-Node Runtime
 
 ```bash
 podman compose up --build
@@ -41,14 +41,14 @@ Stop and remove containers:
 podman compose down
 ```
 
-## Rootless Networking Notes
+## 6. Rootless Networking Notes
 
-- Rootless Podman uses user-space networking; host port publishing remains explicit.
-- If host firewall rules block access, open the mapped ports for local testing.
-- Keep the default unprivileged runtime unless a specific operational requirement justifies elevation.
+- rootless Podman uses user-space networking,
+- published host ports remain explicit,
+- keep unprivileged runtime by default unless a documented operational requirement justifies elevation.
 
-## Compatibility Contract
+## 7. Compatibility Contract
 
-- `Dockerfile` remains the canonical build file for Docker and Podman.
-- `docker-compose.yaml` remains the canonical multi-node topology for both `docker compose` and `podman compose`.
-- Runtime behavior differences caused by container engine implementation must be treated as operational issues and documented with reproducible evidence.
+- `Dockerfile` is the canonical image build definition for Docker and Podman,
+- `docker-compose.yaml` is the canonical multi-node topology for both engines,
+- engine-specific runtime differences must be documented with reproducible evidence.

@@ -1,75 +1,71 @@
 # AOXChain
 
-AOXChain is a deterministic Layer-1 engineering program designed for policy-governed authority, cryptographic agility, and evidence-gated release discipline.
+AOXChain is a deterministic Layer-1 engineering program focused on policy-governed authority, cryptographic agility, and evidence-gated release operations.
 
 > **Warning — Experimental Repository**
 >
-> AOXChain is under active development and should be treated as an **experimental system**. Interfaces, runtime behavior, network policy, and configuration formats may change between commits. Do not assume production safety unless a specific release artifact and readiness evidence explicitly state otherwise.
+> AOXChain is under active development. Interfaces, runtime behavior, policy profiles, and configuration semantics may change between commits. Do not infer production readiness unless a specific release artifact and associated evidence bundle state it explicitly.
 
-## 1) Project Purpose
+## 1. Repository Purpose
 
-AOXChain exists to build a blockchain runtime and operations surface that is:
+AOXChain exists to build a blockchain runtime and operational platform that is:
 
-- deterministic under adversarial execution,
-- classical-secure in current deployments,
-- post-quantum transition-capable under governance,
-- auditable through explicit architecture, scope, testing, and release evidence.
+- deterministic under adversarial and concurrent execution conditions,
+- classically secure in current deployment profiles,
+- post-quantum transition capable through explicit governance,
+- auditable through synchronized architecture, scope, security, and testing controls.
 
-The repository emphasizes engineering discipline over marketing claims: no readiness statement is valid without reproducible evidence.
+No readiness assertion is considered valid without reproducible evidence.
 
-## 2) Repository Layout
+## 2. Repository Layout
 
-Top-level directories and their operational role:
+Primary top-level directories and responsibilities:
 
-- `crates/` — Rust workspace crates for runtime, kernel, networking, tooling, and operator surfaces.
-- `configs/` — environment profiles, topology definitions, registry data, and release/network metadata.
-- `docs/` — program plans, runbooks, matrixes, and deep technical references.
-- `scripts/` — automation for validation gates, environment checks, runtime orchestration, and release evidence.
-- `tests/` — cross-crate and external-readiness integration test surfaces.
-- `artifacts/` — generated evidence bundles, closure snapshots, and release manifests.
-- `models/` — machine-readable readiness and governance models.
-- `contracts/` — contract/system-side reference material and integration surfaces.
+- `crates/`: Rust workspace crates for protocol, execution, networking, and operator tooling.
+- `configs/`: environment profiles, topology definitions, policy metadata, and release controls.
+- `docs/`: technical references, implementation blueprints, and operational playbooks.
+- `scripts/`: validation, build, release, and evidence-collection automation.
+- `tests/`: cross-crate and integration-level validation surfaces.
+- `artifacts/`: generated evidence outputs and release-grade records.
+- `models/`: machine-readable governance and readiness models.
+- `contracts/`: contract-facing reference and integration surfaces.
 
-## 3) Canonical Governance and Technical Documents
+## 3. Canonical Governance Documents
 
-The following repository-root documents are the primary governance and engineering contract:
+The following root documents form the repository-level engineering contract:
 
-- `READ.md` — operational technical contract and invariants.
-- `SCOPE.md` — in-scope and out-of-scope boundaries; sensitive change classes.
-- `ARCHITECTURE.md` — component structure, trust boundaries, and dependency direction.
-- `TESTING.md` — mandatory validation surfaces and release-readiness expectations.
-- `SECURITY.md` — security posture, disclosure process, and priority classes.
-- `ROADMAP.md` — phased execution path and closure checkpoints.
-- `VERSIONING.md` — compatibility and versioning posture.
-- `CONTRIBUTING.md` — contribution workflow and review expectations.
+- `READ.md`: technical contract and non-negotiable invariants.
+- `SCOPE.md`: in-scope boundaries, exclusions, and sensitive change classes.
+- `ARCHITECTURE.md`: component topology, dependency direction, and trust boundaries.
+- `TESTING.md`: required validation gates and readiness evidence expectations.
+- `SECURITY.md`: security posture, disclosure workflow, and priority risk classes.
+- `ROADMAP.md`: phased implementation plan with evidence-based closure criteria.
+- `VERSIONING.md`: version-governance policy and release synchronization requirements.
+- `CONTRIBUTING.md`: contribution protocol, review standards, and merge readiness expectations.
 
-`READ.md` is intentionally named as the repository technical contract (it is not a typo for `README.md`).
+`READ.md` is intentionally named as the technical contract; it is not a typographical variant of `README.md`.
 
-When implementation changes affect architecture, compatibility, or security posture, update the corresponding governance document in the same change set.
+## 4. Core Components (Representative)
 
-## 4) Core Components
+- `crates/aoxcmd`: operator CLI for runtime control and readiness workflows.
+- `crates/aoxcvm`: VM and deterministic execution surfaces.
+- `crates/kernel/aoxcore`: canonical protocol domain structures.
+- `crates/kernel/aoxcunity`: consensus kernel and safety-critical transitions.
+- `crates/aoxcnet`: networking, peer transport, and resilience controls.
+- `crates/aoxchub`: operator-facing web and orchestration interface.
+- `crates/aoxconfig`: typed configuration and profile composition surfaces.
 
-High-level component map (non-exhaustive):
+For component-specific constraints, review the nearest crate-level `README.md`, `SCOPE.md`, and `ARCHITECTURE.md` files.
 
-- `crates/aoxcmd` — operator CLI for chain/runtime operations and readiness tooling.
-- `crates/aoxcvm` — virtual machine, execution model, object system, and governance-enforced policy surfaces.
-- `crates/kernel/aoxcore` — core protocol/domain structures (identity, transactions, blocks, genesis).
-- `crates/kernel/aoxcunity` — consensus kernel and safety-critical state transitions.
-- `crates/aoxcnet` — networking, gossip, p2p transport, and resilience helpers.
-- `crates/aoxchub` — operator-facing web hub and command execution surface.
-- `crates/aoxconfig` — configuration model and profile composition.
-
-For crate-specific scope and architecture constraints, consult each crate’s `README.md`, `SCOPE.md`, and `ARCHITECTURE.md` when present.
-
-## 5) Build and Validation Quick Start
+## 5. Build and Validation Quick Start
 
 ### Prerequisites
 
-- Rust toolchain compatible with `Cargo.toml` and lockfile.
-- Standard UNIX shell environment.
-- `make` for repository-level gate execution.
+- Rust toolchain compatible with `Cargo.toml` and `Cargo.lock`.
+- POSIX-compatible shell environment.
+- `make` for repository-level orchestration.
 
-### Build key operator binary
+### Build primary binaries
 
 ```bash
 cargo build -p aoxcmd --release
@@ -77,7 +73,7 @@ cargo build -p aoxchub --release
 cargo build -p aoxckit --release
 ```
 
-### Baseline repository gates
+### Baseline runtime checks
 
 ```bash
 cargo run -p aoxcmd --bin aoxc -- --help
@@ -86,7 +82,7 @@ cargo run -p aoxckit -- --help
 make help
 ```
 
-### 5.4 Baseline quality and readiness gates
+### Baseline quality and readiness gates
 
 ```bash
 make fmt
@@ -98,66 +94,20 @@ make testnet-gate
 make testnet-readiness-gate
 ```
 
-These gates are intended to provide a minimum confidence baseline; specific release decisions require the full testing and evidence criteria documented in `TESTING.md` and release scripts.
+## 6. Audit-Readiness Expectations
 
-## 6) Configuration and Environment Profiles
+For audit-facing changes, contributors should include:
 
-Environment and topology materials are maintained under `configs/`, including:
+- explicit scope statement,
+- risk and trust-boundary impact notes,
+- compatibility or migration implications,
+- command transcript and artifact references tied to commit SHA,
+- synchronized updates to affected governance documents.
 
-- network profiles (`devnet`, `testnet`, `mainnet`),
-- topology policies,
-- registry and compatibility manifests,
-- environment-specific metadata and certificates.
+A successful local build is necessary but insufficient for release readiness.
 
-Treat these files as operationally sensitive. Changes may alter consensus behavior, node coordination, interoperability expectations, or release validity.
+## 7. Security and Liability Context
 
-## 7) Testing and Readiness Model
+AOXChain is licensed under MIT and distributed on an **"AS IS"** basis, without implied warranties.
 
-AOXChain uses layered validation, including:
-
-- unit/integration tests at crate level,
-- cross-surface readiness tests under `tests/`,
-- scripted quality and policy gates under `scripts/validation/`,
-- artifact-based release evidence under `artifacts/` and `releases/`.
-
-A "green local build" alone does not imply production readiness.
-
-## 8) Security and Risk Posture
-
-Security and trust boundaries are defined by repository governance documents and crate-level security/architecture files.
-
-Operational expectations:
-
-- follow responsible disclosure guidance in `SECURITY.md`,
-- avoid introducing undocumented trust-boundary shifts,
-- include compatibility/risk rationale for sensitive changes,
-- keep auditability and deterministic behavior explicit in reviews.
-
-## 9) Compatibility and Change Control
-
-Compatibility-sensitive domains include (non-exhaustive):
-
-- authority and identity model,
-- consensus semantics,
-- transaction/execution determinism,
-- storage and object lifecycle behavior,
-- network/profile and policy-governed feature activation.
-
-If your change impacts one of these domains, update architecture/scope/testing artifacts and include explicit migration or rollback implications.
-
-## 10) Contributing
-
-1. Read `CONTRIBUTING.md`, `SCOPE.md`, and `ARCHITECTURE.md` before making non-trivial changes.
-2. Keep changes minimal and intentional; avoid broad incidental edits.
-3. Run relevant tests and validation gates before proposing a merge.
-4. Include evidence and rationale for policy-sensitive or compatibility-sensitive modifications.
-
-## 11) License and Liability
-
-AOXChain is distributed under the MIT License.
-
-Unless required by applicable law or explicitly agreed in writing, the software is provided **"AS IS"**, without warranties or conditions of any kind, and without maintainers assuming liability for operational outcomes.
-
----
-
-For additional implementation details, begin with `READ.md`, then follow crate-level documentation nearest to the component you are modifying.
+Security posture, disclosure process, and high-priority risk classes are defined in `SECURITY.md`.

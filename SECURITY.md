@@ -1,79 +1,77 @@
-# AOXChain Security Policy (Repository Root)
+# AOXChain Security Policy
 
-This document defines AOXChain's repository-level security posture, vulnerability disclosure workflow, and high-risk engineering controls.
+This document defines repository-level security posture, disclosure workflow, and high-risk engineering controls.
 
-## Security Posture
+## 1. Security Posture
 
 AOXChain targets deterministic, fail-closed Layer-1 behavior with policy-governed cryptographic validation and migration safety.
 
-Security claims are bounded:
+Bounded claims:
 
-- no claim of permanent or absolute cryptographic security,
-- no claim of readiness without reproducible validation evidence,
+- no claim of absolute or permanent cryptographic security,
+- no readiness claim without reproducible evidence,
 - no acceptance of hidden trust bypasses in consensus-relevant paths.
 
-## Supported Scope
+## 2. Supported Surface
 
-This policy applies to repository-maintained protocol, kernel, execution, networking, RPC, configuration, and operational tooling surfaces.
+This policy applies to repository-maintained protocol, kernel, execution, networking, RPC, configuration, and operations tooling surfaces.
 
-Third-party dependencies are in scope for triage and containment planning, but may require upstream remediation.
+Third-party dependencies are in scope for triage and containment planning, though remediation may require upstream action.
 
-## How to Report a Vulnerability
+## 3. Vulnerability Reporting
 
 Report vulnerabilities privately to:
 
 - **Security contact:** `admin@aoxcore.com`
 
-Do not open a public issue, pull request, or social post for an unpatched vulnerability.
+Do not disclose unpatched vulnerabilities via public issue, pull request, or social channels.
 
-For high-sensitivity reports, request encrypted communication in the first email.
+For high-sensitivity reports, request encrypted communication in the initial contact.
 
-## Required Report Content
+## 4. Minimum Report Contents
 
-Include, at minimum:
+Provide, when available:
 
-1. affected component(s) and trust boundary,
-2. deterministic reproduction steps or proof-of-concept,
-3. expected vs observed behavior,
-4. impact assessment (safety, liveness, integrity, economic or governance risk),
-5. commit/hash, environment, and configuration context.
+1. affected component and trust boundary,
+2. deterministic reproduction steps or PoC,
+3. expected versus observed behavior,
+4. impact assessment (safety, liveness, integrity, economic, governance),
+5. commit hash, environment, and configuration context.
 
-Reports missing key data are still accepted but may extend triage time.
+Reports with partial data are accepted, but triage may take longer.
 
-## Triage and Response Model
+## 5. Triage and Response Process
 
-AOXChain uses coordinated vulnerability disclosure.
-
-Process:
+AOXChain follows coordinated vulnerability disclosure:
 
 1. acknowledge receipt,
 2. validate and classify severity,
-3. define containment (code fix, config mitigation, or operator action),
-4. publish advisory after mitigation is available and operators have update guidance.
+3. define containment and remediation path,
+4. publish advisory after mitigation and operator guidance are available.
 
-Response speed is impact-driven; critical consensus or key-management issues are prioritized.
+Response timing is impact-driven; consensus and key-management vulnerabilities are prioritized.
 
-## Priority Vulnerability Classes
+## 6. Priority Vulnerability Classes
 
 Highest-priority classes include:
 
 - consensus safety/liveness/finality violations,
 - deterministic execution divergence,
-- cryptographic validation bypass or downgrade path,
+- cryptographic validation bypass/downgrade paths,
 - replay/migration/recovery authorization flaws,
 - validator/governance authority escalation,
-- P2P/RPC abuse that can cause protocol-level denial or partition risk.
+- P2P or RPC abuse causing protocol-level denial or partition risk.
 
-## Release and Readiness Security Gates
+## 7. Readiness Security Gates
 
-Security-sensitive changes must ship with synchronized updates where relevant:
+Security-sensitive changes must include synchronized updates where applicable:
 
-- `ARCHITECTURE.md` (trust boundary impact),
+- `ARCHITECTURE.md` (trust-boundary impact),
 - `ROADMAP.md` (phase/checklist impact),
-- `TESTING.md` (required validation/evidence impact).
+- `TESTING.md` (validation/evidence impact).
 
-Readiness or promotion claims are non-authoritative without retained evidence linked to the tested commit.
+Readiness claims are non-authoritative without retained evidence tied to the tested commit.
 
-## Legal and Liability Context
+## 8. Legal and Liability Context
 
-AOXChain is distributed under the MIT License on an "as is" basis, without warranty or liability assumptions by maintainers or contributors except where prohibited by applicable law.
+AOXChain is distributed under MIT on an **"AS IS"** basis, without warranties or liability assumptions except where prohibited by law.
