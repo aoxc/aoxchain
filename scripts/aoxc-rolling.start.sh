@@ -40,6 +40,7 @@ Options:
   --home <path>        base path for generated testnet root (default: ${AOXC_Q_HOME})
   --env <name>         configs/environments/<name> source (default: ${AOXC_Q_ENV})
   --profile <name>     AOXC profile for bootstrap (default: ${AOXC_Q_PROFILE})
+  --mode <name>        run mode label for audit/report metadata (default: ${AOXC_Q_MODE})
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; minimum: 7)
   --rounds <n>         rounds per node-run cycle (default: ${AOXC_Q_ROUNDS})
   --sleep-secs <n>     sleep between cycles in daemon loop (default: ${AOXC_Q_SLEEP_SECS})
@@ -50,8 +51,9 @@ Options:
   -h, --help           show this help
 
 Environment overrides:
-  AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_NODE_COUNT,
-  AOXC_Q_ROUNDS, AOXC_Q_START, AOXC_Q_SLEEP_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION
+  AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_MODE, AOXC_Q_NODE_COUNT,
+  AOXC_Q_ROUNDS, AOXC_Q_START, AOXC_Q_SLEEP_SECS, AOXC_Q_SLEEP_MIN_SECS,
+  AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION
 USAGE
 }
 
@@ -80,6 +82,8 @@ while [[ $# -gt 0 ]]; do
     --env) AOXC_Q_ENV="$2"; shift 2 ;;
     --env=*) AOXC_Q_ENV="${1#*=}"; shift ;;
     --profile) AOXC_Q_PROFILE="$2"; shift 2 ;;
+    --mode) AOXC_Q_MODE="$2"; shift 2 ;;
+    --mode=*) AOXC_Q_MODE="${1#*=}"; shift ;;
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
     --sleep-secs) AOXC_Q_SLEEP_SECS="$2"; shift 2 ;;
@@ -113,9 +117,9 @@ case "${AOXC_Q_ACTION}" in
   *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
 esac
 
-case "${AOXC_Q_ACTION}" in
-  up|provision|start|stop|restart|status) ;;
-  *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
+case "${AOXC_Q_MODE}" in
+  local|public) ;;
+  *) die "Invalid --mode value: ${AOXC_Q_MODE} (expected: local|public)" 2 ;;
 esac
 
 TARGET_ROOT="${AOXC_Q_HOME%/}/aoxc-rolling-${AOXC_Q_ENV}-${AOXC_Q_NODE_COUNT}n"
