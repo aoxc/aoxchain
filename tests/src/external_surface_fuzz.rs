@@ -3,6 +3,7 @@
 // This file is part of the AOXC pre-release codebase.
 
 use aoxcnet::p2p::{ProtocolEnvelope, SessionTicket};
+use aoxcnet::error::NetworkError;
 use aoxcore::{
     block::{Capability, TargetOutpost},
     transaction::{MAX_TRANSACTION_PAYLOAD_BYTES, Transaction},
