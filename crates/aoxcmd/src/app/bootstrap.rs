@@ -45,8 +45,8 @@ mod tests {
 
     fn with_test_home<T>(label: &str, test: impl FnOnce(&TestHome) -> T) -> T {
         let _lock = aoxc_home_test_lock();
-        let home = TestHome::new(label);
-        let _guard = AoxcHomeGuard::install(home.path());
+        let home = TestHome::new(label).expect("test home should be created");
+        let _guard = AoxcHomeGuard::install(&_lock, home.path());
         test(&home)
     }
 
