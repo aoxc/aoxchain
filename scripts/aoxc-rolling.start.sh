@@ -11,10 +11,13 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 AOXC_Q_HOME="${AOXC_Q_HOME:-/mnt/xdbx/aoxc}"
 AOXC_Q_ENV="${AOXC_Q_ENV:-testnet}"
 AOXC_Q_PROFILE="${AOXC_Q_PROFILE:-testnet}"
+AOXC_Q_MODE="${AOXC_Q_MODE:-local}"
 AOXC_Q_NODE_COUNT="${AOXC_Q_NODE_COUNT:-7}"
 AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
 AOXC_Q_START="${AOXC_Q_START:-1}"
 AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-1}"
+AOXC_Q_SLEEP_MIN_SECS="${AOXC_Q_SLEEP_MIN_SECS:-1}"
+AOXC_Q_SLEEP_MAX_SECS="${AOXC_Q_SLEEP_MAX_SECS:-1}"
 AOXC_Q_FORCE="${AOXC_Q_FORCE:-0}"
 AOXC_Q_ACTION="${AOXC_Q_ACTION:-up}"
 
@@ -40,6 +43,8 @@ Options:
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; minimum: 7)
   --rounds <n>         rounds per node-run cycle (default: ${AOXC_Q_ROUNDS})
   --sleep-secs <n>     sleep between cycles in daemon loop (default: ${AOXC_Q_SLEEP_SECS})
+  --sleep-min-secs <n> minimum daemon-loop sleep for compatibility with Make surfaces
+  --sleep-max-secs <n> maximum daemon-loop sleep for compatibility with Make surfaces
   --no-start           alias for --action provision
   --force              recreate existing testnet root during provision
   -h, --help           show this help
@@ -78,6 +83,8 @@ while [[ $# -gt 0 ]]; do
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
     --sleep-secs) AOXC_Q_SLEEP_SECS="$2"; shift 2 ;;
+    --sleep-min-secs) AOXC_Q_SLEEP_MIN_SECS="$2"; shift 2 ;;
+    --sleep-max-secs) AOXC_Q_SLEEP_MAX_SECS="$2"; shift 2 ;;
     --no-start) AOXC_Q_ACTION="provision"; AOXC_Q_START=0; shift ;;
     --force) AOXC_Q_FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -88,6 +95,8 @@ done
 require_uint "${AOXC_Q_NODE_COUNT}" "AOXC_Q_NODE_COUNT"
 require_uint "${AOXC_Q_ROUNDS}" "AOXC_Q_ROUNDS"
 require_uint "${AOXC_Q_SLEEP_SECS}" "AOXC_Q_SLEEP_SECS"
+require_uint "${AOXC_Q_SLEEP_MIN_SECS}" "AOXC_Q_SLEEP_MIN_SECS"
+require_uint "${AOXC_Q_SLEEP_MAX_SECS}" "AOXC_Q_SLEEP_MAX_SECS"
 
 if (( AOXC_Q_NODE_COUNT < 7 )); then
   die "AOXC_Q_NODE_COUNT must be >= 7 for production-like persistent topology." 2
@@ -264,6 +273,9 @@ provision_testnet() {
     mkdir -p "${node_home}/identity" "${node_home}/config" "${node_home}/runtime" "${node_home}/audit" "${run_dir}" "${log_dir}"
 
     cp "${TARGET_ROOT}/system/genesis/genesis.json" "${node_home}/identity/genesis.json"
+    cp "${TARGET_ROOT}/system/config/validators.json" "${node_home}/identity/validators.json"
+    cp "${TARGET_ROOT}/system/config/bootnodes.json" "${node_home}/identity/bootnodes.json"
+    cp "${TARGET_ROOT}/system/config/certificate.json" "${node_home}/identity/certificate.json"
     cp "${TARGET_ROOT}/system/config/profile.toml" "${node_home}/config/profile.toml"
     cp "${TARGET_ROOT}/system/config/validators.json" "${node_home}/config/validators.json"
     cp "${TARGET_ROOT}/system/config/bootnodes.json" "${node_home}/config/bootnodes.json"
@@ -274,7 +286,7 @@ provision_testnet() {
     run_aoxc "${node_home}" config-init --profile "${AOXC_Q_PROFILE}" --json-logs > "${run_dir}/config-init.json"
     run_aoxc "${node_home}" address-create --name "${operator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-operator.json"
     run_aoxc "${node_home}" address-create --name "${validator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-validator.json"
-    run_aoxc "${node_home}" key-bootstrap --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
+    run_aoxc "${node_home}" key-bootstrap --force --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
     run_aoxc "${node_home}" keys-verify --password "${password}" > "${run_dir}/keys-verify.json"
     run_aoxc "" node-bootstrap --home "${node_home}" > "${run_dir}/node-bootstrap.json"
 
