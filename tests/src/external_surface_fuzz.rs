@@ -124,6 +124,86 @@ fn external_protocol_envelope_tamper_corpus_is_detected() {
     assert!(invalid_window.verify_against("AOXC-MAINNET", 2626).is_err());
 }
 
+#[test]
+fn protocol_envelope_constructor_rejects_invalid_session_and_domain_inputs() {
+    let payload = ConsensusMessage::BlockProposal {
+        block: sample_block(9),
+    };
+
+    let ticket = SessionTicket {
+        peer_id: "node-9".to_string(),
+        cert_fingerprint: "fp-9".to_string(),
+        established_at_unix: 1_800_000_000,
+        replay_window_nonce: 1,
+        session_id: "session-9".to_string(),
+        expires_at_unix: 1_800_000_100,
+    };
+
+    assert!(
+        ProtocolEnvelope::new("", 2626, &ticket, payload.clone(), 1_800_000_010).is_err(),
+        "empty chain identifier must be rejected"
+    );
+    assert!(
+        ProtocolEnvelope::new("AOXC-MAINNET", 0, &ticket, payload.clone(), 1_800_000_010)
+            .is_err(),
+        "zero protocol serial must be rejected"
+    );
+    assert!(
+        ProtocolEnvelope::new("AOXC-MAINNET", 2626, &ticket, payload, 1_800_000_101).is_err(),
+        "issued timestamp after ticket expiry must be rejected"
+    );
+}
+
+#[test]
+fn protocol_envelope_fuzz_mutations_fail_closed_under_integrity_checks() {
+    let mut rng = StdRng::seed_from_u64(0xA0C2_2026_0002);
+    let canonical_chain_id = "AOXC-MAINNET";
+    let canonical_protocol_serial = 2626_u64;
+
+    for idx in 0..1_000_u64 {
+        let ticket = SessionTicket {
+            peer_id: format!("node-{idx}"),
+            cert_fingerprint: format!("fp-{idx}"),
+            established_at_unix: 1_800_000_000 + idx,
+            replay_window_nonce: idx,
+            session_id: format!("session-{idx}"),
+            expires_at_unix: 1_900_000_000 + idx,
+        };
+
+        let mut envelope = ProtocolEnvelope::new(
+            canonical_chain_id,
+            canonical_protocol_serial,
+            &ticket,
+            ConsensusMessage::BlockProposal {
+                block: sample_block(((idx % 251) as u8).saturating_add(1)),
+            },
+            ticket.established_at_unix + 1,
+        )
+        .expect("baseline envelope fixture must build");
+        assert!(
+            envelope
+                .verify_against(canonical_chain_id, canonical_protocol_serial)
+                .is_ok()
+        );
+
+        match rng.next_u32() % 6 {
+            0 => envelope.protocol_version = envelope.protocol_version.saturating_add(1),
+            1 => envelope.chain_id.push_str("-mut"),
+            2 => envelope.protocol_serial = envelope.protocol_serial.saturating_add(1),
+            3 => envelope.payload_hash_hex = "aa".repeat(32),
+            4 => envelope.frame_hash_hex = "bb".repeat(32),
+            _ => envelope.issued_at_unix = envelope.expires_at_unix.saturating_add(1),
+        }
+
+        assert!(
+            envelope
+                .verify_against(canonical_chain_id, canonical_protocol_serial)
+                .is_err(),
+            "mutated envelope should fail canonical verification"
+        );
+    }
+}
+
 fn sample_block(seed: u8) -> aoxcunity::Block {
     Proposer::new(2626, [seed; 32])
         .propose(
