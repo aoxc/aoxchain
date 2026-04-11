@@ -72,11 +72,6 @@ pub fn asks_for_help(args: &[String]) -> bool {
         .unwrap_or(false)
 }
 
-/// Returns true if token is a help request marker.
-pub fn is_help_token(token: &str) -> bool {
-    matches!(token, "help" | "--help" | "-h")
-}
-
 /// Prints concise help for a routed command group.
 pub fn print_group_usage(group: &str) {
     let body = match group {
@@ -126,78 +121,6 @@ pub fn print_group_usage(group: &str) {
     };
 
     println!("{body}");
-}
-
-/// Prints detailed subcommand usage (including important flags) when available.
-///
-/// Returns `true` when a matching subcommand help surface is printed.
-pub fn print_subcommand_usage(group: &str, subcommand: &str) -> bool {
-    let body = match (group, subcommand) {
-        ("chain", "init") => {
-            "USAGE\n  aoxc chain init [--profile <validation|testnet|mainnet>] [--bind-host <host>] [--json-logs]"
-        }
-        ("chain", "create") => {
-            "USAGE\n  aoxc chain create --password <value> [--profile <testnet|mainnet>] [--name <validator>] [--bind-host <host>] [--produce-once-tx <value>] [--skip-produce-once]"
-        }
-        ("chain", "start") => {
-            "USAGE\n  aoxc chain start [--rounds <n>] [--continuous|--bounded] [--interval-secs <2..600>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log] [--no-rpc-serve]"
-        }
-        ("genesis", "add-account") => {
-            "USAGE\n  aoxc genesis add-account --account-id <id> --balance <amount> [--role <treasury|validator|system|user|governance|forge|quorum|seal|archive|sentinel|relay|pocket>]"
-        }
-        ("genesis", "add-validator") => {
-            "USAGE\n  aoxc genesis add-validator --validator-id <id> --consensus-public-key <hex> --network-public-key <hex> [--consensus-fingerprint <hex>] [--network-fingerprint <hex>] [--bootnode-address <host:port>] [--balance <amount>] [--display-name <label>]"
-        }
-        ("genesis", "finalize" | "seal" | "sign" | "freeze") => {
-            "USAGE\n  aoxc genesis finalize [--profile <localnet|devnet|validation|testnet|mainnet>] [--strict]"
-        }
-        ("validator", "join" | "register") => {
-            "USAGE\n  aoxc validator join --validator-id <id> [--name <display-name>] [--profile <validation|testnet|mainnet>] --password <value>"
-        }
-        ("validator", "activate") => {
-            "USAGE\n  aoxc validator activate --validator-id <id> [--stake <amount>]"
-        }
-        ("validator", "unbond") => {
-            "USAGE\n  aoxc validator unbond --validator-id <id> [--stake <amount>]"
-        }
-        ("wallet", "create") => {
-            "USAGE\n  aoxc wallet create --name <validator> --profile <validation|testnet|mainnet|devnet|localnet> --password <value>"
-        }
-        ("account", "fund") => {
-            "USAGE\n  aoxc account fund --to <account-id> --amount <value> [--from <account-id>]"
-        }
-        ("node", "join") => {
-            "USAGE\n  aoxc node join --seed <multiaddr|ip:port> [--peer <id>] [--chain-id <id>] [--genesis <path>] [--profile <name>] [--home <path>] [--trust-root <path|fingerprint>] [--allow-sync-from <peer-id>]"
-        }
-        ("node", "start") => {
-            "USAGE\n  aoxc node start [--rounds <n>] [--continuous|--bounded] [--interval-secs <2..600>] [--tx-prefix <value>] [--log-level <info|debug>] [--no-live-log] [--no-rpc-serve] [--no-auto-discovery]"
-        }
-        ("network", "identity-gate") => {
-            "USAGE\n  aoxc network identity-gate [--full] [--env <name>] [--enforce]"
-        }
-        ("query", "block") => "USAGE\n  aoxc query block --height <latest|n>",
-        ("query", "tx") => "USAGE\n  aoxc query tx --hash <tx-hash>",
-        ("query", "receipt") => "USAGE\n  aoxc query receipt --hash <tx-hash>",
-        ("query", "account") => "USAGE\n  aoxc query account --id <account-id>",
-        ("query", "balance") => "USAGE\n  aoxc query balance --id <account-id>",
-        ("query", "full") => "USAGE\n  aoxc query full [--account-id <id>] [--tx-hash <hash>]",
-        ("api", "full") => "USAGE\n  aoxc api full [--account-id <id>] [--tx-hash <hash>]",
-        ("tx", "transfer") => "USAGE\n  aoxc tx transfer --to <account-id> --amount <value>",
-        ("stake", "delegate") => {
-            "USAGE\n  aoxc stake delegate --to <validator-id> --amount <value>"
-        }
-        ("stake", "undelegate") => {
-            "USAGE\n  aoxc stake undelegate --to <validator-id> --amount <value>"
-        }
-        ("doctor", "network" | "node" | "runtime") => "USAGE\n  aoxc doctor <network|node|runtime>",
-        ("audit", "chain" | "genesis" | "validator-set") => {
-            "USAGE\n  aoxc audit <chain|genesis|validator-set>"
-        }
-        _ => return false,
-    };
-
-    println!("{body}");
-    true
 }
 
 fn suggest_command(command: &str) -> Option<&'static str> {
@@ -607,7 +530,7 @@ fn scalar_to_text(value: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{asks_for_help, is_help_token, localized_unknown_command, print_subcommand_usage};
+    use super::{asks_for_help, localized_unknown_command};
 
     #[test]
     fn asks_for_help_detects_primary_forms() {
@@ -622,20 +545,5 @@ mod tests {
         let error = localized_unknown_command("en", "genessis");
         let message = error.to_string();
         assert!(message.contains("Did you mean 'genesis'?"));
-    }
-
-    #[test]
-    fn is_help_token_supports_all_help_forms() {
-        assert!(is_help_token("--help"));
-        assert!(is_help_token("-h"));
-        assert!(is_help_token("help"));
-        assert!(!is_help_token("status"));
-    }
-
-    #[test]
-    fn subcommand_usage_registry_contains_key_paths() {
-        assert!(print_subcommand_usage("chain", "init"));
-        assert!(print_subcommand_usage("query", "block"));
-        assert!(!print_subcommand_usage("query", "non-existent"));
     }
 }
