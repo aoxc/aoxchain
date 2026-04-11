@@ -2,95 +2,74 @@
 # AOXCHAIN - Supply Chain Security & Dependency Governance Policy
 # =============================================================================
 # Purpose:
-# This configuration enforces strict dependency hygiene, mitigates supply chain 
-# vulnerabilities, ensures legal license compliance, and maintains source 
+# This configuration enforces strict dependency hygiene, mitigates supply chain
+# vulnerabilities, ensures legal license compliance, and maintains source
 # provenance across the AOXChain ecosystem.
-#
-# Governance Protocol:
-# 1. Zero-Trust: All transitive dependencies are evaluated under full features.
-# 2. Accountability: Exceptions (ignores) require specific RUSTSEC identifiers 
-#    and technical justification.
-# 3. Remediation: Exceptions are temporary; upstream migration is mandatory 
-#    upon patch availability.
-# =============================================================================
 
 [graph]
-# Ensures no "shadow dependencies" exist by evaluating the entire graph 
-# under the maximum feature set.
+# Evaluate the entire dependency graph with maximum enabled features.
 all-features = true
 
 [advisories]
 version = 2
-# Prohibit the use of crates that have been yanked from registries.
-yanked  = "deny"
+# Prohibit yanked crates from registries.
+yanked = "deny"
 
-# --- Security Advisory Exceptions ---
-# Each entry represents a conscious risk-assessment of transitive dependencies
-# where no immediate upstream patch is available.
+# Security advisory exceptions are temporary and require upstream remediation.
 ignore = [
-    # Proc-macro support: Legacy dependency in the macro expansion chain.
-    "RUSTSEC-2024-0370",
+  # Proc-macro support: legacy dependency in macro expansion chain.
+  "RUSTSEC-2024-0370",
 
-    # Post-Quantum Cryptography: Transitive noise from external crypto suites.
-    "RUSTSEC-2024-0380",
+  # Post-quantum cryptography: transitive from external crypto suites.
+  "RUSTSEC-2024-0380",
 
-    # UI/GTK Stack: Inherited via system-level integration components.
-    "RUSTSEC-2024-0411",
-    "RUSTSEC-2024-0412",
-    "RUSTSEC-2024-0413",
-    "RUSTSEC-2024-0414",
-    "RUSTSEC-2024-0415",
-    "RUSTSEC-2024-0416",
-    "RUSTSEC-2024-0417",
-    "RUSTSEC-2024-0418",
-    "RUSTSEC-2024-0419",
-    "RUSTSEC-2024-0420",
+  # UI/GTK stack: inherited via system-level integration components.
+  "RUSTSEC-2024-0411",
+  "RUSTSEC-2024-0412",
+  "RUSTSEC-2024-0413",
+  "RUSTSEC-2024-0414",
+  "RUSTSEC-2024-0415",
+  "RUSTSEC-2024-0416",
+  "RUSTSEC-2024-0417",
+  "RUSTSEC-2024-0418",
+  "RUSTSEC-2024-0419",
+  "RUSTSEC-2024-0420",
 
-    # Infrastructure Utilities: Pending upstream resolution in hashing/text libs.
-    "RUSTSEC-2025-0057",
-    "RUSTSEC-2025-0075",
-    "RUSTSEC-2025-0080",
-    "RUSTSEC-2025-0081",
-    "RUSTSEC-2025-0098",
-    "RUSTSEC-2025-0100",
+  # Infrastructure utilities: pending upstream fixes.
+  "RUSTSEC-2025-0057",
+  "RUSTSEC-2025-0075",
+  "RUSTSEC-2025-0080",
+  "RUSTSEC-2025-0081",
+  "RUSTSEC-2025-0098",
+  "RUSTSEC-2025-0100",
 ]
 
 [licenses]
 version = 2
-# Only permissive and commercially viable licenses are permitted.
-# Copyleft licenses (e.g., GPL) are strictly prohibited to protect IP.
 allow = [
-    "Apache-2.0",
-    "Apache-2.0 WITH LLVM-exception",
-    "BSD-2-Clause",
-    "BSD-3-Clause",
-    "CDLA-Permissive-2.0",
-    "ISC",
-    "MIT",
-    "MPL-2.0",
-    "Unicode-3.0",
-    "Zlib",
-
-    "CC0-1.0",]
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "CC0-1.0",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MIT",
+  "Unicode-3.0",
+  "Zlib",
+]
 
 [licenses.private]
-# Internal workspace crates are exempt from registry-level license metadata.
+# Internal workspace crates may omit registry license metadata.
 ignore = true
 
 [bans]
-# Prevent 'Dependency Bloat': Deny multiple versions of the same crate 
-# to minimize attack surface and binary size.
+# Allow duplicates with warning until convergence work is complete.
 multiple-versions = "warn"
-
-# Enforce explicit versioning: Wildcard versions are non-deterministic and denied.
+# Disallow wildcard versions to preserve deterministic dependency resolution.
 wildcards = "deny"
 
 [sources]
-# Source Provenance: Restrict crate resolution to trusted registries only.
-# Prevents 'Dependency Confusion' attacks from malicious private/git sources.
+# Fail closed on untrusted registries and git sources.
 unknown-registry = "deny"
-unknown-git      = "deny"
-
-[sources.allow-org]
-# Optional: If you use specific GitHub organizations for dependencies.
-# github = ["aoxchain"]
+unknown-git = "deny"
