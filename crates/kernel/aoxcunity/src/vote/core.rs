@@ -183,6 +183,9 @@ pub enum VoteAuthenticationError {
 
     #[error("vote post-quantum identity binding does not match validator identifier")]
     PostQuantumIdentityBindingMismatch,
+
+    #[error("vote failed consensus admission: {0}")]
+    ConsensusAdmissionRejected(String),
 }
 
 impl Vote {

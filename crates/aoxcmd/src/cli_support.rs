@@ -164,6 +164,27 @@ pub fn print_subcommand_usage(group: &str, subcommand: &str) -> bool {
         ("query", "consensus") => {
             "USAGE\n  aoxc query consensus [status|validators|proposer|round|finality|commits|evidence]"
         }
+        ("consensus", "status") => {
+            "USAGE\n  aoxc consensus status [--strict] [--expected-network-id <u32>] [--min-finalized-height <u64>] [--format <text|json|yaml>]"
+        }
+        ("consensus", "validators" | "validator-set") => {
+            "USAGE\n  aoxc consensus validators [--only-active] [--min-voting-power <u64>] [--validator-id <id>] [--format <text|json|yaml>]"
+        }
+        ("consensus", "proposer") => {
+            "USAGE\n  aoxc consensus proposer [--height <u64>] [--round <u64>] [--expected-proposer <id>] [--format <text|json|yaml>]"
+        }
+        ("consensus", "round") => {
+            "USAGE\n  aoxc consensus round [--min-round <u64>] [--expect-quorum] [--format <text|json|yaml>]"
+        }
+        ("consensus", "finality") => {
+            "USAGE\n  aoxc consensus finality [--max-pending-height <u64>] [--require-quorum-certificate] [--format <text|json|yaml>]"
+        }
+        ("consensus", "commits") => {
+            "USAGE\n  aoxc consensus commits [--round <u64>] [--min-commits <u64>] [--format <text|json|yaml>]"
+        }
+        ("consensus", "evidence") => {
+            "USAGE\n  aoxc consensus evidence [--require-qc] [--require-evidence <prevote|precommit|commit>] [--format <text|json|yaml>]"
+        }
         ("query", "vm") => {
             "USAGE\n  aoxc query vm [status|call|simulate|storage|contract|code|estimate-gas|trace]"
         }
@@ -245,6 +266,9 @@ pub fn print_group_usage(group: &str) {
         "query" => {
             "GROUP: query\n  chain             Chain status and block/tx queries\n  consensus         Consensus diagnostics\n  vm                VM diagnostics and contract inspection\n  full              Aggregate account/tx/network projection\n  block|tx|receipt|account|balance\n                    Direct single-surface queries\n  network           Network status/peer/full projection\n  runtime           Runtime status and snapshots\n  state-root        Query state root\n  rpc               Query RPC status\n\nEXAMPLES\n  aoxc query chain status\n  aoxc query vm trace"
         }
+        "consensus" => {
+            "GROUP: consensus\n  status            Consensus status with strict assertions\n  validators        Validator set and voting-power filters\n  proposer          Proposer projection with expectation checks\n  round             Round diagnostics with quorum expectation\n  finality          Finality projection and pending-bound enforcement\n  commits           Commit vote projection with minimum-count checks\n  evidence          Evidence/QC projection with required-item checks\n\nEXAMPLES\n  aoxc consensus status --strict --expected-network-id 2626\n  aoxc consensus validators --only-active --min-voting-power 1\n  aoxc consensus evidence --require-qc --require-evidence commit"
+        }
         "api" => {
             "GROUP: api\n  status|rpc        RPC status\n  contract          API contract descriptor\n  smoke             RPC curl smoke validation\n  metrics           Metrics projection\n  health            Runtime health surface\n  full              Aggregate projection\n  chain|consensus|vm|network|runtime\n                    Routed query aliases\n\nEXAMPLES\n  aoxc api status\n  aoxc api full --account-id <id>"
         }
@@ -278,6 +302,7 @@ fn suggest_command(command: &str) -> Option<&'static str> {
         "role",
         "api",
         "query",
+        "consensus",
         "tx",
         "stake",
         "doctor",
@@ -342,6 +367,7 @@ GUIDED GROUPS
   role list|status|activate-core7
   api [status|contract|smoke|metrics|health|full|chain|consensus|vm|block|tx|receipt|account|balance|state-root|network|runtime]
   query chain|consensus|vm|full|block|tx|receipt|account|balance|network|runtime|state-root|rpc
+  consensus status|validators|validator-set|proposer|round|finality|commits|evidence
   tx transfer|stake delegate|stake undelegate
   stake delegate|undelegate|validators|rewards
   doctor [node|network|runtime]
@@ -438,6 +464,13 @@ NODE AND ECONOMY
   query consensus finality
   query consensus commits
   query consensus evidence
+  consensus status [--strict] [--expected-network-id <u32>] [--min-finalized-height <u64>] [--format <text|json|yaml>]
+  consensus validators [--only-active] [--min-voting-power <u64>] [--validator-id <id>] [--format <text|json|yaml>]
+  consensus proposer [--height <u64>] [--round <u64>] [--expected-proposer <id>] [--format <text|json|yaml>]
+  consensus round [--min-round <u64>] [--expect-quorum] [--format <text|json|yaml>]
+  consensus finality [--max-pending-height <u64>] [--require-quorum-certificate] [--format <text|json|yaml>]
+  consensus commits [--round <u64>] [--min-commits <u64>] [--format <text|json|yaml>]
+  consensus evidence [--require-qc] [--require-evidence <prevote|precommit|commit>] [--format <text|json|yaml>]
   query vm status
   query vm call
   query vm simulate

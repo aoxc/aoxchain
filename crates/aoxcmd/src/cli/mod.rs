@@ -63,6 +63,7 @@ pub fn run_cli() -> Result<(), AppError> {
         "stake" => route_stake_group(&args[2..]),
         "doctor" => route_doctor_group(&args[2..]),
         "audit" => route_audit_group(&args[2..]),
+        "consensus" => route_consensus_group(&args[2..]),
         "version" | "--version" | "-V" => describe::cmd_version(),
         "help" | "--help" | "-h" => {
             print_usage(lang);
@@ -471,6 +472,34 @@ fn route_query_consensus_group(args: &[String]) -> Result<(), AppError> {
     }
 }
 
+fn route_consensus_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("consensus");
+        return Ok(());
+    }
+
+    let Some((subcommand, tail)) = args.split_first() else {
+        return invalid_group_usage("consensus", "missing subcommand");
+    };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("consensus", subcommand) {
+            print_group_usage("consensus");
+        }
+        return Ok(());
+    }
+
+    match subcommand.as_str() {
+        "status" => ops::cmd_consensus_status(tail),
+        "validators" | "validator-set" => ops::cmd_consensus_validators(tail),
+        "proposer" => ops::cmd_consensus_proposer(tail),
+        "round" => ops::cmd_consensus_round(tail),
+        "finality" => ops::cmd_consensus_finality(tail),
+        "commits" => ops::cmd_consensus_commits(tail),
+        "evidence" => ops::cmd_consensus_evidence(tail),
+        _ => invalid_group_usage("consensus", "unsupported subcommand"),
+    }
+}
+
 fn route_query_vm_group(args: &[String]) -> Result<(), AppError> {
     let Some((subcommand, tail)) = args.split_first() else {
         return ops::cmd_vm_status(args);
@@ -668,8 +697,8 @@ fn invalid_group_usage(group: &str, detail: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        remap_flags, route_api_group, route_query_consensus_group, route_query_group,
-        route_query_vm_group, run_cli,
+        remap_flags, route_api_group, route_consensus_group, route_query_consensus_group,
+        route_query_group, route_query_vm_group, run_cli,
     };
 
     #[test]
@@ -697,6 +726,12 @@ mod tests {
     fn query_consensus_group_supports_extended_subcommands() {
         let command = vec!["validators".to_string()];
         assert!(route_query_consensus_group(&command).is_ok());
+    }
+
+    #[test]
+    fn consensus_group_supports_status_subcommand() {
+        let command = vec!["validators".to_string()];
+        assert!(route_consensus_group(&command).is_ok());
     }
 
     #[test]
