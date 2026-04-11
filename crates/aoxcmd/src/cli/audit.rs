@@ -520,7 +520,7 @@ mod tests {
 
     #[test]
     fn permission_check_requires_existing_hardened_sensitive_files() {
-        let home = TestHome::new("permission-check");
+        let home = TestHome::new("permission-check").expect("test home should be created");
         let target = home.path().join("keys").join("operator_key.json");
         write_file(&target, "{\"test\":true}").expect("fixture file should be written");
 
@@ -537,7 +537,7 @@ mod tests {
 
     #[test]
     fn permission_check_fails_when_sensitive_file_is_missing() {
-        let home = TestHome::new("permission-check-missing");
+        let home = TestHome::new("permission-check-missing").expect("test home should be created");
         let target = home.path().join("keys").join("operator_key.json");
 
         let check = permission_check("operator-key-permissions", &target, false)

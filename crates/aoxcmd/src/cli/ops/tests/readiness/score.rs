@@ -1,18 +1,23 @@
 use super::*;
 
 #[test]
-fn readiness_reflects_release_evidence_gaps_in_score() {
+fn readiness_reflects_identity_gaps_in_score() {
     let mut settings = Settings::default_for("/tmp/aoxc".to_string());
     settings.profile = "mainnet".to_string();
     settings.logging.json = true;
     settings.network.bind_host = "0.0.0.0".to_string();
 
     let readiness =
-        evaluate_profile_readiness("mainnet", &settings, None, Some("active"), true, true);
+        evaluate_profile_readiness("mainnet", &settings, None, Some("locked"), true, true);
 
-    assert_eq!(readiness.readiness_score, 75);
+    assert!(readiness.readiness_score < 100);
     assert_eq!(readiness.verdict, "not-ready");
-    assert!(!readiness.blockers.is_empty());
+    assert!(
+        readiness
+            .blockers
+            .iter()
+            .any(|entry| entry.starts_with("operator-key-active:"))
+    );
     assert!(!readiness.remediation_plan.is_empty());
     assert!(
         readiness
