@@ -1,7 +1,9 @@
 use super::*;
 use crate::security::keystore::SecureStore;
-use crate::security::signer::verify_json_payload;
-use crate::session::protocol::SessionSigningPayload;
+use crate::security::signer::{sign_json_payload, verify_json_payload};
+use crate::session::protocol::{
+    RelayChallengeSigningPayload, RelayPermitSigningPayload, SessionSigningPayload,
+};
 use crate::session::protocol::{SessionChallenge, SessionEnvelope};
 use crate::transport::mock::MockRelayTransport;
 use crate::types::{TaskKind, WitnessDecision};
@@ -11,6 +13,7 @@ use crate::{
     SessionPermit, SignedTaskReceipt, TaskDescriptor, TaskSubmissionResult,
 };
 use aoxcore::identity::{MASTER_SEED_LEN, hd_path::HdPath};
+use ed25519_dalek::SigningKey as EdSigningKey;
 
 fn sample_seed() -> [u8; MASTER_SEED_LEN] {
     [0x44; MASTER_SEED_LEN]
@@ -266,6 +269,7 @@ async fn open_session_rejects_replay_like_old_challenge() {
                 expires_at_epoch_secs: now + 10,
                 audience: config.app_id.clone(),
                 session_ttl_secs: config.session_ttl_secs,
+                relay_signature_hex: None,
             })
         }
 
@@ -323,4 +327,246 @@ async fn open_session_rejects_replay_like_old_challenge() {
         .await
         .expect_err("replay-like old challenge must be rejected");
     assert_eq!(error.code(), "AOXCMOB_SESSION_CHALLENGE_INVALID");
+}
+
+#[tokio::test]
+async fn open_session_rejects_unsigned_challenge_when_relay_key_is_configured() {
+    let relay_signing_key = EdSigningKey::from_bytes(&[0x22; 32]);
+    let mut config = MobileConfig::default();
+    config.relay_verifying_key_hex = Some(hex::encode_upper(
+        relay_signing_key.verifying_key().to_bytes(),
+    ));
+
+    let gateway = NativeGateway::new(
+        config,
+        MockRelayTransport::new("AOXC-MAIN"),
+        crate::InMemorySecureStore::new(),
+    )
+    .expect("gateway creation must succeed");
+    gateway
+        .provision_from_master_seed(
+            sample_seed(),
+            HdPath::new(1, 100, 1, 0).expect("path must be valid"),
+            DevicePlatform::Desktop,
+            "guardian-desktop",
+        )
+        .expect("device provisioning must succeed");
+
+    let error = gateway
+        .open_session()
+        .await
+        .expect_err("unsigned challenge must be rejected");
+    assert_eq!(error.code(), "AOXCMOB_SESSION_CHALLENGE_INVALID");
+}
+
+#[tokio::test]
+async fn open_session_rejects_unsigned_permit_when_relay_key_is_configured() {
+    struct UnsignedPermitTransport {
+        relay_signing_key: EdSigningKey,
+    }
+
+    #[async_trait::async_trait]
+    impl AoxcMobileTransport for UnsignedPermitTransport {
+        async fn request_session_challenge(
+            &self,
+            _profile: &DeviceProfile,
+            config: &MobileConfig,
+        ) -> Result<SessionChallenge, MobError> {
+            let now = now_epoch_secs()?;
+            let payload = RelayChallengeSigningPayload {
+                challenge_id: "CH-UP".to_string(),
+                relay_nonce: "NONCE-UP".to_string(),
+                issued_at_epoch_secs: now,
+                expires_at_epoch_secs: now + 30,
+                audience: config.app_id.clone(),
+                session_ttl_secs: config.session_ttl_secs,
+            };
+            let (signature_hex, _) = sign_json_payload(&self.relay_signing_key, &payload)?;
+            Ok(SessionChallenge {
+                challenge_id: payload.challenge_id,
+                relay_nonce: payload.relay_nonce,
+                issued_at_epoch_secs: payload.issued_at_epoch_secs,
+                expires_at_epoch_secs: payload.expires_at_epoch_secs,
+                audience: payload.audience,
+                session_ttl_secs: payload.session_ttl_secs,
+                relay_signature_hex: Some(signature_hex),
+            })
+        }
+
+        async fn submit_session_envelope(
+            &self,
+            envelope: SessionEnvelope,
+            _config: &MobileConfig,
+        ) -> Result<SessionPermit, MobError> {
+            let now = now_epoch_secs()?;
+            Ok(SessionPermit {
+                session_id: "SESS-UP".to_string(),
+                device_id: envelope.device_id,
+                issued_at_epoch_secs: now,
+                expires_at_epoch_secs: now + 120,
+                relay_signature_hint: "unsigned-permit".to_string(),
+                relay_signature_hex: None,
+            })
+        }
+
+        async fn fetch_chain_health(
+            &self,
+            _permit: &SessionPermit,
+            _config: &MobileConfig,
+        ) -> Result<ChainHealth, MobError> {
+            unreachable!()
+        }
+
+        async fn fetch_available_tasks(
+            &self,
+            _permit: &SessionPermit,
+            _config: &MobileConfig,
+        ) -> Result<Vec<TaskDescriptor>, MobError> {
+            unreachable!()
+        }
+
+        async fn submit_task_receipt(
+            &self,
+            _receipt: SignedTaskReceipt,
+            _config: &MobileConfig,
+        ) -> Result<TaskSubmissionResult, MobError> {
+            unreachable!()
+        }
+    }
+
+    let relay_signing_key = EdSigningKey::from_bytes(&[0x24; 32]);
+    let mut config = MobileConfig::default();
+    config.relay_verifying_key_hex = Some(hex::encode_upper(
+        relay_signing_key.verifying_key().to_bytes(),
+    ));
+    let gateway = NativeGateway::new(
+        config,
+        UnsignedPermitTransport { relay_signing_key },
+        crate::InMemorySecureStore::new(),
+    )
+    .expect("gateway creation must succeed");
+    gateway
+        .provision_from_master_seed(
+            sample_seed(),
+            HdPath::new(1, 100, 1, 0).expect("path must be valid"),
+            DevicePlatform::Desktop,
+            "guardian-desktop",
+        )
+        .expect("device provisioning must succeed");
+
+    let error = gateway
+        .open_session()
+        .await
+        .expect_err("unsigned permit must be rejected");
+    assert_eq!(error.code(), "AOXCMOB_SESSION_CHALLENGE_INVALID");
+}
+
+#[tokio::test]
+async fn open_session_accepts_validly_signed_relay_permit() {
+    struct SignedPermitTransport {
+        relay_signing_key: EdSigningKey,
+    }
+
+    #[async_trait::async_trait]
+    impl AoxcMobileTransport for SignedPermitTransport {
+        async fn request_session_challenge(
+            &self,
+            _profile: &DeviceProfile,
+            config: &MobileConfig,
+        ) -> Result<SessionChallenge, MobError> {
+            let now = now_epoch_secs()?;
+            let payload = RelayChallengeSigningPayload {
+                challenge_id: "CH-SIGNED".to_string(),
+                relay_nonce: "NONCE-SIGNED".to_string(),
+                issued_at_epoch_secs: now,
+                expires_at_epoch_secs: now + 30,
+                audience: config.app_id.clone(),
+                session_ttl_secs: config.session_ttl_secs,
+            };
+            let (signature_hex, _) = sign_json_payload(&self.relay_signing_key, &payload)?;
+            Ok(SessionChallenge {
+                challenge_id: payload.challenge_id,
+                relay_nonce: payload.relay_nonce,
+                issued_at_epoch_secs: payload.issued_at_epoch_secs,
+                expires_at_epoch_secs: payload.expires_at_epoch_secs,
+                audience: payload.audience,
+                session_ttl_secs: payload.session_ttl_secs,
+                relay_signature_hex: Some(signature_hex),
+            })
+        }
+
+        async fn submit_session_envelope(
+            &self,
+            envelope: SessionEnvelope,
+            _config: &MobileConfig,
+        ) -> Result<SessionPermit, MobError> {
+            let now = now_epoch_secs()?;
+            let payload = RelayPermitSigningPayload {
+                session_id: "SESS-SIGNED".to_string(),
+                device_id: envelope.device_id.clone(),
+                issued_at_epoch_secs: now,
+                expires_at_epoch_secs: now + 120,
+                relay_signature_hint: "relay-signed".to_string(),
+            };
+            let (signature_hex, _) = sign_json_payload(&self.relay_signing_key, &payload)?;
+            Ok(SessionPermit {
+                session_id: payload.session_id,
+                device_id: payload.device_id,
+                issued_at_epoch_secs: payload.issued_at_epoch_secs,
+                expires_at_epoch_secs: payload.expires_at_epoch_secs,
+                relay_signature_hint: payload.relay_signature_hint,
+                relay_signature_hex: Some(signature_hex),
+            })
+        }
+
+        async fn fetch_chain_health(
+            &self,
+            _permit: &SessionPermit,
+            _config: &MobileConfig,
+        ) -> Result<ChainHealth, MobError> {
+            unreachable!()
+        }
+
+        async fn fetch_available_tasks(
+            &self,
+            _permit: &SessionPermit,
+            _config: &MobileConfig,
+        ) -> Result<Vec<TaskDescriptor>, MobError> {
+            unreachable!()
+        }
+
+        async fn submit_task_receipt(
+            &self,
+            _receipt: SignedTaskReceipt,
+            _config: &MobileConfig,
+        ) -> Result<TaskSubmissionResult, MobError> {
+            unreachable!()
+        }
+    }
+
+    let relay_signing_key = EdSigningKey::from_bytes(&[0x23; 32]);
+    let mut config = MobileConfig::default();
+    config.relay_verifying_key_hex = Some(hex::encode_upper(
+        relay_signing_key.verifying_key().to_bytes(),
+    ));
+    let gateway = NativeGateway::new(
+        config,
+        SignedPermitTransport { relay_signing_key },
+        crate::InMemorySecureStore::new(),
+    )
+    .expect("gateway creation must succeed");
+    gateway
+        .provision_from_master_seed(
+            sample_seed(),
+            HdPath::new(1, 100, 1, 0).expect("path must be valid"),
+            DevicePlatform::Desktop,
+            "guardian-desktop",
+        )
+        .expect("device provisioning must succeed");
+
+    let session = gateway
+        .open_session()
+        .await
+        .expect("signed permit should be accepted");
+    assert_eq!(session.permit.session_id, "SESS-SIGNED");
 }
