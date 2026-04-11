@@ -3,7 +3,10 @@
 // This file is part of the AOXC pre-release codebase.
 
 use crate::{
-    cli_support::{arg_value, detect_language, localized_unknown_command, print_usage},
+    cli_support::{
+        arg_value, asks_for_help, detect_language, is_help_token, localized_unknown_command,
+        print_group_usage, print_subcommand_usage, print_usage,
+    },
     data_home::ScopedHomeOverride,
     error::{AppError, ErrorCode},
 };
@@ -187,9 +190,20 @@ pub fn run_cli() -> Result<(), AppError> {
 }
 
 fn route_chain_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("chain");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("chain", "missing subcommand");
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("chain", subcommand) {
+            print_group_usage("chain");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "init" => bootstrap::cmd_config_init(tail),
@@ -204,9 +218,20 @@ fn route_chain_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_genesis_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("genesis");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("genesis", "missing subcommand");
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("genesis", subcommand) {
+            print_group_usage("genesis");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "init" => bootstrap::cmd_genesis_init(tail),
@@ -226,9 +251,20 @@ fn route_genesis_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_validator_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("validator");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("validator", "missing subcommand");
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("validator", subcommand) {
+            print_group_usage("validator");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "create" => bootstrap::cmd_key_bootstrap(tail),
@@ -244,9 +280,20 @@ fn route_validator_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_wallet_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("wallet");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("wallet", "missing subcommand");
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("wallet", subcommand) {
+            print_group_usage("wallet");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "create" => bootstrap::cmd_address_create(tail),
@@ -256,9 +303,20 @@ fn route_wallet_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_account_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("account");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("account", "missing subcommand");
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("account", subcommand) {
+            print_group_usage("account");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "fund" => {
@@ -277,9 +335,20 @@ fn route_account_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_node_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("node");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("node", "missing subcommand");
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("node", subcommand) {
+            print_group_usage("node");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "init" => ops::cmd_node_bootstrap(tail),
@@ -292,9 +361,20 @@ fn route_node_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_network_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("network");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("network", "missing subcommand");
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("network", subcommand) {
+            print_group_usage("network");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "create" => bootstrap::cmd_dual_profile_bootstrap(tail),
@@ -309,6 +389,11 @@ fn route_network_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_role_group(args: &[String]) -> Result<(), AppError> {
+    if asks_for_help(args) {
+        print_group_usage("role");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return ops::cmd_role_model_status(args);
     };
@@ -322,9 +407,20 @@ fn route_role_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_query_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("query");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("query", "missing subcommand");
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("query", subcommand) {
+            print_group_usage("query");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "chain" => route_query_chain_group(tail),
@@ -407,9 +503,20 @@ fn route_query_network_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_tx_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("tx");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("tx", "missing subcommand");
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("tx", subcommand) {
+            print_group_usage("tx");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "transfer" => {
@@ -422,9 +529,20 @@ fn route_tx_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_api_group(args: &[String]) -> Result<(), AppError> {
+    if asks_for_help(args) {
+        print_group_usage("api");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return ops::cmd_rpc_status(args);
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("api", subcommand) {
+            print_group_usage("api");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "status" | "rpc" => ops::cmd_rpc_status(tail),
@@ -449,9 +567,20 @@ fn route_api_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_stake_group(args: &[String]) -> Result<(), AppError> {
+    if args.is_empty() || asks_for_help(args) {
+        print_group_usage("stake");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return invalid_group_usage("stake", "missing subcommand");
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("stake", subcommand) {
+            print_group_usage("stake");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "delegate" => {
@@ -468,20 +597,42 @@ fn route_stake_group(args: &[String]) -> Result<(), AppError> {
 }
 
 fn route_doctor_group(args: &[String]) -> Result<(), AppError> {
+    if asks_for_help(args) {
+        print_group_usage("doctor");
+        return Ok(());
+    }
+
     if args.is_empty() {
         return audit::cmd_diagnostics_doctor(args);
     }
 
     match args[0].as_str() {
+        subcommand if args.get(1).is_some_and(|value| is_help_token(value)) => {
+            if !print_subcommand_usage("doctor", subcommand) {
+                print_group_usage("doctor");
+            }
+            Ok(())
+        }
         "network" | "node" | "runtime" => audit::cmd_diagnostics_doctor(&args[1..]),
         _ => invalid_group_usage("doctor", "unsupported subcommand"),
     }
 }
 
 fn route_audit_group(args: &[String]) -> Result<(), AppError> {
+    if asks_for_help(args) {
+        print_group_usage("audit");
+        return Ok(());
+    }
+
     let Some((subcommand, tail)) = args.split_first() else {
         return audit::cmd_production_audit(args);
     };
+    if tail.first().is_some_and(|value| is_help_token(value)) {
+        if !print_subcommand_usage("audit", subcommand) {
+            print_group_usage("audit");
+        }
+        return Ok(());
+    }
 
     match subcommand.as_str() {
         "chain" | "genesis" | "validator-set" => audit::cmd_production_audit(tail),
