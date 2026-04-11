@@ -99,9 +99,7 @@ impl RpcError {
                 Some("Apply retry_after_ms with exponential backoff and jitter.")
             }
             Self::MtlsAuthFailed => Some("Verify client certificate chain and mTLS setup."),
-            Self::ApiKeyAuthFailed => {
-                Some("Provide a valid API key in the Authorization header.")
-            }
+            Self::ApiKeyAuthFailed => Some("Provide a valid API key in the Authorization header."),
             Self::ZkpValidationFailed(_) => Some("Regenerate and submit a valid ZKP proof."),
             Self::InternalError => None,
             Self::AdmissionDenied { .. } => Some(

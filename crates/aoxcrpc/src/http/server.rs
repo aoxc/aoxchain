@@ -238,10 +238,9 @@ impl HttpRpcServer {
     }
 
     fn is_valid_api_key(&self, presented_key: &str) -> bool {
-        self.config
-            .api_keys
-            .iter()
-            .any(|configured_key| constant_time_eq(configured_key.as_bytes(), presented_key.as_bytes()))
+        self.config.api_keys.iter().any(|configured_key| {
+            constant_time_eq(configured_key.as_bytes(), presented_key.as_bytes())
+        })
     }
 
     fn requires_mtls(&self, path: &str) -> bool {
@@ -493,16 +492,16 @@ mod tests {
 
         let response = server
             .handle_json_with_context(
-            "POST",
-            "/contracts/register",
-            Some("{}"),
-            HttpRequestContext {
-                content_type: Some("application/json".to_string()),
-                mtls_fingerprint: Some("fp-1".to_string()),
-                authorization_bearer: Some("ops-token".to_string()),
-                ..HttpRequestContext::default()
-            },
-        )
+                "POST",
+                "/contracts/register",
+                Some("{}"),
+                HttpRequestContext {
+                    content_type: Some("application/json".to_string()),
+                    mtls_fingerprint: Some("fp-1".to_string()),
+                    authorization_bearer: Some("ops-token".to_string()),
+                    ..HttpRequestContext::default()
+                },
+            )
             .expect_err("request body should fail schema validation after auth");
 
         assert_ne!(response.status, 401);
