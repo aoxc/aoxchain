@@ -11,6 +11,7 @@ pub struct MobileConfig {
     pub relay_origin: String,
     pub app_id: String,
     pub chain_id: String,
+    pub relay_verifying_key_hex: Option<String>,
     pub request_timeout_ms: u64,
     pub session_ttl_secs: u64,
     pub challenge_max_skew_secs: u64,
@@ -67,6 +68,14 @@ impl MobileConfig {
                 "chain_id contains invalid characters",
             ));
         }
+        if let Some(relay_verifying_key_hex) = &self.relay_verifying_key_hex {
+            let value = relay_verifying_key_hex.trim();
+            if value.len() != 64 || !value.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err(MobError::InvalidConfiguration(
+                    "relay_verifying_key_hex must be 64 hex chars",
+                ));
+            }
+        }
         if self.request_timeout_ms == 0 {
             return Err(MobError::InvalidConfiguration(
                 "request_timeout_ms must be greater than zero",
@@ -122,6 +131,7 @@ impl Default for MobileConfig {
             relay_origin: "https://relay.aoxc.local".to_string(),
             app_id: "AOXC-MOBILE".to_string(),
             chain_id: "AOXC-MAIN".to_string(),
+            relay_verifying_key_hex: None,
             request_timeout_ms: 5_000,
             session_ttl_secs: 300,
             challenge_max_skew_secs: 30,
@@ -163,6 +173,15 @@ mod tests {
         let config = MobileConfig {
             task_ack_timeout_secs: defaults.session_ttl_secs + 1,
             ..defaults
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn relay_verifying_key_requires_hex_bytes() {
+        let config = MobileConfig {
+            relay_verifying_key_hex: Some("not-hex".to_string()),
+            ..MobileConfig::default()
         };
         assert!(config.validate().is_err());
     }

@@ -39,6 +39,7 @@ pub struct SessionPermit {
     pub issued_at_epoch_secs: u64,
     pub expires_at_epoch_secs: u64,
     pub relay_signature_hint: String,
+    pub relay_signature_hex: Option<String>,
 }
 
 /// Combined result returned after a successful session open operation.
@@ -59,4 +60,14 @@ pub struct SessionSigningPayload {
     pub client_nonce: u64,
     pub client_timestamp_epoch_secs: u64,
     pub public_key_hex: String,
+}
+
+/// Canonical relay permit payload expected to be signed by the relay identity.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RelayPermitSigningPayload {
+    pub session_id: String,
+    pub device_id: String,
+    pub issued_at_epoch_secs: u64,
+    pub expires_at_epoch_secs: u64,
+    pub relay_signature_hint: String,
 }

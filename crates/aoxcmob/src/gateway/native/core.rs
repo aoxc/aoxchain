@@ -5,9 +5,12 @@
 use crate::config::MobileConfig;
 use crate::error::MobError;
 use crate::security::keystore::SecureStore;
-use crate::security::signer::{public_key_fingerprint, public_key_hex, sign_json_payload};
+use crate::security::signer::{
+    public_key_fingerprint, public_key_hex, sign_json_payload, verify_json_payload,
+};
 use crate::session::protocol::{
-    SessionChallenge, SessionContext, SessionEnvelope, SessionPermit, SessionSigningPayload,
+    RelayPermitSigningPayload, SessionChallenge, SessionContext, SessionEnvelope, SessionPermit,
+    SessionSigningPayload,
 };
 use crate::transport::api::{AoxcMobileTransport, TaskSubmissionResult};
 use crate::types::{
@@ -18,6 +21,7 @@ use crate::util::{now_epoch_secs, prefixed_id};
 use aoxcore::identity::hd_path::HdPath;
 use aoxcore::identity::key_engine::{KeyEngine, MASTER_SEED_LEN};
 use ed25519_dalek::SigningKey;
+use ed25519_dalek::VerifyingKey;
 use std::cmp::Ordering as CmpOrdering;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -326,7 +330,39 @@ where
                 "session permit ttl exceeds configured session_ttl_secs",
             ));
         }
+        self.verify_permit_signature(permit)?;
         self.ensure_permit_active(permit)
+    }
+
+    fn verify_permit_signature(&self, permit: &SessionPermit) -> Result<(), MobError> {
+        let Some(relay_public_key_hex) = &self.config.relay_verifying_key_hex else {
+            return Ok(());
+        };
+        let signature_hex =
+            permit
+                .relay_signature_hex
+                .as_deref()
+                .ok_or(MobError::InvalidSessionChallenge(
+                    "session permit relay_signature_hex is required",
+                ))?;
+        let relay_public_key_bytes = hex::decode(relay_public_key_hex)
+            .map_err(|_| MobError::InvalidConfiguration("relay_verifying_key_hex decode failed"))?;
+        let relay_public_key_array: [u8; 32] = relay_public_key_bytes.try_into().map_err(|_| {
+            MobError::InvalidConfiguration("relay_verifying_key_hex must be 32 bytes")
+        })?;
+        let verifying_key = VerifyingKey::from_bytes(&relay_public_key_array).map_err(|_| {
+            MobError::InvalidConfiguration("relay_verifying_key_hex is not a valid ed25519 key")
+        })?;
+        let payload = RelayPermitSigningPayload {
+            session_id: permit.session_id.clone(),
+            device_id: permit.device_id.clone(),
+            issued_at_epoch_secs: permit.issued_at_epoch_secs,
+            expires_at_epoch_secs: permit.expires_at_epoch_secs,
+            relay_signature_hint: permit.relay_signature_hint.clone(),
+        };
+        verify_json_payload(&verifying_key, &payload, signature_hex).map_err(|_| {
+            MobError::InvalidSessionChallenge("session permit signature verification failed")
+        })
     }
 
     fn ensure_permit_active(&self, permit: &SessionPermit) -> Result<(), MobError> {
