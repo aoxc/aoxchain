@@ -1,0 +1,21 @@
+# Canonical localnet preset.
+
+chain_id = "aox-localnet-1"
+listen_addr = "0.0.0.0:66656"
+rpc_addr = "0.0.0.0:48545"
+security_mode = "developer_guarded"
+consensus_profile = "aoxcq-localnet"
+crypto_profile = "classical"
+quantum_policy = "configs/quantum-resilience-policy.toml"
+
+peers = [
+  "127.0.0.1:66656",
+  "127.0.0.1:66657",
+]
+
+feature_flags = ["state-sync-v2", "telemetry-debug", "rpc-trace", "multi-node-local"]
+
+[identity]
+network_kind = "localnet"
+network_id = "AOX-LOCALNET"
+operator_change_control = "optional"

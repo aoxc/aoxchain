@@ -1,0 +1,21 @@
+# Canonical validation preset.
+
+chain_id = "aox-validation-1"
+listen_addr = "0.0.0.0:56656"
+rpc_addr = "0.0.0.0:38545"
+security_mode = "audit_strict"
+consensus_profile = "aoxcq-validation"
+crypto_profile = "hybrid_pq"
+quantum_policy = "configs/quantum-resilience-policy.toml"
+
+peers = [
+  "validation-seed-1.aoxc.net:56656",
+  "validation-seed-2.aoxc.net:56656",
+]
+
+feature_flags = ["state-sync-v2", "evidence-hardening", "rpc-trace"]
+
+[identity]
+network_kind = "validation"
+network_id = "AOX-VALIDATION"
+operator_change_control = "required"

@@ -1,8 +1,41 @@
+# AOXHub bridge profile (root-level compatibility surface).
+# Canonical AOXHub mapping remains at: configs/aoxhub/testnet.toml
+
 chain_id = "aoxhub-testnet-1"
 listen_addr = "0.0.0.0:37656"
 rpc_addr = "0.0.0.0:19545"
+security_mode = "audit_strict"
+consensus_profile = "aoxcq-hub-preprod"
+crypto_profile = "hybrid_pq"
+quantum_policy = "configs/quantum-resilience-policy.toml"
+canonical_profile = "configs/aoxhub/testnet.toml"
+
 peers = [
   "hub-seed-1.aoxc.net:37656",
   "hub-seed-2.aoxc.net:37656",
 ]
-security_mode = "audit_strict"
+
+feature_flags = [
+  "hub-runtime-identity-guard",
+  "hub-genesis-checksum-gate",
+  "hub-release-evidence-gate",
+]
+
+[identity]
+network_kind = "testnet"
+network_id = "AOXHUB-TESTNET"
+operator_change_control = "required"
+
+[network]
+transport = "tcp+quic"
+p2p_max_peers = 80
+rpc_max_connections = 150
+
+[consensus]
+engine = "aoxcq_hybrid_bft"
+finality_target_seconds = 4
+
+[security]
+require_attestation = true
+require_binary_provenance = true
+require_manifest_identity_validation = true
