@@ -4,8 +4,8 @@
 
 use crate::{
     cli_support::{
-        arg_value, asks_for_help, detect_language, localized_unknown_command, print_group_usage,
-        print_usage,
+        arg_value, asks_for_help, detect_language, is_help_token, localized_unknown_command,
+        print_group_usage, print_subcommand_usage, print_usage,
     },
     data_home::ScopedHomeOverride,
     error::{AppError, ErrorCode},

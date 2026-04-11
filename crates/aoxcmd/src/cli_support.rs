@@ -72,6 +72,149 @@ pub fn asks_for_help(args: &[String]) -> bool {
         .unwrap_or(false)
 }
 
+/// Returns true when a single token requests help.
+pub fn is_help_token(value: &str) -> bool {
+    matches!(value, "help" | "--help" | "-h")
+}
+
+/// Prints help for a group/subcommand pair.
+///
+/// Returns `true` when a dedicated subcommand help surface exists.
+pub fn print_subcommand_usage(group: &str, subcommand: &str) -> bool {
+    let body = match (group, subcommand) {
+        ("chain", "init") => {
+            "USAGE\n  aoxc chain init [--profile <localnet|devnet|validation|testnet|mainnet>]"
+        }
+        ("chain", "create") => {
+            "USAGE\n  aoxc chain create --password <secret> [--profile <testnet|mainnet>]"
+        }
+        ("chain", "start") => "USAGE\n  aoxc chain start [--continuous|--bounded] [--rounds <n>]",
+        ("chain", "status") => "USAGE\n  aoxc chain status",
+        ("chain", "doctor") => "USAGE\n  aoxc chain doctor",
+        ("chain", "consensus-audit") => "USAGE\n  aoxc chain consensus-audit [--profile <name>]",
+        ("chain", "demo") => "USAGE\n  aoxc chain demo",
+
+        ("genesis", "init") => "USAGE\n  aoxc genesis init",
+        ("genesis", "add-validator") => {
+            "USAGE\n  aoxc genesis add-validator --validator-id <id> --consensus-public-key <hex> --network-public-key <hex>"
+        }
+        ("genesis", "add-account") => {
+            "USAGE\n  aoxc genesis add-account --account-id <id> --balance <amount>"
+        }
+        ("genesis", "build" | "verify") => {
+            "USAGE\n  aoxc genesis build [--strict]\n  aoxc genesis verify [--strict]"
+        }
+        ("genesis", "finalize" | "seal" | "sign" | "freeze" | "production-gate") => {
+            "USAGE\n  aoxc genesis finalize [--profile <localnet|devnet|validation|testnet|mainnet>] [--strict]"
+        }
+        ("genesis", "inspect") => "USAGE\n  aoxc genesis inspect",
+        ("genesis", "template-advanced") => {
+            "USAGE\n  aoxc genesis template-advanced [--out <path>]"
+        }
+        ("genesis", "advanced-system") => {
+            "USAGE\n  aoxc genesis advanced-system [--profile <name>] [--out <path>]"
+        }
+        ("genesis", "security-audit") => "USAGE\n  aoxc genesis security-audit",
+        ("genesis", "start") => "USAGE\n  aoxc genesis start [--profile <name>] [--strict]",
+        ("genesis", "fingerprint") => "USAGE\n  aoxc genesis fingerprint",
+
+        ("validator", "create") => "USAGE\n  aoxc validator create --password <secret>",
+        ("validator", "join" | "register") => {
+            "USAGE\n  aoxc validator join --validator-id <id> --password <secret>"
+        }
+        ("validator", "activate" | "bond") => {
+            "USAGE\n  aoxc validator activate --validator-id <id> [--stake <amount>]"
+        }
+        ("validator", "unbond") => {
+            "USAGE\n  aoxc validator unbond --validator-id <id> [--stake <amount>]"
+        }
+        ("validator", "set-status") => {
+            "USAGE\n  aoxc validator set-status --validator-id <id> --status <active|jailed|inactive>"
+        }
+        ("validator", "commission-set") => {
+            "USAGE\n  aoxc validator commission-set --validator-id <id> --commission-bps <0-10000>"
+        }
+        ("validator", "inspect" | "status") => "USAGE\n  aoxc validator inspect",
+        ("validator", "rotate-key") => "USAGE\n  aoxc validator rotate-key --password <secret>",
+
+        ("wallet", "create") => {
+            "USAGE\n  aoxc wallet create --name <name> --profile <name> --password <secret>"
+        }
+        ("wallet", "balance") => "USAGE\n  aoxc wallet balance",
+
+        ("account", "fund") => "USAGE\n  aoxc account fund --to <account-id> --amount <value>",
+
+        ("node", "init") => "USAGE\n  aoxc node init",
+        ("node", "join") => "USAGE\n  aoxc node join --seed <multiaddr|ip:port>",
+        ("node", "start") => "USAGE\n  aoxc node start [--continuous|--bounded]",
+        ("node", "status") => "USAGE\n  aoxc node status",
+        ("node", "doctor") => "USAGE\n  aoxc node doctor",
+
+        ("network", "create") => "USAGE\n  aoxc network create --password <secret>",
+        ("network", "join" | "peer-add" | "seed-add" | "bootstrap-peer-add") => {
+            "USAGE\n  aoxc network join --seed <multiaddr|ip:port>"
+        }
+        ("network", "start") => "USAGE\n  aoxc network start",
+        ("network", "status" | "verify") => "USAGE\n  aoxc network status",
+        ("network", "join-check") => "USAGE\n  aoxc network join-check",
+        ("network", "identity-gate") => "USAGE\n  aoxc network identity-gate [--enforce]",
+        ("network", "doctor") => "USAGE\n  aoxc network doctor",
+
+        ("query", "chain") => "USAGE\n  aoxc query chain [status|block|tx|receipt]",
+        ("query", "consensus") => {
+            "USAGE\n  aoxc query consensus [status|validators|proposer|round|finality|commits|evidence]"
+        }
+        ("query", "vm") => {
+            "USAGE\n  aoxc query vm [status|call|simulate|storage|contract|code|estimate-gas|trace]"
+        }
+        ("query", "full") => "USAGE\n  aoxc query full",
+        (
+            "query",
+            "block" | "tx" | "receipt" | "account" | "balance" | "network" | "runtime"
+            | "state-root" | "rpc",
+        ) => {
+            "USAGE\n  aoxc query <block|tx|receipt|account|balance|network|runtime|state-root|rpc>"
+        }
+
+        ("tx", "transfer") => "USAGE\n  aoxc tx transfer --to <account-id> --amount <value>",
+        ("tx", "stake") => {
+            "USAGE\n  aoxc tx stake <delegate|undelegate> --to <validator-id> --amount <value>"
+        }
+
+        ("api", "status" | "rpc") => "USAGE\n  aoxc api status",
+        ("api", "contract" | "api-contract") => "USAGE\n  aoxc api contract",
+        ("api", "smoke" | "curl-smoke") => "USAGE\n  aoxc api smoke",
+        ("api", "metrics") => "USAGE\n  aoxc api metrics",
+        ("api", "health") => "USAGE\n  aoxc api health",
+        ("api", "full") => "USAGE\n  aoxc api full",
+        (
+            "api",
+            "chain" | "consensus" | "vm" | "block" | "tx" | "receipt" | "account" | "balance"
+            | "state-root" | "network" | "runtime",
+        ) => {
+            "USAGE\n  aoxc api <chain|consensus|vm|block|tx|receipt|account|balance|state-root|network|runtime>"
+        }
+
+        ("stake", "delegate") => {
+            "USAGE\n  aoxc stake delegate --to <validator-id> --amount <value>"
+        }
+        ("stake", "undelegate") => {
+            "USAGE\n  aoxc stake undelegate --to <validator-id> --amount <value>"
+        }
+        ("stake", "validators" | "rewards") => "USAGE\n  aoxc stake <validators|rewards>",
+
+        ("doctor", "network" | "node" | "runtime") => "USAGE\n  aoxc doctor <network|node|runtime>",
+
+        ("audit", "chain" | "genesis" | "validator-set") => {
+            "USAGE\n  aoxc audit <chain|genesis|validator-set>"
+        }
+        _ => return false,
+    };
+
+    println!("{body}");
+    true
+}
+
 /// Prints concise help for a routed command group.
 pub fn print_group_usage(group: &str) {
     let body = match group {
