@@ -59,7 +59,10 @@ For component-specific constraints, review the nearest crate-level `README.md`, 
 
 ## 5. Build and Validation Quick Start
 
-### Prerequisites
+- Rust toolchain compatible with `Cargo.toml` + `Cargo.lock`,
+- POSIX shell,
+- `make`,
+- optional: Docker or Podman for containerized workflows.
 
 - Rust toolchain compatible with `Cargo.toml` and `Cargo.lock`.
 - POSIX-compatible shell environment.
@@ -88,8 +91,28 @@ make help
 make fmt
 make check
 make test
-make quality
+make clippy
 make audit
+make quality
+```
+
+Extended policy/release gates (use as required by scope):
+
+```bash
+make cargo-deny-gate
+make code-size-gate
+make versioning-gate
+make repo-hygiene-gate
+make production-full
+make phase1-full
+make quantum-readiness-gate
+make aoxcvm-production-closure-gate
+make quantum-full
+```
+
+Testnet readiness surfaces:
+
+```bash
 make testnet-gate
 make testnet-readiness-gate
 ```
