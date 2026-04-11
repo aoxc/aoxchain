@@ -63,6 +63,17 @@ pub struct SessionSigningPayload {
     pub public_key_hex: String,
 }
 
+/// Canonical relay challenge payload expected to be signed by the relay identity.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RelayChallengeSigningPayload {
+    pub challenge_id: String,
+    pub relay_nonce: String,
+    pub issued_at_epoch_secs: u64,
+    pub expires_at_epoch_secs: u64,
+    pub audience: String,
+    pub session_ttl_secs: u64,
+}
+
 /// Canonical relay permit payload expected to be signed by the relay identity.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RelayPermitSigningPayload {
