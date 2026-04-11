@@ -15,7 +15,7 @@ use aoxcmd::{
     node::{engine::produce_once, lifecycle::bootstrap_state},
 };
 use aoxcnet::{
-    config::{ExternalDomainKind, NetworkConfig},
+    config::{ExternalDomainKind, NetworkConfig, SecurityMode},
     gossip::{
         consensus_gossip::GossipEngine,
         peer::{NodeCertificate, Peer, PeerRole},
@@ -113,7 +113,9 @@ fn unity_consensus_flow_integrates_cmd_network_and_finality() {
             .admit_block(proposal.clone())
             .expect("proposal should be admitted");
 
-        let mut gossip = GossipEngine::new(NetworkConfig::default());
+        let mut network_config = NetworkConfig::default();
+        network_config.security_mode = SecurityMode::Insecure;
+        let mut gossip = GossipEngine::new(network_config);
         gossip
             .register_peer(consensus_peer())
             .expect("peer should register");
