@@ -14,14 +14,14 @@
     "native_symbol": "AOXC"
   },
   "rpc": {
-    "primary": "https://127.0.0.1:8545",
-    "secondary": "https://127.0.0.1:8546",
-    "ws": "wss://127.0.0.1:8545/ws"
+    "primary": "https://rpc1.testnet.aoxchain.org",
+    "secondary": "https://rpc2.testnet.aoxchain.org",
+    "ws": "wss://rpc1.testnet.aoxchain.org/ws"
   },
   "public_endpoints": {
-    "faucet": "https://testnet-faucet.aoxchain.invalid",
-    "explorer": "https://testnet-explorer.aoxchain.invalid",
-    "status": "https://testnet-status.aoxchain.invalid"
+    "faucet": "https://faucet.testnet.aoxchain.org",
+    "explorer": "https://explorer.testnet.aoxchain.org",
+    "status": "https://status.testnet.aoxchain.org"
   },
   "genesis": {
     "file": "genesis.v1.json",
@@ -32,7 +32,10 @@
     {
       "node_id": "aoxc-testnet-node-001",
       "display_name": "AOXC Testnet Validator/Seed 001",
-      "roles": ["validator", "seed"],
+      "roles": [
+        "validator",
+        "seed"
+      ],
       "p2p_endpoint": "127.0.0.1:26656",
       "rpc_public": false,
       "status": "active"
@@ -40,7 +43,9 @@
     {
       "node_id": "aoxc-testnet-node-002",
       "display_name": "AOXC Testnet Validator 002",
-      "roles": ["validator"],
+      "roles": [
+        "validator"
+      ],
       "p2p_endpoint": "127.0.0.1:26657",
       "rpc_public": false,
       "status": "active"
@@ -48,7 +53,10 @@
     {
       "node_id": "aoxc-testnet-node-003",
       "display_name": "AOXC Testnet Validator/RPC 003",
-      "roles": ["validator", "rpc"],
+      "roles": [
+        "validator",
+        "rpc"
+      ],
       "p2p_endpoint": "127.0.0.1:26658",
       "rpc_public": true,
       "status": "active"
