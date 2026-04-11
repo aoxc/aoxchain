@@ -2,6 +2,18 @@
 # AOXC MIT License
 # Experimental software under active construction.
 # This file is part of the AOXC pre-release codebase.
+#
+# Purpose:
+#   Provision and supervise a persistent local AOXC testnet/devnet surface that
+#   approximates a controlled operator-grade environment with deterministic
+#   filesystem layout, deterministic port planning, and hardened audit outputs.
+#
+# Security and operational objectives:
+#   - Fail closed on missing required inputs.
+#   - Avoid dead code, implicit best-effort behavior, and silent parsing fallbacks.
+#   - Emit durable audit artifacts for operator validation and incident review.
+#   - Use strong per-node passwords instead of predictable static strings.
+#   - Preserve deterministic path structure for repeatable local orchestration.
 set -Eeuo pipefail
 IFS=$'\n\t'
 
@@ -14,46 +26,56 @@ AOXC_Q_PROFILE="${AOXC_Q_PROFILE:-testnet}"
 AOXC_Q_MODE="${AOXC_Q_MODE:-local}"
 AOXC_Q_NODE_COUNT="${AOXC_Q_NODE_COUNT:-7}"
 AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
-AOXC_Q_START="${AOXC_Q_START:-1}"
 AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-1}"
 AOXC_Q_SLEEP_MIN_SECS="${AOXC_Q_SLEEP_MIN_SECS:-1}"
 AOXC_Q_SLEEP_MAX_SECS="${AOXC_Q_SLEEP_MAX_SECS:-1}"
 AOXC_Q_FORCE="${AOXC_Q_FORCE:-0}"
 AOXC_Q_ACTION="${AOXC_Q_ACTION:-up}"
 
+AOXC_Q_RPC_BASE_PORT="${AOXC_Q_RPC_BASE_PORT:-18540}"
+AOXC_Q_P2P_BASE_PORT="${AOXC_Q_P2P_BASE_PORT:-19540}"
+AOXC_Q_METRICS_BASE_PORT="${AOXC_Q_METRICS_BASE_PORT:-20540}"
+AOXC_Q_ADMIN_BASE_PORT="${AOXC_Q_ADMIN_BASE_PORT:-21540}"
+
 usage() {
   cat <<USAGE
 Usage: $(basename "$0") [options]
 
-AOXC rolling devnet persistent local supervisor.
+AOXC rolling local supervisor.
 
 Actions:
-  up (default)     provision and start persistent node loops
-  provision        provision only; do not start loops
-  start            start loops for an existing provisioned testnet root
-  stop             stop loops for an existing provisioned testnet root
+  up (default)     provision and start node loops
+  provision        provision only
+  start            start loops for an existing provisioned root
+  stop             stop loops for an existing provisioned root
   restart          stop then start
-  status           show per-node process and height status
+  status           show per-node process and chain status
 
 Options:
   --action <name>      one of: up|provision|start|stop|restart|status
-  --home <path>        base path for generated testnet root (default: ${AOXC_Q_HOME})
+  --home <path>        base output root (default: ${AOXC_Q_HOME})
   --env <name>         configs/environments/<name> source (default: ${AOXC_Q_ENV})
   --profile <name>     AOXC profile for bootstrap (default: ${AOXC_Q_PROFILE})
-  --mode <name>        run mode label for audit/report metadata (default: ${AOXC_Q_MODE})
+  --mode <name>        run mode label: local|public (default: ${AOXC_Q_MODE})
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; minimum: 7)
   --rounds <n>         rounds per node-run cycle (default: ${AOXC_Q_ROUNDS})
-  --sleep-secs <n>     sleep between cycles in daemon loop (default: ${AOXC_Q_SLEEP_SECS})
-  --sleep-min-secs <n> minimum daemon-loop sleep for compatibility with Make surfaces
-  --sleep-max-secs <n> maximum daemon-loop sleep for compatibility with Make surfaces
+  --sleep-secs <n>     fixed sleep between daemon cycles
+  --sleep-min-secs <n> minimum daemon-loop sleep
+  --sleep-max-secs <n> maximum daemon-loop sleep
+  --rpc-base-port <n>      base RPC port
+  --p2p-base-port <n>      base P2P port
+  --metrics-base-port <n>  base metrics port
+  --admin-base-port <n>    base admin port
   --no-start           alias for --action provision
-  --force              recreate existing testnet root during provision
+  --force              recreate target root during provision
   -h, --help           show this help
 
 Environment overrides:
   AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_MODE, AOXC_Q_NODE_COUNT,
-  AOXC_Q_ROUNDS, AOXC_Q_START, AOXC_Q_SLEEP_SECS, AOXC_Q_SLEEP_MIN_SECS,
-  AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION
+  AOXC_Q_ROUNDS, AOXC_Q_SLEEP_SECS, AOXC_Q_SLEEP_MIN_SECS,
+  AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION,
+  AOXC_Q_RPC_BASE_PORT, AOXC_Q_P2P_BASE_PORT, AOXC_Q_METRICS_BASE_PORT,
+  AOXC_Q_ADMIN_BASE_PORT
 USAGE
 }
 
@@ -83,6 +105,7 @@ while [[ $# -gt 0 ]]; do
     --env) AOXC_Q_ENV="$2"; shift 2 ;;
     --env=*) AOXC_Q_ENV="${1#*=}"; shift ;;
     --profile) AOXC_Q_PROFILE="$2"; shift 2 ;;
+    --profile=*) AOXC_Q_PROFILE="${1#*=}"; shift ;;
     --mode) AOXC_Q_MODE="$2"; shift 2 ;;
     --mode=*) AOXC_Q_MODE="${1#*=}"; shift ;;
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
@@ -90,9 +113,20 @@ while [[ $# -gt 0 ]]; do
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
     --rounds=*) AOXC_Q_ROUNDS="${1#*=}"; shift ;;
     --sleep-secs) AOXC_Q_SLEEP_SECS="$2"; shift 2 ;;
+    --sleep-secs=*) AOXC_Q_SLEEP_SECS="${1#*=}"; shift ;;
     --sleep-min-secs) AOXC_Q_SLEEP_MIN_SECS="$2"; shift 2 ;;
+    --sleep-min-secs=*) AOXC_Q_SLEEP_MIN_SECS="${1#*=}"; shift ;;
     --sleep-max-secs) AOXC_Q_SLEEP_MAX_SECS="$2"; shift 2 ;;
-    --no-start) AOXC_Q_ACTION="provision"; AOXC_Q_START=0; shift ;;
+    --sleep-max-secs=*) AOXC_Q_SLEEP_MAX_SECS="${1#*=}"; shift ;;
+    --rpc-base-port) AOXC_Q_RPC_BASE_PORT="$2"; shift 2 ;;
+    --rpc-base-port=*) AOXC_Q_RPC_BASE_PORT="${1#*=}"; shift ;;
+    --p2p-base-port) AOXC_Q_P2P_BASE_PORT="$2"; shift 2 ;;
+    --p2p-base-port=*) AOXC_Q_P2P_BASE_PORT="${1#*=}"; shift ;;
+    --metrics-base-port) AOXC_Q_METRICS_BASE_PORT="$2"; shift 2 ;;
+    --metrics-base-port=*) AOXC_Q_METRICS_BASE_PORT="${1#*=}"; shift ;;
+    --admin-base-port) AOXC_Q_ADMIN_BASE_PORT="$2"; shift 2 ;;
+    --admin-base-port=*) AOXC_Q_ADMIN_BASE_PORT="${1#*=}"; shift ;;
+    --no-start) AOXC_Q_ACTION="provision"; shift ;;
     --force) AOXC_Q_FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "Unknown argument: $1" 2 ;;
@@ -104,6 +138,10 @@ require_uint "${AOXC_Q_ROUNDS}" "AOXC_Q_ROUNDS"
 require_uint "${AOXC_Q_SLEEP_SECS}" "AOXC_Q_SLEEP_SECS"
 require_uint "${AOXC_Q_SLEEP_MIN_SECS}" "AOXC_Q_SLEEP_MIN_SECS"
 require_uint "${AOXC_Q_SLEEP_MAX_SECS}" "AOXC_Q_SLEEP_MAX_SECS"
+require_uint "${AOXC_Q_RPC_BASE_PORT}" "AOXC_Q_RPC_BASE_PORT"
+require_uint "${AOXC_Q_P2P_BASE_PORT}" "AOXC_Q_P2P_BASE_PORT"
+require_uint "${AOXC_Q_METRICS_BASE_PORT}" "AOXC_Q_METRICS_BASE_PORT"
+require_uint "${AOXC_Q_ADMIN_BASE_PORT}" "AOXC_Q_ADMIN_BASE_PORT"
 
 if (( AOXC_Q_NODE_COUNT < 7 )); then
   die "AOXC_Q_NODE_COUNT must be >= 7 for production-like persistent topology." 2
@@ -127,6 +165,22 @@ esac
 
 TARGET_ROOT="${AOXC_Q_HOME%/}/aoxc-rolling-${AOXC_Q_ENV}-${AOXC_Q_NODE_COUNT}n"
 SOURCE_ROOT="${REPO_ROOT}/configs/environments/${AOXC_Q_ENV}"
+SOURCE_TOPOLOGY_ROOT="${SOURCE_ROOT}/topology"
+
+required_source_files=(
+  manifest.v1.json
+  genesis.v1.json
+  genesis.v1.sha256
+  validators.json
+  bootnodes.json
+  certificate.json
+  profile.toml
+  release-policy.toml
+  topology/role-topology.toml
+  topology/socket-matrix.toml
+  topology/consensus-policy.toml
+  topology/aoxcq-consensus.toml
+)
 
 resolve_aoxc_command() {
   if [[ -x "${REPO_ROOT}/target/release/aoxc" ]]; then
@@ -165,21 +219,87 @@ WRAPPER
   chmod +x "${wrapper_path}"
 }
 
-required_source_files=(
-  manifest.v1.json
-  genesis.v1.json
-  genesis.v1.sha256
-  validators.json
-  bootnodes.json
-  certificate.json
-  profile.toml
-  release-policy.toml
-)
+generate_secure_password() {
+  python3 - <<'PYPASS'
+import secrets
+print(secrets.token_urlsafe(32))
+PYPASS
+}
+
+extract_kv_field() {
+  local file_path="$1"
+  local field_name="$2"
+
+  python3 - "$file_path" "$field_name" <<'PYKV'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+field_name = sys.argv[2]
+
+try:
+    lines = path.read_text(encoding="utf-8").splitlines()
+except Exception:
+    print("-")
+    raise SystemExit(0)
+
+pairs = {}
+for raw in lines:
+    line = raw.strip()
+    if not line or ":" not in line:
+        continue
+    key, value = line.split(":", 1)
+    pairs[key.strip()] = value.strip()
+
+print(pairs.get(field_name, "-"))
+PYKV
+}
+
+extract_account_id_field() {
+  local file_path="$1"
+
+  python3 - "$file_path" <<'PYADDR'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+
+try:
+    lines = path.read_text(encoding="utf-8").splitlines()
+except Exception:
+    print("-")
+    raise SystemExit(0)
+
+pairs = {}
+for raw in lines:
+    line = raw.strip()
+    if not line or ":" not in line:
+        continue
+    key, value = line.split(":", 1)
+    pairs[key.strip()] = value.strip()
+
+for candidate in (
+    "validator_account_id",
+    "account_id",
+    "wallet_address",
+    "address",
+    "validator_account_id_legacy",
+):
+    value = pairs.get(candidate)
+    if value:
+        print(value)
+        raise SystemExit(0)
+
+print("-")
+PYADDR
+}
 
 prepare_directories() {
   mkdir -p \
     "${TARGET_ROOT}/system/genesis" \
     "${TARGET_ROOT}/system/config" \
+    "${TARGET_ROOT}/system/config/topology" \
+    "${TARGET_ROOT}/system/config/metadata" \
     "${TARGET_ROOT}/system/audit" \
     "${TARGET_ROOT}/system/logs" \
     "${TARGET_ROOT}/system/scripts" \
@@ -190,11 +310,144 @@ copy_environment_files() {
   cp "${SOURCE_ROOT}/manifest.v1.json" "${TARGET_ROOT}/system/genesis/manifest.json"
   cp "${SOURCE_ROOT}/genesis.v1.json" "${TARGET_ROOT}/system/genesis/genesis.json"
   cp "${SOURCE_ROOT}/genesis.v1.sha256" "${TARGET_ROOT}/system/genesis/genesis.sha256"
+
   cp "${SOURCE_ROOT}/validators.json" "${TARGET_ROOT}/system/config/validators.json"
   cp "${SOURCE_ROOT}/bootnodes.json" "${TARGET_ROOT}/system/config/bootnodes.json"
   cp "${SOURCE_ROOT}/certificate.json" "${TARGET_ROOT}/system/config/certificate.json"
   cp "${SOURCE_ROOT}/profile.toml" "${TARGET_ROOT}/system/config/profile.toml"
   cp "${SOURCE_ROOT}/release-policy.toml" "${TARGET_ROOT}/system/config/release-policy.toml"
+
+  cp "${SOURCE_TOPOLOGY_ROOT}/role-topology.toml" "${TARGET_ROOT}/system/config/topology/role-topology.toml"
+  cp "${SOURCE_TOPOLOGY_ROOT}/socket-matrix.toml" "${TARGET_ROOT}/system/config/topology/socket-matrix.toml"
+  cp "${SOURCE_TOPOLOGY_ROOT}/consensus-policy.toml" "${TARGET_ROOT}/system/config/topology/consensus-policy.toml"
+  cp "${SOURCE_TOPOLOGY_ROOT}/aoxcq-consensus.toml" "${TARGET_ROOT}/system/config/topology/aoxcq-consensus.toml"
+
+  if [[ -f "${SOURCE_ROOT}/network-metadata.json" ]]; then
+    cp "${SOURCE_ROOT}/network-metadata.json" "${TARGET_ROOT}/system/config/metadata/network-metadata.json"
+  fi
+}
+
+node_rpc_port() { echo $((AOXC_Q_RPC_BASE_PORT + $1 - 1)); }
+node_p2p_port() { echo $((AOXC_Q_P2P_BASE_PORT + $1 - 1)); }
+node_metrics_port() { echo $((AOXC_Q_METRICS_BASE_PORT + $1 - 1)); }
+node_admin_port() { echo $((AOXC_Q_ADMIN_BASE_PORT + $1 - 1)); }
+
+write_node_ports_env() {
+  local node_root="$1"
+  local index="$2"
+
+  cat > "${node_root}/ports.env" <<EOF
+AOXC_NODE_RPC_PORT=$(node_rpc_port "${index}")
+AOXC_NODE_P2P_PORT=$(node_p2p_port "${index}")
+AOXC_NODE_METRICS_PORT=$(node_metrics_port "${index}")
+AOXC_NODE_ADMIN_PORT=$(node_admin_port "${index}")
+EOF
+
+  chmod 600 "${node_root}/ports.env"
+}
+
+write_node_runtime_overlay() {
+  local node_home="$1"
+  local node_name="$2"
+  local index="$3"
+
+  cat > "${node_home}/config/runtime-overlay.toml" <<EOF
+# Generated by AOXC rolling provisioner.
+# This file captures deterministic node-local runtime metadata for audit
+# and potential downstream runtime consumption.
+
+[node]
+name = "${node_name}"
+environment = "${AOXC_Q_ENV}"
+mode = "${AOXC_Q_MODE}"
+
+[ports]
+rpc = $(node_rpc_port "${index}")
+p2p = $(node_p2p_port "${index}")
+metrics = $(node_metrics_port "${index}")
+admin = $(node_admin_port "${index}")
+
+[paths]
+manifest = "${node_home}/identity/manifest.json"
+genesis = "${node_home}/identity/genesis.json"
+validators = "${node_home}/config/validators.json"
+bootnodes = "${node_home}/config/bootnodes.json"
+certificate = "${node_home}/config/certificate.json"
+profile = "${node_home}/config/profile.toml"
+release_policy = "${node_home}/config/release-policy.toml"
+role_topology = "${node_home}/config/topology/role-topology.toml"
+socket_matrix = "${node_home}/config/topology/socket-matrix.toml"
+consensus_policy = "${node_home}/config/topology/consensus-policy.toml"
+aoxcq_consensus = "${node_home}/config/topology/aoxcq-consensus.toml"
+network_metadata = "${node_home}/config/metadata/network-metadata.json"
+EOF
+
+  chmod 600 "${node_home}/config/runtime-overlay.toml"
+}
+
+write_topology_checksums() {
+  sha256sum \
+    "${TARGET_ROOT}/system/config/topology/role-topology.toml" \
+    "${TARGET_ROOT}/system/config/topology/socket-matrix.toml" \
+    "${TARGET_ROOT}/system/config/topology/consensus-policy.toml" \
+    "${TARGET_ROOT}/system/config/topology/aoxcq-consensus.toml" \
+    > "${TARGET_ROOT}/system/audit/topology.sha256"
+}
+
+write_node_identity_summary() {
+  local node_root="$1"
+  local node_name="$2"
+  local operator_name="$3"
+  local validator_name="$4"
+  local operator_account_id="$5"
+  local validator_account_id="$6"
+  local operator_account_id_legacy="$7"
+  local validator_account_id_legacy="$8"
+  local operator_bundle_fingerprint="$9"
+  local validator_bundle_fingerprint="${10}"
+  local operator_consensus_public_key="${11}"
+  local validator_consensus_public_key="${12}"
+  local operator_transport_public_key="${13}"
+  local validator_transport_public_key="${14}"
+
+  cat > "${node_root}/identity-summary.env" <<EOF
+NODE_NAME=${node_name}
+OPERATOR_NAME=${operator_name}
+VALIDATOR_NAME=${validator_name}
+OPERATOR_ACCOUNT_ID=${operator_account_id}
+VALIDATOR_ACCOUNT_ID=${validator_account_id}
+OPERATOR_ACCOUNT_ID_LEGACY=${operator_account_id_legacy}
+VALIDATOR_ACCOUNT_ID_LEGACY=${validator_account_id_legacy}
+OPERATOR_BUNDLE_FINGERPRINT=${operator_bundle_fingerprint}
+VALIDATOR_BUNDLE_FINGERPRINT=${validator_bundle_fingerprint}
+OPERATOR_CONSENSUS_PUBLIC_KEY=${operator_consensus_public_key}
+VALIDATOR_CONSENSUS_PUBLIC_KEY=${validator_consensus_public_key}
+OPERATOR_TRANSPORT_PUBLIC_KEY=${operator_transport_public_key}
+VALIDATOR_TRANSPORT_PUBLIC_KEY=${validator_transport_public_key}
+PASSWORD_FILE=${node_root}/operator.password
+EOF
+
+  chmod 600 "${node_root}/identity-summary.env"
+
+  cat > "${node_root}/identity-summary.tsv" <<EOF
+field	value
+node_name	${node_name}
+operator_name	${operator_name}
+validator_name	${validator_name}
+operator_account_id	${operator_account_id}
+validator_account_id	${validator_account_id}
+operator_account_id_legacy	${operator_account_id_legacy}
+validator_account_id_legacy	${validator_account_id_legacy}
+operator_bundle_fingerprint	${operator_bundle_fingerprint}
+validator_bundle_fingerprint	${validator_bundle_fingerprint}
+operator_consensus_public_key	${operator_consensus_public_key}
+validator_consensus_public_key	${validator_consensus_public_key}
+operator_transport_public_key	${operator_transport_public_key}
+validator_transport_public_key	${validator_transport_public_key}
+password_file	${node_root}/operator.password
+EOF
+
+  chmod 600 "${node_root}/identity-summary.tsv"
 }
 
 render_node_runner() {
@@ -209,6 +462,7 @@ render_node_runner() {
   cat > "${node_root}/run-node.sh" <<RUNNER
 #!/usr/bin/env bash
 set -Eeuo pipefail
+
 NODE_NAME="${node_name}"
 NODE_HOME="${node_home}"
 ROUNDS="${AOXC_Q_ROUNDS}"
@@ -218,32 +472,56 @@ SLEEP_MAX_SECS="${sleep_max_secs}"
 WRAPPER="${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
 LOG_FILE="${node_log}"
 STATE_FILE="${node_state_file}"
+PORTS_FILE="${node_root}/ports.env"
 
 mkdir -p "\$(dirname "\${LOG_FILE}")"
 
+if [[ -f "\${PORTS_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "\${PORTS_FILE}"
+fi
+
 while true; do
-  if AOXC_HOME="\${NODE_HOME}" "\${WRAPPER}" node-run --home "\${NODE_HOME}" --rounds "\${ROUNDS}" --tx-prefix "\${NODE_NAME^^}-TX" --format json --no-live-log >>"\${LOG_FILE}" 2>&1; then
+  if AOXC_HOME="\${NODE_HOME}" "\${WRAPPER}" node-run \
+      --home "\${NODE_HOME}" \
+      --rounds "\${ROUNDS}" \
+      --tx-prefix "\${NODE_NAME^^}-TX" \
+      --format json \
+      --no-live-log \
+      >>"\${LOG_FILE}" 2>&1; then
     ts_end="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
-    printf '%s\tstatus=ok\tnode=%s\n' "\${ts_end}" "\${NODE_NAME}" > "\${STATE_FILE}"
+    printf '%s\tstatus=ok\tnode=%s\trpc=%s\tp2p=%s\tmetrics=%s\tadmin=%s\n' \
+      "\${ts_end}" "\${NODE_NAME}" \
+      "\${AOXC_NODE_RPC_PORT:-na}" "\${AOXC_NODE_P2P_PORT:-na}" \
+      "\${AOXC_NODE_METRICS_PORT:-na}" "\${AOXC_NODE_ADMIN_PORT:-na}" \
+      > "\${STATE_FILE}"
   else
     ts_end="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
-    printf '%s\tstatus=error\tnode=%s\n' "\${ts_end}" "\${NODE_NAME}" > "\${STATE_FILE}"
+    printf '%s\tstatus=error\tnode=%s\trpc=%s\tp2p=%s\tmetrics=%s\tadmin=%s\n' \
+      "\${ts_end}" "\${NODE_NAME}" \
+      "\${AOXC_NODE_RPC_PORT:-na}" "\${AOXC_NODE_P2P_PORT:-na}" \
+      "\${AOXC_NODE_METRICS_PORT:-na}" "\${AOXC_NODE_ADMIN_PORT:-na}" \
+      > "\${STATE_FILE}"
   fi
+
   effective_sleep="\${SLEEP_SECS}"
   if (( SLEEP_MAX_SECS > SLEEP_MIN_SECS )); then
     span=\$((SLEEP_MAX_SECS - SLEEP_MIN_SECS + 1))
     effective_sleep=\$((SLEEP_MIN_SECS + RANDOM % span))
-  elif (( SLEEP_MIN_SECS > 0 )); then
+  else
     effective_sleep="\${SLEEP_MIN_SECS}"
   fi
   sleep "\${effective_sleep}"
 done
 RUNNER
+
   chmod +x "${node_root}/run-node.sh"
 }
 
 provision_testnet() {
   [[ -d "${SOURCE_ROOT}" ]] || die "Missing source environment: ${SOURCE_ROOT}" 3
+
+  local required
   for required in "${required_source_files[@]}"; do
     [[ -f "${SOURCE_ROOT}/${required}" ]] || die "Missing required source file: ${SOURCE_ROOT}/${required}" 3
   done
@@ -261,15 +539,15 @@ provision_testnet() {
   prepare_directories
   copy_environment_files
   write_wrapper_script "${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
+  write_topology_checksums
 
   local accounts_file="${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
-  local key_bootstrap_force=0
-  printf 'node\tvalidator_name\toperator_name\n' > "${accounts_file}"
+  local ports_file="${TARGET_ROOT}/system/audit/node-port-map.tsv"
 
-  if [[ "${AOXC_Q_MODE}" == "local" ]]; then
-    key_bootstrap_force=1
-  fi
+  printf 'node\tvalidator_name\toperator_name\tvalidator_account_id\toperator_account_id\tvalidator_account_id_legacy\toperator_account_id_legacy\tvalidator_bundle_fingerprint\toperator_bundle_fingerprint\tvalidator_consensus_public_key\toperator_consensus_public_key\tvalidator_transport_public_key\toperator_transport_public_key\tpassword_file\n' > "${accounts_file}"
+  printf 'node\trpc_port\tp2p_port\tmetrics_port\tadmin_port\n' > "${ports_file}"
 
+  local i
   for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
     local validator_name
@@ -280,11 +558,23 @@ provision_testnet() {
     local run_dir
     local log_dir
     local state_file
+    local operator_create_json
+    local validator_create_json
+    local operator_account_id
+    local validator_account_id
+    local operator_account_id_legacy
+    local validator_account_id_legacy
+    local operator_bundle_fingerprint
+    local validator_bundle_fingerprint
+    local operator_consensus_public_key
+    local validator_consensus_public_key
+    local operator_transport_public_key
+    local validator_transport_public_key
 
     node_name="node$(printf '%02d' "${i}")"
     validator_name="aoxcdev-val-$(printf '%02d' "${i}")"
     operator_name="aoxcdev-op-$(printf '%02d' "${i}")"
-    password="AOXC-ROLLING-${AOXC_Q_ENV^^}-${node_name^^}-CHANGE-ME"
+    password="$(generate_secure_password)"
 
     node_root="${TARGET_ROOT}/nodes/${node_name}"
     node_home="${node_root}/home"
@@ -292,36 +582,137 @@ provision_testnet() {
     log_dir="${node_root}/logs"
     state_file="${run_dir}/loop.state"
 
-    mkdir -p "${node_home}/identity" "${node_home}/config" "${node_home}/runtime" "${node_home}/audit" "${run_dir}" "${log_dir}"
+    mkdir -p \
+      "${node_home}/identity" \
+      "${node_home}/config" \
+      "${node_home}/config/topology" \
+      "${node_home}/config/metadata" \
+      "${node_home}/runtime" \
+      "${node_home}/audit" \
+      "${run_dir}" \
+      "${log_dir}"
 
+    cp "${TARGET_ROOT}/system/genesis/manifest.json" "${node_home}/identity/manifest.json"
     cp "${TARGET_ROOT}/system/genesis/genesis.json" "${node_home}/identity/genesis.json"
     cp "${TARGET_ROOT}/system/config/validators.json" "${node_home}/identity/validators.json"
     cp "${TARGET_ROOT}/system/config/bootnodes.json" "${node_home}/identity/bootnodes.json"
     cp "${TARGET_ROOT}/system/config/certificate.json" "${node_home}/identity/certificate.json"
+
     cp "${TARGET_ROOT}/system/config/profile.toml" "${node_home}/config/profile.toml"
+    cp "${TARGET_ROOT}/system/config/release-policy.toml" "${node_home}/config/release-policy.toml"
     cp "${TARGET_ROOT}/system/config/validators.json" "${node_home}/config/validators.json"
     cp "${TARGET_ROOT}/system/config/bootnodes.json" "${node_home}/config/bootnodes.json"
+    cp "${TARGET_ROOT}/system/config/certificate.json" "${node_home}/config/certificate.json"
+
+    cp "${TARGET_ROOT}/system/config/topology/role-topology.toml" "${node_home}/config/topology/role-topology.toml"
+    cp "${TARGET_ROOT}/system/config/topology/socket-matrix.toml" "${node_home}/config/topology/socket-matrix.toml"
+    cp "${TARGET_ROOT}/system/config/topology/consensus-policy.toml" "${node_home}/config/topology/consensus-policy.toml"
+    cp "${TARGET_ROOT}/system/config/topology/aoxcq-consensus.toml" "${node_home}/config/topology/aoxcq-consensus.toml"
+
+    if [[ -f "${TARGET_ROOT}/system/config/metadata/network-metadata.json" ]]; then
+      cp "${TARGET_ROOT}/system/config/metadata/network-metadata.json" "${node_home}/config/metadata/network-metadata.json"
+    fi
 
     printf '%s\n' "${password}" > "${node_root}/operator.password"
     chmod 600 "${node_root}/operator.password"
 
+    write_node_ports_env "${node_root}" "${i}"
+    write_node_runtime_overlay "${node_home}" "${node_name}" "${i}"
+
     run_aoxc "${node_home}" config-init --profile "${AOXC_Q_PROFILE}" --json-logs > "${run_dir}/config-init.json"
-    run_aoxc "${node_home}" address-create --name "${operator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-operator.json"
-    run_aoxc "${node_home}" address-create --name "${validator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-validator.json"
-    run_aoxc "${node_home}" key-bootstrap --force --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
-    run_aoxc "${node_home}" keys-verify --password "${password}" > "${run_dir}/keys-verify.json"
-    run_aoxc "" node-bootstrap --home "${node_home}" > "${run_dir}/node-bootstrap.json"
 
-    render_node_runner "${node_root}" "${node_name}" "${node_home}" "${log_dir}/node-run.log" "${state_file}" "${AOXC_Q_SLEEP_MIN_SECS}" "${AOXC_Q_SLEEP_MAX_SECS}"
+    run_aoxc "${node_home}" address-create \
+      --name "${operator_name}" \
+      --profile "${AOXC_Q_PROFILE}" \
+      --password "${password}" \
+      > "${run_dir}/address-create-operator.txt"
 
-    printf '%s\t%s\t%s\n' "${node_name}" "${validator_name}" "${operator_name}" >> "${accounts_file}"
+    run_aoxc "${node_home}" address-create \
+      --name "${validator_name}" \
+      --profile "${AOXC_Q_PROFILE}" \
+      --password "${password}" \
+      > "${run_dir}/address-create-validator.txt"
+
+    run_aoxc "${node_home}" key-bootstrap \
+      --force \
+      --profile "${AOXC_Q_PROFILE}" \
+      --name "${validator_name}" \
+      --password "${password}" \
+      > "${run_dir}/key-bootstrap.txt"
+
+    run_aoxc "${node_home}" keys-verify \
+      --password "${password}" \
+      > "${run_dir}/keys-verify.txt"
+
+    run_aoxc "" node-bootstrap --home "${node_home}" > "${run_dir}/node-bootstrap.txt"
+
+    operator_create_json="${run_dir}/address-create-operator.txt"
+    validator_create_json="${run_dir}/address-create-validator.txt"
+
+    operator_account_id="$(extract_account_id_field "${operator_create_json}")"
+    validator_account_id="$(extract_account_id_field "${validator_create_json}")"
+
+    operator_account_id_legacy="$(extract_kv_field "${operator_create_json}" "validator_account_id_legacy")"
+    validator_account_id_legacy="$(extract_kv_field "${validator_create_json}" "validator_account_id_legacy")"
+
+    operator_bundle_fingerprint="$(extract_kv_field "${operator_create_json}" "bundle_fingerprint")"
+    validator_bundle_fingerprint="$(extract_kv_field "${validator_create_json}" "bundle_fingerprint")"
+
+    operator_consensus_public_key="$(extract_kv_field "${operator_create_json}" "consensus_public_key")"
+    validator_consensus_public_key="$(extract_kv_field "${validator_create_json}" "consensus_public_key")"
+
+    operator_transport_public_key="$(extract_kv_field "${operator_create_json}" "transport_public_key")"
+    validator_transport_public_key="$(extract_kv_field "${validator_create_json}" "transport_public_key")"
+
+    write_node_identity_summary \
+      "${node_root}" \
+      "${node_name}" \
+      "${operator_name}" \
+      "${validator_name}" \
+      "${operator_account_id}" \
+      "${validator_account_id}" \
+      "${operator_account_id_legacy}" \
+      "${validator_account_id_legacy}" \
+      "${operator_bundle_fingerprint}" \
+      "${validator_bundle_fingerprint}" \
+      "${operator_consensus_public_key}" \
+      "${validator_consensus_public_key}" \
+      "${operator_transport_public_key}" \
+      "${validator_transport_public_key}"
+
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${node_name}" "${validator_name}" "${operator_name}" \
+      "${validator_account_id}" "${operator_account_id}" \
+      "${validator_account_id_legacy}" "${operator_account_id_legacy}" \
+      "${validator_bundle_fingerprint}" "${operator_bundle_fingerprint}" \
+      "${validator_consensus_public_key}" "${operator_consensus_public_key}" \
+      "${validator_transport_public_key}" "${operator_transport_public_key}" \
+      "${node_root}/operator.password" \
+      >> "${accounts_file}"
+
+    printf '%s\t%s\t%s\t%s\t%s\n' \
+      "${node_name}" \
+      "$(node_rpc_port "${i}")" \
+      "$(node_p2p_port "${i}")" \
+      "$(node_metrics_port "${i}")" \
+      "$(node_admin_port "${i}")" \
+      >> "${ports_file}"
+
+    render_node_runner \
+      "${node_root}" \
+      "${node_name}" \
+      "${node_home}" \
+      "${log_dir}/node-run.log" \
+      "${state_file}" \
+      "${AOXC_Q_SLEEP_MIN_SECS}" \
+      "${AOXC_Q_SLEEP_MAX_SECS}"
   done
 
   chmod -R go-rwx "${TARGET_ROOT}" || true
   chmod -R u+rwX "${TARGET_ROOT}" || true
 
   cat > "${TARGET_ROOT}/system/audit/provision-report.txt" <<REPORT
-AOXC rolling devnet persistent local bootstrap report
+AOXC rolling local bootstrap report
 created_utc=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)
 repo_root=${REPO_ROOT}
 environment=${AOXC_Q_ENV}
@@ -332,7 +723,21 @@ rounds=${AOXC_Q_ROUNDS}
 sleep_secs=${AOXC_Q_SLEEP_SECS}
 sleep_min_secs=${AOXC_Q_SLEEP_MIN_SECS}
 sleep_max_secs=${AOXC_Q_SLEEP_MAX_SECS}
+rpc_base_port=${AOXC_Q_RPC_BASE_PORT}
+p2p_base_port=${AOXC_Q_P2P_BASE_PORT}
+metrics_base_port=${AOXC_Q_METRICS_BASE_PORT}
+admin_base_port=${AOXC_Q_ADMIN_BASE_PORT}
 root=${TARGET_ROOT}
+manifest_file=${TARGET_ROOT}/system/genesis/manifest.json
+genesis_file=${TARGET_ROOT}/system/genesis/genesis.json
+topology_role_file=${TARGET_ROOT}/system/config/topology/role-topology.toml
+topology_socket_matrix_file=${TARGET_ROOT}/system/config/topology/socket-matrix.toml
+topology_consensus_policy_file=${TARGET_ROOT}/system/config/topology/consensus-policy.toml
+topology_aoxcq_consensus_file=${TARGET_ROOT}/system/config/topology/aoxcq-consensus.toml
+network_metadata_present=$([[ -f "${TARGET_ROOT}/system/config/metadata/network-metadata.json" ]] && echo yes || echo no)
+accounts_file=${TARGET_ROOT}/system/audit/prepared-accounts.tsv
+ports_file=${TARGET_ROOT}/system/audit/node-port-map.tsv
+topology_checksums=${TARGET_ROOT}/system/audit/topology.sha256
 REPORT
 
   log_info "Provisioning complete: ${TARGET_ROOT}"
@@ -341,16 +746,18 @@ REPORT
 start_testnet() {
   [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
 
+  local i
   for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
     local node_root
     local pid_file
+    local pid
+
     node_name="node$(printf '%02d' "${i}")"
     node_root="${TARGET_ROOT}/nodes/${node_name}"
     pid_file="${node_root}/node.pid"
 
     if [[ -f "${pid_file}" ]]; then
-      local pid
       pid="$(cat "${pid_file}")"
       if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
         log_info "${node_name} already running pid=${pid}"
@@ -359,7 +766,7 @@ start_testnet() {
       rm -f "${pid_file}"
     fi
 
-    nohup "${node_root}/run-node.sh" >"${node_root}/logs/supervisor.log" 2>&1 &
+    nohup "${node_root}/run-node.sh" > "${node_root}/logs/supervisor.log" 2>&1 &
     echo "$!" > "${pid_file}"
     log_info "started ${node_name} pid=$(cat "${pid_file}")"
   done
@@ -368,17 +775,19 @@ start_testnet() {
 stop_testnet() {
   [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
 
+  local i
   for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
     local node_root
     local pid_file
+    local pid
+
     node_name="node$(printf '%02d' "${i}")"
     node_root="${TARGET_ROOT}/nodes/${node_name}"
     pid_file="${node_root}/node.pid"
 
     [[ -f "${pid_file}" ]] || { log_info "${node_name} not running"; continue; }
 
-    local pid
     pid="$(cat "${pid_file}")"
     if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
       kill "${pid}" || true
@@ -396,8 +805,9 @@ stop_testnet() {
 
 status_testnet() {
   [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
-  printf 'node\tprocess\tpid\theight\tupdated_at\n'
+  printf 'node\tprocess\tpid\trpc\tp2p\tmetrics\tadmin\theight\tupdated_at\n'
 
+  local i
   for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
     local node_name
     local node_root
@@ -430,7 +840,16 @@ status_testnet() {
       updated_at="$(printf '%s' "${state_json}" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("updated_at","-"))' 2>/dev/null || echo '-')"
     fi
 
-    printf '%s\t%s\t%s\t%s\t%s\n' "${node_name}" "${process_state}" "${pid_text}" "${height}" "${updated_at}"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${node_name}" \
+      "${process_state}" \
+      "${pid_text}" \
+      "$(node_rpc_port "${i}")" \
+      "$(node_p2p_port "${i}")" \
+      "$(node_metrics_port "${i}")" \
+      "$(node_admin_port "${i}")" \
+      "${height}" \
+      "${updated_at}"
   done
 }
 
@@ -462,7 +881,9 @@ main() {
 
   if [[ "${AOXC_Q_ACTION}" == "up" || "${AOXC_Q_ACTION}" == "provision" ]]; then
     log_info "accounts: ${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
+    log_info "ports: ${TARGET_ROOT}/system/audit/node-port-map.tsv"
     log_info "provision report: ${TARGET_ROOT}/system/audit/provision-report.txt"
+    log_info "topology checksums: ${TARGET_ROOT}/system/audit/topology.sha256"
     log_info "control: $(basename "$0") --action start|stop|status --home ${AOXC_Q_HOME} --env ${AOXC_Q_ENV} --nodes ${AOXC_Q_NODE_COUNT}"
   fi
 }

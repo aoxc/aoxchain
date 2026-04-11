@@ -16,7 +16,7 @@
       "transport_public_key_encoding": "hex",
       "transport_public_key": "9f95be11d0f7db2a2a0f9d57c6b876fb4f6e7d8e324af99dc8df84b8f123fd0a",
       "transport_key_fingerprint": "f0045dfd551ac13a93f4f7f92ad740d5126ccb6a02ce0dd61331d6579592d26d",
-      "address": "/dns4/seed1.testnet.aoxchain.io/tcp/26656",
+      "address": "/ip4/127.0.0.1/tcp/26656",
       "transport": "tcp",
       "status": "active"
     },
@@ -27,9 +27,13 @@
       "transport_public_key_encoding": "hex",
       "transport_public_key": "4ca5c0f7e054e9f0fb71fda6911df17d1c41669dc52f9f61e6da304f6a079b5c",
       "transport_key_fingerprint": "46f2d6ed156cc02fcb86bc3588bdbed6a22ebda2a45f20aa6cb0128df95a7493",
-      "address": "/dns4/rpc1.testnet.aoxchain.io/tcp/26656",
+      "address": "/ip4/127.0.0.1/tcp/26657",
       "transport": "tcp",
       "status": "active"
     }
-  ]
+  ],
+  "metadata": {
+    "description": "Temporary AOXC testnet bootnode registry for local operator bring-up.",
+    "status": "staging"
+  }
 }

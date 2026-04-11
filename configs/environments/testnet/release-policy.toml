@@ -5,7 +5,7 @@ schema_version = 1
 environment = "testnet"
 display_name = "AOXC PUSULA"
 release_tier = "pre-production"
-status = "active"
+status = "staging"
 release_channel = "candidate"
 lifecycle_role = "pre-production-candidate"
 
@@ -27,9 +27,9 @@ require_signed_artifacts = true
 require_certificate_presence = true
 
 [promotion]
-allow_release = true
+allow_release = false
 allow_promotion_from_devnet = true
-allow_promotion_to_mainnet = true
+allow_promotion_to_mainnet = false
 allow_unsigned_release = false
 allow_manifest_identity_override = false
 allow_chain_id_override = false

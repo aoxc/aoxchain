@@ -6,7 +6,7 @@ environment = "testnet"
 display_name = "AOXC PUSULA"
 network_class = "public_testnet"
 profile_type = "pre-production"
-status = "active"
+status = "staging"
 
 [identity]
 family_id = 2626
@@ -21,9 +21,9 @@ deterministic_genesis_required = true
 manifest_validation_required = true
 
 [operations]
-allow_public_access = true
+allow_public_access = false
 allow_operator_launch = true
-allow_local_multi_node_mode = false
+allow_local_multi_node_mode = true
 require_release_evidence = true
 require_signed_artifacts = true
 

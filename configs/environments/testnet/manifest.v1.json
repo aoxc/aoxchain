@@ -5,7 +5,6 @@
   "family_name": "AOXC",
   "family_code": "aoxc",
   "family_id": 2626,
-
   "identity": {
     "chain_name": "AOXC PUSULA",
     "network_class": "public_testnet",
@@ -13,7 +12,6 @@
     "chain_id": 2626010001,
     "network_id": "aoxc-testnet-2626-002"
   },
-
   "binary_compatibility": {
     "product_name": "AOXC Node",
     "product_code": "aoxc-node",
@@ -24,7 +22,6 @@
     "supported_manifest_schema_versions": [1],
     "supported_genesis_schema_versions": [1]
   },
-
   "bundle": {
     "genesis_file": "genesis.v1.json",
     "genesis_hash_file": "genesis.v1.sha256",
@@ -32,15 +29,18 @@
     "bootnodes_file": "bootnodes.json",
     "profile_file": "profile.toml",
     "release_policy_file": "release-policy.toml",
-    "certificate_file": "certificate.json"
+    "certificate_file": "certificate.json",
+    "network_metadata_file": "network-metadata.json",
+    "topology_aoxcq_consensus_file": "topology/aoxcq-consensus.toml",
+    "topology_consensus_policy_file": "topology/consensus-policy.toml",
+    "topology_role_file": "topology/role-topology.toml",
+    "topology_socket_matrix_file": "topology/socket-matrix.toml"
   },
-
   "integrity": {
     "hash_algorithm": "sha256",
     "deterministic_serialization_required": true,
     "manifest_governs_bundle_identity": true
   },
-
   "runtime_policy": {
     "reject_chain_id_mismatch": true,
     "reject_network_id_mismatch": true,
@@ -50,16 +50,19 @@
     "reject_missing_profile": true,
     "reject_missing_validators": true,
     "reject_missing_bootnodes": true,
+    "reject_missing_topology": true,
+    "reject_missing_topology_consensus_profile": true,
+    "reject_missing_topology_consensus_policy": true,
+    "reject_missing_topology_role_profile": true,
+    "reject_missing_topology_socket_policy": true,
     "reject_manifest_genesis_hash_mismatch": true
   },
-
   "governance": {
     "registry_controlled": true,
     "manual_chain_id_override_forbidden": true,
     "manual_network_id_override_forbidden": true,
     "manual_network_serial_override_forbidden": true
   },
-
   "metadata": {
     "description": "Canonical AOXC public testnet manifest.",
     "status": "active"
