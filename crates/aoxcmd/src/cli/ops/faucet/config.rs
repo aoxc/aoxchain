@@ -44,12 +44,12 @@ pub fn cmd_faucet_config(args: &[String]) -> Result<(), AppError> {
         changed = true;
     }
 
-    if let Some(account) = parse_optional_text_arg(args, "--ban-account", true) {
-        if !state.banned_accounts.contains(&account) {
-            state.banned_accounts.push(account.clone());
-            state.banned_accounts.sort();
-            changed = true;
-        }
+    if let Some(account) = parse_optional_text_arg(args, "--ban-account", true)
+        && !state.banned_accounts.contains(&account)
+    {
+        state.banned_accounts.push(account.clone());
+        state.banned_accounts.sort();
+        changed = true;
     }
 
     if let Some(account) = parse_optional_text_arg(args, "--unban-account", true) {
@@ -60,12 +60,12 @@ pub fn cmd_faucet_config(args: &[String]) -> Result<(), AppError> {
         changed = changed || initial_len != state.banned_accounts.len();
     }
 
-    if let Some(account) = parse_optional_text_arg(args, "--allow-account", true) {
-        if !state.allowlisted_accounts.contains(&account) {
-            state.allowlisted_accounts.push(account.clone());
-            state.allowlisted_accounts.sort();
-            changed = true;
-        }
+    if let Some(account) = parse_optional_text_arg(args, "--allow-account", true)
+        && !state.allowlisted_accounts.contains(&account)
+    {
+        state.allowlisted_accounts.push(account.clone());
+        state.allowlisted_accounts.sort();
+        changed = true;
     }
 
     if let Some(account) = parse_optional_text_arg(args, "--disallow-account", true) {

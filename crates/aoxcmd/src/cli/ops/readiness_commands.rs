@@ -501,10 +501,10 @@ fn parse_toml_scalar(path: &Path, section: &str, key: &str) -> Result<String, St
         if !in_section {
             continue;
         }
-        if let Some((lhs, rhs)) = trimmed.split_once('=') {
-            if lhs.trim() == key {
-                return Ok(rhs.trim().to_string());
-            }
+        if let Some((lhs, rhs)) = trimmed.split_once('=')
+            && lhs.trim() == key
+        {
+            return Ok(rhs.trim().to_string());
         }
     }
     Err(format!(

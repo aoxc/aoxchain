@@ -32,11 +32,11 @@ pub fn cmd_genesis_start(args: &[String]) -> Result<(), AppError> {
         "--format".to_string(),
         "json".to_string(),
     ];
-    if has_flag(args, "--home") {
-        if let Some(home) = arg_value(args, "--home") {
-            init_args.push("--home".to_string());
-            init_args.push(home);
-        }
+    if has_flag(args, "--home")
+        && let Some(home) = arg_value(args, "--home")
+    {
+        init_args.push("--home".to_string());
+        init_args.push(home);
     }
 
     if !genesis_path()?.exists() && !has_flag(args, "--no-init") {
@@ -733,10 +733,10 @@ fn role_topology_core7_status(environment: &str) -> Result<RoleTopologyCore7Stat
             continue;
         }
 
-        if let Some(role) = current_role.as_ref() {
-            if line.starts_with("enabled") {
-                states.insert(role.clone(), line.ends_with("true"));
-            }
+        if let Some(role) = current_role.as_ref()
+            && line.starts_with("enabled")
+        {
+            states.insert(role.clone(), line.ends_with("true"));
         }
     }
 

@@ -176,10 +176,10 @@ fn parse_role_enabled_states(content: &str) -> BTreeMap<String, bool> {
             continue;
         }
 
-        if let Some(role) = current_role.as_ref() {
-            if line.starts_with("enabled") {
-                states.insert(role.clone(), line.ends_with("true"));
-            }
+        if let Some(role) = current_role.as_ref()
+            && line.starts_with("enabled")
+        {
+            states.insert(role.clone(), line.ends_with("true"));
         }
     }
 

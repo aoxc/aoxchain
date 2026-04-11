@@ -332,8 +332,10 @@ async fn open_session_rejects_replay_like_old_challenge() {
 #[tokio::test]
 async fn open_session_rejects_unsigned_permit_when_relay_key_is_configured() {
     let relay_signing_key = EdSigningKey::from_bytes(&[0x22; 32]);
-    let mut config = MobileConfig::default();
-    config.relay_verifying_key_hex = Some(hex::encode_upper(relay_signing_key.verifying_key()));
+    let config = MobileConfig {
+        relay_verifying_key_hex: Some(hex::encode_upper(relay_signing_key.verifying_key())),
+        ..MobileConfig::default()
+    };
 
     let gateway = NativeGateway::new(
         config,
@@ -443,8 +445,10 @@ async fn open_session_accepts_validly_signed_relay_permit() {
     }
 
     let relay_signing_key = EdSigningKey::from_bytes(&[0x23; 32]);
-    let mut config = MobileConfig::default();
-    config.relay_verifying_key_hex = Some(hex::encode_upper(relay_signing_key.verifying_key()));
+    let config = MobileConfig {
+        relay_verifying_key_hex: Some(hex::encode_upper(relay_signing_key.verifying_key())),
+        ..MobileConfig::default()
+    };
     let gateway = NativeGateway::new(
         config,
         SignedPermitTransport { relay_signing_key },

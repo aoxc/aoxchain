@@ -260,7 +260,6 @@ fn hybrid_policy_epoch_gates_and_bundle_floor_work() {
         classical_retirement_epoch: Some(200),
         min_signature_bundles: 2,
         pq_signature_schemes: vec!["ml_dsa_65".into()],
-        ..QuantumSecurityProfile::default()
     })
     .unwrap();
 

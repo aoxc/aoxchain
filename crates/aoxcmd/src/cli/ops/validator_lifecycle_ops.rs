@@ -76,13 +76,13 @@ pub fn cmd_validator_join(args: &[String]) -> Result<(), AppError> {
         ));
     }
 
-    if let Some(value) = commission_bps {
-        if value > 10_000 {
-            return Err(AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                "Flag --commission-bps must be between 0 and 10000",
-            ));
-        }
+    if let Some(value) = commission_bps
+        && value > 10_000
+    {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Flag --commission-bps must be between 0 and 10000",
+        ));
     }
 
     emit_serialized(
