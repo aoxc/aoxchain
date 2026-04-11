@@ -187,6 +187,15 @@ make audit-chain
 make reset
 ```
 
+Persistent multi-node testnet supervisor (`/mnt/xdbx/aoxc` default):
+
+```bash
+make aoxc-q-up AOXC_Q_MODE=local AOXC_Q_ENV=testnet AOXC_Q_PROFILE=testnet AOXC_Q_NODES=7 AOXC_Q_FORCE=1
+make aoxc-q-status AOXC_Q_MODE=local AOXC_Q_ENV=testnet AOXC_Q_NODES=7
+```
+
+Operational note: `aoxc-q` provisions identity-side `genesis.json`, `validators.json`, `bootnodes.json`, and `certificate.json` per node so `genesis-validate --strict` and `genesis-production-gate` can be evaluated directly with `--home <node-home>`.
+
 ### 8.7 Packaging and Release
 
 ```bash
