@@ -1,10 +1,37 @@
+# Canonical devnet preset.
+# Keep top-level fields for compatibility with existing scripts.
+
 chain_id = "aox-devnet-1"
 listen_addr = "0.0.0.0:46656"
 rpc_addr = "0.0.0.0:28545"
+security_mode = "developer_guarded"
+consensus_profile = "fast-finality-dev"
+crypto_profile = "classical"
+quantum_policy = "configs/quantum-resilience-policy.toml"
+
 peers = [
   "dev-seed-1.aoxc.net:46656",
   "dev-seed-2.aoxc.net:46656",
 ]
-security_mode = "developer_guarded"
-consensus_profile = "fast-finality-dev"
-feature_flags = ["state-sync-v2", "telemetry-debug", "rpc-trace"]
+
+feature_flags = ["state-sync-v2", "telemetry-debug", "rpc-trace", "chaos-mode"]
+
+[identity]
+network_kind = "devnet"
+network_id = "AOX-DEVNET"
+operator_change_control = "optional"
+
+[network]
+transport = "tcp"
+p2p_max_peers = 50
+rpc_max_connections = 80
+
+[consensus]
+engine = "aoxcq_hybrid_bft"
+finality_target_seconds = 2
+min_validator_uptime = 0.85
+
+[security]
+key_rotation_days = 7
+require_attestation = false
+require_binary_provenance = false
