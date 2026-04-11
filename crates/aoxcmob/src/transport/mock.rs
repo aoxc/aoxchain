@@ -85,6 +85,7 @@ impl AoxcMobileTransport for MockRelayTransport {
             expires_at_epoch_secs: now + config.challenge_max_skew_secs,
             audience: config.app_id.clone(),
             session_ttl_secs: config.session_ttl_secs,
+            relay_signature_hex: None,
         })
     }
 

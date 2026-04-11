@@ -14,6 +14,7 @@ pub struct SessionChallenge {
     pub expires_at_epoch_secs: u64,
     pub audience: String,
     pub session_ttl_secs: u64,
+    pub relay_signature_hex: Option<String>,
 }
 
 /// Signed device response to a relay-issued session challenge.

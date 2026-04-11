@@ -297,6 +297,7 @@ where
                 "challenge session_ttl_secs must be greater than zero",
             ));
         }
+        self.verify_challenge_signature(challenge)?;
         Ok(())
     }
 

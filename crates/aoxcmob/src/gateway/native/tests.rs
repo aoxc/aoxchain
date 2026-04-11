@@ -267,6 +267,7 @@ async fn open_session_rejects_replay_like_old_challenge() {
                 expires_at_epoch_secs: now + 10,
                 audience: config.app_id.clone(),
                 session_ttl_secs: config.session_ttl_secs,
+                relay_signature_hex: None,
             })
         }
 
