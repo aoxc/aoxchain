@@ -51,6 +51,8 @@ pub enum RpcError {
     RateLimitExceeded { retry_after_ms: u64 },
     #[error("MTLS_AUTH_FAILED")]
     MtlsAuthFailed,
+    #[error("API_KEY_AUTH_FAILED")]
+    ApiKeyAuthFailed,
     #[error("ZKP_VALIDATION_FAILED: {0}")]
     ZkpValidationFailed(String),
     #[error("INTERNAL_ERROR")]
@@ -72,6 +74,7 @@ impl RpcError {
             Self::MethodNotFound => "METHOD_NOT_FOUND",
             Self::RateLimitExceeded { .. } => "RATE_LIMIT_EXCEEDED",
             Self::MtlsAuthFailed => "MTLS_AUTH_FAILED",
+            Self::ApiKeyAuthFailed => "API_KEY_AUTH_FAILED",
             Self::ZkpValidationFailed(_) => "ZKP_VALIDATION_FAILED",
             Self::InternalError => "INTERNAL_ERROR",
             Self::AdmissionDenied { .. } => "ADMISSION_DENIED",
@@ -96,6 +99,9 @@ impl RpcError {
                 Some("Apply retry_after_ms with exponential backoff and jitter.")
             }
             Self::MtlsAuthFailed => Some("Verify client certificate chain and mTLS setup."),
+            Self::ApiKeyAuthFailed => {
+                Some("Provide a valid API key in the Authorization header.")
+            }
             Self::ZkpValidationFailed(_) => Some("Regenerate and submit a valid ZKP proof."),
             Self::InternalError => None,
             Self::AdmissionDenied { .. } => Some(
