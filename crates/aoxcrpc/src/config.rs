@@ -20,6 +20,8 @@ pub struct RpcConfig {
     pub rate_limiter_window_secs: u64,
     pub rate_limiter_max_tracked_keys: usize,
     pub max_json_body_bytes: usize,
+    pub require_api_key_for_write_routes: bool,
+    pub api_keys: Vec<String>,
 }
 
 impl Default for RpcConfig {
@@ -37,6 +39,8 @@ impl Default for RpcConfig {
             rate_limiter_window_secs: 60,
             rate_limiter_max_tracked_keys: 100_000,
             max_json_body_bytes: 1_048_576,
+            require_api_key_for_write_routes: true,
+            api_keys: vec![],
         }
     }
 }
@@ -73,6 +77,17 @@ impl RpcConfig {
 
         if self.max_json_body_bytes == 0 {
             errors.push("max_json_body_bytes must be greater than zero".to_string());
+        }
+
+        if self.require_api_key_for_write_routes && self.api_keys.is_empty() {
+            warnings.push(
+                "API key auth is enabled for write routes but no api_keys are configured"
+                    .to_string(),
+            );
+        }
+
+        if self.api_keys.iter().any(|key| key.trim().is_empty()) {
+            errors.push("api_keys must not contain empty values".to_string());
         }
 
         if self.genesis_hash.is_none() {
@@ -255,6 +270,7 @@ mod tests {
             tls_cert_path: "Cargo.toml".to_string(),
             tls_key_path: "README.md".to_string(),
             mtls_ca_cert_path: Some("Cargo.toml".to_string()),
+            api_keys: vec!["ops-key".to_string()],
             ..RpcConfig::default()
         };
 
@@ -303,6 +319,7 @@ mod tests {
             tls_cert_path: "Cargo.toml".to_string(),
             tls_key_path: "Cargo.toml".to_string(),
             mtls_ca_cert_path: Some("Cargo.toml".to_string()),
+            api_keys: vec!["ops-key".to_string()],
             max_requests_per_minute: 200_000,
             ..RpcConfig::default()
         };
@@ -320,6 +337,22 @@ mod tests {
                 .warnings
                 .iter()
                 .any(|item| item.contains("same file"))
+        );
+    }
+
+    #[test]
+    fn validate_rejects_empty_api_key_entries() {
+        let config = RpcConfig {
+            api_keys: vec!["ops-key".to_string(), " ".to_string()],
+            ..RpcConfig::default()
+        };
+
+        let validation = config.validate();
+        assert!(
+            validation
+                .errors
+                .iter()
+                .any(|item| item.contains("api_keys must not contain empty values"))
         );
     }
 }
