@@ -235,6 +235,14 @@ defer critical validation logic to `aoxc` and `make` surfaces:
 - `scripts/transfer_smoke.sh`
 - `scripts/runtime_recover.sh`
 
+`scripts/wallet_seed.sh` enforces fail-closed input validation before calling
+`make chain-add-account`:
+
+- account IDs must match `^[A-Za-z0-9_.:-]{3,64}$`,
+- roles are normalized to lowercase and restricted to canonical genesis roles,
+- balance must be non-zero by default (`AOXC_ALLOW_ZERO_BALANCE=1` explicitly
+  opts into zero-balance seeding for controlled bootstrap workflows).
+
 ---
 
 ## Canonical Runtime Model
