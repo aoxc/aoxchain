@@ -16,7 +16,9 @@ material. The operational model is **single-system runtime code** with
 - `registry/network-registry.toml` — canonical identity derivation policy.
 - `version-policy.toml` — repository-level version governance contract.
 - `network-matrix.toml` — environment matrix with security/runtime expectations.
-- `mainnet.toml`, `testnet.toml`, `devnet.toml` — legacy compatibility presets.
+- `quantum-resilience-policy.toml` — shared cryptographic transition and post-quantum policy baseline.
+- `mainnet.toml`, `testnet.toml`, `devnet.toml`, `validation.toml`, `localnet.toml` — canonical compatibility presets with advanced structured sections.
+- `aoxhub-mainnet.toml`, `aoxhub-testnet.toml` — AOXHub root compatibility bridge profiles pointing to `configs/aoxhub/<env>.toml`.
 
 ## Single-System Selection
 
@@ -90,8 +92,13 @@ for path in [
     'configs/mainnet.toml',
     'configs/testnet.toml',
     'configs/devnet.toml',
+    'configs/validation.toml',
+    'configs/localnet.toml',
+    'configs/aoxhub-mainnet.toml',
+    'configs/aoxhub-testnet.toml',
     'configs/network-matrix.toml',
     'configs/version-policy.toml',
+    'configs/quantum-resilience-policy.toml',
     'configs/registry/network-registry.toml',
 ]:
     with open(path, 'rb') as f:

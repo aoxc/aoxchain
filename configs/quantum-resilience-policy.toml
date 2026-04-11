@@ -1,0 +1,35 @@
+version = "aoxc-quantum-policy/v1"
+default_profile = "hybrid_pq"
+policy_owner = "aoxchain-governance"
+
+[crypto_profiles.classical]
+enabled = true
+signature_schemes = ["ed25519"]
+key_exchange = ["x25519"]
+allowed_for = ["devnet", "localnet", "validation", "testnet", "mainnet"]
+
+[crypto_profiles.hybrid_pq]
+enabled = true
+signature_schemes = ["ed25519", "dilithium3"]
+key_exchange = ["x25519", "ml-kem-768"]
+allowed_for = ["testnet", "validation", "mainnet"]
+required_for_roles = ["validator", "relayer", "bridge"]
+
+[crypto_profiles.pqc_only]
+enabled = true
+signature_schemes = ["dilithium3"]
+key_exchange = ["ml-kem-768"]
+allowed_for = ["mainnet"]
+activation = "governance_approved"
+
+[transition]
+mode = "staged"
+phase_1 = "classical_plus_observability"
+phase_2 = "hybrid_required_for_consensus"
+phase_3 = "pqc_only_optional"
+rollback_allowed = true
+
+[audit]
+require_crypto_inventory = true
+require_key_rotation_plan = true
+require_signature_telemetry = true

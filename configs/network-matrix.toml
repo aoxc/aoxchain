@@ -6,7 +6,7 @@ network_type = "public"
 release_tier = "production"
 security_mode = "audit_strict"
 requires_change_control = true
-required_artifacts = ["checksum", "signature", "provenance", "production_audit"]
+required_artifacts = ["checksum", "signature", "provenance", "production_audit", "quantum_crypto_attestation"]
 
 [testnet]
 config = "configs/testnet.toml"
@@ -14,7 +14,7 @@ network_type = "public"
 release_tier = "pre-production"
 security_mode = "audit_strict"
 requires_change_control = true
-required_artifacts = ["checksum", "signature", "compat_matrix"]
+required_artifacts = ["checksum", "signature", "compat_matrix", "hybrid_crypto_report"]
 
 [devnet]
 config = "configs/devnet.toml"
@@ -22,8 +22,35 @@ network_type = "development"
 release_tier = "engineering"
 security_mode = "developer_guarded"
 requires_change_control = false
-required_artifacts = ["checksum", "compat_matrix"]
+required_artifacts = ["checksum", "compat_matrix", "crypto_transition_notes"]
+
+[validation]
+config = "configs/validation.toml"
+network_type = "verification"
+release_tier = "gated-validation"
+security_mode = "audit_strict"
+requires_change_control = true
+required_artifacts = ["checksum", "signature", "identity_alignment_report"]
+
+[localnet]
+config = "configs/localnet.toml"
+network_type = "local"
+release_tier = "operator-sandbox"
+security_mode = "developer_guarded"
+requires_change_control = false
+required_artifacts = ["checksum", "fixture_manifest"]
+
+[aoxhub_overlay]
+mainnet = "configs/aoxhub/mainnet.toml"
+testnet = "configs/aoxhub/testnet.toml"
+validation = "configs/aoxhub/validation.toml"
+localnet = "configs/aoxhub/localnet.toml"
 
 [desktop_interface]
 supported_environments = ["mainnet", "testnet", "devnet"]
 required_compat_report = "artifacts/network-production-closure/desktop-wallet-compat.json"
+
+[crypto_baseline]
+policy = "configs/quantum-resilience-policy.toml"
+default_profile = "hybrid_pq"
+allow_pqc_only = true
