@@ -2,6 +2,7 @@
   <img src="logos/aoxc_transparent.png" alt="AOXChain Logo" width="220" />
 
   # AOXChain
+  
 
   **Deterministic Layer-1 engineering focused on policy-governed authority, fail-closed validation, and evidence-driven operations.**
 </div>
