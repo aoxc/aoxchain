@@ -369,6 +369,7 @@ pub struct ExecutionContext {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuthScheme {
     Ed25519,
+    HybridEd25519MlDsa65,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -396,6 +397,8 @@ pub struct ExecutionPayload {
     pub replay_domain: String,
     pub auth_scheme: AuthScheme,
     pub signature: Vec<u8>,
+    pub pq_public_key: Option<Vec<u8>>,
+    pub pq_signature: Option<Vec<u8>>,
     pub data: Vec<u8>,
 }
 
@@ -408,6 +411,24 @@ engine::hash_payload_core(self)
         self.sender = signing_key.verifying_key().to_bytes();
         let digest = self.signing_digest()?;
         self.signature = signing_key.sign(&digest).to_vec();
+        Ok(self)
+    }
+
+    pub fn sign_with_hybrid_ed25519_ml_dsa65(
+        mut self,
+        ed25519_signing_key: &SigningKey,
+        ml_dsa_signing_key: &MLDSA65SigningKey,
+        ml_dsa_verification_key: &MLDSA65VerificationKey,
+    ) -> Result<Self, ExecutionError> {
+        self.auth_scheme = AuthScheme::HybridEd25519MlDsa65;
+        self.sender = ed25519_signing_key.verifying_key().to_bytes();
+        let digest = self.signing_digest()?;
+        self.signature = ed25519_signing_key.sign(&digest).to_vec();
+        self.pq_public_key = Some(ml_dsa_verification_key.as_ref().to_vec());
+        let pq_message = engine::hash_payload_ml_dsa_65_message(&self)?;
+        let pq_signature = sign_ml_dsa_65(ml_dsa_signing_key, &pq_message, b"", rand::random())
+            .map_err(|_| ExecutionError::SerializationFailure("ml-dsa-65 sign failed"))?;
+        self.pq_signature = Some(pq_signature.as_ref().to_vec());
         Ok(self)
     }
 
@@ -568,4 +589,3 @@ pub trait ExecutionLane {
         state: &mut dyn StateStore,
     ) -> Result<StateDiff, ExecutionError>;
 }
-
