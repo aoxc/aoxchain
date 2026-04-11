@@ -1,105 +1,86 @@
-# Versioning Policy
+# AOXChain Versioning Policy
 
-## Purpose
+## 1. Purpose
 
-This document defines how AOXChain version state is advanced in a controlled, auditable, and Git-compatible workflow.
+This document defines controlled, auditable, and Git-compatible version governance.
 
-Current active release line target: `AOXC-QTR-V1` (communication label only).
+- Current release line label: `AOXC-QTR-V1` (communication label).
+- Current workspace version: `0.2.0-alpha.2`.
 
-Current workspace release version: `0.2.0-alpha.2`.
+## 2. Canonical Version Surfaces
 
-## Canonical Version Surfaces
+Version state is defined by three synchronized surfaces:
 
-AOXChain version state is governed by three canonical surfaces:
+1. `Cargo.toml` (`[workspace.package].version`),
+2. `configs/version-policy.toml` (`[workspace].current`),
+3. Git release tags in the form `v<workspace-version>`.
 
-- Repository release version: `Cargo.toml` (`[workspace.package].version`)
-- Machine-readable governance policy: `configs/version-policy.toml` (`[workspace].current`)
-- Git release tag namespace: `v<workspace-version>`
+All three must remain synchronized for release-grade operation.
 
-All three surfaces must remain synchronized for release-grade operation.
-
-## Versioning Model
+## 3. Versioning Model
 
 AOXChain uses a hybrid model:
 
-1. **Global workspace version** (single release identity)
-   - Represents the release identity for the full repository.
-   - Must advance when merged changes affect shipped behavior, operator behavior, or release artifacts.
-2. **Component schema tracks**
-   - Protocol/schema/policy tracks advance independently when a schema contract changes.
-   - Schema bumps require compatibility rationale and migration posture.
+- **Global workspace version**: release identity for the repository.
+- **Component schema tracks**: independent schema evolution where required.
 
-Versioning is intentionally **not per-file** and **not per-folder by default**.
+Default policy is not per-file or per-folder versioning.
 
-## Semantic Rules
+## 4. SemVer Rules
 
-### Global workspace SemVer rules
+### Workspace SemVer
 
-- `MAJOR`: compatibility-breaking protocol/API/storage/governance changes.
-- `MINOR`: backward-compatible capability additions.
-- `PATCH`: backward-compatible fixes, hardening, or operational corrections.
-- Pre-release suffixes (for example `-alpha.1`) are allowed for non-final release lines.
+- `MAJOR`: compatibility-breaking protocol/API/storage/governance changes,
+- `MINOR`: backward-compatible capability additions,
+- `PATCH`: backward-compatible fixes/hardening,
+- pre-release suffixes are allowed for non-final release lines.
 
-### Controlled-channel contract
+### Controlled-Channel Contract
 
 `configs/version-policy.toml` must preserve:
 
 - `strategy = "global-workspace-version-with-component-schema-tracks"`
 - `release_channel = "controlled"`
 
-These keys are treated as release-governance controls and are verified by tests and gates.
+These keys are release-governance controls.
 
-## Git-Compatible Change Enforcement
+## 5. Enforcement Surfaces
 
-Version governance is enforced through:
+Version governance is enforced by:
 
-- Rust tests in `tests/src/version_governance.rs`.
-- Shell gate: `scripts/validation/versioning_gate.sh`.
-- Make target: `make versioning-gate` (also run by `make quality-release`).
+- `tests/src/version_governance.rs`,
+- `scripts/validation/versioning_gate.sh`,
+- `make versioning-gate` (also in `make quality-release`).
 
-The versioning gate verifies:
+The gate verifies synchronization, SemVer validity, tag compatibility, version-sensitive change detection, and monotonic version advancement (unless explicitly overridden).
 
-1. `Cargo.toml` workspace version equals `configs/version-policy.toml` current version.
-2. Workspace version matches SemVer core format (`MAJOR.MINOR.PATCH[-PRERELEASE]`).
-3. If `HEAD` is tagged, the tag must be exactly `v<workspace-version>`.
-4. If version-sensitive files changed relative to the configured base ref, at least one canonical version surface must also change.
-5. Workspace version must be greater than the latest `v*` Git tag unless explicitly overridden.
+## 6. Forced Advancement Policy
 
-## Forced Version Advancement Policy
+When version-sensitive surfaces change, version advancement is mandatory unless a reviewer-approved exception is documented.
 
-When a change touches version-sensitive engineering surfaces (for example crates, contracts, runtime configs, release scripts, core build controls, or governance tests), version advancement is mandatory unless a reviewer-approved exception is explicitly documented.
+Exception path:
 
-Default policy outcome:
+- set `AOXC_ALLOW_NON_INCREMENTAL_VERSION=1` only for controlled maintenance flow.
 
-- version-sensitive changes without version-surface updates are rejected by `versioning_gate.sh`.
+## 7. Standard Workflow
 
-Override path (exception only):
+1. apply implementation changes,
+2. choose SemVer bump class,
+3. update canonical surfaces,
+4. bump schema tracks if contracts changed,
+5. run `make versioning-gate` and relevant tests,
+6. create/validate tag `v<workspace-version>` in release workflow.
 
-- set `AOXC_ALLOW_NON_INCREMENTAL_VERSION=1` when a non-incremental version is intentionally required for controlled maintenance flow.
+## 8. Reviewer Checklist
 
-## Standard Workflow
+Reviewers should verify:
 
-1. Apply implementation changes.
-2. Decide required SemVer bump (`MAJOR`, `MINOR`, `PATCH`, optional pre-release suffix).
-3. Update:
-   - `Cargo.toml` `[workspace.package].version`
-   - `configs/version-policy.toml` `[workspace].current`
-4. If schema contracts changed, bump relevant schema track values and document compatibility posture.
-5. Run:
-   - `make versioning-gate`
-   - `cargo test -p tests version_governance -- --nocapture` (or repository test matrix)
-6. Create/validate release tags as `v<workspace-version>` in release workflow.
+- canonical surfaces are synchronized,
+- SemVer class matches compatibility impact,
+- schema bumps exist where needed,
+- gates/tests are green,
+- release tag plan is consistent.
 
-## Reviewer Checklist
+## 9. Operator Guidance
 
-For version-sensitive pull requests, reviewers should verify:
-
-- Canonical version surfaces are synchronized.
-- SemVer class is consistent with compatibility impact.
-- Schema track bumps exist where contract formats changed.
-- Versioning gate and governance tests are green.
-- Release tag plan aligns with `v<workspace-version>`.
-
-## Operator Guidance
-
-If bump scope is ambiguous, prefer conservative upward bump and document rationale in pull request notes.
+If bump scope is ambiguous, prefer conservative upward bump and document rationale in PR notes.
