@@ -6,12 +6,15 @@ impl ConsensusState {
     ) -> Result<(), VoteAuthenticationError> {
         let verified = signed_vote.verify()?;
         self.add_verified_vote(verified)
-            .map_err(|_| VoteAuthenticationError::InvalidSignature)
     }
 
     /// Admits an already-verified vote into state.
-    pub fn add_verified_vote(&mut self, verified_vote: VerifiedVote) -> Result<(), ConsensusError> {
+    pub fn add_verified_vote(
+        &mut self,
+        verified_vote: VerifiedVote,
+    ) -> Result<(), VoteAuthenticationError> {
         self.add_vote(verified_vote.into_vote())
+            .map_err(|error| VoteAuthenticationError::ConsensusAdmissionRejected(error.to_string()))
     }
 
     /// Admits an authenticated vote only if the authentication context matches

@@ -610,6 +610,37 @@ mod tests {
     }
 
     #[test]
+    fn add_signed_vote_surfaces_consensus_admission_failure() {
+        let signing_key = SigningKey::from_bytes(&[11u8; 32]);
+        let voter = signing_key.verifying_key().to_bytes();
+        let mut validator = Validator::new(voter, 10, ValidatorRole::Validator);
+        validator.active = true;
+        let mut state = state_with_validators(vec![validator]);
+        let _genesis = admit_genesis(&mut state, voter);
+
+        let vote = Vote {
+            voter,
+            block_hash: [9u8; 32],
+            height: 0,
+            round: 0,
+            kind: VoteKind::Commit,
+        };
+        let signature = signing_key.sign(&vote.signing_bytes()).to_bytes().to_vec();
+
+        let err = state
+            .add_signed_vote(crate::vote::SignedVote { vote, signature })
+            .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            crate::vote::VoteAuthenticationError::ConsensusAdmissionRejected(
+                ConsensusError::VoteForUnknownBlock.to_string()
+            )
+            .to_string()
+        );
+    }
+
+    #[test]
     fn add_signed_vote_rejects_invalid_signature_end_to_end() {
         let signing_key = SigningKey::from_bytes(&[7u8; 32]);
         let voter = signing_key.verifying_key().to_bytes();
