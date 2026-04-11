@@ -130,6 +130,8 @@ This script supports:
 - production-oriented default topology generation (validators, sentries, bootnodes, RPC, archive),
 - deterministic node inventory output (`plans/nodes.csv`),
 - deterministic command generation (`plans/commands.sh`) for bootstrap and start,
+- strict execute-mode password policy (`>=16` chars, mixed classes, no whitespace),
+- non-persistent command script secrets (uses `AOXC_TESTNET_PASSWORD` at execution time),
 - optional local execution mode (`--execute`) when an AOXC binary is available.
 
 ### `scripts/validation/os_compatibility_gate.sh`
