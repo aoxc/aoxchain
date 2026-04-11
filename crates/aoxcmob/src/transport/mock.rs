@@ -131,6 +131,7 @@ impl AoxcMobileTransport for MockRelayTransport {
             issued_at_epoch_secs: now,
             expires_at_epoch_secs: now + 300,
             relay_signature_hint: sha3_hex_upper(session_id.as_bytes())[..24].to_string(),
+            relay_signature_hex: None,
         })
     }
 
