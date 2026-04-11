@@ -2,109 +2,66 @@
 
 ## Abstract
 
-AOXChain is a deterministic Layer-1 protocol program designed around kernel-first trust interpretation, execution determinism, and cryptographic agility.  
-This whitepaper defines the target architecture, threat-oriented boundary model, protocol governance direction, and production delivery controls used to move from active development to durable network operation.
-
----
+AOXChain is a deterministic Layer-1 protocol program centered on kernel-first trust interpretation, deterministic execution, and profile-governed cryptographic agility. This whitepaper defines architectural intent, threat boundaries, governance posture, and evidence-based production controls.
 
 ## 1. Design Objectives
 
 AOXChain prioritizes:
 
-1. deterministic consensus and state transition behavior;
-2. explicit trust boundaries and fail-closed ingress policy;
-3. protocol-governed VM execution with bounded metering;
-4. staged cryptographic profile migration, including post-quantum readiness;
+1. deterministic consensus and state transition semantics,
+2. explicit trust boundaries and fail-closed ingress control,
+3. policy-governed VM execution with bounded metering,
+4. staged cryptographic migration including post-quantum readiness,
 5. evidence-based release and operational governance.
-
-These objectives are enforced through repository-level controls (`TESTING.md`, `SECURITY.md`, `SCOPE.md`) and implementation-layer separation.
-
----
 
 ## 2. Architectural Model
 
 ### 2.1 Layering
 
-- **Kernel layer:** `aoxcore`, `aoxcunity`
-  - consensus truth, finality classification, settlement policy.
-- **Execution layer:** `aoxcvm`, `aoxcexec`, `aoxcenergy`
-  - deterministic execution, bounded metering, policy-constrained cryptographic syscalls.
-- **Service layer:** `aoxcnet`, `aoxcrpc`, `aoxcdata`, `aoxconfig`
-  - networking, API transport, storage, and typed configuration materialization.
-- **Operations layer:** `aoxcmd`, `aoxckit`, `aoxchub`, `scripts/`
-  - environment lifecycle, diagnostics, release gates, and evidence generation.
+- **Kernel layer** (`aoxcore`, `aoxcunity`): consensus truth and finality policy.
+- **Execution layer** (`aoxcvm`, `aoxcexec`, `aoxcenergy`): deterministic execution and metering.
+- **Service layer** (`aoxcnet`, `aoxcrpc`, `aoxcdata`, `aoxconfig`): networking, API, storage, configuration.
+- **Operations layer** (`aoxcmd`, `aoxckit`, `aoxchub`, `scripts/`): lifecycle control, diagnostics, and evidence.
 
 ### 2.2 Boundary Doctrine
 
-- kernel policy cannot be overridden by service or tooling convenience layers;
-- externally sourced inputs are untrusted until validated;
-- deterministic execution is a protocol property, not an implementation detail;
-- release claims are accepted only with reproducible evidence.
-
----
+- kernel policy cannot be overridden by service convenience layers,
+- external input remains untrusted until validated,
+- deterministic execution is a protocol property,
+- release claims require reproducible evidence.
 
 ## 3. Consensus and Finality Posture
 
-AOXChain treats consensus safety and liveness as first-class invariants.  
+Consensus safety and liveness are first-class invariants.
 Finality interpretation, replay protection, and settlement admission remain kernel responsibilities.
 
-Core principles:
+## 4. Deterministic VM Policy
 
-- explicit quorum/finality policies,
-- deterministic tie-break and fork-choice behavior,
-- fail-closed handling for malformed/unknown protocol envelopes,
-- auditability of finality-critical decisions.
+Execution requirements include:
 
----
+- deterministic opcode behavior,
+- explicit bounded metering,
+- deterministic cryptographic syscall behavior under active profile,
+- stable bytecode and syscall admission policy,
+- no consensus-critical dependency on nondeterministic external I/O.
 
-## 4. Deterministic Execution and VM Policy
+## 5. Cryptographic Agility
 
-The AOX VM is protocol-owned and policy-governed.
+AOXChain uses versioned profile governance:
 
-Execution requirements:
+- profile identifiers are consensus-visible,
+- hybrid windows are explicit and bounded,
+- downgrade and profile-bypass paths are prohibited,
+- rollback behavior is deterministic and auditable.
 
-- deterministic opcode behavior across supported environments,
-- bounded and explicit metering,
-- deterministic cryptographic syscall behavior under active profile policy,
-- stable admission rules for bytecode and syscall surfaces,
-- no consensus-critical dependency on nondeterministic external IO.
-
----
-
-## 5. Cryptographic Agility and Post-Quantum Migration
-
-AOXChain follows versioned cryptographic profile governance:
-
-- profile identifiers are consensus-visible and explicit;
-- hybrid migration windows are supported for controlled transition;
-- downgrade and profile-policy bypass paths are prohibited;
-- rollback behavior must remain deterministic and operator-auditable.
-
-Implementation and rollout controls are tracked by:
-
-- `ROADMAP.md`
-- `READ.md`
-
----
-
-## 6. Networking and API Trust Surfaces
+## 6. Networking and API Surfaces
 
 Network and RPC layers provide transport and observability, not protocol truth.
-
-Required controls:
-
-- strict session/peer validation and admission policy,
-- anti-downgrade profile negotiation controls,
-- topology and endpoint hardening for testnet/mainnet profiles,
-- no bypass of kernel validation via RPC convenience paths.
-
----
+They must enforce admission policy, anti-downgrade controls, and strict separation from consensus-critical internals.
 
 ## 7. Governance, Testing, and Evidence
 
-AOXChain enforces readiness through command-driven, reviewable gates.
-
-Baseline command surfaces:
+Readiness is command-driven and evidence-gated. Typical baseline commands:
 
 ```bash
 make test
@@ -114,31 +71,18 @@ make testnet-gate
 make testnet-readiness-gate
 ```
 
-A network readiness claim is valid only when required gates pass and evidence is retained with commit linkage.
-
----
+A readiness claim is valid only with retained artifacts linked to commit identity.
 
 ## 8. Production Closure Criteria
 
 A branch is production-closable only when:
 
-- required quality and readiness gates pass without unreviewed exceptions;
-- architectural boundaries remain intact;
-- security posture is documented and actively triaged;
-- compatibility and migration impacts are explicitly declared;
-- operational runbooks are aligned with current runtime behavior.
-
-Recommended closure references:
-
-- `docs/PRODUCTION_IMPLEMENTATION_BLUEPRINT.md`
-- `docs/OS_COMPATIBILITY.md`
-- `TESTING.md`
-
----
+- required gates pass without unreviewed exceptions,
+- architectural boundaries remain intact,
+- security posture is documented and triaged,
+- compatibility and migration impacts are explicit,
+- operator runbooks are synchronized with runtime behavior.
 
 ## 9. Scope and Liability Context
 
-AOXChain is distributed under the MIT License on an **"as is"** basis.  
-No implicit warranty of uninterrupted operation, production fitness, or jurisdiction-specific compliance is provided by repository state alone.
-
-Governance decisions should therefore rely on retained evidence, explicit review outcomes, and reproducible validation.
+AOXChain is distributed under MIT on an **"AS IS"** basis. Repository state alone provides no implicit warranty of production fitness or uninterrupted operation.
