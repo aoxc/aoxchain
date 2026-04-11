@@ -12,6 +12,7 @@
     {
       "validator_id": "aoxc-val-testnet-001",
       "display_name": "AOXC Testnet Validator 001",
+      "role": "validator_seed",
       "operational_role": "validator_seed",
       "consensus_key_algorithm": "ed25519",
       "consensus_public_key_encoding": "hex",
@@ -27,6 +28,7 @@
     {
       "validator_id": "aoxc-val-testnet-002",
       "display_name": "AOXC Testnet Validator 002",
+      "role": "validator",
       "operational_role": "validator",
       "consensus_key_algorithm": "ed25519",
       "consensus_public_key_encoding": "hex",
@@ -42,6 +44,7 @@
     {
       "validator_id": "aoxc-val-testnet-003",
       "display_name": "AOXC Testnet Validator 003",
+      "role": "validator_rpc",
       "operational_role": "validator_rpc",
       "consensus_key_algorithm": "ed25519",
       "consensus_public_key_encoding": "hex",
