@@ -4,6 +4,7 @@ This document defines mandatory validation for deterministic and migration-safe 
 
 ## 1. Validation Objective
 
+
 Every change must preserve:
 
 - deterministic behavior,

@@ -83,7 +83,6 @@ while [[ $# -gt 0 ]]; do
     --env) AOXC_Q_ENV="$2"; shift 2 ;;
     --env=*) AOXC_Q_ENV="${1#*=}"; shift ;;
     --profile) AOXC_Q_PROFILE="$2"; shift 2 ;;
-    --profile=*) AOXC_Q_PROFILE="${1#*=}"; shift ;;
     --mode) AOXC_Q_MODE="$2"; shift 2 ;;
     --mode=*) AOXC_Q_MODE="${1#*=}"; shift ;;
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
@@ -91,11 +90,8 @@ while [[ $# -gt 0 ]]; do
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
     --rounds=*) AOXC_Q_ROUNDS="${1#*=}"; shift ;;
     --sleep-secs) AOXC_Q_SLEEP_SECS="$2"; shift 2 ;;
-    --sleep-secs=*) AOXC_Q_SLEEP_SECS="${1#*=}"; shift ;;
     --sleep-min-secs) AOXC_Q_SLEEP_MIN_SECS="$2"; shift 2 ;;
-    --sleep-min-secs=*) AOXC_Q_SLEEP_MIN_SECS="${1#*=}"; shift ;;
     --sleep-max-secs) AOXC_Q_SLEEP_MAX_SECS="$2"; shift 2 ;;
-    --sleep-max-secs=*) AOXC_Q_SLEEP_MAX_SECS="${1#*=}"; shift ;;
     --no-start) AOXC_Q_ACTION="provision"; AOXC_Q_START=0; shift ;;
     --force) AOXC_Q_FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -312,11 +308,7 @@ provision_testnet() {
     run_aoxc "${node_home}" config-init --profile "${AOXC_Q_PROFILE}" --json-logs > "${run_dir}/config-init.json"
     run_aoxc "${node_home}" address-create --name "${operator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-operator.json"
     run_aoxc "${node_home}" address-create --name "${validator_name}" --profile "${AOXC_Q_PROFILE}" --password "${password}" > "${run_dir}/address-create-validator.json"
-    if [[ "${key_bootstrap_force}" == "1" ]]; then
-      run_aoxc "${node_home}" key-bootstrap --force --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
-    else
-      run_aoxc "${node_home}" key-bootstrap --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
-    fi
+    run_aoxc "${node_home}" key-bootstrap --force --profile "${AOXC_Q_PROFILE}" --name "${validator_name}" --password "${password}" > "${run_dir}/key-bootstrap.json"
     run_aoxc "${node_home}" keys-verify --password "${password}" > "${run_dir}/keys-verify.json"
     run_aoxc "" node-bootstrap --home "${node_home}" > "${run_dir}/node-bootstrap.json"
 
@@ -340,7 +332,6 @@ rounds=${AOXC_Q_ROUNDS}
 sleep_secs=${AOXC_Q_SLEEP_SECS}
 sleep_min_secs=${AOXC_Q_SLEEP_MIN_SECS}
 sleep_max_secs=${AOXC_Q_SLEEP_MAX_SECS}
-key_bootstrap_force=${key_bootstrap_force}
 root=${TARGET_ROOT}
 REPORT
 

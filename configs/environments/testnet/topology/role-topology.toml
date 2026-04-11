@@ -20,37 +20,37 @@ enabled = true
 enabled = true
 
 [roles.net_gate]
-enabled = true
+enabled = false
 
 [roles.data_arch]
 enabled = true
 
 [roles.data_da]
-enabled = true
+enabled = false
 
 [roles.serv_rpc]
 enabled = true
 
 [roles.serv_idx]
-enabled = true
+enabled = false
 
 [roles.sec_sent]
 enabled = true
 
 [roles.x_orcl]
-enabled = true
+enabled = false
 
 [roles.x_bridge]
-enabled = true
+enabled = false
 
 [roles.core_qc]
-enabled = true
+enabled = false
 
 [roles.core_qv]
-enabled = true
+enabled = false
 
 [roles.sec_evd]
-enabled = true
+enabled = false
 
 [roles.net_pacer]
-enabled = true
+enabled = false
