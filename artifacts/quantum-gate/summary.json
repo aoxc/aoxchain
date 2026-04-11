@@ -1,0 +1,20 @@
+{
+  "suite": "quantum-readiness-gate",
+  "strict_mode": 0,
+  "timestamp_utc": "2026-04-11T06:22:31Z",
+  "surfaces": {
+    "read_file": "READ.md",
+    "roadmap_file": "ROADMAP.md",
+    "roadmap_phase_count": 7,
+    "quantum_documents": [
+      "docs/quantum/CLOSE_PLAN.md",
+      "docs/quantum/CLOSE_TRACKS.md",
+      "docs/quantum/CUTOVER_RUNBOOK.md",
+      "docs/quantum/EVIDENCE_PACKAGE.md"
+    ]
+  },
+  "status": {
+    "missing_required_surfaces": 0,
+    "strict_warning_present": 0
+  }
+}

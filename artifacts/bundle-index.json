@@ -52,6 +52,14 @@
         "closure-alert-rules.md"
       ],
       "status": "complete"
+    },
+    {
+      "name": "quantum-gate",
+      "path": "artifacts/quantum-gate",
+      "required_files": [
+        "summary.json"
+      ],
+      "status": "complete"
     }
   ],
   "always_reading_order": [
@@ -67,7 +75,8 @@
     "artifacts/network-production-closure/closure-telemetry-snapshot.json",
     "artifacts/network-production-closure/closure-desktop-wallet-compat.json",
     "artifacts/network-production-closure/closure-production-audit.json",
-    "artifacts/network-production-closure/closure-security-drill.json"
+    "artifacts/network-production-closure/closure-security-drill.json",
+    "artifacts/quantum-gate/summary.json"
   ],
   "completion_gate": {
     "require_mainnet": true,
@@ -80,7 +89,8 @@
     "require_production_closure": true,
     "require_toolchain_manifest": true,
     "require_verification_report": true,
-    "treat_placeholder_artifacts_as_incomplete": true
+    "treat_placeholder_artifacts_as_incomplete": true,
+    "require_quantum_readiness_gate": true
   },
   "verification_commands": [
     "python -m json.tool artifacts/bundle-index.json > /dev/null",
@@ -90,6 +100,7 @@
     "python -m json.tool artifacts/release-evidence/release-provenance-20260323T144016Z.json > /dev/null",
     "python -m json.tool artifacts/release-evidence/release-compatibility-matrix-20260323T144016Z.json > /dev/null",
     "python -m json.tool artifacts/network-production-closure/closure-runtime-status.json > /dev/null",
-    "python -m json.tool artifacts/network-production-closure/closure-desktop-wallet-compat.json > /dev/null"
+    "python -m json.tool artifacts/network-production-closure/closure-desktop-wallet-compat.json > /dev/null",
+    "python -m json.tool artifacts/quantum-gate/summary.json > /dev/null"
   ]
 }
