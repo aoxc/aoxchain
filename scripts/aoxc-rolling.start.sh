@@ -200,6 +200,8 @@ render_node_runner() {
   local node_home="$3"
   local node_log="$4"
   local node_state_file="$5"
+  local sleep_min_secs="$6"
+  local sleep_max_secs="$7"
 
   cat > "${node_root}/run-node.sh" <<RUNNER
 #!/usr/bin/env bash
@@ -208,6 +210,8 @@ NODE_NAME="${node_name}"
 NODE_HOME="${node_home}"
 ROUNDS="${AOXC_Q_ROUNDS}"
 SLEEP_SECS="${AOXC_Q_SLEEP_SECS}"
+SLEEP_MIN_SECS="${sleep_min_secs}"
+SLEEP_MAX_SECS="${sleep_max_secs}"
 WRAPPER="${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
 LOG_FILE="${node_log}"
 STATE_FILE="${node_state_file}"
@@ -223,7 +227,14 @@ while true; do
     ts_end="\$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
     printf '%s\tstatus=error\tnode=%s\n' "\${ts_end}" "\${NODE_NAME}" > "\${STATE_FILE}"
   fi
-  sleep "\${SLEEP_SECS}"
+  effective_sleep="\${SLEEP_SECS}"
+  if (( SLEEP_MAX_SECS > SLEEP_MIN_SECS )); then
+    span=\$((SLEEP_MAX_SECS - SLEEP_MIN_SECS + 1))
+    effective_sleep=\$((SLEEP_MIN_SECS + RANDOM % span))
+  elif (( SLEEP_MIN_SECS > 0 )); then
+    effective_sleep="\${SLEEP_MIN_SECS}"
+  fi
+  sleep "\${effective_sleep}"
 done
 RUNNER
   chmod +x "${node_root}/run-node.sh"
@@ -294,7 +305,7 @@ provision_testnet() {
     run_aoxc "${node_home}" keys-verify --password "${password}" > "${run_dir}/keys-verify.json"
     run_aoxc "" node-bootstrap --home "${node_home}" > "${run_dir}/node-bootstrap.json"
 
-    render_node_runner "${node_root}" "${node_name}" "${node_home}" "${log_dir}/node-run.log" "${state_file}"
+    render_node_runner "${node_root}" "${node_name}" "${node_home}" "${log_dir}/node-run.log" "${state_file}" "${AOXC_Q_SLEEP_MIN_SECS}" "${AOXC_Q_SLEEP_MAX_SECS}"
 
     printf '%s\t%s\t%s\n' "${node_name}" "${validator_name}" "${operator_name}" >> "${accounts_file}"
   done
@@ -312,6 +323,8 @@ mode=${AOXC_Q_MODE}
 node_count=${AOXC_Q_NODE_COUNT}
 rounds=${AOXC_Q_ROUNDS}
 sleep_secs=${AOXC_Q_SLEEP_SECS}
+sleep_min_secs=${AOXC_Q_SLEEP_MIN_SECS}
+sleep_max_secs=${AOXC_Q_SLEEP_MAX_SECS}
 root=${TARGET_ROOT}
 REPORT
 
