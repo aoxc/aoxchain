@@ -530,7 +530,7 @@ impl TransactionPool {
     /// Selects up to `max_count` transactions for block construction while
     /// respecting a maximum aggregate payload size.
     ///
-    /// The selection order is deterministic and derived from [`snapshot_ordered`].
+    /// The selection order is deterministic and derived from [`Self::snapshot_ordered`].
     #[must_use]
     pub fn select_for_block(
         &self,

@@ -5,44 +5,24 @@
 # This configuration enforces strict dependency hygiene, mitigates supply chain
 # vulnerabilities, ensures legal license compliance, and maintains source
 # provenance across the AOXChain ecosystem.
+#
+# Governance Protocol:
+# 1. Zero-Trust: All transitive dependencies are evaluated under the maximum
+#    feature set.
+# 2. Accountability: Dependency exceptions are explicit and intentionally scoped.
+# 3. Remediation: Temporary exceptions must be revisited as upstream fixes land.
+# =============================================================================
 
 [graph]
-# Evaluate the entire dependency graph with maximum enabled features.
 all-features = true
 
 [advisories]
 version = 2
-# Prohibit yanked crates from registries.
 yanked = "deny"
 
-# Security advisory exceptions are temporary and require upstream remediation.
-ignore = [
-  # Proc-macro support: legacy dependency in macro expansion chain.
-  "RUSTSEC-2024-0370",
-
-  # Post-quantum cryptography: transitive from external crypto suites.
-  "RUSTSEC-2024-0380",
-
-  # UI/GTK stack: inherited via system-level integration components.
-  "RUSTSEC-2024-0411",
-  "RUSTSEC-2024-0412",
-  "RUSTSEC-2024-0413",
-  "RUSTSEC-2024-0414",
-  "RUSTSEC-2024-0415",
-  "RUSTSEC-2024-0416",
-  "RUSTSEC-2024-0417",
-  "RUSTSEC-2024-0418",
-  "RUSTSEC-2024-0419",
-  "RUSTSEC-2024-0420",
-
-  # Infrastructure utilities: pending upstream fixes.
-  "RUSTSEC-2025-0057",
-  "RUSTSEC-2025-0075",
-  "RUSTSEC-2025-0080",
-  "RUSTSEC-2025-0081",
-  "RUSTSEC-2025-0098",
-  "RUSTSEC-2025-0100",
-]
+# Keep this empty unless cargo deny reports an actually encountered advisory
+# that is consciously risk-accepted for a limited period.
+ignore = []
 
 [licenses]
 version = 2
@@ -55,22 +35,36 @@ allow = [
   "CDLA-Permissive-2.0",
   "ISC",
   "MIT",
-  "MPL-2.0",
   "Unicode-3.0",
   "Zlib",
 ]
 
 [licenses.private]
-# Internal workspace crates may omit registry license metadata.
 ignore = true
 
 [bans]
-# Allow duplicates with warning until convergence work is complete.
 multiple-versions = "warn"
-# Disallow wildcard versions to preserve deterministic dependency resolution.
 wildcards = "deny"
 
+skip = [
+  { crate = "block-buffer" },
+  { crate = "core-foundation" },
+  { crate = "cpufeatures" },
+  { crate = "crypto-common" },
+  { crate = "digest" },
+  { crate = "getrandom" },
+  { crate = "keccak" },
+  { crate = "r-efi" },
+  { crate = "rand" },
+  { crate = "rand_chacha" },
+  { crate = "rand_core" },
+  { crate = "sha2" },
+  { crate = "sha3" },
+  { crate = "thiserror" },
+  { crate = "thiserror-impl" },
+  { crate = "windows-sys" },
+]
+
 [sources]
-# Fail closed on untrusted registries and git sources.
 unknown-registry = "deny"
 unknown-git = "deny"
