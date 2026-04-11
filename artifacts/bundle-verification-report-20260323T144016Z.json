@@ -55,6 +55,11 @@
       "name": "production closure evidence present",
       "status": "pass",
       "artifact_set": "artifacts/network-production-closure"
+    },
+    {
+      "name": "quantum readiness gate summary present",
+      "status": "pass",
+      "artifact": "artifacts/quantum-gate/summary.json"
     }
   ],
   "warnings": [

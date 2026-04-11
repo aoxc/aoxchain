@@ -50,6 +50,8 @@ The bundle is intentionally divided into **root-level governance surfaces** and 
   - Release-specific evidence including release notes, build manifest, SBOM, provenance, compatibility matrix, checksum evidence, signature status, and release audit surfaces.
 - `network-production-closure/`
   - Runtime status, telemetry snapshots, production audit, security drill, soak plan, AOXHub rollout, desktop wallet compatibility, and alert rules.
+- `quantum-gate/`
+  - Structural quantum-readiness gate summary for required transition and closure surfaces.
 
 This structure reflects a single-bundle model:  
 root-level files describe the bundle as a whole, while subdirectories contain specialized evidence domains.
@@ -73,6 +75,7 @@ The following reading order is mandatory for governance, release approval, and a
 11. `artifacts/network-production-closure/closure-desktop-wallet-compat.json`
 12. `artifacts/network-production-closure/closure-production-audit.json`
 13. `artifacts/network-production-closure/closure-security-drill.json`
+14. `artifacts/quantum-gate/summary.json`
 
 This reading order is designed to ensure that bundle-wide trust posture is evaluated before individual evidence fragments are reviewed in isolation.
 
@@ -92,6 +95,7 @@ A release may be considered **100% complete** only if all conditions below are s
 - Production closure evidence is present and internally consistent.
 - Toolchain traceability evidence is present and aligned with the release record.
 - Bundle-wide verification status reports no blocking findings for release approval.
+- Quantum-readiness gate summary exists and reports no missing required surfaces.
 
 File presence alone does not satisfy completion criteria.  
 Completion requires verifiable evidence content, not merely path existence.
@@ -110,6 +114,7 @@ At minimum, all validation reviewers and CI/CD gates should confirm the followin
 - Desktop compatibility evidence references the same release target and compatibility line.
 - Verification status and blocking findings are consistent with underlying evidence content.
 - No artifact required for release approval is represented solely by a placeholder, stub, or failure marker.
+- Quantum gate output confirms required transition surfaces are present and structurally valid.
 
 Where any mismatch exists between `bundle-index.json`, the verification report, and underlying evidence, the bundle must be treated as **provisional** or **incomplete** until resolved.
 
