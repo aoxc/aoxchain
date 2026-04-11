@@ -68,14 +68,8 @@ fn testnet_bundle_identity_is_cross_file_consistent() {
         Some(network_id)
     );
 
-    assert_eq!(
-        metadata.get("chain_id").and_then(Value::as_u64),
-        Some(chain_id)
-    );
-    assert_eq!(
-        metadata.get("network_id").and_then(Value::as_str),
-        Some(network_id)
-    );
+    assert_eq!(read_chain_id(&metadata), Some(chain_id));
+    assert_eq!(read_network_id(&metadata), Some(network_id));
 
     let validators_list = validators
         .get("validators")
@@ -95,11 +89,8 @@ fn testnet_bundle_identity_is_cross_file_consistent() {
             .expect("validator_id must exist");
         assert!(seen_validator_ids.insert(validator_id.to_string()));
 
-        if entry
-            .get("role")
-            .and_then(Value::as_str)
-            .is_some_and(|role| role.contains("seed"))
-        {
+        let role = read_validator_role(entry).expect("validator role must exist");
+        if role.contains("seed") {
             seed_role_count += 1;
         }
     }
@@ -214,13 +205,12 @@ fn testnet_public_endpoints_and_topology_remain_transport_hardened() {
         .and_then(Value::as_str)
         .expect("websocket rpc must exist");
 
-    assert!(
-        primary.starts_with("https://") && secondary.starts_with("https://"),
-        "public RPC endpoints must use HTTPS"
-    );
-    assert!(
-        ws.starts_with("wss://"),
-        "public websocket endpoint must use secure WSS"
+    assert_secure_endpoint(primary, "https://", "primary rpc");
+    assert_secure_endpoint(secondary, "https://", "secondary rpc");
+    assert_secure_endpoint(ws, "wss://", "websocket rpc");
+    assert_ne!(
+        primary, secondary,
+        "primary and secondary RPC endpoints must not be identical"
     );
 
     let public_endpoints = metadata
@@ -233,10 +223,7 @@ fn testnet_public_endpoints_and_topology_remain_transport_hardened() {
             .get(key)
             .and_then(Value::as_str)
             .expect("public endpoint must exist");
-        assert!(
-            endpoint.starts_with("https://"),
-            "{key} endpoint must use HTTPS"
-        );
+        assert_secure_endpoint(endpoint, "https://", key);
     }
 
     let topology = metadata
@@ -282,4 +269,59 @@ fn testnet_public_endpoints_and_topology_remain_transport_hardened() {
 fn read_json(path: &str) -> Value {
     let raw = fs::read_to_string(path).expect("json file should read");
     serde_json::from_str(&raw).expect("json should parse")
+}
+
+fn read_chain_id(metadata: &Value) -> Option<u64> {
+    metadata
+        .get("chain_id")
+        .and_then(Value::as_u64)
+        .or_else(|| {
+            metadata
+                .get("identity")
+                .and_then(Value::as_object)
+                .and_then(|identity| identity.get("chain_id"))
+                .and_then(Value::as_u64)
+        })
+}
+
+fn read_network_id(metadata: &Value) -> Option<&str> {
+    metadata
+        .get("network_id")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            metadata
+                .get("identity")
+                .and_then(Value::as_object)
+                .and_then(|identity| identity.get("network_id"))
+                .and_then(Value::as_str)
+        })
+}
+
+fn read_validator_role<'a>(entry: &'a Value) -> Option<&'a str> {
+    let explicit = entry.get("role").and_then(Value::as_str);
+    let operational = entry.get("operational_role").and_then(Value::as_str);
+
+    if let (Some(role), Some(operational_role)) = (explicit, operational) {
+        assert_eq!(
+            role, operational_role,
+            "validator role and operational_role must remain consistent"
+        );
+    }
+
+    explicit.or(operational)
+}
+
+fn assert_secure_endpoint(endpoint: &str, expected_scheme: &str, endpoint_name: &str) {
+    assert!(
+        endpoint.starts_with(expected_scheme),
+        "{endpoint_name} endpoint must use {expected_scheme}"
+    );
+
+    let normalized = endpoint.to_ascii_lowercase();
+    assert!(
+        !normalized.contains("127.0.0.1")
+            && !normalized.contains("localhost")
+            && !normalized.contains(".invalid"),
+        "{endpoint_name} endpoint must not target loopback/placeholder hosts"
+    );
 }
