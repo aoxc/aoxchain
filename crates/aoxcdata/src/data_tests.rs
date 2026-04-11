@@ -26,6 +26,25 @@ mod tests {
     }
 
     #[test]
+    fn canonical_block_hash_is_deterministic_for_identical_inputs() {
+        let parent_hash_hex = "00".repeat(32);
+        let fixtures = vec![
+            (1u64, b"alpha".to_vec()),
+            (2u64, b"beta".to_vec()),
+            (5u64, b"deterministic-payload".to_vec()),
+            (99u64, vec![0u8, 1, 2, 3, 4, 5, 6, 7]),
+        ];
+
+        for (height, payload) in fixtures {
+            let first = canonical_block_envelope_hash_hex(height, &parent_hash_hex, &payload)
+                .expect("canonical block hash must compute");
+            let second = canonical_block_envelope_hash_hex(height, &parent_hash_hex, &payload)
+                .expect("canonical block hash must compute");
+            assert_eq!(first, second);
+        }
+    }
+
+    #[test]
     fn block_roundtrip_by_height_succeeds() {
         let dir = unique_temp_dir("roundtrip");
         let store = HybridDataStore::new(&dir, IndexBackend::Sqlite).expect("store init");
