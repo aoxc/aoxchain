@@ -117,10 +117,7 @@ fn unique_test_home(label: &str) -> PathBuf {
 
     let label = sanitize_label(label);
 
-    canonical_test_root().join(format!(
-        "aoxcmd-{label}-pid{}-{nanos}",
-        process::id()
-    ))
+    canonical_test_root().join(format!("aoxcmd-{label}-pid{}-{nanos}", process::id()))
 }
 
 /// Returns the shared process-wide lock used by tests that install an AOXC home override.
