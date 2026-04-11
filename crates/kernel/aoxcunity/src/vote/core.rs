@@ -24,6 +24,9 @@ const ML_DSA_65_SIGNATURE_SIZE: usize = 3309;
 const ML_DSA_65_VERIFICATION_KEY_SIZE: usize = 1952;
 
 /// Vote kind classification.
+///
+/// The discriminant is part of the canonical signing payload and must remain
+/// stable across all implementations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum VoteKind {
     Prepare,
@@ -43,6 +46,8 @@ impl VoteKind {
 /// Canonical consensus vote.
 ///
 /// The vote commits to a specific block hash at a specific height and round.
+/// The payload is intentionally compact and deterministic because it is used
+/// as the root message body for both classical and authenticated vote forms.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Vote {
     pub voter: ValidatorId,
@@ -52,12 +57,22 @@ pub struct Vote {
     pub kind: VoteKind,
 }
 
+/// Legacy classical vote envelope.
+///
+/// This structure is intentionally retained as a distinct verification path in
+/// order to prevent policy confusion between legacy votes and context-bound
+/// authenticated votes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SignedVote {
     pub vote: Vote,
     pub signature: Vec<u8>,
 }
 
+/// Authentication context that binds a vote to network, epoch, validator-set,
+/// PQ attestation state, and the claimed signature scheme.
+///
+/// Security note:
+/// This structure is fully committed into the authenticated vote signing bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VoteAuthenticationContext {
     pub network_id: u32,
@@ -67,6 +82,10 @@ pub struct VoteAuthenticationContext {
     pub signature_scheme: u16,
 }
 
+/// Consensus identity profile derived from the claimed signature scheme.
+///
+/// This abstraction exists to make downstream policy enforcement explicit and
+/// auditable, rather than scattering raw scheme constants throughout the code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConsensusIdentityProfile {
     Classical,
@@ -92,6 +111,14 @@ impl VoteAuthenticationContext {
     }
 }
 
+/// Context-bound authenticated vote envelope.
+///
+/// Encoding model:
+/// - `signature` always carries the primary signature field of the envelope.
+/// - In hybrid mode, `signature` carries the Ed25519 signature and
+///   `pq_signature` carries the ML-DSA-65 signature.
+/// - In pure post-quantum mode, `signature` may carry the ML-DSA-65 signature
+///   when `pq_signature` is not separately populated.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthenticatedVote {
     pub vote: Vote,
@@ -103,17 +130,29 @@ pub struct AuthenticatedVote {
     pub pq_signature: Option<Vec<u8>>,
 }
 
+/// Verified legacy vote wrapper.
+///
+/// This type ensures that downstream code cannot accidentally treat an
+/// unverified legacy vote as trusted input.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerifiedVote {
     pub vote: Vote,
 }
 
+/// Verified authenticated vote wrapper.
+///
+/// This type ensures that downstream code cannot accidentally treat an
+/// unverified authenticated vote as trusted input.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerifiedAuthenticatedVote {
     pub vote: Vote,
     pub context: VoteAuthenticationContext,
 }
 
+/// Deterministic vote authentication failure surface.
+///
+/// Error categories are intentionally coarse enough to avoid ambiguous behavior
+/// while still preserving operational debuggability.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum VoteAuthenticationError {
     #[error("vote signature scheme is unknown")]
@@ -147,6 +186,9 @@ pub enum VoteAuthenticationError {
 }
 
 impl Vote {
+    /// Returns the fully unique tuple for the vote.
+    ///
+    /// This key is suitable when the block hash must remain part of identity.
     #[must_use]
     pub fn unique_key(&self) -> ([u8; 32], ValidatorId, u64, u64, VoteKind) {
         (
@@ -158,6 +200,10 @@ impl Vote {
         )
     }
 
+    /// Returns the conflict-detection key for the vote.
+    ///
+    /// This key intentionally excludes the block hash so that conflicting votes
+    /// by the same validator for the same height/round/kind can be detected.
     #[must_use]
     pub fn conflict_key(&self) -> (ValidatorId, u64, u64, VoteKind) {
         (self.voter, self.height, self.round, self.kind)
@@ -212,7 +258,7 @@ impl AuthenticatedVote {
     /// Verifies the authenticated vote against the claimed identity profile
     /// and epoch policy.
     ///
-    /// Verification order is intentionally fail-closed:
+    /// Verification order is intentionally fail closed:
     /// 1. Recognize the claimed signature scheme.
     /// 2. Resolve the identity profile.
     /// 3. Enforce PQ attestation-root policy.
@@ -247,7 +293,9 @@ impl AuthenticatedVote {
         let signing_bytes = self.signing_bytes();
 
         match self.context.signature_scheme {
-            SIGNATURE_SCHEME_ED25519 => self.verify_ed25519_only(&signing_bytes)?,
+            SIGNATURE_SCHEME_ED25519 => {
+                self.verify_ed25519_only(&signing_bytes)?;
+            }
             SIGNATURE_SCHEME_HYBRID_ED25519_DILITHIUM3 => {
                 self.verify_ed25519_only(&signing_bytes)?;
                 self.verify_mldsa65_only(&signing_bytes)?;
@@ -256,7 +304,9 @@ impl AuthenticatedVote {
                 self.verify_pq_identity_binding()?;
                 self.verify_mldsa65_only(&signing_bytes)?;
             }
-            _ => return Err(VoteAuthenticationError::UnsupportedVerifierForSignatureScheme),
+            _ => {
+                return Err(VoteAuthenticationError::UnsupportedVerifierForSignatureScheme);
+            }
         }
 
         Ok(VerifiedAuthenticatedVote {
@@ -283,20 +333,37 @@ impl AuthenticatedVote {
             .map_err(|_| VoteAuthenticationError::InvalidSignature)
     }
 
-    /// Verifies the ML-DSA-65 component using the explicit post-quantum
-    /// public key and signature payload.
+    /// Verifies the ML-DSA-65 component using the explicit post-quantum public
+    /// key and the scheme-resolved signature payload.
     ///
     /// Encoding model:
-    /// - In hybrid mode, the PQ signature is expected in `pq_signature`.
-    /// - In pure PQ mode, `self.signature` is used as the PQ signature when
-    ///   `pq_signature` is not separately populated.
+    /// - In hybrid mode, the PQ signature must be carried in `pq_signature`.
+    /// - In pure post-quantum mode, `self.signature` may be interpreted as the
+    ///   PQ signature payload when `pq_signature` is not separately populated.
     ///
     /// Security rationale:
-    /// - The PQ public key must be explicitly present and sized exactly to the
-    ///   expected ML-DSA-65 verification-key format.
-    /// - The signature must also match the exact ML-DSA-65 signature width.
-    /// - Any structural mismatch is rejected prior to cryptographic verify.
+    /// - The PQ public key is mandatory for all ML-DSA verification paths.
+    /// - Key and signature sizes are validated before cryptographic
+    ///   verification to fail closed on malformed input.
+    /// - Signature source selection is explicit and centralized to prevent
+    ///   ambiguous envelope interpretation.
     fn verify_mldsa65_only(&self, signing_bytes: &[u8]) -> Result<(), VoteAuthenticationError> {
+        let public_key = self.decode_mldsa65_public_key()?;
+        let signature = self.decode_mldsa65_signature()?;
+
+        verify(&public_key, signing_bytes, ML_DSA_CONTEXT, &signature)
+            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
+
+        Ok(())
+    }
+
+    /// Decodes and validates the ML-DSA-65 verification key.
+    ///
+    /// Security rationale:
+    /// - The PQ verification key must be explicitly present.
+    /// - Structural validation is completed before constructing the typed
+    ///   verification key consumed by the cryptographic backend.
+    fn decode_mldsa65_public_key(&self) -> Result<MLDSA65VerificationKey, VoteAuthenticationError> {
         let public_key_bytes = self
             .pq_public_key
             .as_deref()
@@ -308,19 +375,19 @@ impl AuthenticatedVote {
 
         let mut public_key_array = [0u8; ML_DSA_65_VERIFICATION_KEY_SIZE];
         public_key_array.copy_from_slice(public_key_bytes);
-        let public_key = MLDSA65VerificationKey::new(public_key_array);
 
-        let signature_bytes = self
-            .pq_signature
-            .as_deref()
-            .or_else(|| {
-                if self.context.signature_scheme == SIGNATURE_SCHEME_DILITHIUM3 {
-                    Some(self.signature.as_slice())
-                } else {
-                    None
-                }
-            })
-            .ok_or(VoteAuthenticationError::MissingPostQuantumSignature)?;
+        Ok(MLDSA65VerificationKey::new(public_key_array))
+    }
+
+    /// Decodes and validates the ML-DSA-65 signature.
+    ///
+    /// Security rationale:
+    /// - Signature source resolution is explicit and deterministic.
+    /// - Hybrid envelopes require the dedicated `pq_signature` field.
+    /// - Pure post-quantum envelopes may reuse `self.signature` as the PQ
+    ///   signature payload when no dedicated PQ field is supplied.
+    fn decode_mldsa65_signature(&self) -> Result<MLDSA65Signature, VoteAuthenticationError> {
+        let signature_bytes = self.resolve_mldsa65_signature_bytes()?;
 
         if signature_bytes.len() != ML_DSA_65_SIGNATURE_SIZE {
             return Err(VoteAuthenticationError::InvalidSignature);
@@ -328,12 +395,32 @@ impl AuthenticatedVote {
 
         let mut signature_array = [0u8; ML_DSA_65_SIGNATURE_SIZE];
         signature_array.copy_from_slice(signature_bytes);
-        let signature = MLDSA65Signature::new(signature_array);
 
-        verify(&public_key, signing_bytes, ML_DSA_CONTEXT, &signature)
-            .map_err(|_| VoteAuthenticationError::InvalidSignature)?;
+        Ok(MLDSA65Signature::new(signature_array))
+    }
 
-        Ok(())
+    /// Resolves the byte slice that must be interpreted as the ML-DSA-65
+    /// signature payload for the current authenticated vote.
+    ///
+    /// Resolution policy:
+    /// - Prefer `pq_signature` when explicitly present.
+    /// - Otherwise, in pure post-quantum mode, interpret `self.signature` as
+    ///   the PQ signature payload.
+    /// - All other cases fail closed.
+    ///
+    /// Security rationale:
+    /// - This function centralizes envelope interpretation so that signature
+    ///   source selection remains consistent across all verification paths.
+    fn resolve_mldsa65_signature_bytes(&self) -> Result<&[u8], VoteAuthenticationError> {
+        if let Some(signature_bytes) = self.pq_signature.as_deref() {
+            return Ok(signature_bytes);
+        }
+
+        if self.context.signature_scheme == SIGNATURE_SCHEME_DILITHIUM3 {
+            return Ok(self.signature.as_slice());
+        }
+
+        Err(VoteAuthenticationError::MissingPostQuantumSignature)
     }
 
     /// Enforces deterministic validator identity binding for post-quantum-only
@@ -343,7 +430,8 @@ impl AuthenticatedVote {
     /// - In PQ-only mode, the validator identifier can no longer rely on an
     ///   Ed25519 key relationship.
     /// - Binding `vote.voter` to a deterministic digest of the PQ public key
-    ///   prevents arbitrary voter-id claims with unrelated PQ key material.
+    ///   prevents arbitrary voter-identifier claims with unrelated PQ key
+    ///   material.
     fn verify_pq_identity_binding(&self) -> Result<(), VoteAuthenticationError> {
         let public_key_bytes = self
             .pq_public_key
@@ -363,6 +451,12 @@ impl AuthenticatedVote {
     }
 }
 
+/// Derives the deterministic validator identifier for PQ-only identities.
+///
+/// Security rationale:
+/// - Domain separation prevents digest reuse across unrelated derivation
+///   contexts.
+/// - The serialized length is included to preserve an unambiguous transcript.
 #[must_use]
 fn derive_pq_validator_id(public_key_bytes: &[u8]) -> ValidatorId {
     let mut hasher = Sha256::new();
@@ -372,11 +466,19 @@ fn derive_pq_validator_id(public_key_bytes: &[u8]) -> ValidatorId {
     hasher.finalize().into()
 }
 
+/// Returns `true` when the supplied 32-byte value is all-zero.
+///
+/// This is used as an explicit structural policy guard for attestation roots.
 #[must_use]
 fn is_zero_hash32(value: &[u8; 32]) -> bool {
     value.iter().all(|byte| *byte == 0)
 }
 
+/// Returns `true` if the supplied signature scheme identifier is recognized by
+/// the current verifier implementation.
+///
+/// Unknown values are intentionally rejected by policy before any signature
+/// verification path is selected.
 #[must_use]
 fn is_known_signature_scheme(signature_scheme: u16) -> bool {
     matches!(
