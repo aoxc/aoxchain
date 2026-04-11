@@ -24,31 +24,10 @@ security_mode = "developer_guarded"
 requires_change_control = false
 required_artifacts = ["checksum", "compat_matrix", "crypto_transition_notes"]
 
-[validation]
-config = "configs/validation.toml"
-network_type = "verification"
-release_tier = "gated-validation"
-security_mode = "audit_strict"
-requires_change_control = true
-required_artifacts = ["checksum", "signature", "identity_alignment_report"]
-
-[localnet]
-config = "configs/localnet.toml"
-network_type = "local"
-release_tier = "operator-sandbox"
-security_mode = "developer_guarded"
-requires_change_control = false
-required_artifacts = ["checksum", "fixture_manifest"]
-
-[aoxhub_overlay]
-mainnet = "configs/aoxhub/mainnet.toml"
-testnet = "configs/aoxhub/testnet.toml"
-validation = "configs/aoxhub/validation.toml"
-localnet = "configs/aoxhub/localnet.toml"
-
 [desktop_interface]
 supported_environments = ["mainnet", "testnet", "devnet"]
 required_compat_report = "artifacts/network-production-closure/desktop-wallet-compat.json"
+
 
 [crypto_baseline]
 policy = "configs/quantum-resilience-policy.toml"

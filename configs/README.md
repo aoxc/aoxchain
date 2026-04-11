@@ -17,8 +17,7 @@ material. The operational model is **single-system runtime code** with
 - `version-policy.toml` — repository-level version governance contract.
 - `network-matrix.toml` — environment matrix with security/runtime expectations.
 - `quantum-resilience-policy.toml` — shared cryptographic transition and post-quantum policy baseline.
-- `mainnet.toml`, `testnet.toml`, `devnet.toml`, `validation.toml`, `localnet.toml` — canonical compatibility presets with advanced structured sections.
-- `aoxhub-mainnet.toml`, `aoxhub-testnet.toml` — AOXHub root compatibility bridge profiles pointing to `configs/aoxhub/<env>.toml`.
+- `mainnet.toml`, `testnet.toml`, `devnet.toml` — canonical compatibility presets with advanced structured sections.
 
 ## Single-System Selection
 
