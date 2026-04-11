@@ -9,8 +9,8 @@ use crate::security::signer::{
     public_key_fingerprint, public_key_hex, sign_json_payload, verify_json_payload,
 };
 use crate::session::protocol::{
-    RelayPermitSigningPayload, SessionChallenge, SessionContext, SessionEnvelope, SessionPermit,
-    SessionSigningPayload,
+    RelayChallengeSigningPayload, RelayPermitSigningPayload, SessionChallenge, SessionContext,
+    SessionEnvelope, SessionPermit, SessionSigningPayload,
 };
 use crate::transport::api::{AoxcMobileTransport, TaskSubmissionResult};
 use crate::types::{
@@ -363,6 +363,38 @@ where
         };
         verify_json_payload(&verifying_key, &payload, signature_hex).map_err(|_| {
             MobError::InvalidSessionChallenge("session permit signature verification failed")
+        })
+    }
+
+    fn verify_challenge_signature(&self, challenge: &SessionChallenge) -> Result<(), MobError> {
+        let Some(relay_public_key_hex) = &self.config.relay_verifying_key_hex else {
+            return Ok(());
+        };
+        let signature_hex =
+            challenge
+                .relay_signature_hex
+                .as_deref()
+                .ok_or(MobError::InvalidSessionChallenge(
+                    "session challenge relay_signature_hex is required",
+                ))?;
+        let relay_public_key_bytes = hex::decode(relay_public_key_hex)
+            .map_err(|_| MobError::InvalidConfiguration("relay_verifying_key_hex decode failed"))?;
+        let relay_public_key_array: [u8; 32] = relay_public_key_bytes.try_into().map_err(|_| {
+            MobError::InvalidConfiguration("relay_verifying_key_hex must be 32 bytes")
+        })?;
+        let verifying_key = VerifyingKey::from_bytes(&relay_public_key_array).map_err(|_| {
+            MobError::InvalidConfiguration("relay_verifying_key_hex is not a valid ed25519 key")
+        })?;
+        let payload = RelayChallengeSigningPayload {
+            challenge_id: challenge.challenge_id.clone(),
+            relay_nonce: challenge.relay_nonce.clone(),
+            issued_at_epoch_secs: challenge.issued_at_epoch_secs,
+            expires_at_epoch_secs: challenge.expires_at_epoch_secs,
+            audience: challenge.audience.clone(),
+            session_ttl_secs: challenge.session_ttl_secs,
+        };
+        verify_json_payload(&verifying_key, &payload, signature_hex).map_err(|_| {
+            MobError::InvalidSessionChallenge("session challenge signature verification failed")
         })
     }
 

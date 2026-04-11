@@ -1,7 +1,9 @@
 use super::*;
 use crate::security::keystore::SecureStore;
 use crate::security::signer::{sign_json_payload, verify_json_payload};
-use crate::session::protocol::{RelayPermitSigningPayload, SessionSigningPayload};
+use crate::session::protocol::{
+    RelayChallengeSigningPayload, RelayPermitSigningPayload, SessionSigningPayload,
+};
 use crate::session::protocol::{SessionChallenge, SessionEnvelope};
 use crate::transport::mock::MockRelayTransport;
 use crate::types::{TaskKind, WitnessDecision};
@@ -376,6 +378,18 @@ async fn open_session_accepts_validly_signed_relay_permit() {
                 expires_at_epoch_secs: now + 30,
                 audience: config.app_id.clone(),
                 session_ttl_secs: config.session_ttl_secs,
+                relay_signature_hex: Some({
+                    let payload = RelayChallengeSigningPayload {
+                        challenge_id: "CH-SIGNED".to_string(),
+                        relay_nonce: "NONCE-SIGNED".to_string(),
+                        issued_at_epoch_secs: now,
+                        expires_at_epoch_secs: now + 30,
+                        audience: config.app_id.clone(),
+                        session_ttl_secs: config.session_ttl_secs,
+                    };
+                    let (signature_hex, _) = sign_json_payload(&self.relay_signing_key, &payload)?;
+                    signature_hex
+                }),
             })
         }
 
