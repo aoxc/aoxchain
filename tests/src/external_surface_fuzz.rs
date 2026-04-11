@@ -144,8 +144,7 @@ fn protocol_envelope_constructor_rejects_invalid_session_and_domain_inputs() {
         "empty chain identifier must be rejected"
     );
     assert!(
-        ProtocolEnvelope::new("AOXC-MAINNET", 0, &ticket, payload.clone(), 1_800_000_010)
-            .is_err(),
+        ProtocolEnvelope::new("AOXC-MAINNET", 0, &ticket, payload.clone(), 1_800_000_010).is_err(),
         "zero protocol serial must be rejected"
     );
     assert!(
