@@ -34,6 +34,8 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 .ONESHELL:
 .SHELLFLAGS := -eu -o pipefail -c
+MK_DIR ?= mk
+AOXC_INCLUDE_MK_CONTAINER ?= 0
 
 # --------------------------------------------------------------------
 # Host platform detection
@@ -267,9 +269,11 @@ $$(TZ=UTC $(DATE) +%Y-%m-%dT%H:%M:%SZ)
 endef
 
 # --------------------------------------------------------------------
-# Modular make surfaces
+# Optional modular make surfaces
 # --------------------------------------------------------------------
+ifneq ($(AOXC_INCLUDE_MK_CONTAINER),0)
 -include $(MK_DIR)/container.mk
+endif
 
 # --------------------------------------------------------------------
 # Phony targets
@@ -279,9 +283,10 @@ endef
 	clean-root clean-logs clean-runtime clean-bin clean-audit \
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
-	release-binary-list install-bin package-desktop repo-release-keygen repo-release-signed repo-release-signed-verify repo-release-prepare repo-release-validate \
+	release-binary-list install-bin package-desktop install-binaries-root github-install-binaries \
+	repo-release-keygen repo-release-signed repo-release-signed-verify repo-release-prepare repo-release-validate repo-secure-bundle repo-secure-bundle-verify \
 	test test-lib test-workspace test-inventory check fmt clippy audit code-size-gate versioning-gate quality quality-quick quality-release ci \
-	cargo-deny-gate \
+	cargo-deny-gate repo-hygiene-gate code-size-gate-full os-compat-gate \
 	db-init db-status db-event db-release db-history db-health \
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active runtime-snapshot runtime-snapshot-list runtime-snapshot-prune runtime-restore-latest \
@@ -289,7 +294,7 @@ endef
 	phase1-full quantum-readiness-gate quantum-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
-	demo localnet devnet testnet testnet-gate testnet-readiness-gate aoxcvm-phase3-gate aoxcvm-production-closure-gate reset doctor audit-chain logs down restart \
+	demo localnet devnet testnet testnet-gate testnet-readiness-gate network-identity-gate aoxcvm-phase3-gate aoxcvm-production-closure-gate reset doctor audit-chain logs down restart \
 	network-create network-start network-stop network-status genesis-build chain-status \
 	aoxc-q-up aoxc-q-provision aoxc-q-start aoxc-q-stop aoxc-q-restart aoxc-q-status \
 	chain-help chain-init chain-add-account chain-add-validator chain-start-persistent \
@@ -319,6 +324,7 @@ help:
 	@printf "  make clippy\n"
 	@printf "  make audit\n"
 	@printf "  make cargo-deny-gate\n"
+	@printf "  make os-compat-gate\n"
 	@printf "  make code-size-gate\n"
 	@printf "  make versioning-gate\n"
 	@printf "  make repo-hygiene-gate\n"
@@ -1222,6 +1228,10 @@ aoxcvm-production-closure-gate:
 cargo-deny-gate:
 	$(call print_banner,Running cargo-deny dependency policy gate)
 	@./scripts/validation/cargo_deny_gate.sh
+
+os-compat-gate:
+	$(call print_banner,Running cross-platform OS compatibility gate)
+	@./scripts/validation/os_compatibility_gate.sh
 
 reset:
 	$(call print_banner,Resetting AOXC operator runtime)
