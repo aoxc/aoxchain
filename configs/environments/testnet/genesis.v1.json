@@ -37,9 +37,17 @@
     ]
   },
   "bindings": {
+    "manifest_file": "manifest.v1.json",
     "validators_file": "validators.json",
     "bootnodes_file": "bootnodes.json",
-    "certificate_file": "certificate.json"
+    "certificate_file": "certificate.json",
+    "profile_file": "profile.toml",
+    "release_policy_file": "release-policy.toml",
+    "network_metadata_file": "network-metadata.json",
+    "topology_aoxcq_consensus_file": "topology/aoxcq-consensus.toml",
+    "topology_consensus_policy_file": "topology/consensus-policy.toml",
+    "topology_role_file": "topology/role-topology.toml",
+    "topology_socket_matrix_file": "topology/socket-matrix.toml"
   },
   "integrity": {
     "hash_algorithm": "sha256",
@@ -47,6 +55,6 @@
   },
   "metadata": {
     "description": "Canonical AOXC public testnet genesis configuration.",
-    "status": "active"
+    "status": "staging"
   }
 }

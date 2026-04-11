@@ -1,17 +1,25 @@
 {
-  "network_name": "AOXC PUSULA",
-  "chain_id": 2626010001,
-  "network_id": "aoxc-testnet-2626-002",
-  "native_symbol": "AOXC",
+  "schema_version": 2,
+  "environment": "testnet",
+  "identity": {
+    "chain_name": "AOXC PUSULA",
+    "network_class": "public_testnet",
+    "network_serial": "2626-002",
+    "chain_id": 2626010001,
+    "network_id": "aoxc-testnet-2626-002"
+  },
+  "network": {
+    "native_symbol": "AOXC"
+  },
   "rpc": {
-    "primary": "https://rpc1.testnet.aoxchain.io",
-    "secondary": "https://rpc2.testnet.aoxchain.io",
-    "ws": "wss://rpc1.testnet.aoxchain.io/ws"
+    "primary": "http://127.0.0.1:8545",
+    "secondary": "http://127.0.0.1:8546",
+    "ws": "ws://127.0.0.1:8545/ws"
   },
   "public_endpoints": {
-    "faucet": "https://faucet.testnet.aoxchain.io",
-    "explorer": "https://explorer.testnet.aoxchain.io",
-    "status": "https://status.testnet.aoxchain.io"
+    "faucet": null,
+    "explorer": null,
+    "status": null
   },
   "genesis": {
     "file": "genesis.v1.json",
@@ -20,22 +28,32 @@
   },
   "topology": [
     {
-      "node": "node-1",
+      "node_id": "aoxc-testnet-node-001",
+      "display_name": "AOXC Testnet Validator/Seed 001",
       "roles": ["validator", "seed"],
-      "p2p": "seed1.testnet.aoxchain.io:26656",
-      "rpc_public": false
+      "p2p_endpoint": "127.0.0.1:26656",
+      "rpc_public": false,
+      "status": "active"
     },
     {
-      "node": "node-2",
+      "node_id": "aoxc-testnet-node-002",
+      "display_name": "AOXC Testnet Validator 002",
       "roles": ["validator"],
-      "p2p": "val2.testnet.aoxchain.io:26656",
-      "rpc_public": false
+      "p2p_endpoint": "127.0.0.1:26657",
+      "rpc_public": false,
+      "status": "active"
     },
     {
-      "node": "node-3",
+      "node_id": "aoxc-testnet-node-003",
+      "display_name": "AOXC Testnet Validator/RPC 003",
       "roles": ["validator", "rpc"],
-      "p2p": "rpc1.testnet.aoxchain.io:26656",
-      "rpc_public": true
+      "p2p_endpoint": "127.0.0.1:26658",
+      "rpc_public": true,
+      "status": "active"
     }
-  ]
+  ],
+  "metadata": {
+    "description": "Temporary AOXC testnet network metadata for local operator bring-up.",
+    "status": "staging"
+  }
 }
