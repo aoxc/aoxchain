@@ -291,6 +291,7 @@ endif
 	version manifest policy \
 	runtime-print runtime-refresh-genesis-sha256 runtime-source-check runtime-install runtime-verify runtime-activate runtime-status runtime-fingerprint runtime-doctor runtime-reinstall runtime-reset runtime-show-active runtime-snapshot runtime-snapshot-list runtime-snapshot-prune runtime-restore-latest \
 	runtime-bundle-compat-check docker-check podman-check container-check container-build container-config container-up container-down production-full \
+	dev-full testnet-full mainnet-full full-runtime-all \
 	phase1-full quantum-readiness-gate quantum-full \
 	aoxc-full-4nodes aoxc-full-4nodes-docker \
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
@@ -330,6 +331,10 @@ help:
 	@printf "  make repo-hygiene-gate\n"
 	@printf "  make quality\n\n"
 	@printf "  make production-full\n\n"
+	@printf "  make dev-full\n"
+	@printf "  make testnet-full\n"
+	@printf "  make mainnet-full\n"
+	@printf "  make full-runtime-all\n\n"
 	@printf "  make phase1-full\n\n"
 	@printf "  make quantum-readiness-gate\n"
 	@printf "  make aoxcvm-production-closure-gate\n"
@@ -1069,6 +1074,36 @@ production-full:
 	@$(MAKE) --no-print-directory aoxc-full-4nodes-docker
 	@$(MAKE) --no-print-directory db-health
 	@echo "Production-grade validation flow completed."
+
+dev-full:
+	$(call print_banner,Running full dev runtime closure flow)
+	@$(MAKE) --no-print-directory quality
+	@$(MAKE) --no-print-directory runtime-source-check AOXC_NETWORK_KIND=dev
+	@$(MAKE) --no-print-directory runtime-activate AOXC_NETWORK_KIND=dev
+	@$(MAKE) --no-print-directory runtime-doctor
+	@$(MAKE) --no-print-directory phase1-full
+	@echo "Dev runtime closure flow completed."
+
+testnet-full:
+	$(call print_banner,Running full testnet runtime closure flow)
+	@$(MAKE) --no-print-directory dev-full
+	@$(MAKE) --no-print-directory testnet-gate
+	@$(MAKE) --no-print-directory testnet-readiness-gate
+	@echo "Testnet runtime closure flow completed."
+
+mainnet-full:
+	$(call print_banner,Running full mainnet runtime closure flow)
+	@$(MAKE) --no-print-directory testnet-full
+	@$(MAKE) --no-print-directory network-identity-gate
+	@$(MAKE) --no-print-directory production-full
+	@echo "Mainnet runtime closure flow completed."
+
+full-runtime-all:
+	$(call print_banner,Running full multi-environment runtime closure flow)
+	@$(MAKE) --no-print-directory dev-full
+	@$(MAKE) --no-print-directory testnet-full
+	@$(MAKE) --no-print-directory mainnet-full
+	@echo "Multi-environment runtime closure flow completed."
 
 phase1-full:
 	$(call print_banner,Running full phase-1 determinism validation flow)
