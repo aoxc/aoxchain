@@ -151,22 +151,6 @@ Aşağıdakiler tamamlanmadan "eksiksiz runtime" iddiası zayıf kalır:
 - SLO/SLI dashboard + alert policy + runbook bağını üretimleştir.
 - Recovery/rollback tatbikatlarını periyodik takvime bağla.
 
-## 5.1 Executable closure commands (implemented)
-
-Bu plan artık doğrudan çalıştırılabilir toplu hedeflerle desteklenir:
-
-- `make dev-full`
-- `make testnet-full`
-- `make mainnet-full`
-- `make full-runtime-all`
-
-Komut akışı:
-
-- `dev-full`: quality + dev runtime source/activate + runtime doctor + phase1 determinism seti
-- `testnet-full`: dev-full + testnet gate + testnet readiness gate
-- `mainnet-full`: testnet-full + network identity gate + production-full
-- `full-runtime-all`: dev -> testnet -> mainnet zinciri
-
 ---
 
 ## 6) Direct Answers (Requested)
@@ -184,7 +168,7 @@ Komut akışı:
   - Derleme bloklayıcısı görünmüyor; ana eksikler operasyonel kanıt disiplini, replay/snapshot rejimi ve environment-specific stabilite politikası.
 
 - **"Dev/Testnet/Mainnet tam mı?"**
-  - Bu sürümde toplu closure hedefleri (`dev-full`, `testnet-full`, `mainnet-full`, `full-runtime-all`) eklendi; tamlık için CI’da merge-blocker olarak zorunlu çalıştırılmalı.
+  - Tam olması için bu dokümandaki environment hedefleri release sürecine zorunlu gate olarak bağlanmalı.
 
 ---
 
