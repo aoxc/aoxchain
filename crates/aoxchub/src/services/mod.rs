@@ -62,10 +62,10 @@ impl HubService {
                 aoxc_home: environment.aoxc_home(),
                 make_scope: environment.make_scope(),
             },
-            selected_binary_id: selected,
+            selected_binary_id: selected.clone(),
             binaries: bins.clone(),
             commands,
-            dashboard: dashboard_snapshot(environment, &bins),
+            dashboard: dashboard_snapshot(environment, &bins, selected.as_deref()),
         }
     }
 
@@ -284,7 +284,11 @@ pub fn is_binary_allowed(env: Environment, kind: &BinarySourceKind) -> bool {
 /// - The snapshot is derived only from already-discovered in-memory state, which keeps
 ///   state rendering deterministic and prevents UI aggregation from mutating runtime state.
 /// - Telemetry values are conservative placeholders until a dedicated metrics source is wired in.
-fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSnapshot {
+fn dashboard_snapshot(
+    env: Environment,
+    bins: &[BinaryCandidate],
+    selected_binary_id: Option<&str>,
+) -> DashboardSnapshot {
     let installed_versions = installed_versions_snapshot(bins);
 
     let (
@@ -334,11 +338,25 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
         format!("Active environment set to {}", env.slug()),
     ];
 
-    if let Some(selected_path) = bins.first().map(|candidate| candidate.path.as_str()) {
-        last_events.push(format!("Primary discovered binary path: {}", selected_path));
-    }
-
     let mut last_warnings = Vec::new();
+
+    if let Some(selected_id) = selected_binary_id {
+        if let Some(selected_candidate) = bins.iter().find(|candidate| candidate.id == selected_id)
+        {
+            last_events.push(format!(
+                "Selected binary source: {} ({:?})",
+                selected_candidate.path, selected_candidate.kind
+            ));
+        } else {
+            last_warnings.push(String::from(
+                "Selected binary is missing from discovery snapshot; refresh binary selection",
+            ));
+        }
+    } else {
+        last_warnings.push(String::from(
+            "No AOXC binary is currently selected; command execution is blocked until selection",
+        ));
+    }
 
     if binary_count == 0 {
         last_warnings.push(String::from(
@@ -359,6 +377,17 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
         last_warnings.push(String::from(
             "Custom-path binaries require explicit operator trust validation before execution",
         ));
+    }
+
+    if let Some(selected_id) = selected_binary_id {
+        if let Some(selected_candidate) = bins.iter().find(|candidate| candidate.id == selected_id)
+        {
+            if !is_binary_allowed(env, &selected_candidate.kind) {
+                last_warnings.push(String::from(
+                    "Selected binary source is not allowed in the active environment policy",
+                ));
+            }
+        }
     }
 
     let last_txs = vec![String::from(
