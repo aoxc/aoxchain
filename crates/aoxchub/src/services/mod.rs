@@ -340,14 +340,9 @@ fn dashboard_snapshot(
 
     let mut last_warnings = Vec::new();
 
-    let mut selected_binary_path = None;
-    let mut selected_binary_allowed = None;
-
     if let Some(selected_id) = selected_binary_id {
         if let Some(selected_candidate) = bins.iter().find(|candidate| candidate.id == selected_id)
         {
-            selected_binary_path = Some(selected_candidate.path.clone());
-            selected_binary_allowed = Some(is_binary_allowed(env, &selected_candidate.kind));
             last_events.push(format!(
                 "Selected binary source: {} ({:?})",
                 selected_candidate.path, selected_candidate.kind
