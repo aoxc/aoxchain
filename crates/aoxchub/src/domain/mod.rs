@@ -89,6 +89,9 @@ pub struct InstalledVersions {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct DashboardSnapshot {
+    pub selected_binary_id: Option<String>,
+    pub selected_binary_path: Option<String>,
+    pub selected_binary_allowed: Option<bool>,
     pub chain_name: String,
     pub network_kind: String,
     pub network_id: String,

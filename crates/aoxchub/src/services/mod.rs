@@ -410,6 +410,9 @@ fn dashboard_snapshot(
     };
 
     DashboardSnapshot {
+        selected_binary_id: selected_binary_id.map(ToOwned::to_owned),
+        selected_binary_path,
+        selected_binary_allowed,
         chain_name,
         network_kind,
         network_id,
@@ -423,7 +426,7 @@ fn dashboard_snapshot(
         rpc_status,
         p2p_status,
         genesis_fingerprint: genesis_fingerprint(env),
-        health_status: health_status(binary_count, allowed_binary_count),
+        health_status: health_status(binary_count, allowed_binary_count, selected_binary_allowed),
         installed_versions,
         last_events,
         last_txs,
@@ -464,13 +467,25 @@ fn genesis_fingerprint(env: Environment) -> String {
 /// Derives a coarse-grained health label from locally available discovery data.
 ///
 /// The result is intentionally conservative and does not claim live chain liveness.
-fn health_status(binary_count: usize, allowed_binary_count: usize) -> String {
+fn health_status(
+    binary_count: usize,
+    allowed_binary_count: usize,
+    selected_binary_allowed: Option<bool>,
+) -> String {
     if binary_count == 0 {
         return String::from("degraded");
     }
 
     if allowed_binary_count == 0 {
         return String::from("restricted");
+    }
+
+    if matches!(selected_binary_allowed, Some(false)) {
+        return String::from("restricted");
+    }
+
+    if selected_binary_allowed.is_none() {
+        return String::from("degraded");
     }
 
     String::from("nominal")

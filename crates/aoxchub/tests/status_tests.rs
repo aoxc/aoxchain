@@ -12,6 +12,13 @@ async fn state_contains_dashboard_snapshot_fields() {
     assert!(state.dashboard.validator_count > 0);
     assert!(!state.dashboard.genesis_fingerprint.is_empty());
     assert_eq!(state.dashboard.quick_actions.len(), 4);
+    if state.dashboard.selected_binary_id.is_some() {
+        assert!(state.dashboard.selected_binary_path.is_some());
+        assert_eq!(state.dashboard.selected_binary_allowed, Some(true));
+    } else {
+        assert_eq!(state.dashboard.selected_binary_path, None);
+        assert_eq!(state.dashboard.selected_binary_allowed, None);
+    }
 }
 
 #[tokio::test]
