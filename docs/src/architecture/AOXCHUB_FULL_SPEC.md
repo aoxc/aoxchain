@@ -663,3 +663,141 @@ AOXCHub
 
 `crates/aoxchub/OPERATOR_BLUEPRINT.md` remains the crate-local implementation-oriented blueprint.
 This document is the repository-level full product specification surface for AOXCHub.
+
+## 9) AOXCHub'a full eklenecek profesyonel modüller
+
+Aşağıdaki modüller mevcut zorunlu kapsamı bozmadan AOXCHub'u "full" operator yüzeyine taşımak için eklenebilir.
+
+### A. Runbook Center
+
+- operasyon adımlarını görev bazlı checklist olarak çalıştırma,
+- her adım için önkoşul ve rollback önerisi,
+- incident sonrası otomatik rapor paketi üretimi.
+
+### B. Upgrade Safety Orchestrator
+
+- runtime yükseltme için preflight kontrolleri,
+- canary node ile kontrollü rollout,
+- başarısızlıkta otomatik rollback tetikleme.
+
+### C. Policy Diff & Approval Gate
+
+- policy dosyaları için görsel diff,
+- risk sınıfına göre çok-adımlı onay akışı,
+- değişikliklerin imzalı onay kaydını audit log'a yazma.
+
+### D. Key Rotation Control Plane
+
+- validator/operator anahtar rotasyon sihirbazı,
+- eski-yeni anahtar eşlemesini doğrulama,
+- rotasyon sonrası health ve consensus etkisi kontrolü.
+
+### E. SLO / SLA Telemetry Panel
+
+- block finalization latency,
+- tx başarı oranı,
+- peer stabilitesi,
+- queue saturation ve timeout trendleri,
+- sürüm bazlı regresyon karşılaştırması.
+
+### F. Disaster Recovery Studio
+
+- snapshot envanteri,
+- point-in-time restore akışı,
+- cross-node tutarlılık doğrulaması,
+- kurtarma tatbikatı kanıt çıktıları.
+
+### G. Compliance Evidence Vault
+
+- release kanıt paketi sürümleme,
+- change approval zinciri,
+- immutable checksum kayıtları,
+- denetim için export-ready paketleme.
+
+### H. Multi-Environment Promotion Lane
+
+- `devnet -> testnet -> mainnet` promotion pipeline,
+- environment parity kontrolleri,
+- promotion öncesi zorunlu gate matrisi.
+
+### I. Operator Education Mode
+
+- demo/sandbox execution,
+- riskli komutlarda rehberli adım akışı,
+- hata senaryosu simülasyonları ve öğretici geri bildirim.
+
+### J. Capacity Planning Workspace
+
+- node ve peer kapasite projeksiyonu,
+- disk/CPU/RAM büyüme tahmini,
+- staking ve validator dağılımına göre ölçek önerileri.
+
+### "Full" paket için minimum acceptance gates
+
+- Security: policy bypass olmadan tüm kritik akışlar deny-by-default kalmalı.
+- Reliability: uzun çalışan işlerde timeout ve retry davranışı deterministik olmalı.
+- Operability: incident, rollback ve restore akışları UI üzerinden uçtan uca doğrulanmalı.
+- Auditability: her riskli eylem için kim/ne zaman/ne değişti kaydı üretilebilmeli.
+- Compatibility: mevcut `OPERATOR_BLUEPRINT.md` ve crate sınırlarıyla çelişmemeli.
+
+## 10) Implementation sequencing (P0/P1/P2) and dependency map
+
+Bu bölüm Section 9 modüllerini doğrudan uygulanabilir bir teslimat planına çevirir.
+
+### P0 (security + operational risk reduction)
+
+1. **Policy Diff & Approval Gate**
+   - bağımlılıklar: mevcut policy parser + audit event pipeline,
+   - çıkış: onay zorunluluğu olan policy-change workflow.
+2. **Upgrade Safety Orchestrator**
+   - bağımlılıklar: release manager + health probes + rollback artifacts,
+   - çıkış: preflight/canary/rollback kontrollü yükseltme.
+3. **Disaster Recovery Studio**
+   - bağımlılıklar: snapshot metadata + restore verification checks,
+   - çıkış: restore tatbikatı ve kanıtlanabilir recovery akışı.
+
+### P1 (auditability + visibility hardening)
+
+4. **Compliance Evidence Vault**
+   - bağımlılıklar: immutable log schema + export format,
+   - çıkış: release/change incident evidence bundles.
+5. **SLO / SLA Telemetry Panel**
+   - bağımlılıklar: metrics ingestion + status API contract,
+   - çıkış: finalization latency, timeout, saturation trend panelleri.
+6. **Runbook Center**
+   - bağımlılıklar: command catalog metadata + step templates,
+   - çıkış: görev bazlı standart operasyon runbook execution.
+
+### P2 (operator maturity + scale optimization)
+
+7. **Key Rotation Control Plane**
+   - bağımlılıklar: validator identity surfaces + key lifecycle policy,
+   - çıkış: güvenli rotasyon ve sonrası doğrulama.
+8. **Multi-Environment Promotion Lane**
+   - bağımlılıklar: environment parity checks + gated promotion policy,
+   - çıkış: devnet→testnet→mainnet kontrollü promotion.
+9. **Capacity Planning Workspace**
+   - bağımlılıklar: historical telemetry + topology/state projections,
+   - çıkış: kapasite ve ölçek öneri raporları.
+10. **Operator Education Mode**
+   - bağımlılıklar: sandbox route + simulation fixtures,
+   - çıkış: eğitim/deneme için güvenli execution mode.
+
+### Module-to-existing-surface mapping
+
+- `Runbook Center` -> `COMMAND_CATALOG.md`, execution runner, policy surface.
+- `Upgrade Safety Orchestrator` -> Binary/Release Manager + health endpoints.
+- `Policy Diff & Approval Gate` -> security/policy module + audit logs.
+- `Key Rotation Control Plane` -> validator lifecycle + key material governance.
+- `SLO/SLA Panel` -> `/api/state`, streaming status endpoints, job telemetry.
+- `DR Studio` -> snapshot/backup operational scripts + restore verification.
+- `Evidence Vault` -> audit export + release readiness evidence package.
+- `Promotion Lane` -> environment profiles and release gating rules.
+- `Education Mode` -> localhost sandbox profile + guided workflows.
+- `Capacity Planning` -> runtime metrics + topology history.
+
+### Delivery gates per phase
+
+- **P0 exit gate:** policy bypass denemeleri reddedilmeli; upgrade rollback deterministik olmalı; restore drills kanıtlanmalı.
+- **P1 exit gate:** evidence export tam olmalı; telemetry panelleri tanımlı SLO metriklerini kesintisiz üretmeli.
+- **P2 exit gate:** promotion pipeline zero-ambiguity olmalı; key rotation akışında doğrulama eksiksiz olmalı; capacity önerileri ölçülebilir girdiye dayanmalı.
