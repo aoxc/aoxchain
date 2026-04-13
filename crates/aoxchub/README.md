@@ -23,6 +23,7 @@ AOXCHub is a localhost-only operator control plane for AOXChain. It presents app
 
 ## Product Blueprint
 A full operator-surface specification is maintained in `OPERATOR_BLUEPRINT.md`.
+The full professionalization and hardening execution plan is maintained in `MASTER_PRO_PLAN.md`.
 
 ## Notes
 - The service binds to `127.0.0.1` by default and is not designed for remote exposure.
