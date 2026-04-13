@@ -339,22 +339,23 @@ fn dashboard_snapshot(
     ];
 
     let mut last_warnings = Vec::new();
+    let mut selected_binary_path = None;
+    let mut selected_binary_allowed = None;
 
-    let selected_candidate = selected_binary_id
-        .and_then(|selected_id| bins.iter().find(|candidate| candidate.id == selected_id));
-    let selected_binary_path = selected_candidate.map(|candidate| candidate.path.clone());
-    let selected_binary_allowed =
-        selected_candidate.map(|candidate| is_binary_allowed(env, &candidate.kind));
-
-    if let Some(candidate) = selected_candidate {
-        last_events.push(format!(
-            "Selected binary source: {} ({:?})",
-            candidate.path, candidate.kind
-        ));
-    } else if selected_binary_id.is_some() {
-        last_warnings.push(String::from(
-            "Selected binary is missing from discovery snapshot; refresh binary selection",
-        ));
+    if let Some(selected_id) = selected_binary_id {
+        if let Some(selected_candidate) = bins.iter().find(|candidate| candidate.id == selected_id)
+        {
+            selected_binary_path = Some(selected_candidate.path.clone());
+            selected_binary_allowed = Some(is_binary_allowed(env, &selected_candidate.kind));
+            last_events.push(format!(
+                "Selected binary source: {} ({:?})",
+                selected_candidate.path, selected_candidate.kind
+            ));
+        } else {
+            last_warnings.push(String::from(
+                "Selected binary is missing from discovery snapshot; refresh binary selection",
+            ));
+        }
     } else {
         last_warnings.push(String::from(
             "No AOXC binary is currently selected; command execution is blocked until selection",
