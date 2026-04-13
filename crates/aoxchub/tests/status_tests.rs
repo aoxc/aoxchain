@@ -60,6 +60,8 @@ async fn dashboard_warns_when_selected_binary_is_disallowed_for_environment() {
     service.set_environment(Environment::Mainnet).await;
     let mainnet_state = service.state().await;
 
+    assert_eq!(mainnet_state.dashboard.selected_binary_allowed, Some(false));
+    assert_eq!(mainnet_state.dashboard.health_status, "restricted");
     assert!(mainnet_state.dashboard.last_warnings.iter().any(|line| {
         line.contains("Selected binary source is not allowed in the active environment policy")
     }));
