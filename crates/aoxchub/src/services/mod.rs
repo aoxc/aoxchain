@@ -62,10 +62,10 @@ impl HubService {
                 aoxc_home: environment.aoxc_home(),
                 make_scope: environment.make_scope(),
             },
-            selected_binary_id: selected,
+            selected_binary_id: selected.clone(),
             binaries: bins.clone(),
             commands,
-            dashboard: dashboard_snapshot(environment, &bins),
+            dashboard: dashboard_snapshot(environment, &bins, selected.as_deref()),
         }
     }
 
@@ -284,7 +284,11 @@ pub fn is_binary_allowed(env: Environment, kind: &BinarySourceKind) -> bool {
 /// - The snapshot is derived only from already-discovered in-memory state, which keeps
 ///   state rendering deterministic and prevents UI aggregation from mutating runtime state.
 /// - Telemetry values are conservative placeholders until a dedicated metrics source is wired in.
-fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSnapshot {
+fn dashboard_snapshot(
+    env: Environment,
+    bins: &[BinaryCandidate],
+    selected_binary_id: Option<&str>,
+) -> DashboardSnapshot {
     let installed_versions = installed_versions_snapshot(bins);
 
     let (
@@ -334,11 +338,30 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
         format!("Active environment set to {}", env.slug()),
     ];
 
-    if let Some(selected_path) = bins.first().map(|candidate| candidate.path.as_str()) {
-        last_events.push(format!("Primary discovered binary path: {}", selected_path));
-    }
-
     let mut last_warnings = Vec::new();
+
+    let mut selected_binary_path = None;
+    let mut selected_binary_allowed = None;
+
+    if let Some(selected_id) = selected_binary_id {
+        if let Some(selected_candidate) = bins.iter().find(|candidate| candidate.id == selected_id)
+        {
+            selected_binary_path = Some(selected_candidate.path.clone());
+            selected_binary_allowed = Some(is_binary_allowed(env, &selected_candidate.kind));
+            last_events.push(format!(
+                "Selected binary source: {} ({:?})",
+                selected_candidate.path, selected_candidate.kind
+            ));
+        } else {
+            last_warnings.push(String::from(
+                "Selected binary is missing from discovery snapshot; refresh binary selection",
+            ));
+        }
+    } else {
+        last_warnings.push(String::from(
+            "No AOXC binary is currently selected; command execution is blocked until selection",
+        ));
+    }
 
     if binary_count == 0 {
         last_warnings.push(String::from(
@@ -361,6 +384,17 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
         ));
     }
 
+    if let Some(selected_id) = selected_binary_id {
+        if let Some(selected_candidate) = bins.iter().find(|candidate| candidate.id == selected_id)
+        {
+            if !is_binary_allowed(env, &selected_candidate.kind) {
+                last_warnings.push(String::from(
+                    "Selected binary source is not allowed in the active environment policy",
+                ));
+            }
+        }
+    }
+
     let last_txs = vec![String::from(
         "No recent transaction data available in offline dashboard mode",
     )];
@@ -381,6 +415,9 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
     };
 
     DashboardSnapshot {
+        selected_binary_id: selected_binary_id.map(ToOwned::to_owned),
+        selected_binary_path,
+        selected_binary_allowed,
         chain_name,
         network_kind,
         network_id,
@@ -394,7 +431,7 @@ fn dashboard_snapshot(env: Environment, bins: &[BinaryCandidate]) -> DashboardSn
         rpc_status,
         p2p_status,
         genesis_fingerprint: genesis_fingerprint(env),
-        health_status: health_status(binary_count, allowed_binary_count),
+        health_status: health_status(binary_count, allowed_binary_count, selected_binary_allowed),
         installed_versions,
         last_events,
         last_txs,
@@ -435,13 +472,25 @@ fn genesis_fingerprint(env: Environment) -> String {
 /// Derives a coarse-grained health label from locally available discovery data.
 ///
 /// The result is intentionally conservative and does not claim live chain liveness.
-fn health_status(binary_count: usize, allowed_binary_count: usize) -> String {
+fn health_status(
+    binary_count: usize,
+    allowed_binary_count: usize,
+    selected_binary_allowed: Option<bool>,
+) -> String {
     if binary_count == 0 {
         return String::from("degraded");
     }
 
     if allowed_binary_count == 0 {
         return String::from("restricted");
+    }
+
+    if matches!(selected_binary_allowed, Some(false)) {
+        return String::from("restricted");
+    }
+
+    if selected_binary_allowed.is_none() {
+        return String::from("degraded");
     }
 
     String::from("nominal")
