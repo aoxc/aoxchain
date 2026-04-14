@@ -7,6 +7,7 @@ ARTIFACT_DIR="${AOXC_QUANTUM_GATE_ARTIFACT_DIR:-${REPO_ROOT}/artifacts/quantum-g
 READ_FILE="${REPO_ROOT}/READ.md"
 ROADMAP_FILE="${REPO_ROOT}/ROADMAP.md"
 SCOPE_FILE="${REPO_ROOT}/SCOPE.md"
+CHECKLIST_FILE="${REPO_ROOT}/docs/src/architecture/PQ_AUTHORITY_IMPLEMENTATION_CHECKLIST.md"
 
 required_files=(
   "${READ_FILE}"
@@ -32,6 +33,7 @@ required_quantum_files=(
   "${REPO_ROOT}/docs/quantum/CLOSE_TRACKS.md"
   "${REPO_ROOT}/docs/quantum/CUTOVER_RUNBOOK.md"
   "${REPO_ROOT}/docs/quantum/EVIDENCE_PACKAGE.md"
+  "${CHECKLIST_FILE}"
 )
 
 required_quantum_plan_sections=(
@@ -103,6 +105,75 @@ fi
 
 mkdir -p "${ARTIFACT_DIR}"
 SUMMARY_FILE="${ARTIFACT_DIR}/summary.json"
+CHECKLIST_SUMMARY_FILE="${ARTIFACT_DIR}/pq-checklist-status.json"
+
+python3 - "${CHECKLIST_FILE}" "${CHECKLIST_SUMMARY_FILE}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+checklist_path = Path(sys.argv[1])
+output_path = Path(sys.argv[2])
+lines = checklist_path.read_text(encoding="utf-8").splitlines()
+
+section = "Unsectioned"
+sections = {}
+pattern = re.compile(r"^\s*-\s+\[(x| |\-)\]\s+(.*)$", re.IGNORECASE)
+
+status_map = {
+    "x": "completed",
+    " ": "pending",
+    "-": "deferred",
+}
+
+for raw in lines:
+    if raw.startswith("## "):
+        section = raw[3:].strip()
+        sections.setdefault(
+            section, {"completed": 0, "pending": 0, "deferred": 0, "items": []}
+        )
+        continue
+    m = pattern.match(raw)
+    if not m:
+        continue
+    marker = m.group(1).lower()
+    text = m.group(2).strip()
+    status = status_map[marker]
+    sections.setdefault(
+        section, {"completed": 0, "pending": 0, "deferred": 0, "items": []}
+    )
+    sections[section][status] += 1
+    sections[section]["items"].append({"status": status, "text": text})
+
+totals = {"completed": 0, "pending": 0, "deferred": 0}
+for data in sections.values():
+    totals["completed"] += data["completed"]
+    totals["pending"] += data["pending"]
+    totals["deferred"] += data["deferred"]
+
+result = {
+    "source": str(checklist_path),
+    "totals": totals,
+    "sections": sections,
+}
+
+output_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+PY
+
+pending_checklist_items="$(python3 - "${CHECKLIST_SUMMARY_FILE}" <<'PY'
+import json
+import sys
+from pathlib import Path
+data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(data["totals"]["pending"])
+PY
+)"
+
+if [[ "${pending_checklist_items}" -gt 0 ]]; then
+  warn=1
+  log "checklist has pending items: ${pending_checklist_items}"
+fi
 
 cat > "${SUMMARY_FILE}" <<JSON
 {
@@ -117,8 +188,11 @@ cat > "${SUMMARY_FILE}" <<JSON
       "docs/quantum/CLOSE_PLAN.md",
       "docs/quantum/CLOSE_TRACKS.md",
       "docs/quantum/CUTOVER_RUNBOOK.md",
-      "docs/quantum/EVIDENCE_PACKAGE.md"
-    ]
+      "docs/quantum/EVIDENCE_PACKAGE.md",
+      "docs/src/architecture/PQ_AUTHORITY_IMPLEMENTATION_CHECKLIST.md"
+    ],
+    "checklist_status_file": "artifacts/quantum-gate/pq-checklist-status.json",
+    "checklist_pending_items": ${pending_checklist_items}
   },
   "status": {
     "missing_required_surfaces": ${missing},
@@ -132,5 +206,11 @@ if [[ "${missing}" -ne 0 ]]; then
   exit 1
 fi
 
+if [[ "${STRICT}" -eq 1 && "${warn}" -ne 0 ]]; then
+  log "FAILED: strict mode enabled and checklist still has pending items"
+  exit 1
+fi
+
 log "PASS: quantum readiness surfaces are structurally valid"
 log "artifact: ${SUMMARY_FILE}"
+log "artifact: ${CHECKLIST_SUMMARY_FILE}"

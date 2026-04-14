@@ -60,7 +60,7 @@ Status legend:
 ## G) Evidence and Release Gates
 
 - [x] Define acceptance gates in blueprint (agility, hybrid, recovery, replay, envelope, validator, evidence).
-- [ ] Create CI-visible checklist status export artifact.
+- [x] Create CI-visible checklist status export artifact.
 - [ ] Link each gate to reproducible command set and retained artifact location.
 - [ ] Add residual-risk statement template for each PQ migration candidate.
 
