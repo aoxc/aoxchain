@@ -42,7 +42,7 @@ impl HubService {
         let refreshed = binaries::discover();
         {
             let mut bins_guard = self.binaries.write().await;
-            *bins_guard = merge_binaries_preserving_custom(&bins_guard, refreshed);
+            *bins_guard = refreshed;
         }
         let bins = self.binaries.read().await.clone();
         let selected = self.selected_binary_id.read().await.clone();
@@ -81,11 +81,6 @@ impl HubService {
 
     pub async fn set_environment(&self, env: Environment) {
         *self.environment.write().await = env;
-        let discovered = binaries::discover();
-        {
-            let mut bins_guard = self.binaries.write().await;
-            *bins_guard = merge_binaries_preserving_custom(&bins_guard, discovered);
-        }
         let bins = self.binaries.read().await.clone();
         let selected_current = self.selected_binary_id.read().await.clone();
         let selected_allowed = selected_current
