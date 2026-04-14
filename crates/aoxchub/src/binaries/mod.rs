@@ -104,62 +104,13 @@ pub fn discover() -> Vec<BinaryCandidate> {
         }
     }
 
-    if let Ok(workspace_root) = env::var("AOXCHUB_WORKSPACE_ROOT") {
-        let local_release = PathBuf::from(workspace_root).join("target/release/aoxc");
-        push_candidate(
-            "local-release-build-env-root",
-            BinarySourceKind::LocalReleaseBuild,
-            local_release.display().to_string(),
-            TrustLevel::Experimental,
-        );
-    }
-
-    if let Ok(cwd) = env::current_dir() {
-        let local_release = cwd.join("target/release/aoxc");
-        push_candidate(
-            "local-release-build-cwd",
-            BinarySourceKind::LocalReleaseBuild,
-            local_release.display().to_string(),
-            TrustLevel::Experimental,
-        );
-
-        if let Some(parent) = cwd.parent() {
-            let parent_release = parent.join("target/release/aoxc");
-            push_candidate(
-                "local-release-build-parent",
-                BinarySourceKind::LocalReleaseBuild,
-                parent_release.display().to_string(),
-                TrustLevel::Experimental,
-            );
-        }
-    }
-
-    if let Ok(exe) = env::current_exe()
-        && let Some(exe_dir) = exe.parent()
-    {
-        let sibling_release = exe_dir.join("aoxc");
-        push_candidate(
-            "local-release-build-sibling",
-            BinarySourceKind::LocalReleaseBuild,
-            sibling_release.display().to_string(),
-            TrustLevel::Experimental,
-        );
-    }
-
-    if let Ok(path_var) = env::var("PATH") {
-        for dir in path_var.split(':') {
-            if dir.is_empty() {
-                continue;
-            }
-            let from_path = PathBuf::from(dir).join("aoxc");
-            push_candidate(
-                "installed-from-path",
-                BinarySourceKind::InstalledRelease,
-                from_path.display().to_string(),
-                TrustLevel::Trusted,
-            );
-        }
-    }
+    let local_release = "/workspace/aoxchain/target/release/aoxc".to_string();
+    push_candidate(
+        "local-release-build",
+        BinarySourceKind::LocalReleaseBuild,
+        local_release,
+        TrustLevel::Experimental,
+    );
 
     out
 }
