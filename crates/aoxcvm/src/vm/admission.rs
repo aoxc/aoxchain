@@ -269,9 +269,9 @@ mod tests {
             validation::ValidationError,
         },
         vm::admission::{
+            ActiveAuthProfile, AdmissionError, KernelAdmissionContext, VmAdmissionCapabilities,
             validate_phase1_admission, validate_phase2_admission, validate_phase3_admission,
-            validate_phase4_kernel_admission, validate_vm_profile_admission, ActiveAuthProfile,
-            AdmissionError, KernelAdmissionContext, VmAdmissionCapabilities,
+            validate_phase4_kernel_admission, validate_vm_profile_admission,
         },
     };
     use aoxcontract::{

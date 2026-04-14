@@ -27,6 +27,6 @@ libcrux-ml-dsa  = { workspace = true }
 
 aoxcunity = { path = "../aoxcunity" , version = "0.2.0-alpha.1"}
 aoxcontract = { path = "../../aoxcontract" , version = "0.2.0-alpha.1"}
-bip39 = { version = "2", default-features = false, features = ["all-languages", "rand", "serde", "std", "zeroize"] }
+bip39 = { version = "2", default-features = false, features = ["all-languages", "serde", "std", "zeroize"] }
 zeroize = "1.8.2"
 getrandom = "0.4.2"

@@ -89,3 +89,6 @@ panic         = "abort"
 lto           = true
 codegen-units = 1
 strip         = true
+
+[patch.crates-io]
+bip39 = { path = "crates/aoxcbip39" }
