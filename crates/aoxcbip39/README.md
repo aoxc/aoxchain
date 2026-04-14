@@ -1,38 +1,50 @@
-# AOXC vendored `bip39`
+bip39
+=====
 
-This directory contains AOXChain's vendored copy of `bip39` `v2.2.2`,
-used through a workspace-level `[patch.crates-io]` override.
+A Rust implementation of [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
+mnemonic codes.
 
-## Why this exists
 
-- Keep mnemonic parsing/encoding behavior stable inside the repository.
-- Allow AOXC to review and control dependency posture for security gates.
-- Avoid depending on external `rand` feature wiring for AOXC runtime paths.
+## Word lists (languages)
 
-## Scope
+We support all languages
+[specified in the BIP-39 standard](https://github.com/bitcoin/bips/blob/master/bip-0039/bip-0039-wordlists.md)
+as of writing.
 
-AOXC currently uses this crate for:
+The English language is always loaded and other languages can be loaded using the corresponding feature.
 
-- mnemonic phrase parsing (`Mnemonic::parse_in`),
-- entropy-to-phrase encoding (`Mnemonic::from_entropy_in`),
-- deterministic restore/validation flows in `aoxcore`.
+Use the `all-languages` feature to enable all languages.
 
-## Language support
+- English (always enabled)
+- Simplified Chinese (`chinese-simplified`)
+- Traditional Chinese (`chinese-traditional`)
+- Czech (`czech`)
+- French (`french`)
+- Italian (`italian`)
+- Japanese (`japanese`)
+- Korean (`korean`)
+- Portuguese (`portuguese`)
+- Spanish (`spanish`)
 
-`all-languages` is retained and includes:
 
-- English (always enabled),
-- Simplified Chinese,
-- Traditional Chinese,
-- Czech,
-- French,
-- Italian,
-- Japanese,
-- Korean,
-- Portuguese,
-- Spanish.
+## MSRV
 
-## Upstream provenance
+This crate supports Rust v1.41.1 and up and works with `no_std`.
 
-Based on upstream `rust-bitcoin/rust-bip39` `v2.2.2`.
-License remains CC0-1.0 (see `LICENSE`).
+The `bitcoin_hashes` range dependency effects the MSRV as follows
+
+- `bitcoin_hashes v0.12`: MSRV v1.41.1
+- `bitcoin_hashes v0.13`: MSRV v1.48.0
+- `bitcoin_hashes v0.14`: MSRV v1.56.0
+
+When using older version of Rust, you might have to pin the versions of several crates, for an up-to-date list refer to [`contrib/test.sh`](contrib/test.sh):
+
+```bash
+cargo update --package "bitcoin_hashes" --precise "0.12.0"
+cargo update --package "rand" --precise "0.6.0"
+cargo update --package "libc" --precise "0.2.151"
+cargo update --package "tinyvec" --precise "1.6.0"
+cargo update --package "unicode-normalization" --precise "0.1.22"
+```
+
+If you enable the `zeroize` feature the MSRV becomes 1.51.
