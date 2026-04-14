@@ -7,6 +7,7 @@ impl NativeTokenLedger {
             policy,
             total_supply: 0,
             balances: HashMap::new(),
+            locked_balances: HashMap::new(),
             latest_nonce: HashMap::new(),
             consumed_quantum_commitments: HashSet::new(),
         })
@@ -21,6 +22,19 @@ impl NativeTokenLedger {
     #[must_use]
     pub fn balance_of(&self, address: &Address) -> u128 {
         self.balances.get(address).copied().unwrap_or(0)
+    }
+
+    /// Returns the locked balance for the requested address.
+    #[must_use]
+    pub fn locked_balance_of(&self, address: &Address) -> u128 {
+        self.locked_balances.get(address).copied().unwrap_or(0)
+    }
+
+    /// Returns the total account balance (spendable + locked) for the requested address.
+    #[must_use]
+    pub fn total_balance_of(&self, address: &Address) -> u128 {
+        self.balance_of(address)
+            .saturating_add(self.locked_balance_of(address))
     }
 
     /// Returns the last accepted sender nonce, when present.
@@ -95,6 +109,83 @@ impl NativeTokenLedger {
             .checked_add(amount)
             .ok_or(NativeTokenError::BalanceOverflow)?;
         self.balances.insert(to, updated_to_balance);
+
+        Ok(())
+    }
+
+    /// Burns native tokens from an account and reduces total supply.
+    pub fn burn(&mut self, from: Address, amount: u128) -> Result<(), NativeTokenError> {
+        self.policy.validate()?;
+        self.policy.validate_transfer_amount(amount)?;
+
+        let current_from_balance = self.balance_of(&from);
+        if current_from_balance < amount {
+            return Err(NativeTokenError::InsufficientBalance);
+        }
+
+        let remaining_from_balance = current_from_balance - amount;
+        if remaining_from_balance == 0 {
+            self.balances.remove(&from);
+        } else {
+            self.balances.insert(from, remaining_from_balance);
+        }
+
+        self.total_supply = self
+            .total_supply
+            .checked_sub(amount)
+            .ok_or(NativeTokenError::SupplyOverflow)?;
+
+        Ok(())
+    }
+
+    /// Locks spendable balance into a non-transferable bucket.
+    pub fn lock(&mut self, owner: Address, amount: u128) -> Result<(), NativeTokenError> {
+        self.policy.validate()?;
+        self.policy.validate_transfer_amount(amount)?;
+
+        let spendable = self.balance_of(&owner);
+        if spendable < amount {
+            return Err(NativeTokenError::InsufficientBalance);
+        }
+
+        let remaining_spendable = spendable - amount;
+        if remaining_spendable == 0 {
+            self.balances.remove(&owner);
+        } else {
+            self.balances.insert(owner, remaining_spendable);
+        }
+
+        let current_locked = self.locked_balance_of(&owner);
+        let updated_locked = current_locked
+            .checked_add(amount)
+            .ok_or(NativeTokenError::BalanceOverflow)?;
+        self.locked_balances.insert(owner, updated_locked);
+
+        Ok(())
+    }
+
+    /// Unlocks previously locked balance back into spendable balance.
+    pub fn unlock(&mut self, owner: Address, amount: u128) -> Result<(), NativeTokenError> {
+        self.policy.validate()?;
+        self.policy.validate_transfer_amount(amount)?;
+
+        let locked = self.locked_balance_of(&owner);
+        if locked < amount {
+            return Err(NativeTokenError::InsufficientLockedBalance);
+        }
+
+        let remaining_locked = locked - amount;
+        if remaining_locked == 0 {
+            self.locked_balances.remove(&owner);
+        } else {
+            self.locked_balances.insert(owner, remaining_locked);
+        }
+
+        let spendable = self.balance_of(&owner);
+        let updated_spendable = spendable
+            .checked_add(amount)
+            .ok_or(NativeTokenError::BalanceOverflow)?;
+        self.balances.insert(owner, updated_spendable);
 
         Ok(())
     }
@@ -207,6 +298,57 @@ impl NativeTokenLedger {
         )?;
         receipt.push_event(event)?;
 
+        Ok(receipt)
+    }
+
+    /// Builds a receipt for a successful burn operation.
+    pub fn burn_receipt(
+        &self,
+        tx_hash: [u8; HASH_SIZE],
+        from: Address,
+        amount: u128,
+        energy_used: u64,
+    ) -> Result<Receipt, ReceiptError> {
+        let mut receipt = Receipt::success(tx_hash, energy_used)?;
+        let event = Event::new(
+            EVENT_NATIVE_BURN,
+            encode_transfer_like_event(from, [0u8; 32], amount),
+        )?;
+        receipt.push_event(event)?;
+        Ok(receipt)
+    }
+
+    /// Builds a receipt for a successful lock operation.
+    pub fn lock_receipt(
+        &self,
+        tx_hash: [u8; HASH_SIZE],
+        owner: Address,
+        amount: u128,
+        energy_used: u64,
+    ) -> Result<Receipt, ReceiptError> {
+        let mut receipt = Receipt::success(tx_hash, energy_used)?;
+        let event = Event::new(
+            EVENT_NATIVE_LOCK,
+            encode_transfer_like_event(owner, owner, amount),
+        )?;
+        receipt.push_event(event)?;
+        Ok(receipt)
+    }
+
+    /// Builds a receipt for a successful unlock operation.
+    pub fn unlock_receipt(
+        &self,
+        tx_hash: [u8; HASH_SIZE],
+        owner: Address,
+        amount: u128,
+        energy_used: u64,
+    ) -> Result<Receipt, ReceiptError> {
+        let mut receipt = Receipt::success(tx_hash, energy_used)?;
+        let event = Event::new(
+            EVENT_NATIVE_UNLOCK,
+            encode_transfer_like_event(owner, owner, amount),
+        )?;
+        receipt.push_event(event)?;
         Ok(receipt)
     }
 
@@ -340,4 +482,3 @@ pub fn compute_quantum_transfer_digest(
     out.copy_from_slice(&digest[..NATIVE_TOKEN_COMMITMENT_SIZE]);
     out
 }
-
