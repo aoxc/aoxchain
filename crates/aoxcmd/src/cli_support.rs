@@ -142,7 +142,9 @@ pub fn print_subcommand_usage(group: &str, subcommand: &str) -> bool {
         }
         ("wallet", "balance") => "USAGE\n  aoxc wallet balance",
 
-        ("account", "fund") => "USAGE\n  aoxc account fund --to <account-id> --amount <value>",
+        ("account", "fund") => {
+            "USAGE\n  aoxc account fund --to <account-id> --amount <value> --signature <hex> [--signature-scheme <scheme>]\n  aoxc account fund --to <account-id> --amount <value> --multisig-threshold <n> --signers <id,id,...> --signatures <hex,hex,...> [--signature-scheme <scheme>]"
+        }
 
         ("node", "init") => "USAGE\n  aoxc node init",
         ("node", "join") => "USAGE\n  aoxc node join --seed <multiaddr|ip:port>",
@@ -197,7 +199,9 @@ pub fn print_subcommand_usage(group: &str, subcommand: &str) -> bool {
             "USAGE\n  aoxc query <block|tx|receipt|account|balance|network|runtime|state-root|rpc>"
         }
 
-        ("tx", "transfer") => "USAGE\n  aoxc tx transfer --to <account-id> --amount <value>",
+        ("tx", "transfer") => {
+            "USAGE\n  aoxc tx transfer --to <account-id> --amount <value> --signature <hex> [--signature-scheme <scheme>]\n  aoxc tx transfer --to <account-id> --amount <value> --multisig-threshold <n> --signers <id,id,...> --signatures <hex,hex,...> [--signature-scheme <scheme>]"
+        }
         ("tx", "stake") => {
             "USAGE\n  aoxc tx stake <delegate|undelegate> --to <validator-id> --amount <value>"
         }
@@ -252,7 +256,7 @@ pub fn print_group_usage(group: &str) {
             "GROUP: wallet\n  create            Create operator wallet/account\n  balance           Show runtime economy status\n\nEXAMPLES\n  aoxc wallet create --name validator-01 --profile testnet --password <secret>\n  aoxc wallet balance"
         }
         "account" => {
-            "GROUP: account\n  fund              Treasury transfer to an account\n\nEXAMPLES\n  aoxc account fund --to <account-id> --amount 100"
+            "GROUP: account\n  fund              Treasury transfer to an account (production signature required)\n\nEXAMPLES\n  aoxc account fund --to <account-id> --amount 100 --signature <hex>\n  aoxc account fund --to <account-id> --amount 100 --multisig-threshold 2 --signers alice,bob,carol --signatures <hex1>,<hex2>,<hex3>"
         }
         "node" => {
             "GROUP: node\n  init              Bootstrap local node runtime\n  join              Join network using a seed peer\n  start             Run node loop\n  status            Probe node health\n  doctor            Run diagnostics doctor\n\nEXAMPLES\n  aoxc node join --seed 127.0.0.1:19101\n  aoxc node start --continuous"
@@ -273,7 +277,7 @@ pub fn print_group_usage(group: &str) {
             "GROUP: api\n  status|rpc        RPC status\n  contract          API contract descriptor\n  smoke             RPC curl smoke validation\n  metrics           Metrics projection\n  health            Runtime health surface\n  full              Aggregate projection\n  chain|consensus|vm|network|runtime\n                    Routed query aliases\n\nEXAMPLES\n  aoxc api status\n  aoxc api full --account-id <id>"
         }
         "tx" => {
-            "GROUP: tx\n  transfer          Treasury transfer alias\n  stake delegate    Stake delegation flow\n  stake undelegate  Stake undelegation flow\n\nEXAMPLES\n  aoxc tx transfer --to <account-id> --amount 10\n  aoxc tx stake delegate --to validator-01 --amount 100"
+            "GROUP: tx\n  transfer          Treasury transfer alias (production signing / multisig ready)\n  stake delegate    Stake delegation flow\n  stake undelegate  Stake undelegation flow\n\nEXAMPLES\n  aoxc tx transfer --to <account-id> --amount 10 --signature <hex>\n  aoxc tx transfer --to <account-id> --amount 10 --multisig-threshold 2 --signers alice,bob,carol --signatures <hex1>,<hex2>,<hex3>\n  aoxc tx stake delegate --to validator-01 --amount 100"
         }
         "stake" => {
             "GROUP: stake\n  delegate          Delegate stake to validator\n  undelegate        Undelegate stake\n  validators        Runtime validator staking overview\n  rewards           Runtime reward overview\n\nEXAMPLES\n  aoxc stake delegate --to validator-01 --amount 250"

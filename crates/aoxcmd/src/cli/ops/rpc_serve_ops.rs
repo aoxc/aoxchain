@@ -320,13 +320,21 @@ fn account_id_from_target(target: &str) -> Option<String> {
 
 struct LedgerLookup {
     ledger: ledger::LedgerState,
+    source: &'static str,
+    degraded: bool,
 }
 
 fn load_ledger_lookup() -> LedgerLookup {
     match ledger::load() {
-        Ok(ledger) => LedgerLookup { ledger },
+        Ok(ledger) => LedgerLookup {
+            ledger,
+            source: "ledger",
+            degraded: false,
+        },
         Err(_) => LedgerLookup {
             ledger: ledger::LedgerState::default(),
+            source: "default",
+            degraded: true,
         },
     }
 }
@@ -370,9 +378,14 @@ fn account_json(target: &str) -> serde_json::Value {
     let lookup = load_ledger_lookup();
     let known = account_id == "treasury" || lookup.ledger.delegations.contains_key(&account_id);
     let balance = if account_id == "treasury" {
-        ledger.treasury_balance
+        lookup.ledger.treasury_balance
     } else {
-        ledger.delegations.get(&account_id).copied().unwrap_or(0)
+        lookup
+            .ledger
+            .delegations
+            .get(&account_id)
+            .copied()
+            .unwrap_or(0)
     };
 
     json!({
