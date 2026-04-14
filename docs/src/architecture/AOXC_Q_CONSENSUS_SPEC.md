@@ -59,6 +59,18 @@ Mainnet activation for AOXC-Q requires:
 - release-line and version governance consistency (`Cargo.toml`, `configs/version-policy.toml`, readiness surfaces);
 - explicit residual-risk statement and operator sign-off.
 
+## Known Implementation Gaps (Tracking Reference)
+
+The AOXC-Q baseline defines target behavior and controls, but some consensus-adjacent
+post-quantum authority controls are still tracked as incomplete implementation work.
+
+For current completion state, use:
+
+- `docs/src/architecture/PQ_AUTHORITY_IMPLEMENTATION_CHECKLIST.md`
+
+Any release or security claim must treat unchecked items in that checklist as
+residual-risk inputs until the corresponding controls are implemented and evidenced.
+
 ## Versioning
 
 - Consensus release line: `AOXC-Q-v0.2.0`
