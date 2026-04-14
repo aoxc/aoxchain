@@ -258,6 +258,64 @@ mod tests {
     }
 
     #[test]
+    fn validate_genesis_rejects_empty_validator_quorum_policy() {
+        let mut genesis = EnvironmentProfile::Validation.genesis_document();
+        genesis.consensus.validator_quorum_policy.clear();
+
+        let error = validate_genesis(&genesis).expect_err("empty quorum policy must fail");
+        assert!(
+            error
+                .to_string()
+                .contains("validator_quorum_policy must not be empty"),
+            "error should describe missing validator quorum policy"
+        );
+    }
+
+    #[test]
+    fn validate_genesis_rejects_non_pq_consensus_profile_on_mainnet() {
+        let mut genesis = EnvironmentProfile::Mainnet.genesis_document();
+        genesis.consensus.consensus_identity_profile = "hybrid".to_string();
+
+        let error = validate_genesis(&genesis)
+            .expect_err("mainnet consensus identity profile must be pq-only");
+        assert!(
+            error
+                .to_string()
+                .contains("requires consensus_identity_profile=pq-only"),
+            "error should describe production consensus profile gate"
+        );
+    }
+
+    #[test]
+    fn validate_genesis_rejects_missing_treasury_state_account() {
+        let mut genesis = EnvironmentProfile::Validation.genesis_document();
+        genesis.state.accounts[0].account_id = "AOXC_NOT_TREASURY".to_string();
+
+        let error = validate_genesis(&genesis).expect_err("missing treasury account must fail");
+        assert!(
+            error
+                .to_string()
+                .contains("is missing from state.accounts with role=treasury"),
+            "error should describe missing treasury state account"
+        );
+    }
+
+    #[test]
+    fn validate_genesis_rejects_mismatched_treasury_balance() {
+        let mut genesis = EnvironmentProfile::Validation.genesis_document();
+        genesis.state.accounts[0].balance = "42".to_string();
+
+        let error =
+            validate_genesis(&genesis).expect_err("mismatched treasury balance must fail");
+        assert!(
+            error
+                .to_string()
+                .contains("treasury amount must match treasury account balance"),
+            "error should describe treasury accounting mismatch"
+        );
+    }
+
+    #[test]
     fn consensus_profile_audit_blocks_short_epoch_on_mainnet() {
         let mut genesis = EnvironmentProfile::Mainnet.genesis_document();
         genesis.consensus.consensus_timing.epoch_length_blocks = 10;
