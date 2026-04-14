@@ -8,7 +8,7 @@ use crate::{
     errors::HubError,
     runner::Runner,
 };
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
@@ -127,6 +127,16 @@ impl HubService {
             )));
         }
 
+        if self
+            .binaries
+            .read()
+            .await
+            .iter()
+            .any(|candidate| candidate.path == path)
+        {
+            return Ok(());
+        }
+
         let candidate = BinaryCandidate {
             id: format!("custom-{}", chrono::Utc::now().timestamp()),
             kind: BinarySourceKind::CustomPath,
@@ -238,6 +248,25 @@ impl HubService {
 
         Ok(id)
     }
+}
+
+fn merge_binaries_preserving_custom(
+    existing: &[BinaryCandidate],
+    discovered: Vec<BinaryCandidate>,
+) -> Vec<BinaryCandidate> {
+    let mut out = discovered;
+    let mut seen_paths: HashSet<&str> = out
+        .iter()
+        .map(|candidate| candidate.path.as_str())
+        .collect();
+    for candidate in existing {
+        if matches!(candidate.kind, BinarySourceKind::CustomPath)
+            && seen_paths.insert(candidate.path.as_str())
+        {
+            out.push(candidate.clone());
+        }
+    }
+    out
 }
 
 impl Default for HubService {
