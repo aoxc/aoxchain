@@ -48,7 +48,8 @@ impl HubService {
         let refreshed = binaries::discover();
         {
             let mut bins_guard = self.binaries.write().await;
-            *bins_guard = refreshed;
+            let merged = merge_binaries_preserving_custom(&bins_guard, refreshed);
+            *bins_guard = merged;
         }
         let bins = self.binaries.read().await.clone();
         let selected = self.selected_binary_id.read().await.clone();
@@ -263,10 +264,8 @@ fn merge_binaries_preserving_custom(
     discovered: Vec<BinaryCandidate>,
 ) -> Vec<BinaryCandidate> {
     let mut out = discovered;
-    let mut seen_paths: HashSet<String> = out
-        .iter()
-        .map(|candidate| candidate.path.clone())
-        .collect();
+    let mut seen_paths: HashSet<String> =
+        out.iter().map(|candidate| candidate.path.clone()).collect();
     for candidate in existing {
         if matches!(candidate.kind, BinarySourceKind::CustomPath)
             && seen_paths.insert(candidate.path.clone())

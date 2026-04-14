@@ -26,6 +26,7 @@ AOXC_Q_PROFILE="${AOXC_Q_PROFILE:-testnet}"
 AOXC_Q_MODE="${AOXC_Q_MODE:-local}"
 AOXC_Q_NODE_COUNT="${AOXC_Q_NODE_COUNT:-7}"
 AOXC_Q_REAL_TESTNET="${AOXC_Q_REAL_TESTNET:-0}"
+AOXC_Q_AUTO_SCALE="${AOXC_Q_AUTO_SCALE:-1}"
 AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
 AOXC_Q_BLOCK_INTERVAL_SECS="${AOXC_Q_BLOCK_INTERVAL_SECS:-6}"
 AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-3}"
@@ -64,8 +65,10 @@ Options:
   --home <path>        base output root (default: ${AOXC_Q_HOME})
   --env <name>         configs/environments/<name> source (default: ${AOXC_Q_ENV})
   --profile <name>     AOXC profile for bootstrap (default: ${AOXC_Q_PROFILE})
-  --mode <name>        run mode label: local|public (default: ${AOXC_Q_MODE})
-  --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; minimum: 7)
+  --mode <name>        run mode label: local|staging|public (default: ${AOXC_Q_MODE})
+  --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; mode dependent minimum)
+  --auto-scale         auto-raise node count to mode minimums (default)
+  --no-auto-scale      keep --nodes value exactly if it passes minimum checks
   --real-testnet       enforce production-like full testnet sizing/policy defaults
   --rounds <n>         rounds per node-run cycle (default: ${AOXC_Q_ROUNDS})
   --block-interval-secs <n> block production interval in seconds for node-run (default: ${AOXC_Q_BLOCK_INTERVAL_SECS}; range: 2..600)
@@ -87,6 +90,7 @@ Options:
 Environment overrides:
   AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_MODE, AOXC_Q_NODE_COUNT,
   AOXC_Q_REAL_TESTNET,
+  AOXC_Q_AUTO_SCALE,
   AOXC_Q_ROUNDS, AOXC_Q_BLOCK_INTERVAL_SECS, AOXC_Q_SLEEP_SECS, AOXC_Q_SLEEP_MIN_SECS,
   AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION, AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE,
   AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE,
@@ -136,6 +140,8 @@ while [[ $# -gt 0 ]]; do
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
     --nodes=*) AOXC_Q_NODE_COUNT="${1#*=}"; shift ;;
     --real-testnet) AOXC_Q_REAL_TESTNET=1; shift ;;
+    --auto-scale) AOXC_Q_AUTO_SCALE=1; shift ;;
+    --no-auto-scale) AOXC_Q_AUTO_SCALE=0; shift ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
     --rounds=*) AOXC_Q_ROUNDS="${1#*=}"; shift ;;
     --block-interval-secs) AOXC_Q_BLOCK_INTERVAL_SECS="$2"; shift 2 ;;
@@ -182,11 +188,11 @@ require_uint "${AOXC_Q_ADMIN_BASE_PORT}" "AOXC_Q_ADMIN_BASE_PORT"
 require_uint "${AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE}" "AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE"
 require_uint "${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}" "AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE"
 
-if (( AOXC_Q_NODE_COUNT < 7 )); then
-  die "AOXC_Q_NODE_COUNT must be >= 7 for production-like persistent topology." 2
-fi
 if [[ "${AOXC_Q_REAL_TESTNET}" != "0" && "${AOXC_Q_REAL_TESTNET}" != "1" ]]; then
   die "AOXC_Q_REAL_TESTNET must be 0 or 1." 2
+fi
+if [[ "${AOXC_Q_AUTO_SCALE}" != "0" && "${AOXC_Q_AUTO_SCALE}" != "1" ]]; then
+  die "AOXC_Q_AUTO_SCALE must be 0 or 1." 2
 fi
 if (( AOXC_Q_SLEEP_MIN_SECS < 1 )); then
   die "AOXC_Q_SLEEP_MIN_SECS must be >= 1." 2
@@ -210,21 +216,46 @@ case "${AOXC_Q_ACTION}" in
   *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
 esac
 
+mode_min_nodes() {
+  case "$1" in
+    local) echo 3 ;;
+    staging) echo 5 ;;
+    public) echo 7 ;;
+    *) return 1 ;;
+  esac
+}
+
 case "${AOXC_Q_MODE}" in
-  local|public) ;;
-  *) die "Invalid --mode value: ${AOXC_Q_MODE} (expected: local|public)" 2 ;;
+  local|staging|public) ;;
+  *) die "Invalid --mode value: ${AOXC_Q_MODE} (expected: local|staging|public)" 2 ;;
 esac
 
+AOXC_Q_MODE_MIN_NODES="$(mode_min_nodes "${AOXC_Q_MODE}")" || die "Unsupported mode: ${AOXC_Q_MODE}" 2
+if [[ "${AOXC_Q_AUTO_SCALE}" == "1" ]] && (( AOXC_Q_NODE_COUNT < AOXC_Q_MODE_MIN_NODES )); then
+  log_warn "mode=${AOXC_Q_MODE} requires at least ${AOXC_Q_MODE_MIN_NODES} nodes: bumping from ${AOXC_Q_NODE_COUNT}"
+  AOXC_Q_NODE_COUNT="${AOXC_Q_MODE_MIN_NODES}"
+fi
+if (( AOXC_Q_NODE_COUNT < AOXC_Q_MODE_MIN_NODES )); then
+  die "AOXC_Q_NODE_COUNT must be >= ${AOXC_Q_MODE_MIN_NODES} for mode=${AOXC_Q_MODE}" 2
+fi
+
 if [[ "${AOXC_Q_REAL_TESTNET}" == "1" ]]; then
-  if (( AOXC_Q_NODE_COUNT < 21 )); then
-    log_warn "real testnet requested: bumping node count from ${AOXC_Q_NODE_COUNT} to 21"
-    AOXC_Q_NODE_COUNT=21
+  local_min_nodes=11
+  if (( AOXC_Q_NODE_COUNT < local_min_nodes )); then
+    if [[ "${AOXC_Q_AUTO_SCALE}" == "1" ]]; then
+      log_warn "real testnet requested: bumping node count from ${AOXC_Q_NODE_COUNT} to ${local_min_nodes}"
+      AOXC_Q_NODE_COUNT="${local_min_nodes}"
+    else
+      die "real testnet requested but AOXC_Q_NODE_COUNT is below ${local_min_nodes}" 2
+    fi
   fi
   if [[ "${AOXC_Q_MODE}" != "public" ]]; then
     log_warn "real testnet requested: overriding mode=${AOXC_Q_MODE} -> public"
     AOXC_Q_MODE="public"
   fi
 fi
+
+AOXC_Q_MODE_MIN_NODES="$(mode_min_nodes "${AOXC_Q_MODE}")" || die "Unsupported mode: ${AOXC_Q_MODE}" 2
 
 TARGET_ROOT="${AOXC_Q_HOME%/}/aoxc-rolling-${AOXC_Q_ENV}-${AOXC_Q_NODE_COUNT}n"
 SOURCE_ROOT="${REPO_ROOT}/configs/environments/${AOXC_Q_ENV}"
@@ -618,6 +649,7 @@ created_utc=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)
 environment=${AOXC_Q_ENV}
 profile=${AOXC_Q_PROFILE}
 mode=${AOXC_Q_MODE}
+mode_min_nodes=${AOXC_Q_MODE_MIN_NODES}
 real_testnet=${AOXC_Q_REAL_TESTNET}
 node_count=${AOXC_Q_NODE_COUNT}
 operator_wallet_count=$(wallet_count_operator)
@@ -625,6 +657,122 @@ validator_wallet_count=$(wallet_count_validator)
 treasury_wallet_count=1
 total_wallet_count=$(wallet_count_total)
 EOF
+}
+
+write_rpc_query_catalog() {
+  local out_file="${TARGET_ROOT}/system/audit/rpc-query-catalog.tsv"
+  printf 'node\trpc_port\tp2p_port\tmetrics_port\tadmin_port\thealth_url\tjsonrpc_url\tstatus_query_cmd\tnetwork_query_cmd\n' > "${out_file}"
+
+  local i
+  local node_name
+  local node_home
+  local rpc_port
+  local p2p_port
+  local metrics_port
+  local admin_port
+  local health_url
+  local jsonrpc_url
+  local status_query_cmd
+  local network_query_cmd
+  for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
+    node_name="node$(printf '%02d' "${i}")"
+    node_home="${TARGET_ROOT}/nodes/${node_name}/home"
+    rpc_port="$(node_rpc_port "${i}")"
+    p2p_port="$(node_p2p_port "${i}")"
+    metrics_port="$(node_metrics_port "${i}")"
+    admin_port="$(node_admin_port "${i}")"
+    health_url="http://127.0.0.1:${rpc_port}/health"
+    jsonrpc_url="http://127.0.0.1:${rpc_port}/jsonrpc"
+    status_query_cmd="AOXC_HOME=${node_home} ${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh query chain status --format json"
+    network_query_cmd="AOXC_HOME=${node_home} ${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh query network full --format json"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${node_name}" "${rpc_port}" "${p2p_port}" "${metrics_port}" "${admin_port}" \
+      "${health_url}" "${jsonrpc_url}" "${status_query_cmd}" "${network_query_cmd}" \
+      >> "${out_file}"
+  done
+}
+
+write_gui_runtime_manifest() {
+  python3 - "${TARGET_ROOT}" "${AOXC_Q_ENV}" "${AOXC_Q_PROFILE}" "${AOXC_Q_MODE}" "${AOXC_Q_NODE_COUNT}" <<'PYGUI'
+import json
+import pathlib
+import sys
+
+target_root = pathlib.Path(sys.argv[1])
+env = sys.argv[2]
+profile = sys.argv[3]
+mode = sys.argv[4]
+node_count = int(sys.argv[5])
+
+accounts_path = target_root / "system" / "audit" / "prepared-accounts.tsv"
+ports_path = target_root / "system" / "audit" / "node-port-map.tsv"
+seeds_path = target_root / "system" / "audit" / "node-seed-map.tsv"
+
+def read_tsv(path: pathlib.Path):
+    if not path.exists():
+        return []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if len(lines) < 2:
+        return []
+    headers = lines[0].split("\t")
+    rows = []
+    for raw in lines[1:]:
+        if not raw.strip():
+            continue
+        cols = raw.split("\t")
+        row = {}
+        for i, key in enumerate(headers):
+            row[key] = cols[i] if i < len(cols) else ""
+        rows.append(row)
+    return rows
+
+accounts = {row.get("node", ""): row for row in read_tsv(accounts_path)}
+ports = {row.get("node", ""): row for row in read_tsv(ports_path)}
+seeds = {row.get("node", ""): row for row in read_tsv(seeds_path)}
+
+nodes = []
+for index in range(1, node_count + 1):
+    node_name = f"node{index:02d}"
+    account = accounts.get(node_name, {})
+    port = ports.get(node_name, {})
+    seed = seeds.get(node_name, {})
+
+    rpc_port = port.get("rpc_port", "")
+    health_url = f"http://127.0.0.1:{rpc_port}/health" if rpc_port else ""
+    jsonrpc_url = f"http://127.0.0.1:{rpc_port}/jsonrpc" if rpc_port else ""
+
+    nodes.append(
+        {
+            "name": node_name,
+            "home": str(target_root / "nodes" / node_name / "home"),
+            "operator_name": account.get("operator_name", ""),
+            "validator_name": account.get("validator_name", ""),
+            "operator_account_id": account.get("operator_account_id", ""),
+            "validator_account_id": account.get("validator_account_id", ""),
+            "password_file": account.get("password_file", ""),
+            "seed_file": seed.get("seed_file", ""),
+            "seed_sha256": seed.get("seed_sha256", ""),
+            "rpc_port": rpc_port,
+            "p2p_port": port.get("p2p_port", ""),
+            "metrics_port": port.get("metrics_port", ""),
+            "admin_port": port.get("admin_port", ""),
+            "health_url": health_url,
+            "jsonrpc_url": jsonrpc_url,
+        }
+    )
+
+doc = {
+    "environment": env,
+    "profile": profile,
+    "mode": mode,
+    "node_count": node_count,
+    "created_utc": __import__("datetime").datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+    "nodes": nodes,
+}
+
+out_path = pathlib.Path(sys.argv[1]) / "system" / "audit" / "gui-runtime.json"
+out_path.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PYGUI
 }
 
 write_node_identity_summary() {
@@ -1263,6 +1411,9 @@ provision_testnet() {
   [[ "${accounts_lines_actual}" == "${accounts_lines_expected}" ]] || die "prepared-accounts.tsv line-count mismatch (expected=${accounts_lines_expected} actual=${accounts_lines_actual})" 8
   [[ "${balances_lines_actual}" == "${balances_lines_expected}" ]] || die "wallet-balances.tsv line-count mismatch (expected=${balances_lines_expected} actual=${balances_lines_actual})" 8
 
+  write_rpc_query_catalog
+  write_gui_runtime_manifest
+
   cat > "${TARGET_ROOT}/system/audit/provision-report.txt" <<REPORT
 AOXC rolling local bootstrap report
 created_utc=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)
@@ -1270,6 +1421,7 @@ repo_root=${REPO_ROOT}
 environment=${AOXC_Q_ENV}
 profile=${AOXC_Q_PROFILE}
 mode=${AOXC_Q_MODE}
+mode_min_nodes=${AOXC_Q_MODE_MIN_NODES}
 node_count=${AOXC_Q_NODE_COUNT}
 real_testnet=${AOXC_Q_REAL_TESTNET}
 operator_wallet_count=$(wallet_count_operator)
@@ -1303,6 +1455,8 @@ seed_map_file=${TARGET_ROOT}/system/audit/node-seed-map.tsv
 wallet_balances_file=${TARGET_ROOT}/system/audit/wallet-balances.tsv
 topology_checksums=${TARGET_ROOT}/system/audit/topology.sha256
 network_sizing_file=${TARGET_ROOT}/system/audit/network-sizing.txt
+rpc_query_catalog_file=${TARGET_ROOT}/system/audit/rpc-query-catalog.tsv
+gui_runtime_manifest_file=${TARGET_ROOT}/system/audit/gui-runtime.json
 genesis_checksum_validation=${AOXC_Q_VALIDATE_GENESIS}
 REPORT
 
