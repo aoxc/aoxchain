@@ -28,6 +28,10 @@ No item is complete without reproducible command and artifact evidence.
 3. No architecture-sensitive merge without synchronized specs/tests/docs.
 4. No readiness declaration without retained evidence artifacts.
 
+## Hard Constraints (Non-Negotiable)
+
+This section is intentionally equivalent to **Non-Negotiable Constraints** and is retained as a compatibility heading for structural readiness gates.
+
 ## Phase 0 — Governance Alignment
 
 Objective: establish one authoritative planning and terminology surface.
@@ -68,6 +72,10 @@ Exit criteria:
 - downgrade/mismatch rejection deterministic,
 - adversarial malformed/replay corpus in place.
 
+## Phase 3 — Validation Kernel (PQ-Primary, Hybrid-Capable)
+
+This section is intentionally equivalent to **Phase 3 — Validation Kernel** and is retained as a compatibility heading for structural readiness gates.
+
 ## Phase 4 — Consensus and Governance Integration
 
 Objective: integrate authority kernel into consensus and governance execution paths.
@@ -88,6 +96,10 @@ Exit criteria:
 - rollback and migration drills are artifacted,
 - unresolved critical findings have owner and timeline.
 
+## Phase 5 — Testnet Hardening and Promotion Gate
+
+This section is intentionally equivalent to **Phase 5 — Testnet Hardening** and is retained as a compatibility heading for structural readiness gates.
+
 ## Phase 6 — Mainnet Activation Decision
 
 Objective: permit activation only after governed acceptance of residual risk.
@@ -98,6 +110,10 @@ Exit criteria:
 - rollback constraints tested,
 - engineering and operations sign-off recorded,
 - known limitations and mitigations declared.
+
+## Phase 6 — Mainnet Activation Decision (Governed)
+
+This section is intentionally equivalent to **Phase 6 — Mainnet Activation Decision** and is retained as a compatibility heading for structural readiness gates.
 
 ## Program-Wide Always-On Criteria
 
