@@ -1,6 +1,7 @@
 {
   "schema_version": 2,
   "environment": "testnet",
+  "network_name": "AOXC Testnet",
   "chain_id": 2626010001,
   "network_id": "aoxc-testnet-2626-002",
   "identity": {
