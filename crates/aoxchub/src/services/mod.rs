@@ -8,7 +8,13 @@ use crate::{
     errors::HubError,
     runner::Runner,
 };
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::HashSet,
+    net::{SocketAddr, TcpStream},
+    str::FromStr,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
@@ -63,6 +69,8 @@ impl HubService {
             })
             .collect();
 
+        let node_probe = probe_local_nodes(environment);
+
         HubStateView {
             environment,
             banner: environment.banner_text(),
@@ -75,7 +83,7 @@ impl HubService {
             selected_binary_id: selected.clone(),
             binaries: bins.clone(),
             commands,
-            dashboard: dashboard_snapshot(environment, &bins, selected.as_deref()),
+            dashboard: dashboard_snapshot(environment, &bins, selected.as_deref(), &node_probe),
         }
     }
 
@@ -343,26 +351,15 @@ fn dashboard_snapshot(
     env: Environment,
     bins: &[BinaryCandidate],
     selected_binary_id: Option<&str>,
+    node_probe: &NodeProbeSnapshot,
 ) -> DashboardSnapshot {
     let installed_versions = installed_versions_snapshot(bins);
 
-    let (
-        chain_name,
-        network_kind,
-        network_id,
-        local_node_status,
-        rpc_status,
-        p2p_status,
-        validator_count,
-        observer_count,
-    ) = match env {
+    let (chain_name, network_kind, network_id, validator_count, observer_count) = match env {
         Environment::Mainnet => (
             String::from("AOXC Mainnet"),
             String::from("mainnet"),
             String::from("aoxc-mainnet"),
-            String::from("idle"),
-            String::from("not_connected"),
-            String::from("not_connected"),
             21,
             3,
         ),
@@ -370,9 +367,6 @@ fn dashboard_snapshot(
             String::from("AOXC Testnet"),
             String::from("testnet"),
             String::from("aoxc-testnet"),
-            String::from("idle"),
-            String::from("not_connected"),
-            String::from("not_connected"),
             21,
             0,
         ),
@@ -391,6 +385,10 @@ fn dashboard_snapshot(
             allowed_binary_count
         ),
         format!("Active environment set to {}", env.slug()),
+        format!(
+            "Discovered {} local node endpoint candidate(s)",
+            node_probe.total_candidates
+        ),
     ];
 
     let mut last_warnings = Vec::new();
@@ -444,6 +442,21 @@ fn dashboard_snapshot(
         ));
     }
 
+    if let Some(selected_endpoint) = &node_probe.selected_endpoint {
+        let latency_note = node_probe
+            .selected_latency_ms
+            .map(|latency| format!(" ({}ms)", latency))
+            .unwrap_or_default();
+        last_events.push(format!(
+            "Auto-selected local node endpoint: {}{}",
+            selected_endpoint, latency_note
+        ));
+    } else {
+        last_warnings.push(String::from(
+            "No reachable local node endpoint detected; node actions stay available but telemetry remains offline",
+        ));
+    }
+
     let last_txs = vec![String::from(
         "No recent transaction data available in offline dashboard mode",
     )];
@@ -476,9 +489,9 @@ fn dashboard_snapshot(
         validator_count,
         observer_count,
         connected_peers: 0,
-        local_node_status,
-        rpc_status,
-        p2p_status,
+        local_node_status: node_probe.local_node_status.clone(),
+        rpc_status: node_probe.rpc_status.clone(),
+        p2p_status: node_probe.p2p_status.clone(),
         genesis_fingerprint: genesis_fingerprint(env),
         health_status: health_status(binary_count, allowed_binary_count, selected_binary_allowed),
         installed_versions,
@@ -486,6 +499,116 @@ fn dashboard_snapshot(
         last_txs,
         last_warnings,
         quick_actions,
+    }
+}
+
+#[derive(Clone, Debug)]
+struct NodeProbeSnapshot {
+    total_candidates: usize,
+    selected_endpoint: Option<String>,
+    selected_latency_ms: Option<u128>,
+    local_node_status: String,
+    rpc_status: String,
+    p2p_status: String,
+}
+
+fn probe_local_nodes(env: Environment) -> NodeProbeSnapshot {
+    let mut rpc_candidates = endpoint_candidates(env);
+    let p2p_candidates = p2p_candidates(env);
+
+    if let Ok(raw) = std::env::var("AOXCHUB_NODE_RPC_CANDIDATES") {
+        let custom: Vec<String> = raw
+            .split(',')
+            .map(str::trim)
+            .filter(|segment| !segment.is_empty())
+            .map(ToOwned::to_owned)
+            .collect();
+        if !custom.is_empty() {
+            rpc_candidates = custom;
+        }
+    }
+
+    let best_rpc = select_reachable_endpoint(&rpc_candidates);
+    let p2p = select_reachable_endpoint(&p2p_candidates);
+
+    let selected_endpoint = best_rpc.as_ref().map(|probe| probe.endpoint.clone());
+    let selected_latency_ms = best_rpc.as_ref().map(|probe| probe.latency_ms);
+    let local_node_status = if selected_endpoint.is_some() {
+        String::from("online")
+    } else {
+        String::from("idle")
+    };
+
+    let rpc_status = best_rpc
+        .as_ref()
+        .map(|probe| format!("connected:{} ({}ms)", probe.endpoint, probe.latency_ms))
+        .unwrap_or_else(|| String::from("not_connected"));
+
+    let p2p_status = p2p
+        .as_ref()
+        .map(|probe| format!("reachable:{} ({}ms)", probe.endpoint, probe.latency_ms))
+        .unwrap_or_else(|| String::from("not_connected"));
+
+    NodeProbeSnapshot {
+        total_candidates: rpc_candidates.len(),
+        selected_endpoint,
+        selected_latency_ms,
+        local_node_status,
+        rpc_status,
+        p2p_status,
+    }
+}
+
+#[derive(Clone, Debug)]
+struct EndpointProbe {
+    endpoint: String,
+    latency_ms: u128,
+}
+
+fn select_reachable_endpoint(candidates: &[String]) -> Option<EndpointProbe> {
+    candidates
+        .iter()
+        .filter_map(|endpoint| probe_endpoint(endpoint))
+        .min_by_key(|probe| probe.latency_ms)
+}
+
+fn probe_endpoint(endpoint: &str) -> Option<EndpointProbe> {
+    let addr = SocketAddr::from_str(endpoint).ok()?;
+    let started = Instant::now();
+    let stream = TcpStream::connect_timeout(&addr, Duration::from_millis(220)).ok()?;
+    let _ = stream.set_nonblocking(true);
+    let latency_ms = started.elapsed().as_millis();
+    Some(EndpointProbe {
+        endpoint: endpoint.to_string(),
+        latency_ms,
+    })
+}
+
+fn endpoint_candidates(env: Environment) -> Vec<String> {
+    match env {
+        Environment::Mainnet => vec![
+            String::from("127.0.0.1:8545"),
+            String::from("127.0.0.1:26657"),
+            String::from("127.0.0.1:9933"),
+        ],
+        Environment::Testnet => vec![
+            String::from("127.0.0.1:18545"),
+            String::from("127.0.0.1:36657"),
+            String::from("127.0.0.1:19933"),
+        ],
+    }
+}
+
+fn p2p_candidates(env: Environment) -> Vec<String> {
+    match env {
+        Environment::Mainnet => vec![
+            String::from("127.0.0.1:30333"),
+            String::from("127.0.0.1:26656"),
+        ],
+        Environment::Testnet => vec![
+            String::from("127.0.0.1:31333"),
+            String::from("127.0.0.1:36656"),
+        ],
     }
 }
 
