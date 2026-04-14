@@ -22,10 +22,15 @@ pub struct HubService {
 impl HubService {
     pub fn new() -> Self {
         let bins = binaries::discover();
-        let selected = bins.first().map(|b| b.id.clone());
+        let default_env = Environment::Mainnet;
+        let selected = bins
+            .iter()
+            .find(|b| is_binary_allowed(default_env, &b.kind))
+            .or_else(|| bins.first())
+            .map(|b| b.id.clone());
 
         Self {
-            environment: Arc::new(RwLock::new(Environment::Mainnet)),
+            environment: Arc::new(RwLock::new(default_env)),
             binaries: Arc::new(RwLock::new(bins)),
             selected_binary_id: Arc::new(RwLock::new(selected)),
             runner: Runner::new(),
@@ -34,6 +39,11 @@ impl HubService {
 
     pub async fn state(&self) -> HubStateView {
         let environment = *self.environment.read().await;
+        let refreshed = binaries::discover();
+        {
+            let mut bins_guard = self.binaries.write().await;
+            *bins_guard = refreshed;
+        }
         let bins = self.binaries.read().await.clone();
         let selected = self.selected_binary_id.read().await.clone();
 
@@ -71,6 +81,22 @@ impl HubService {
 
     pub async fn set_environment(&self, env: Environment) {
         *self.environment.write().await = env;
+        let bins = self.binaries.read().await.clone();
+        let selected_current = self.selected_binary_id.read().await.clone();
+        let selected_allowed = selected_current
+            .as_ref()
+            .and_then(|id| bins.iter().find(|b| &b.id == id))
+            .map(|b| is_binary_allowed(env, &b.kind))
+            .unwrap_or(false);
+
+        if !selected_allowed {
+            let fallback = bins
+                .iter()
+                .find(|b| is_binary_allowed(env, &b.kind))
+                .or_else(|| bins.first())
+                .map(|b| b.id.clone());
+            *self.selected_binary_id.write().await = fallback;
+        }
     }
 
     pub async fn set_binary(&self, id: String) -> Result<(), HubError> {
@@ -318,8 +344,8 @@ fn dashboard_snapshot(
             String::from("idle"),
             String::from("not_connected"),
             String::from("not_connected"),
-            3,
-            1,
+            21,
+            0,
         ),
     };
 

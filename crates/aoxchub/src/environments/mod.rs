@@ -39,15 +39,15 @@ impl Environment {
 
     pub fn aoxc_home(self) -> &'static str {
         match self {
-            Self::Mainnet => "${HOME}/.AOXCData/home/mainnet",
-            Self::Testnet => "${HOME}/.AOXCData/home/testnet",
+            Self::Mainnet => "/mnt/xdbx/aoxc",
+            Self::Testnet => "/mnt/xdbx/aoxc",
         }
     }
 
     pub fn make_scope(self) -> &'static str {
         match self {
-            Self::Mainnet => "net-mainnet-*",
-            Self::Testnet => "net-testnet-*",
+            Self::Mainnet => "mainnet-*",
+            Self::Testnet => "aoxc-q-*",
         }
     }
 }
