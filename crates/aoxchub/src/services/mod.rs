@@ -255,13 +255,13 @@ fn merge_binaries_preserving_custom(
     discovered: Vec<BinaryCandidate>,
 ) -> Vec<BinaryCandidate> {
     let mut out = discovered;
-    let mut seen_paths: HashSet<&str> = out
+    let mut seen_paths: HashSet<String> = out
         .iter()
-        .map(|candidate| candidate.path.as_str())
+        .map(|candidate| candidate.path.clone())
         .collect();
     for candidate in existing {
         if matches!(candidate.kind, BinarySourceKind::CustomPath)
-            && seen_paths.insert(candidate.path.as_str())
+            && seen_paths.insert(candidate.path.clone())
         {
             out.push(candidate.clone());
         }
