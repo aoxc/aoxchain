@@ -367,6 +367,8 @@ fn account_json(target: &str) -> serde_json::Value {
         "known": known,
         "balance": balance,
         "nonce": 0_u64,
+        "source": lookup.source,
+        "degraded": lookup.degraded,
     })
 }
 
