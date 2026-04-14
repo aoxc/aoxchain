@@ -1,4 +1,7 @@
 use super::*;
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+
+const TRANSFER_SIGNATURE_DOMAIN: &str = "aoxc.treasury-transfer.v1";
 
 #[derive(Debug, Clone, Copy, serde::Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -12,12 +15,18 @@ struct TransferExecution {
     to: String,
     amount: u64,
     signature_provided: bool,
+    signer_public_key: Option<String>,
     security_mode: TransferSecurityMode,
     ledger: ledger::LedgerState,
 }
 
-fn transfer_security_mode(args: &[String]) -> Result<(bool, TransferSecurityMode), AppError> {
+fn transfer_security_mode(
+    args: &[String],
+    to: &str,
+    amount: u64,
+) -> Result<(bool, Option<String>, TransferSecurityMode), AppError> {
     let signature = parse_optional_text_arg(args, "--signature", false);
+    let public_key = parse_optional_text_arg(args, "--public-key", false);
     let allow_unsigned = has_flag(args, "--allow-unsigned");
 
     match (signature, allow_unsigned) {
@@ -32,7 +41,7 @@ fn transfer_security_mode(args: &[String]) -> Result<(bool, TransferSecurityMode
         (None, true) => Ok((false, TransferSecurityMode::DevelopmentUnsigned)),
         (None, false) => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
-            "Transfer requires --signature for full security (or --allow-unsigned for local development)",
+            "Transfer requires --signature and --public-key for full security (or --allow-unsigned for local development)",
         )),
     }
 }
@@ -56,7 +65,8 @@ pub fn cmd_economy_init(args: &[String]) -> Result<(), AppError> {
 pub fn cmd_treasury_transfer(args: &[String]) -> Result<(), AppError> {
     let to = parse_required_or_default_text_arg(args, "--to", "ops", false)?;
     let amount = parse_positive_u64_arg(args, "--amount", 1000, "treasury transfer")?;
-    let (signature_provided, security_mode) = transfer_security_mode(args)?;
+    let (signature_provided, signer_public_key, security_mode) =
+        transfer_security_mode(args, &to, amount)?;
 
     let ledger = ledger::transfer(&to, amount)?;
     let _ = refresh_runtime_metrics().ok();
@@ -64,6 +74,7 @@ pub fn cmd_treasury_transfer(args: &[String]) -> Result<(), AppError> {
         to,
         amount,
         signature_provided,
+        signer_public_key,
         security_mode,
         ledger,
     };
@@ -119,7 +130,8 @@ pub fn cmd_runtime_status(args: &[String]) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{TransferSecurityMode, transfer_security_mode};
+    use super::{transfer_security_mode, transfer_signing_payload, TransferSecurityMode};
+    use ed25519_dalek::{Signer, SigningKey};
 
     fn args(items: &[&str]) -> Vec<String> {
         items.iter().map(|item| (*item).to_string()).collect()
@@ -127,31 +139,81 @@ mod tests {
 
     #[test]
     fn transfer_security_mode_requires_signature_by_default() {
-        let error = transfer_security_mode(&args(&["--to", "ops", "--amount", "10"]))
+        let error = transfer_security_mode(&args(&["--to", "ops", "--amount", "10"]), "ops", 10)
             .expect_err("missing signature must fail");
         assert_eq!(error.code(), "AOXC-USG-002");
     }
 
     #[test]
     fn transfer_security_mode_accepts_signed_flow() {
-        let (signature_provided, mode) = transfer_security_mode(&args(&[
-            "--to",
+        let signing_key = SigningKey::from_bytes(&[7u8; 32]);
+        let verifying_hex = hex::encode(signing_key.verifying_key().to_bytes());
+        let payload = transfer_signing_payload("ops", 10);
+        let signature_hex = hex::encode(signing_key.sign(payload.as_bytes()).to_bytes());
+
+        let (signature_provided, signer_public_key, mode) = transfer_security_mode(
+            &args(&[
+                "--to",
+                "ops",
+                "--amount",
+                "10",
+                "--public-key",
+                &verifying_hex,
+                "--signature",
+                &signature_hex,
+            ]),
             "ops",
-            "--amount",
-            "10",
-            "--signature",
-            "deadbeef",
-        ]))
+            10,
+        )
         .expect("signed transfer should pass");
         assert!(signature_provided);
+        assert_eq!(signer_public_key, Some(verifying_hex));
         assert_eq!(mode, TransferSecurityMode::Full);
     }
 
     #[test]
+    fn transfer_security_mode_rejects_missing_public_key() {
+        let error = transfer_security_mode(
+            &args(&["--to", "ops", "--amount", "10", "--signature", "deadbeef"]),
+            "ops",
+            10,
+        )
+        .expect_err("missing public key must fail");
+        assert_eq!(error.code(), "AOXC-USG-002");
+    }
+
+    #[test]
+    fn transfer_security_mode_rejects_invalid_signature_for_payload() {
+        let signing_key = SigningKey::from_bytes(&[9u8; 32]);
+        let verifying_hex = hex::encode(signing_key.verifying_key().to_bytes());
+        let payload = transfer_signing_payload("ops", 10);
+        let signature_hex = hex::encode(signing_key.sign(payload.as_bytes()).to_bytes());
+
+        let error = transfer_security_mode(
+            &args(&[
+                "--to",
+                "ops",
+                "--amount",
+                "11",
+                "--public-key",
+                &verifying_hex,
+                "--signature",
+                &signature_hex,
+            ]),
+            "ops",
+            11,
+        )
+        .expect_err("signature must be bound to payload");
+        assert_eq!(error.code(), "AOXC-USG-002");
+    }
+
+    #[test]
     fn transfer_security_mode_accepts_explicit_unsigned_dev_flow() {
-        let (signature_provided, mode) = transfer_security_mode(&args(&["--allow-unsigned"]))
-            .expect("explicit dev override should pass");
+        let (signature_provided, signer_public_key, mode) =
+            transfer_security_mode(&args(&["--allow-unsigned"]), "ops", 10)
+                .expect("explicit dev override should pass");
         assert!(!signature_provided);
+        assert_eq!(signer_public_key, None);
         assert_eq!(mode, TransferSecurityMode::DevelopmentUnsigned);
     }
 
