@@ -312,6 +312,54 @@ fn query_value(target: &str, key: &str) -> Option<String> {
     None
 }
 
+fn account_id_from_target(target: &str) -> Option<String> {
+    query_value(target, "id")
+        .or_else(|| query_value(target, "account"))
+        .and_then(|value| normalize_text(&value, false))
+}
+
+struct AccountLookupResult {
+    account_id: String,
+    known: bool,
+    balance: u64,
+    source: &'static str,
+    degraded: bool,
+}
+
+fn lookup_account_from_ledger(target: &str) -> AccountLookupResult {
+    let account_id = account_id_from_target(target).unwrap_or_else(|| "unknown".to_string());
+
+    match ledger::load() {
+        Ok(ledger_state) => {
+            let known =
+                account_id == "treasury" || ledger_state.delegations.contains_key(&account_id);
+            let balance = if account_id == "treasury" {
+                ledger_state.treasury_balance
+            } else {
+                ledger_state
+                    .delegations
+                    .get(&account_id)
+                    .copied()
+                    .unwrap_or(0)
+            };
+            AccountLookupResult {
+                account_id,
+                known,
+                balance,
+                source: "local-ledger",
+                degraded: false,
+            }
+        }
+        Err(_) => AccountLookupResult {
+            account_id,
+            known: false,
+            balance: 0,
+            source: "ledger-unavailable",
+            degraded: true,
+        },
+    }
+}
+
 fn block_view_json(target: &str) -> serde_json::Value {
     let requested_height = query_value(target, "height").unwrap_or_else(|| "latest".to_string());
 
@@ -347,16 +395,27 @@ fn tx_receipt_json(target: &str) -> serde_json::Value {
 }
 
 fn account_json(target: &str) -> serde_json::Value {
+    let lookup = lookup_account_from_ledger(target);
+
     json!({
-        "account": query_value(target, "account").unwrap_or_else(|| "unknown".to_string()),
+        "account": lookup.account_id,
+        "known": lookup.known,
+        "balance": lookup.balance,
         "nonce": 0_u64,
+        "source": lookup.source,
+        "degraded": lookup.degraded,
     })
 }
 
 fn balance_json(target: &str) -> serde_json::Value {
+    let lookup = lookup_account_from_ledger(target);
+
     json!({
-        "account": query_value(target, "account").unwrap_or_else(|| "unknown".to_string()),
-        "balance": 0_u64,
+        "account": lookup.account_id,
+        "known": lookup.known,
+        "balance": lookup.balance,
+        "source": lookup.source,
+        "degraded": lookup.degraded,
     })
 }
 
@@ -435,5 +494,31 @@ mod tests {
         let response = route_rpc("POST", "/", body);
         assert!(response.contains("\"jsonrpc\":\"2.0\""));
         assert!(response.contains("\"id\":7"));
+    }
+
+    #[test]
+    fn route_rpc_account_and_balance_accept_id_alias() {
+        let account = route_rpc("GET", "/account/get?id=treasury", "");
+        assert!(account.contains("\"account\":\"treasury\""));
+        assert!(account.contains("\"known\":"));
+        assert!(account.contains("\"source\":"));
+
+        let balance = route_rpc("GET", "/balance/get?id=treasury", "");
+        assert!(balance.contains("\"account\":\"treasury\""));
+        assert!(balance.contains("\"known\":"));
+        assert!(balance.contains("\"source\":"));
+    }
+
+    #[test]
+    fn account_id_lookup_accepts_account_and_id_keys() {
+        assert_eq!(
+            account_id_from_target("/account/get?id=AOXC_TEST_ABC"),
+            Some("AOXC_TEST_ABC".to_string())
+        );
+        assert_eq!(
+            account_id_from_target("/account/get?account=AOXC_TEST_DEF"),
+            Some("AOXC_TEST_DEF".to_string())
+        );
+        assert_eq!(account_id_from_target("/account/get"), None);
     }
 }
