@@ -775,6 +775,213 @@ out_path.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="
 PYGUI
 }
 
+write_wallet_inventory_manifest() {
+  local out_json="${TARGET_ROOT}/system/audit/wallet-inventory.json"
+  local out_report="${TARGET_ROOT}/system/audit/wallet-integrity-report.txt"
+
+  if ! python3 - \
+    "${TARGET_ROOT}" \
+    "${AOXC_Q_NODE_COUNT}" \
+    "${AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE}" \
+    "${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}" \
+    "${out_json}" \
+    "${out_report}" <<'PYWALLET'
+import datetime
+import json
+import pathlib
+import sys
+
+target_root = pathlib.Path(sys.argv[1])
+node_count = int(sys.argv[2])
+operator_expected = int(sys.argv[3])
+validator_expected = int(sys.argv[4])
+out_json = pathlib.Path(sys.argv[5])
+out_report = pathlib.Path(sys.argv[6])
+
+accounts_path = target_root / "system" / "audit" / "prepared-accounts.tsv"
+balances_path = target_root / "system" / "audit" / "wallet-balances.tsv"
+seeds_path = target_root / "system" / "audit" / "node-seed-map.tsv"
+
+def read_tsv(path: pathlib.Path):
+    if not path.exists():
+        raise RuntimeError(f"missing required audit file: {path}")
+    rows = path.read_text(encoding="utf-8").splitlines()
+    if not rows:
+        raise RuntimeError(f"empty audit file: {path}")
+    header = rows[0].split("\t")
+    records = []
+    for raw in rows[1:]:
+        if not raw.strip():
+            continue
+        cols = raw.split("\t")
+        row = {}
+        for i, key in enumerate(header):
+            row[key] = cols[i] if i < len(cols) else ""
+        records.append(row)
+    return records
+
+accounts_rows = read_tsv(accounts_path)
+balances_rows = read_tsv(balances_path)
+seeds_rows = read_tsv(seeds_path)
+
+accounts = {row.get("node", ""): row for row in accounts_rows}
+seeds = {row.get("node", ""): row for row in seeds_rows}
+balances = {}
+for row in balances_rows:
+    balances[(row.get("node", ""), row.get("wallet_role", ""))] = row
+
+issues = []
+account_id_seen = set()
+nodes_doc = []
+
+def balance_as_int(value: str, context: str) -> int:
+    value = value.strip()
+    if not value or not value.isdigit():
+        issues.append(f"{context}: non-numeric balance value={value!r}")
+        return 0
+    return int(value)
+
+def known_truthy(value: str) -> bool:
+    return value.strip().lower() in {"true", "1", "yes", "known"}
+
+for index in range(1, node_count + 1):
+    node_name = f"node{index:02d}"
+    account = accounts.get(node_name)
+    seed = seeds.get(node_name)
+    operator_balance = balances.get((node_name, "operator"))
+    validator_balance = balances.get((node_name, "validator"))
+    treasury_balance = balances.get((node_name, "treasury"))
+
+    if account is None:
+        issues.append(f"{node_name}: missing prepared-accounts entry")
+        continue
+    if seed is None:
+        issues.append(f"{node_name}: missing node-seed-map entry")
+        continue
+    if operator_balance is None:
+        issues.append(f"{node_name}: missing operator balance row")
+        continue
+    if validator_balance is None:
+        issues.append(f"{node_name}: missing validator balance row")
+        continue
+    if treasury_balance is None:
+        issues.append(f"{node_name}: missing treasury balance row")
+        continue
+
+    operator_account_id = account.get("operator_account_id", "")
+    validator_account_id = account.get("validator_account_id", "")
+    if not operator_account_id:
+        issues.append(f"{node_name}: empty operator_account_id")
+    if not validator_account_id:
+        issues.append(f"{node_name}: empty validator_account_id")
+
+    if operator_balance.get("account_id", "") != operator_account_id:
+        issues.append(f"{node_name}: operator account mismatch between account and balance tables")
+    if validator_balance.get("account_id", "") != validator_account_id:
+        issues.append(f"{node_name}: validator account mismatch between account and balance tables")
+    if treasury_balance.get("account_id", "") != "treasury":
+        issues.append(f"{node_name}: treasury balance row must use account_id=treasury")
+
+    for role, account_id in (("operator", operator_account_id), ("validator", validator_account_id)):
+        key = (role, account_id)
+        if account_id in {"", "-"}:
+            continue
+        if key in account_id_seen:
+            issues.append(f"{node_name}: duplicate {role} account id detected: {account_id}")
+        account_id_seen.add(key)
+
+    operator_known = known_truthy(operator_balance.get("known", ""))
+    validator_known = known_truthy(validator_balance.get("known", ""))
+    treasury_known = known_truthy(treasury_balance.get("known", ""))
+    if not operator_known:
+        issues.append(f"{node_name}: operator known flag is not truthy")
+    if not validator_known:
+        issues.append(f"{node_name}: validator known flag is not truthy")
+    if not treasury_known:
+        issues.append(f"{node_name}: treasury known flag is not truthy")
+
+    operator_amount = balance_as_int(operator_balance.get("balance", ""), f"{node_name}:operator")
+    validator_amount = balance_as_int(validator_balance.get("balance", ""), f"{node_name}:validator")
+    treasury_amount = balance_as_int(treasury_balance.get("balance", ""), f"{node_name}:treasury")
+
+    if operator_amount < operator_expected:
+        issues.append(
+            f"{node_name}: operator balance below bootstrap target "
+            f"(actual={operator_amount} expected_min={operator_expected})"
+        )
+    if validator_amount < validator_expected:
+        issues.append(
+            f"{node_name}: validator balance below bootstrap target "
+            f"(actual={validator_amount} expected_min={validator_expected})"
+        )
+    if treasury_amount < 0:
+        issues.append(f"{node_name}: treasury balance must be non-negative")
+
+    nodes_doc.append(
+        {
+            "node": node_name,
+            "operator_name": account.get("operator_name", ""),
+            "validator_name": account.get("validator_name", ""),
+            "operator_account_id": operator_account_id,
+            "validator_account_id": validator_account_id,
+            "operator_password_file": account.get("password_file", ""),
+            "seed_file": seed.get("seed_file", ""),
+            "seed_sha256": seed.get("seed_sha256", ""),
+            "wallets": {
+                "operator": {
+                    "known": operator_known,
+                    "balance": operator_amount,
+                    "source": operator_balance.get("source", ""),
+                },
+                "validator": {
+                    "known": validator_known,
+                    "balance": validator_amount,
+                    "source": validator_balance.get("source", ""),
+                },
+                "treasury": {
+                    "known": treasury_known,
+                    "balance": treasury_amount,
+                    "source": treasury_balance.get("source", ""),
+                },
+            },
+        }
+    )
+
+summary = {
+    "created_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+    "node_count": node_count,
+    "expected_bootstrap_balance": {
+        "operator": operator_expected,
+        "validator": validator_expected,
+    },
+    "nodes": nodes_doc,
+}
+
+if issues:
+    out_report.write_text(
+        "wallet_inventory_integrity=failed\n"
+        f"issue_count={len(issues)}\n"
+        + "\n".join(f"issue_{idx+1}={issue}" for idx, issue in enumerate(issues))
+        + "\n",
+        encoding="utf-8",
+    )
+    raise SystemExit("wallet inventory integrity validation failed; see wallet-integrity-report.txt")
+
+out_json.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+out_report.write_text(
+    "wallet_inventory_integrity=ok\n"
+    f"node_count={node_count}\n"
+    f"operator_expected_min_balance={operator_expected}\n"
+    f"validator_expected_min_balance={validator_expected}\n"
+    f"report_generated_utc={summary['created_utc']}\n",
+    encoding="utf-8",
+)
+PYWALLET
+  then
+    die "Wallet inventory manifest generation failed for ${TARGET_ROOT}." 8
+  fi
+}
+
 write_node_identity_summary() {
   local node_root="$1"
   local node_name="$2"
@@ -1413,6 +1620,7 @@ provision_testnet() {
 
   write_rpc_query_catalog
   write_gui_runtime_manifest
+  write_wallet_inventory_manifest
 
   cat > "${TARGET_ROOT}/system/audit/provision-report.txt" <<REPORT
 AOXC rolling local bootstrap report
@@ -1457,6 +1665,8 @@ topology_checksums=${TARGET_ROOT}/system/audit/topology.sha256
 network_sizing_file=${TARGET_ROOT}/system/audit/network-sizing.txt
 rpc_query_catalog_file=${TARGET_ROOT}/system/audit/rpc-query-catalog.tsv
 gui_runtime_manifest_file=${TARGET_ROOT}/system/audit/gui-runtime.json
+wallet_inventory_manifest_file=${TARGET_ROOT}/system/audit/wallet-inventory.json
+wallet_integrity_report_file=${TARGET_ROOT}/system/audit/wallet-integrity-report.txt
 genesis_checksum_validation=${AOXC_Q_VALIDATE_GENESIS}
 REPORT
 
@@ -1725,6 +1935,8 @@ main() {
     log_info "ports: ${TARGET_ROOT}/system/audit/node-port-map.tsv"
     log_info "wallet balances: ${TARGET_ROOT}/system/audit/wallet-balances.tsv"
     log_info "provision report: ${TARGET_ROOT}/system/audit/provision-report.txt"
+    log_info "wallet inventory: ${TARGET_ROOT}/system/audit/wallet-inventory.json"
+    log_info "wallet integrity: ${TARGET_ROOT}/system/audit/wallet-integrity-report.txt"
     log_info "topology checksums: ${TARGET_ROOT}/system/audit/topology.sha256"
     log_info "network sizing: ${TARGET_ROOT}/system/audit/network-sizing.txt"
     log_info "capacity summary: nodes=${AOXC_Q_NODE_COUNT} operator_wallets=$(wallet_count_operator) validator_wallets=$(wallet_count_validator) treasury_wallets=1 total_wallets=$(wallet_count_total)"

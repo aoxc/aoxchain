@@ -20,6 +20,7 @@ pub const EVENT_NATIVE_MINT: u16 = 0x1002;
 /// This event type is distinct from `EVENT_NATIVE_TRANSFER` because the payload
 /// carries replay-binding metadata and should remain explicitly versioned.
 pub const EVENT_NATIVE_TRANSFER_QUANTUM_V1: u16 = 0x1003;
+pub const EVENT_NATIVE_TRANSFER_TREASURY_QUANTUM_V1: u16 = 0x1007;
 pub const EVENT_NATIVE_BURN: u16 = 0x1004;
 pub const EVENT_NATIVE_LOCK: u16 = 0x1005;
 pub const EVENT_NATIVE_UNLOCK: u16 = 0x1006;
@@ -37,6 +38,8 @@ pub const ERROR_CODE_INVALID_PROOF_TAG: u16 = 0x2009;
 pub const ERROR_CODE_PROOF_TAG_TOO_LARGE: u16 = 0x200A;
 pub const ERROR_CODE_INVALID_POLICY: u16 = 0x200B;
 pub const ERROR_CODE_INSUFFICIENT_LOCKED_BALANCE: u16 = 0x200C;
+pub const ERROR_CODE_INVALID_TREASURY_WITNESS: u16 = 0x200D;
+pub const ERROR_CODE_TREASURY_CONSENSUS_NOT_REACHED: u16 = 0x200E;
 
 /// Canonical address type for the native token ledger.
 pub type Address = [u8; 32];
@@ -56,6 +59,8 @@ pub enum NativeTokenError {
     ProofTagTooLarge,
     InvalidPolicy,
     InsufficientLockedBalance,
+    InvalidTreasuryWitness,
+    TreasuryConsensusNotReached,
 }
 
 impl NativeTokenError {
@@ -75,6 +80,8 @@ impl NativeTokenError {
             Self::ProofTagTooLarge => "NATIVE_TOKEN_PROOF_TAG_TOO_LARGE",
             Self::InvalidPolicy => "NATIVE_TOKEN_INVALID_POLICY",
             Self::InsufficientLockedBalance => "NATIVE_TOKEN_INSUFFICIENT_LOCKED_BALANCE",
+            Self::InvalidTreasuryWitness => "NATIVE_TOKEN_INVALID_TREASURY_WITNESS",
+            Self::TreasuryConsensusNotReached => "NATIVE_TOKEN_TREASURY_CONSENSUS_NOT_REACHED",
         }
     }
 
@@ -94,6 +101,8 @@ impl NativeTokenError {
             Self::ProofTagTooLarge => ERROR_CODE_PROOF_TAG_TOO_LARGE,
             Self::InvalidPolicy => ERROR_CODE_INVALID_POLICY,
             Self::InsufficientLockedBalance => ERROR_CODE_INSUFFICIENT_LOCKED_BALANCE,
+            Self::InvalidTreasuryWitness => ERROR_CODE_INVALID_TREASURY_WITNESS,
+            Self::TreasuryConsensusNotReached => ERROR_CODE_TREASURY_CONSENSUS_NOT_REACHED,
         }
     }
 }
@@ -122,6 +131,12 @@ impl fmt::Display for NativeTokenError {
             }
             Self::InsufficientLockedBalance => {
                 write!(f, "insufficient locked native token balance")
+            }
+            Self::InvalidTreasuryWitness => {
+                write!(f, "treasury consensus witness is structurally invalid")
+            }
+            Self::TreasuryConsensusNotReached => {
+                write!(f, "treasury consensus witness does not satisfy stake quorum")
             }
         }
     }
@@ -302,6 +317,27 @@ pub struct NativeQuantumTransferDigestV1 {
     pub digest: [u8; NATIVE_TOKEN_COMMITMENT_SIZE],
 }
 
+/// Per-validator approval record for treasury-authorized quantum transfers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TreasuryStakeApprovalV1 {
+    pub validator: Address,
+    pub stake_weight: u128,
+    pub proof_tag: Vec<u8>,
+}
+
+/// Witness envelope proving stake-based treasury consensus for a transfer intent.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TreasuryTransferConsensusWitnessV1 {
+    pub epoch: u64,
+    pub intent_nonce: u64,
+    pub min_approvals: u16,
+    pub min_total_stake: u128,
+    pub approvals: Vec<TreasuryStakeApprovalV1>,
+}
+
+/// Backward-compatible alias for the current treasury witness schema.
+pub type TreasuryTransferConsensusWitness = TreasuryTransferConsensusWitnessV1;
+
 /// Minimal in-memory native token ledger.
 ///
 /// Security notes:
@@ -317,5 +353,7 @@ pub struct NativeTokenLedger {
     pub balances: HashMap<Address, u128>,
     pub locked_balances: HashMap<Address, u128>,
     pub latest_nonce: HashMap<Address, u64>,
+    pub latest_treasury_intent_nonce: HashMap<Address, u64>,
     pub consumed_quantum_commitments: HashSet<[u8; NATIVE_TOKEN_COMMITMENT_SIZE]>,
+    pub consumed_treasury_commitments: HashSet<[u8; NATIVE_TOKEN_COMMITMENT_SIZE]>,
 }
