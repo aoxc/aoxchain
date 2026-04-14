@@ -1,6 +1,7 @@
 //! Phase-1 kernel admission checks that bind transaction envelope + execution context.
 
 use crate::auth::{registry::AuthProfileId, signer::SignerClass};
+use crate::config::vm::{VmConstructionPlan, VmProfileError};
 use crate::context::{deterministic::DeterminismLimits, execution::ExecutionContext};
 use crate::tx::{envelope::TxEnvelope, validation::ValidationPolicy};
 use aoxcontract::{ContractClass, RuntimeBindingDescriptor};
@@ -21,6 +22,11 @@ pub enum AdmissionError {
     GovernanceActivationRequired,
     GovernanceSignerClassRequired,
     TxKindForbiddenForClass,
+    InvalidVmProfile(VmProfileError),
+    VmReplayWindowCapabilityRequired,
+    VmMlDsaCapabilityRequired,
+    VmSlhDsaCapabilityRequired,
+    VmHybridCapabilityRequired,
     KernelPolicy(GenesisConfigError),
 }
 
@@ -61,6 +67,15 @@ pub struct KernelAdmissionContext<'a> {
     pub epoch: u64,
     pub submitted_signers: &'a [String],
     pub eligible_signers: &'a HashSet<String>,
+}
+
+/// Auth and replay capabilities resolved during admission for a concrete VM profile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct VmAdmissionCapabilities {
+    pub replay_window_enforced: bool,
+    pub ml_dsa_enabled: bool,
+    pub slh_dsa_enabled: bool,
+    pub hybrid_bundle_enabled: bool,
 }
 
 /// Binds immutable execution context with envelope-level admission constraints.
@@ -180,6 +195,28 @@ pub fn validate_phase4_kernel_admission(
     Ok(())
 }
 
+/// Validates that resolved runtime capabilities satisfy the selected VM profile.
+pub fn validate_vm_profile_admission(
+    plan: VmConstructionPlan,
+    capabilities: VmAdmissionCapabilities,
+) -> Result<(), AdmissionError> {
+    let validated = plan.validate().map_err(AdmissionError::InvalidVmProfile)?;
+
+    if validated.enforce_replay_window && !capabilities.replay_window_enforced {
+        return Err(AdmissionError::VmReplayWindowCapabilityRequired);
+    }
+    if validated.signature_policy.require_ml_dsa && !capabilities.ml_dsa_enabled {
+        return Err(AdmissionError::VmMlDsaCapabilityRequired);
+    }
+    if validated.signature_policy.require_slh_dsa && !capabilities.slh_dsa_enabled {
+        return Err(AdmissionError::VmSlhDsaCapabilityRequired);
+    }
+    if validated.signature_policy.require_hybrid_bundle && !capabilities.hybrid_bundle_enabled {
+        return Err(AdmissionError::VmHybridCapabilityRequired);
+    }
+    Ok(())
+}
+
 fn normalize_auth_profile(value: &str) -> Option<&str> {
     let trimmed = value.trim();
     let valid = !trimmed.is_empty()
@@ -232,8 +269,9 @@ mod tests {
             validation::ValidationError,
         },
         vm::admission::{
-            ActiveAuthProfile, AdmissionError, KernelAdmissionContext, validate_phase1_admission,
-            validate_phase2_admission, validate_phase3_admission, validate_phase4_kernel_admission,
+            validate_phase1_admission, validate_phase2_admission, validate_phase3_admission,
+            validate_phase4_kernel_admission, validate_vm_profile_admission, ActiveAuthProfile,
+            AdmissionError, KernelAdmissionContext, VmAdmissionCapabilities,
         },
     };
     use aoxcontract::{
@@ -261,6 +299,34 @@ mod tests {
             FeeBudget::new(gas_limit, 1),
             TxPayload::new(vec![1, 2, 3]),
         )
+    }
+
+    #[test]
+    fn vm_profile_admission_requires_quantum_capabilities() {
+        let caps = VmAdmissionCapabilities {
+            replay_window_enforced: true,
+            ml_dsa_enabled: true,
+            slh_dsa_enabled: false,
+            hybrid_bundle_enabled: true,
+        };
+
+        let err = validate_vm_profile_admission(
+            crate::config::vm::VmConstructionPlan::quantum_resistant(),
+            caps,
+        )
+        .expect_err("must reject missing slh-dsa");
+
+        assert_eq!(err, AdmissionError::VmSlhDsaCapabilityRequired);
+    }
+
+    #[test]
+    fn vm_profile_admission_accepts_advanced_profile_with_replay() {
+        let caps = VmAdmissionCapabilities {
+            replay_window_enforced: true,
+            ..VmAdmissionCapabilities::default()
+        };
+        validate_vm_profile_admission(crate::config::vm::VmConstructionPlan::advanced(), caps)
+            .expect("advanced profile accepted");
     }
 
     fn sample_binding() -> RuntimeBindingDescriptor {
