@@ -143,7 +143,7 @@ pub fn print_subcommand_usage(group: &str, subcommand: &str) -> bool {
         ("wallet", "balance") => "USAGE\n  aoxc wallet balance",
 
         ("account", "fund") => {
-            "USAGE\n  aoxc account fund --to <account-id> --amount <value> [--signature <hex> --public-key <hex>|--allow-unsigned]"
+            "USAGE\n  aoxc account fund --to <account-id> --amount <value> --signature <hex> --public-key <hex>"
         }
 
         ("node", "init") => "USAGE\n  aoxc node init",
@@ -200,7 +200,7 @@ pub fn print_subcommand_usage(group: &str, subcommand: &str) -> bool {
         }
 
         ("tx", "transfer") => {
-            "USAGE\n  aoxc tx transfer --to <account-id> --amount <value> [--signature <hex> --public-key <hex>|--allow-unsigned]"
+            "USAGE\n  aoxc tx transfer --to <account-id> --amount <value> --signature <hex> --public-key <hex>"
         }
         ("tx", "stake") => {
             "USAGE\n  aoxc tx stake <delegate|undelegate> --to <validator-id> --amount <value>"
@@ -221,10 +221,10 @@ pub fn print_subcommand_usage(group: &str, subcommand: &str) -> bool {
         }
 
         ("stake", "delegate") => {
-            "USAGE\n  aoxc stake delegate --to <validator-id> --amount <value>"
+            "USAGE\n  aoxc stake delegate --to <validator-id> --amount <value> --signature <hex> --public-key <hex>"
         }
         ("stake", "undelegate") => {
-            "USAGE\n  aoxc stake undelegate --to <validator-id> --amount <value>"
+            "USAGE\n  aoxc stake undelegate --to <validator-id> --amount <value> --signature <hex> --public-key <hex>"
         }
         ("stake", "validators" | "rewards") => "USAGE\n  aoxc stake <validators|rewards>",
 
@@ -277,10 +277,10 @@ pub fn print_group_usage(group: &str) {
             "GROUP: api\n  status|rpc        RPC status\n  contract          API contract descriptor\n  smoke             RPC curl smoke validation\n  metrics           Metrics projection\n  health            Runtime health surface\n  full              Aggregate projection\n  chain|consensus|vm|network|runtime\n                    Routed query aliases\n\nEXAMPLES\n  aoxc api status\n  aoxc api full --account-id <id>"
         }
         "tx" => {
-            "GROUP: tx\n  transfer          Treasury transfer alias (signature required by default)\n  stake delegate    Stake delegation flow\n  stake undelegate  Stake undelegation flow\n\nEXAMPLES\n  aoxc tx transfer --to <account-id> --amount 10 --signature <hex> --public-key <hex>\n  aoxc tx transfer --to <account-id> --amount 10 --allow-unsigned\n  aoxc tx stake delegate --to validator-01 --amount 100"
+            "GROUP: tx\n  transfer          Treasury transfer alias (signature required)\n  stake delegate    Stake delegation flow (signature required)\n  stake undelegate  Stake undelegation flow (signature required)\n\nEXAMPLES\n  aoxc tx transfer --to <account-id> --amount 10 --signature <hex> --public-key <hex>\n  aoxc tx stake delegate --to validator-01 --amount 100 --signature <hex> --public-key <hex>"
         }
         "stake" => {
-            "GROUP: stake\n  delegate          Delegate stake to validator\n  undelegate        Undelegate stake\n  validators        Runtime validator staking overview\n  rewards           Runtime reward overview\n\nEXAMPLES\n  aoxc stake delegate --to validator-01 --amount 250"
+            "GROUP: stake\n  delegate          Delegate stake to validator (signature required)\n  undelegate        Undelegate stake (signature required)\n  validators        Runtime validator staking overview\n  rewards           Runtime reward overview\n\nEXAMPLES\n  aoxc stake delegate --to validator-01 --amount 250 --signature <hex> --public-key <hex>"
         }
         "doctor" => {
             "GROUP: doctor\n  node|network|runtime  Run diagnostics doctor by domain\n\nEXAMPLES\n  aoxc doctor network"
