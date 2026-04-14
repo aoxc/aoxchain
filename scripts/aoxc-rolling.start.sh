@@ -26,12 +26,15 @@ AOXC_Q_PROFILE="${AOXC_Q_PROFILE:-testnet}"
 AOXC_Q_MODE="${AOXC_Q_MODE:-local}"
 AOXC_Q_NODE_COUNT="${AOXC_Q_NODE_COUNT:-7}"
 AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
+AOXC_Q_BLOCK_INTERVAL_SECS="${AOXC_Q_BLOCK_INTERVAL_SECS:-6}"
 AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-3}"
 AOXC_Q_SLEEP_MIN_SECS="${AOXC_Q_SLEEP_MIN_SECS:-3}"
 AOXC_Q_SLEEP_MAX_SECS="${AOXC_Q_SLEEP_MAX_SECS:-3}"
 AOXC_Q_HEALTH_INTERVAL_SECS="${AOXC_Q_HEALTH_INTERVAL_SECS:-3}"
 AOXC_Q_FORCE="${AOXC_Q_FORCE:-0}"
 AOXC_Q_ACTION="${AOXC_Q_ACTION:-up}"
+AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE="${AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE:-250000}"
+AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE="${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE:-500000}"
 
 AOXC_Q_RPC_BASE_PORT="${AOXC_Q_RPC_BASE_PORT:-18540}"
 AOXC_Q_P2P_BASE_PORT="${AOXC_Q_P2P_BASE_PORT:-19540}"
@@ -61,10 +64,13 @@ Options:
   --mode <name>        run mode label: local|public (default: ${AOXC_Q_MODE})
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; minimum: 7)
   --rounds <n>         rounds per node-run cycle (default: ${AOXC_Q_ROUNDS})
+  --block-interval-secs <n> block production interval in seconds for node-run (default: ${AOXC_Q_BLOCK_INTERVAL_SECS}; range: 2..600)
   --sleep-secs <n>     fixed sleep between daemon cycles
   --sleep-min-secs <n> minimum daemon-loop sleep
   --sleep-max-secs <n> maximum daemon-loop sleep
   --health-interval-secs <n> monitor/recovery loop interval
+  --operator-balance <n>  initial treasury transfer amount for each operator wallet
+  --validator-balance <n> initial treasury transfer amount for each validator wallet
   --rpc-base-port <n>      base RPC port
   --p2p-base-port <n>      base P2P port
   --metrics-base-port <n>  base metrics port
@@ -76,8 +82,9 @@ Options:
 
 Environment overrides:
   AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_MODE, AOXC_Q_NODE_COUNT,
-  AOXC_Q_ROUNDS, AOXC_Q_SLEEP_SECS, AOXC_Q_SLEEP_MIN_SECS,
-  AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION,
+  AOXC_Q_ROUNDS, AOXC_Q_BLOCK_INTERVAL_SECS, AOXC_Q_SLEEP_SECS, AOXC_Q_SLEEP_MIN_SECS,
+  AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION, AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE,
+  AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE,
   AOXC_Q_HEALTH_INTERVAL_SECS,
   AOXC_Q_RPC_BASE_PORT, AOXC_Q_P2P_BASE_PORT, AOXC_Q_METRICS_BASE_PORT,
   AOXC_Q_ADMIN_BASE_PORT, AOXC_Q_VALIDATE_GENESIS
@@ -125,6 +132,8 @@ while [[ $# -gt 0 ]]; do
     --nodes=*) AOXC_Q_NODE_COUNT="${1#*=}"; shift ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
     --rounds=*) AOXC_Q_ROUNDS="${1#*=}"; shift ;;
+    --block-interval-secs) AOXC_Q_BLOCK_INTERVAL_SECS="$2"; shift 2 ;;
+    --block-interval-secs=*) AOXC_Q_BLOCK_INTERVAL_SECS="${1#*=}"; shift ;;
     --sleep-secs) AOXC_Q_SLEEP_SECS="$2"; shift 2 ;;
     --sleep-secs=*) AOXC_Q_SLEEP_SECS="${1#*=}"; shift ;;
     --sleep-min-secs) AOXC_Q_SLEEP_MIN_SECS="$2"; shift 2 ;;
@@ -133,6 +142,10 @@ while [[ $# -gt 0 ]]; do
     --sleep-max-secs=*) AOXC_Q_SLEEP_MAX_SECS="${1#*=}"; shift ;;
     --health-interval-secs) AOXC_Q_HEALTH_INTERVAL_SECS="$2"; shift 2 ;;
     --health-interval-secs=*) AOXC_Q_HEALTH_INTERVAL_SECS="${1#*=}"; shift ;;
+    --operator-balance) AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE="$2"; shift 2 ;;
+    --operator-balance=*) AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE="${1#*=}"; shift ;;
+    --validator-balance) AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE="$2"; shift 2 ;;
+    --validator-balance=*) AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE="${1#*=}"; shift ;;
     --rpc-base-port) AOXC_Q_RPC_BASE_PORT="$2"; shift 2 ;;
     --rpc-base-port=*) AOXC_Q_RPC_BASE_PORT="${1#*=}"; shift ;;
     --p2p-base-port) AOXC_Q_P2P_BASE_PORT="$2"; shift 2 ;;
@@ -151,6 +164,7 @@ done
 
 require_uint "${AOXC_Q_NODE_COUNT}" "AOXC_Q_NODE_COUNT"
 require_uint "${AOXC_Q_ROUNDS}" "AOXC_Q_ROUNDS"
+require_uint "${AOXC_Q_BLOCK_INTERVAL_SECS}" "AOXC_Q_BLOCK_INTERVAL_SECS"
 require_uint "${AOXC_Q_SLEEP_SECS}" "AOXC_Q_SLEEP_SECS"
 require_uint "${AOXC_Q_SLEEP_MIN_SECS}" "AOXC_Q_SLEEP_MIN_SECS"
 require_uint "${AOXC_Q_SLEEP_MAX_SECS}" "AOXC_Q_SLEEP_MAX_SECS"
@@ -159,6 +173,8 @@ require_uint "${AOXC_Q_RPC_BASE_PORT}" "AOXC_Q_RPC_BASE_PORT"
 require_uint "${AOXC_Q_P2P_BASE_PORT}" "AOXC_Q_P2P_BASE_PORT"
 require_uint "${AOXC_Q_METRICS_BASE_PORT}" "AOXC_Q_METRICS_BASE_PORT"
 require_uint "${AOXC_Q_ADMIN_BASE_PORT}" "AOXC_Q_ADMIN_BASE_PORT"
+require_uint "${AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE}" "AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE"
+require_uint "${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}" "AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE"
 
 if (( AOXC_Q_NODE_COUNT < 7 )); then
   die "AOXC_Q_NODE_COUNT must be >= 7 for production-like persistent topology." 2
@@ -171,6 +187,9 @@ if (( AOXC_Q_SLEEP_MAX_SECS < AOXC_Q_SLEEP_MIN_SECS )); then
 fi
 if (( AOXC_Q_HEALTH_INTERVAL_SECS < 1 )); then
   die "AOXC_Q_HEALTH_INTERVAL_SECS must be >= 1." 2
+fi
+if (( AOXC_Q_BLOCK_INTERVAL_SECS < 2 || AOXC_Q_BLOCK_INTERVAL_SECS > 600 )); then
+  die "AOXC_Q_BLOCK_INTERVAL_SECS must be in range 2..600." 2
 fi
 ensure_port_in_range "${AOXC_Q_RPC_BASE_PORT}" "AOXC_Q_RPC_BASE_PORT"
 ensure_port_in_range "${AOXC_Q_P2P_BASE_PORT}" "AOXC_Q_P2P_BASE_PORT"
@@ -554,6 +573,7 @@ render_node_runner() {
   local node_state_file="$5"
   local sleep_min_secs="$6"
   local sleep_max_secs="$7"
+  local block_interval_secs="$8"
 
   cat > "${node_root}/run-node.sh" <<RUNNER
 #!/usr/bin/env bash
@@ -565,6 +585,7 @@ ROUNDS="${AOXC_Q_ROUNDS}"
 SLEEP_SECS="${AOXC_Q_SLEEP_SECS}"
 SLEEP_MIN_SECS="${sleep_min_secs}"
 SLEEP_MAX_SECS="${sleep_max_secs}"
+BLOCK_INTERVAL_SECS="${block_interval_secs}"
 WRAPPER="${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
 LOG_FILE="${node_log}"
 STATE_FILE="${node_state_file}"
@@ -589,6 +610,7 @@ while true; do
   if AOXC_HOME="\${NODE_HOME}" "\${WRAPPER}" node-run \
       --home "\${NODE_HOME}" \
       --rounds "\${ROUNDS}" \
+      --interval-secs "\${BLOCK_INTERVAL_SECS}" \
       --tx-prefix "\${NODE_NAME^^}-TX" \
       --format json \
       --no-live-log \
@@ -622,6 +644,43 @@ done
 RUNNER
 
   chmod +x "${node_root}/run-node.sh"
+}
+
+extract_json_field() {
+  local json_payload="$1"
+  local field_name="$2"
+  python3 - "$field_name" <<'PYJSON' <<<"${json_payload}"
+import json
+import sys
+
+field_name = sys.argv[1]
+
+try:
+    payload = json.loads(sys.stdin.read())
+except Exception:
+    print("-")
+    raise SystemExit(0)
+
+value = payload.get(field_name, "-")
+if isinstance(value, bool):
+    print("true" if value else "false")
+elif value is None:
+    print("-")
+else:
+    print(value)
+PYJSON
+}
+
+fetch_balance_field() {
+  local node_home="$1"
+  local account_id="$2"
+  local field_name="$3"
+  local payload
+  if ! payload="$(run_aoxc "${node_home}" balance-get --id "${account_id}" --format json 2>/dev/null)"; then
+    echo "-"
+    return 0
+  fi
+  extract_json_field "${payload}" "${field_name}"
 }
 
 write_cluster_monitor() {
@@ -723,11 +782,13 @@ provision_testnet() {
   local accounts_file="${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
   local ports_file="${TARGET_ROOT}/system/audit/node-port-map.tsv"
   local seed_map_file="${TARGET_ROOT}/system/audit/node-seed-map.tsv"
+  local balances_file="${TARGET_ROOT}/system/audit/wallet-balances.tsv"
   mkdir -p "${TARGET_ROOT}/system/config/nodes"
 
   printf 'node\tvalidator_name\toperator_name\tvalidator_account_id\toperator_account_id\tvalidator_account_id_legacy\toperator_account_id_legacy\tvalidator_bundle_fingerprint\toperator_bundle_fingerprint\tvalidator_consensus_public_key\toperator_consensus_public_key\tvalidator_transport_public_key\toperator_transport_public_key\tpassword_file\n' > "${accounts_file}"
   printf 'node\trpc_port\tp2p_port\tmetrics_port\tadmin_port\n' > "${ports_file}"
   printf 'node\tseed_file\tseed_sha256\n' > "${seed_map_file}"
+  printf 'node\twallet_role\taccount_id\tknown\tbalance\tsource\n' > "${balances_file}"
 
   local i
   for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
@@ -755,6 +816,15 @@ provision_testnet() {
     local node_seed
     local node_seed_file
     local node_seed_sha
+    local operator_known
+    local validator_known
+    local treasury_known
+    local operator_balance
+    local validator_balance
+    local treasury_balance
+    local operator_balance_source
+    local validator_balance_source
+    local treasury_balance_source
 
     node_name="node$(printf '%02d' "${i}")"
     validator_name="aoxcdev-val-$(printf '%02d' "${i}")"
@@ -856,6 +926,30 @@ provision_testnet() {
     operator_transport_public_key="$(extract_kv_field "${operator_create_json}" "transport_public_key")"
     validator_transport_public_key="$(extract_kv_field "${validator_create_json}" "transport_public_key")"
 
+    run_aoxc "${node_home}" economy-init --format json > "${run_dir}/economy-init.json"
+    run_aoxc "${node_home}" treasury-transfer \
+      --to "${operator_account_id}" \
+      --amount "${AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE}" \
+      --format json \
+      > "${run_dir}/treasury-transfer-operator.json"
+    run_aoxc "${node_home}" treasury-transfer \
+      --to "${validator_account_id}" \
+      --amount "${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}" \
+      --format json \
+      > "${run_dir}/treasury-transfer-validator.json"
+
+    operator_known="$(fetch_balance_field "${node_home}" "${operator_account_id}" "known")"
+    operator_balance="$(fetch_balance_field "${node_home}" "${operator_account_id}" "balance")"
+    operator_balance_source="$(fetch_balance_field "${node_home}" "${operator_account_id}" "source")"
+
+    validator_known="$(fetch_balance_field "${node_home}" "${validator_account_id}" "known")"
+    validator_balance="$(fetch_balance_field "${node_home}" "${validator_account_id}" "balance")"
+    validator_balance_source="$(fetch_balance_field "${node_home}" "${validator_account_id}" "source")"
+
+    treasury_known="$(fetch_balance_field "${node_home}" "treasury" "known")"
+    treasury_balance="$(fetch_balance_field "${node_home}" "treasury" "balance")"
+    treasury_balance_source="$(fetch_balance_field "${node_home}" "treasury" "source")"
+
     write_node_identity_summary \
       "${node_root}" \
       "${node_name}" \
@@ -907,6 +1001,30 @@ provision_testnet() {
       "${node_seed_file}" \
       "${node_seed_sha}" \
       >> "${seed_map_file}"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${node_name}" \
+      "operator" \
+      "${operator_account_id}" \
+      "${operator_known}" \
+      "${operator_balance}" \
+      "${operator_balance_source}" \
+      >> "${balances_file}"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${node_name}" \
+      "validator" \
+      "${validator_account_id}" \
+      "${validator_known}" \
+      "${validator_balance}" \
+      "${validator_balance_source}" \
+      >> "${balances_file}"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${node_name}" \
+      "treasury" \
+      "treasury" \
+      "${treasury_known}" \
+      "${treasury_balance}" \
+      "${treasury_balance_source}" \
+      >> "${balances_file}"
 
     render_node_runner \
       "${node_root}" \
@@ -915,7 +1033,8 @@ provision_testnet() {
       "${log_dir}/node-run.log" \
       "${state_file}" \
       "${AOXC_Q_SLEEP_MIN_SECS}" \
-      "${AOXC_Q_SLEEP_MAX_SECS}"
+      "${AOXC_Q_SLEEP_MAX_SECS}" \
+      "${AOXC_Q_BLOCK_INTERVAL_SECS}"
   done
 
   chmod -R go-rwx "${TARGET_ROOT}" || true
@@ -934,6 +1053,9 @@ sleep_secs=${AOXC_Q_SLEEP_SECS}
 sleep_min_secs=${AOXC_Q_SLEEP_MIN_SECS}
 sleep_max_secs=${AOXC_Q_SLEEP_MAX_SECS}
 health_interval_secs=${AOXC_Q_HEALTH_INTERVAL_SECS}
+block_interval_secs=${AOXC_Q_BLOCK_INTERVAL_SECS}
+operator_bootstrap_balance=${AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE}
+validator_bootstrap_balance=${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}
 rpc_base_port=${AOXC_Q_RPC_BASE_PORT}
 p2p_base_port=${AOXC_Q_P2P_BASE_PORT}
 metrics_base_port=${AOXC_Q_METRICS_BASE_PORT}
@@ -950,6 +1072,7 @@ network_metadata_present=$([[ -f "${TARGET_ROOT}/system/config/metadata/network-
 accounts_file=${TARGET_ROOT}/system/audit/prepared-accounts.tsv
 ports_file=${TARGET_ROOT}/system/audit/node-port-map.tsv
 seed_map_file=${TARGET_ROOT}/system/audit/node-seed-map.tsv
+wallet_balances_file=${TARGET_ROOT}/system/audit/wallet-balances.tsv
 topology_checksums=${TARGET_ROOT}/system/audit/topology.sha256
 genesis_checksum_validation=${AOXC_Q_VALIDATE_GENESIS}
 REPORT
@@ -1138,6 +1261,7 @@ main() {
   if [[ "${AOXC_Q_ACTION}" == "up" || "${AOXC_Q_ACTION}" == "provision" ]]; then
     log_info "accounts: ${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
     log_info "ports: ${TARGET_ROOT}/system/audit/node-port-map.tsv"
+    log_info "wallet balances: ${TARGET_ROOT}/system/audit/wallet-balances.tsv"
     log_info "provision report: ${TARGET_ROOT}/system/audit/provision-report.txt"
     log_info "topology checksums: ${TARGET_ROOT}/system/audit/topology.sha256"
     log_info "control: $(basename "$0") --action start|stop|status --home ${AOXC_Q_HOME} --env ${AOXC_Q_ENV} --nodes ${AOXC_Q_NODE_COUNT}"
