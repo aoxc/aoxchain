@@ -697,14 +697,15 @@ RUNNER
 extract_json_field() {
   local json_payload="$1"
   local field_name="$2"
-  python3 - "$field_name" <<'PYJSON' <<<"${json_payload}"
+  JSON_PAYLOAD="${json_payload}" python3 - "$field_name" <<'PYJSON'
 import json
+import os
 import sys
 
 field_name = sys.argv[1]
 
 try:
-    payload = json.loads(sys.stdin.read())
+    payload = json.loads(os.environ.get("JSON_PAYLOAD", ""))
 except Exception:
     print("-")
     raise SystemExit(0)
