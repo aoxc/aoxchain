@@ -797,7 +797,12 @@ struct ValidatorSetDocument {
 #[derive(Debug, Deserialize)]
 struct ValidatorRecord {
     validator_id: String,
+    role: String,
+    consensus_key_algorithm: String,
+    consensus_public_key_encoding: String,
     consensus_public_key: String,
+    network_public_key: String,
+    weight: u64,
     status: String,
 }
 
@@ -853,11 +858,60 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
         }
     }
 
+    let mut validator_ids = BTreeSet::new();
+    let mut consensus_keys = BTreeSet::new();
+    let mut network_keys = BTreeSet::new();
+    let mut active_weight_total = 0u128;
     for validator in &validators_doc.validators {
         if validator.validator_id.trim().is_empty() {
             return Err(AppError::new(
                 ErrorCode::ConfigInvalid,
                 "Genesis validation failed: validator_id must not be empty",
+            ));
+        }
+        if !validator_ids.insert(validator.validator_id.clone()) {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: duplicate validator_id detected: {}",
+                    validator.validator_id
+                ),
+            ));
+        }
+        if validator.role.trim() != "validator" {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator {} role must be `validator`",
+                    validator.validator_id
+                ),
+            ));
+        }
+        if validator.weight == 0 {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator {} weight must be non-zero",
+                    validator.validator_id
+                ),
+            ));
+        }
+        if !matches!(validator.consensus_key_algorithm.trim(), "ed25519" | "ml-dsa-65") {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator {} has unsupported consensus_key_algorithm {}",
+                    validator.validator_id, validator.consensus_key_algorithm
+                ),
+            ));
+        }
+        if validator.consensus_public_key_encoding.trim() != "hex" {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator {} consensus_public_key_encoding must be hex",
+                    validator.validator_id
+                ),
             ));
         }
 
@@ -875,6 +929,57 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
                 ),
             ));
         }
+        if !is_hex_key(validator.consensus_public_key.trim()) {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator {} consensus_public_key must be valid hex with an even length",
+                    validator.validator_id
+                ),
+            ));
+        }
+        if !consensus_keys.insert(validator.consensus_public_key.clone()) {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: duplicate consensus_public_key detected for validator {}",
+                    validator.validator_id
+                ),
+            ));
+        }
+
+        if validator.network_public_key.trim().is_empty()
+            || validator
+                .network_public_key
+                .to_ascii_lowercase()
+                .contains("pending_real_value")
+        {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator network key is empty or placeholder for {}",
+                    validator.validator_id
+                ),
+            ));
+        }
+        if !is_hex_key(validator.network_public_key.trim()) {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: validator {} network_public_key must be valid hex with an even length",
+                    validator.validator_id
+                ),
+            ));
+        }
+        if !network_keys.insert(validator.network_public_key.clone()) {
+            return Err(AppError::new(
+                ErrorCode::ConfigInvalid,
+                format!(
+                    "Genesis validation failed: duplicate network_public_key detected for validator {}",
+                    validator.validator_id
+                ),
+            ));
+        }
 
         if validator.status.trim() != "active" {
             return Err(AppError::new(
@@ -885,6 +990,13 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
                 ),
             ));
         }
+        active_weight_total += u128::from(validator.weight);
+    }
+    if active_weight_total == 0 {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: validator set total active weight must be non-zero",
+        ));
     }
 
     let bootnodes_path = root.join(&genesis.bindings.bootnodes_file);
@@ -991,6 +1103,10 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
     }
 
     Ok(())
+}
+
+fn is_hex_key(value: &str) -> bool {
+    !value.is_empty() && value.len() % 2 == 0 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 pub(in crate::cli::bootstrap::operations) fn validate_identity_against_repo_policy(

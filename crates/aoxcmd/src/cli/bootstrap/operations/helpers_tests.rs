@@ -5,10 +5,12 @@ mod tests {
         BootstrapValidatorBindingsDocument, CanonicalIdentity, EnvironmentProfile,
         apply_genesis_start_overrides, consensus_profile_gate_status, derive_short_fingerprint,
         evaluate_consensus_profile_audit, upsert_bootnode_binding, upsert_validator_binding,
-        validate_genesis,
+        validate_binding_files, validate_genesis,
     };
+    use crate::test_support::{AoxcHomeGuard, TestHome, aoxc_home_test_lock};
     use std::{
         env, fs,
+        path::Path,
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -371,6 +373,116 @@ mod tests {
             error
                 .to_string()
                 .contains("--treasury-amount must be a non-zero decimal string")
+        );
+    }
+
+    fn write_binding_fixture(
+        identity_dir: &Path,
+        validators_json: &str,
+        bootnodes_json: &str,
+        certificate_json: &str,
+    ) {
+        fs::create_dir_all(identity_dir).expect("identity directory should be created");
+        fs::write(identity_dir.join("validators.json"), validators_json)
+            .expect("validators fixture should be written");
+        fs::write(identity_dir.join("bootnodes.json"), bootnodes_json)
+            .expect("bootnodes fixture should be written");
+        fs::write(identity_dir.join("certificate.json"), certificate_json)
+            .expect("certificate fixture should be written");
+        fs::write(identity_dir.join("genesis.json"), "{}").expect("genesis marker should exist");
+    }
+
+    #[test]
+    fn validate_binding_files_rejects_duplicate_consensus_keys() {
+        let _lock = aoxc_home_test_lock();
+        let home = TestHome::new("duplicate-consensus-key").expect("test home should initialize");
+        let _home_guard = AoxcHomeGuard::install(&_lock, home.path());
+        let identity_dir = home.path().join("identity");
+
+        write_binding_fixture(
+            &identity_dir,
+            r#"{
+  "validators": [
+    {
+      "validator_id": "val-01",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "network_public_key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "weight": 1,
+      "status": "active"
+    },
+    {
+      "validator_id": "val-02",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "network_public_key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "weight": 1,
+      "status": "active"
+    }
+  ]
+}"#,
+            r#"{ "bootnodes": [{ "node_id": "boot-1" }] }"#,
+            r#"{ "certificate": { "status": "valid" } }"#,
+        );
+
+        let mut genesis = EnvironmentProfile::Validation.genesis_document();
+        genesis.bindings.validators_file = "validators.json".to_string();
+        genesis.bindings.bootnodes_file = "bootnodes.json".to_string();
+        genesis.bindings.certificate_file = "certificate.json".to_string();
+
+        let error = validate_binding_files(&genesis)
+            .expect_err("duplicate consensus public keys must fail validation");
+        assert!(
+            error
+                .to_string()
+                .contains("duplicate consensus_public_key detected"),
+            "error should report duplicate consensus key rejection"
+        );
+    }
+
+    #[test]
+    fn validate_binding_files_rejects_non_hex_network_key() {
+        let _lock = aoxc_home_test_lock();
+        let home = TestHome::new("non-hex-network-key").expect("test home should initialize");
+        let _home_guard = AoxcHomeGuard::install(&_lock, home.path());
+        let identity_dir = home.path().join("identity");
+
+        write_binding_fixture(
+            &identity_dir,
+            r#"{
+  "validators": [
+    {
+      "validator_id": "val-01",
+      "role": "validator",
+      "consensus_key_algorithm": "ed25519",
+      "consensus_public_key_encoding": "hex",
+      "consensus_public_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "network_public_key": "not-hex",
+      "weight": 1,
+      "status": "active"
+    }
+  ]
+}"#,
+            r#"{ "bootnodes": [{ "node_id": "boot-1" }] }"#,
+            r#"{ "certificate": { "status": "valid" } }"#,
+        );
+
+        let mut genesis = EnvironmentProfile::Validation.genesis_document();
+        genesis.bindings.validators_file = "validators.json".to_string();
+        genesis.bindings.bootnodes_file = "bootnodes.json".to_string();
+        genesis.bindings.certificate_file = "certificate.json".to_string();
+
+        let error = validate_binding_files(&genesis)
+            .expect_err("non-hex network public key must fail validation");
+        assert!(
+            error
+                .to_string()
+                .contains("network_public_key must be valid hex"),
+            "error should report invalid network key encoding"
         );
     }
 }
