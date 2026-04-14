@@ -354,7 +354,10 @@ fn tx_receipt_json(target: &str) -> serde_json::Value {
 
 fn account_json(target: &str) -> serde_json::Value {
     let account_id = account_id_from_target(target).unwrap_or_else(|| "unknown".to_string());
-    let ledger = ledger::load().unwrap_or_default();
+    let (ledger, source, degraded) = match ledger::load() {
+        Ok(ledger) => (ledger, "ledger-store", false),
+        Err(_) => (ledger::LedgerState::default(), "default-fallback", true),
+    };
     let known = account_id == "treasury" || ledger.delegations.contains_key(&account_id);
     let balance = if account_id == "treasury" {
         ledger.treasury_balance
@@ -367,8 +370,8 @@ fn account_json(target: &str) -> serde_json::Value {
         "known": known,
         "balance": balance,
         "nonce": 0_u64,
-        "source": lookup.source,
-        "degraded": lookup.degraded,
+        "source": source,
+        "degraded": degraded,
     })
 }
 
