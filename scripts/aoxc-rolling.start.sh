@@ -56,9 +56,11 @@ Actions:
   stop             stop loops for an existing provisioned root
   restart          stop then start
   status           show per-node process and chain status
+  verify           verify per-node runtime surfaces (rpc/api) and write audit
+  verify-full      verify rpc/api/query/faucet surfaces and write full audit
 
 Options:
-  --action <name>      one of: up|provision|start|stop|restart|status
+  --action <name>      one of: up|provision|start|stop|restart|status|verify|verify-full
   --home <path>        base output root (default: ${AOXC_Q_HOME})
   --env <name>         configs/environments/<name> source (default: ${AOXC_Q_ENV})
   --profile <name>     AOXC profile for bootstrap (default: ${AOXC_Q_PROFILE})
@@ -204,7 +206,7 @@ ensure_port_in_range "${AOXC_Q_METRICS_BASE_PORT}" "AOXC_Q_METRICS_BASE_PORT"
 ensure_port_in_range "${AOXC_Q_ADMIN_BASE_PORT}" "AOXC_Q_ADMIN_BASE_PORT"
 
 case "${AOXC_Q_ACTION}" in
-  up|provision|start|stop|restart|status) ;;
+  up|provision|start|stop|restart|status|verify|verify-full) ;;
   *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
 esac
 
@@ -407,6 +409,44 @@ validate_port_plan() {
   ensure_port_in_range "${max_p2p}" "AOXC_Q_P2P_BASE_PORT + AOXC_Q_NODE_COUNT - 1"
   ensure_port_in_range "${max_metrics}" "AOXC_Q_METRICS_BASE_PORT + AOXC_Q_NODE_COUNT - 1"
   ensure_port_in_range "${max_admin}" "AOXC_Q_ADMIN_BASE_PORT + AOXC_Q_NODE_COUNT - 1"
+
+  local -A seen=()
+  local i
+  local port
+  for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
+    for port in \
+      "$(node_rpc_port "${i}")" \
+      "$(node_p2p_port "${i}")" \
+      "$(node_metrics_port "${i}")" \
+      "$(node_admin_port "${i}")"; do
+      if [[ -n "${seen[${port}]+x}" ]]; then
+        die "Port plan collision detected at port ${port} (duplicate across base ranges)." 2
+      fi
+      seen["${port}"]=1
+    done
+  done
+}
+
+assert_port_available() {
+  local port="$1"
+  local label="$2"
+  python3 - "${port}" "${label}" <<'PYPORT'
+import socket
+import sys
+
+port = int(sys.argv[1])
+label = sys.argv[2]
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(("127.0.0.1", port))
+except OSError as exc:
+    print(f"{label}:{port}:{exc}")
+    raise SystemExit(1)
+finally:
+    sock.close()
+PYPORT
 }
 
 validate_genesis_checksum() {
@@ -730,6 +770,99 @@ fetch_balance_field() {
     return 0
   fi
   extract_json_field "${payload}" "${field_name}"
+}
+
+probe_http_health() {
+  local port="$1"
+  python3 - "${port}" <<'PYHEALTH'
+import json
+import sys
+import urllib.error
+import urllib.request
+
+port = int(sys.argv[1])
+url = f"http://127.0.0.1:{port}/health"
+try:
+    with urllib.request.urlopen(url, timeout=2.0) as response:
+        payload = response.read(256).decode("utf-8", errors="ignore").strip()
+    print("ok" if payload else "ok")
+except Exception:
+    print("fail")
+PYHEALTH
+}
+
+probe_jsonrpc_status() {
+  local port="$1"
+  python3 - "${port}" <<'PYRPC'
+import json
+import sys
+import urllib.error
+import urllib.request
+
+port = int(sys.argv[1])
+url = f"http://127.0.0.1:{port}/jsonrpc"
+body = json.dumps(
+    {"jsonrpc": "2.0", "id": 1, "method": "status", "params": []}
+).encode("utf-8")
+request = urllib.request.Request(
+    url,
+    data=body,
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+try:
+    with urllib.request.urlopen(request, timeout=2.0) as response:
+        text = response.read(4096).decode("utf-8", errors="ignore")
+    if "result" in text or "error" in text:
+        print("ok")
+    else:
+        print("fail")
+except Exception:
+    print("fail")
+PYRPC
+}
+
+run_query_chain_probe() {
+  local node_home="$1"
+  if run_aoxc "${node_home}" query chain status --format json >/dev/null 2>&1; then
+    echo "ok"
+  else
+    echo "fail"
+  fi
+}
+
+run_query_network_probe() {
+  local node_home="$1"
+  if run_aoxc "${node_home}" query network full --format json >/dev/null 2>&1; then
+    echo "ok"
+  else
+    echo "fail"
+  fi
+}
+
+read_operator_account_id() {
+  local node_root="$1"
+  local identity_file="${node_root}/identity-summary.env"
+  [[ -f "${identity_file}" ]] || { echo "-"; return 0; }
+  awk -F= '$1=="OPERATOR_ACCOUNT_ID"{print $2}' "${identity_file}" | tail -n 1
+}
+
+run_faucet_probe() {
+  local node_home="$1"
+  local node_root="$2"
+  local account_id
+  account_id="$(read_operator_account_id "${node_root}")"
+  [[ -n "${account_id}" && "${account_id}" != "-" ]] || { echo "fail"; return 0; }
+
+  if ! run_aoxc "${node_home}" treasury-transfer --to "${account_id}" --amount 1 --format json >/dev/null 2>&1; then
+    echo "fail"
+    return 0
+  fi
+  if run_aoxc "${node_home}" balance-get --id "${account_id}" --format json >/dev/null 2>&1; then
+    echo "ok"
+  else
+    echo "fail"
+  fi
 }
 
 write_cluster_monitor() {
@@ -1090,6 +1223,15 @@ provision_testnet() {
   chmod -R go-rwx "${TARGET_ROOT}" || true
   chmod -R u+rwX "${TARGET_ROOT}" || true
 
+  local accounts_lines_expected=$((AOXC_Q_NODE_COUNT + 1))
+  local balances_lines_expected=$((AOXC_Q_NODE_COUNT * 3 + 1))
+  local accounts_lines_actual
+  local balances_lines_actual
+  accounts_lines_actual="$(wc -l < "${accounts_file}")"
+  balances_lines_actual="$(wc -l < "${balances_file}")"
+  [[ "${accounts_lines_actual}" == "${accounts_lines_expected}" ]] || die "prepared-accounts.tsv line-count mismatch (expected=${accounts_lines_expected} actual=${accounts_lines_actual})" 8
+  [[ "${balances_lines_actual}" == "${balances_lines_expected}" ]] || die "wallet-balances.tsv line-count mismatch (expected=${balances_lines_expected} actual=${balances_lines_actual})" 8
+
   cat > "${TARGET_ROOT}/system/audit/provision-report.txt" <<REPORT
 AOXC rolling local bootstrap report
 created_utc=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)
@@ -1138,6 +1280,7 @@ REPORT
 
 start_testnet() {
   [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
+  validate_port_plan
 
   local i
   for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
@@ -1158,6 +1301,11 @@ start_testnet() {
       fi
       rm -f "${pid_file}"
     fi
+
+    assert_port_available "$(node_rpc_port "${i}")" "rpc" >/dev/null || die "RPC port is already in use for ${node_name}" 7
+    assert_port_available "$(node_p2p_port "${i}")" "p2p" >/dev/null || die "P2P port is already in use for ${node_name}" 7
+    assert_port_available "$(node_metrics_port "${i}")" "metrics" >/dev/null || die "Metrics port is already in use for ${node_name}" 7
+    assert_port_available "$(node_admin_port "${i}")" "admin" >/dev/null || die "Admin port is already in use for ${node_name}" 7
 
     nohup "${node_root}/run-node.sh" > "${node_root}/logs/supervisor.log" 2>&1 &
     echo "$!" > "${pid_file}"
@@ -1288,6 +1436,73 @@ status_testnet() {
   done
 }
 
+verify_testnet() {
+  [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
+  local report_file="${TARGET_ROOT}/system/audit/runtime-surface.tsv"
+  printf 'node\tprocess\trpc_health\tjsonrpc\tapi_smoke\tquery_chain\tquery_network\tfaucet\n' > "${report_file}"
+  printf 'node\tprocess\trpc_health\tjsonrpc\tapi_smoke\tquery_chain\tquery_network\tfaucet\n'
+
+  local i
+  for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
+    local node_name
+    local node_root
+    local pid_file
+    local pid
+    local process_state
+    local rpc_health
+    local jsonrpc_health
+    local api_smoke
+    local query_chain
+    local query_network
+    local faucet_smoke
+
+    node_name="node$(printf '%02d' "${i}")"
+    node_root="${TARGET_ROOT}/nodes/${node_name}"
+    pid_file="${node_root}/node.pid"
+    process_state="stopped"
+    pid=""
+
+    if [[ -f "${pid_file}" ]]; then
+      pid="$(cat "${pid_file}")"
+      if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
+        process_state="running"
+      else
+        process_state="stale-pid"
+      fi
+    fi
+
+    rpc_health="fail"
+    jsonrpc_health="fail"
+    api_smoke="fail"
+    query_chain="fail"
+    query_network="fail"
+    faucet_smoke="fail"
+
+    if [[ "${process_state}" == "running" ]]; then
+      rpc_health="$(probe_http_health "$(node_rpc_port "${i}")")"
+      jsonrpc_health="$(probe_jsonrpc_status "$(node_rpc_port "${i}")")"
+      if run_aoxc "${node_root}/home" api smoke >/dev/null 2>&1; then
+        api_smoke="ok"
+      fi
+      query_chain="$(run_query_chain_probe "${node_root}/home")"
+      query_network="$(run_query_network_probe "${node_root}/home")"
+      faucet_smoke="$(run_faucet_probe "${node_root}/home" "${node_root}")"
+    fi
+
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${node_name}" \
+      "${process_state}" \
+      "${rpc_health}" \
+      "${jsonrpc_health}" \
+      "${api_smoke}" \
+      "${query_chain}" \
+      "${query_network}" \
+      "${faucet_smoke}" \
+      | tee -a "${report_file}"
+  done
+  log_info "runtime surface report: ${report_file}"
+}
+
 main() {
   resolve_aoxc_command
 
@@ -1311,6 +1526,12 @@ main() {
       ;;
     status)
       status_testnet
+      ;;
+    verify)
+      verify_testnet
+      ;;
+    verify-full)
+      verify_testnet
       ;;
   esac
 
