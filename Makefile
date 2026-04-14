@@ -454,6 +454,8 @@ paths:
 env-check:
 	$(call print_banner,Validating local operator environment)
 	@command -v $(CARGO) >/dev/null 2>&1 || { echo "cargo not found"; exit 1; }
+	@command -v rustc >/dev/null 2>&1 || { echo "rustc not found"; exit 1; }
+	@command -v make >/dev/null 2>&1 || { echo "make not found"; exit 1; }
 	@command -v git >/dev/null 2>&1 || { echo "git not found"; exit 1; }
 	@command -v bash >/dev/null 2>&1 || { echo "bash not found"; exit 1; }
 	@command -v sha256sum >/dev/null 2>&1 || { echo "sha256sum not found"; exit 1; }
@@ -463,6 +465,11 @@ env-check:
 	$(call require_file,./scripts/release/generate_release_evidence.sh)
 	$(call require_file,./scripts/release_artifact_certify.sh)
 	$(call require_file,./scripts/READ.md)
+	@if command -v docker >/dev/null 2>&1 || command -v podman >/dev/null 2>&1; then \
+		echo "Container runtime check passed (docker/podman detected)."; \
+	else \
+		echo "Container runtime check: skipped (docker/podman not installed; required only for container workflows)."; \
+	fi
 	@echo "Environment check passed."
 
 # --------------------------------------------------------------------
