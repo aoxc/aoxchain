@@ -61,6 +61,65 @@ mod tests {
     }
 
     #[test]
+    fn burn_reduces_balance_and_total_supply() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        ledger.mint(addr(1), 250).unwrap();
+
+        ledger.burn(addr(1), 40).unwrap();
+
+        assert_eq!(ledger.total_supply, 210);
+        assert_eq!(ledger.balance_of(&addr(1)), 210);
+    }
+
+    #[test]
+    fn lock_and_unlock_move_funds_between_spendable_and_locked() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        ledger.mint(addr(1), 500).unwrap();
+
+        ledger.lock(addr(1), 120).unwrap();
+        assert_eq!(ledger.balance_of(&addr(1)), 380);
+        assert_eq!(ledger.locked_balance_of(&addr(1)), 120);
+        assert_eq!(ledger.total_balance_of(&addr(1)), 500);
+
+        ledger.unlock(addr(1), 20).unwrap();
+        assert_eq!(ledger.balance_of(&addr(1)), 400);
+        assert_eq!(ledger.locked_balance_of(&addr(1)), 100);
+        assert_eq!(ledger.total_balance_of(&addr(1)), 500);
+    }
+
+    #[test]
+    fn unlock_fails_when_locked_balance_is_insufficient() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        ledger.mint(addr(1), 100).unwrap();
+
+        let error = ledger.unlock(addr(1), 10).unwrap_err();
+        assert_eq!(error, NativeTokenError::InsufficientLockedBalance);
+    }
+
+    #[test]
+    fn lock_with_epoch_rejects_invalid_unlock_epoch() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        ledger.mint(addr(1), 100).unwrap();
+
+        let error = ledger.lock_with_epoch(addr(1), 10, 10, 10).unwrap_err();
+        assert_eq!(error, NativeTokenError::InvalidUnlockEpoch);
+    }
+
+    #[test]
+    fn unlock_at_epoch_requires_maturity() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        ledger.mint(addr(1), 200).unwrap();
+        ledger.lock_with_epoch(addr(1), 50, 5, 12).unwrap();
+
+        let early = ledger.unlock_at_epoch(addr(1), 10, 11).unwrap_err();
+        assert_eq!(early, NativeTokenError::LockNotMatured);
+
+        ledger.unlock_at_epoch(addr(1), 10, 12).unwrap();
+        assert_eq!(ledger.balance_of(&addr(1)), 160);
+        assert_eq!(ledger.locked_balance_of(&addr(1)), 40);
+    }
+
+    #[test]
     fn transfer_fails_when_balance_is_insufficient() {
         let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
         ledger.mint(addr(1), 10).unwrap();
@@ -89,6 +148,18 @@ mod tests {
             error_receipt.error_code,
             Some(ERROR_CODE_INSUFFICIENT_BALANCE)
         );
+
+        let burn_receipt = ledger.burn_receipt([1; HASH_SIZE], addr(1), 5, 9).unwrap();
+        assert!(burn_receipt.success);
+        assert_eq!(burn_receipt.events[0].event_type, EVENT_NATIVE_BURN);
+
+        let lock_receipt = ledger.lock_receipt([2; HASH_SIZE], addr(1), 7, 9).unwrap();
+        assert!(lock_receipt.success);
+        assert_eq!(lock_receipt.events[0].event_type, EVENT_NATIVE_LOCK);
+
+        let unlock_receipt = ledger.unlock_receipt([3; HASH_SIZE], addr(1), 7, 9).unwrap();
+        assert!(unlock_receipt.success);
+        assert_eq!(unlock_receipt.events[0].event_type, EVENT_NATIVE_UNLOCK);
     }
 
     #[test]

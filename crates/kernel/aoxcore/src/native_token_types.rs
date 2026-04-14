@@ -20,6 +20,9 @@ pub const EVENT_NATIVE_MINT: u16 = 0x1002;
 /// This event type is distinct from `EVENT_NATIVE_TRANSFER` because the payload
 /// carries replay-binding metadata and should remain explicitly versioned.
 pub const EVENT_NATIVE_TRANSFER_QUANTUM_V1: u16 = 0x1003;
+pub const EVENT_NATIVE_BURN: u16 = 0x1004;
+pub const EVENT_NATIVE_LOCK: u16 = 0x1005;
+pub const EVENT_NATIVE_UNLOCK: u16 = 0x1006;
 
 /// Error codes returned inside native token receipts.
 pub const ERROR_CODE_SUPPLY_OVERFLOW: u16 = 0x2001;
@@ -33,6 +36,9 @@ pub const ERROR_CODE_REPLAY_DETECTED: u16 = 0x2008;
 pub const ERROR_CODE_INVALID_PROOF_TAG: u16 = 0x2009;
 pub const ERROR_CODE_PROOF_TAG_TOO_LARGE: u16 = 0x200A;
 pub const ERROR_CODE_INVALID_POLICY: u16 = 0x200B;
+pub const ERROR_CODE_INSUFFICIENT_LOCKED_BALANCE: u16 = 0x200C;
+pub const ERROR_CODE_LOCK_NOT_MATURED: u16 = 0x200D;
+pub const ERROR_CODE_INVALID_UNLOCK_EPOCH: u16 = 0x200E;
 
 /// Canonical address type for the native token ledger.
 pub type Address = [u8; 32];
@@ -51,6 +57,9 @@ pub enum NativeTokenError {
     InvalidProofTag,
     ProofTagTooLarge,
     InvalidPolicy,
+    InsufficientLockedBalance,
+    LockNotMatured,
+    InvalidUnlockEpoch,
 }
 
 impl NativeTokenError {
@@ -69,6 +78,9 @@ impl NativeTokenError {
             Self::InvalidProofTag => "NATIVE_TOKEN_INVALID_PROOF_TAG",
             Self::ProofTagTooLarge => "NATIVE_TOKEN_PROOF_TAG_TOO_LARGE",
             Self::InvalidPolicy => "NATIVE_TOKEN_INVALID_POLICY",
+            Self::InsufficientLockedBalance => "NATIVE_TOKEN_INSUFFICIENT_LOCKED_BALANCE",
+            Self::LockNotMatured => "NATIVE_TOKEN_LOCK_NOT_MATURED",
+            Self::InvalidUnlockEpoch => "NATIVE_TOKEN_INVALID_UNLOCK_EPOCH",
         }
     }
 
@@ -87,6 +99,9 @@ impl NativeTokenError {
             Self::InvalidProofTag => ERROR_CODE_INVALID_PROOF_TAG,
             Self::ProofTagTooLarge => ERROR_CODE_PROOF_TAG_TOO_LARGE,
             Self::InvalidPolicy => ERROR_CODE_INVALID_POLICY,
+            Self::InsufficientLockedBalance => ERROR_CODE_INSUFFICIENT_LOCKED_BALANCE,
+            Self::LockNotMatured => ERROR_CODE_LOCK_NOT_MATURED,
+            Self::InvalidUnlockEpoch => ERROR_CODE_INVALID_UNLOCK_EPOCH,
         }
     }
 }
@@ -112,6 +127,15 @@ impl fmt::Display for NativeTokenError {
             }
             Self::InvalidPolicy => {
                 write!(f, "native token policy is internally invalid")
+            }
+            Self::InsufficientLockedBalance => {
+                write!(f, "insufficient locked native token balance")
+            }
+            Self::LockNotMatured => {
+                write!(f, "locked native token balance is not yet mature for unlock")
+            }
+            Self::InvalidUnlockEpoch => {
+                write!(f, "unlock epoch must be greater than current epoch")
             }
         }
     }
@@ -305,6 +329,8 @@ pub struct NativeTokenLedger {
     pub policy: NativeTokenPolicy,
     pub total_supply: u128,
     pub balances: HashMap<Address, u128>,
+    pub locked_balances: HashMap<Address, u128>,
+    pub lock_release_epoch: HashMap<Address, u64>,
     pub latest_nonce: HashMap<Address, u64>,
     pub consumed_quantum_commitments: HashSet<[u8; NATIVE_TOKEN_COMMITMENT_SIZE]>,
 }
