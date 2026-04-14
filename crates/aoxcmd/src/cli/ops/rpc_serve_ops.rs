@@ -312,6 +312,12 @@ fn query_value(target: &str, key: &str) -> Option<String> {
     None
 }
 
+fn account_id_from_target(target: &str) -> Option<String> {
+    query_value(target, "id")
+        .or_else(|| query_value(target, "account"))
+        .and_then(|value| normalize_text(&value, false))
+}
+
 fn block_view_json(target: &str) -> serde_json::Value {
     let requested_height = query_value(target, "height").unwrap_or_else(|| "latest".to_string());
 
@@ -347,16 +353,37 @@ fn tx_receipt_json(target: &str) -> serde_json::Value {
 }
 
 fn account_json(target: &str) -> serde_json::Value {
+    let account_id = account_id_from_target(target).unwrap_or_else(|| "unknown".to_string());
+    let ledger = ledger::load().unwrap_or_default();
+    let known = account_id == "treasury" || ledger.delegations.contains_key(&account_id);
+    let balance = if account_id == "treasury" {
+        ledger.treasury_balance
+    } else {
+        ledger.delegations.get(&account_id).copied().unwrap_or(0)
+    };
+
     json!({
-        "account": query_value(target, "account").unwrap_or_else(|| "unknown".to_string()),
+        "account": account_id,
+        "known": known,
+        "balance": balance,
         "nonce": 0_u64,
     })
 }
 
 fn balance_json(target: &str) -> serde_json::Value {
+    let account_id = account_id_from_target(target).unwrap_or_else(|| "unknown".to_string());
+    let ledger = ledger::load().unwrap_or_default();
+    let known = account_id == "treasury" || ledger.delegations.contains_key(&account_id);
+    let balance = if account_id == "treasury" {
+        ledger.treasury_balance
+    } else {
+        ledger.delegations.get(&account_id).copied().unwrap_or(0)
+    };
+
     json!({
-        "account": query_value(target, "account").unwrap_or_else(|| "unknown".to_string()),
-        "balance": 0_u64,
+        "account": account_id,
+        "known": known,
+        "balance": balance,
     })
 }
 
@@ -435,5 +462,16 @@ mod tests {
         let response = route_rpc("POST", "/", body);
         assert!(response.contains("\"jsonrpc\":\"2.0\""));
         assert!(response.contains("\"id\":7"));
+    }
+
+    #[test]
+    fn route_rpc_account_and_balance_accept_id_alias() {
+        let account = route_rpc("GET", "/account/get?id=treasury", "");
+        assert!(account.contains("\"account\":\"treasury\""));
+        assert!(account.contains("\"known\":true"));
+
+        let balance = route_rpc("GET", "/balance/get?id=treasury", "");
+        assert!(balance.contains("\"account\":\"treasury\""));
+        assert!(balance.contains("\"known\":true"));
     }
 }
