@@ -85,12 +85,12 @@ optional = true
 default-features = false
 
 [dependencies.unicode-normalization]
-version = "0.1.22"
+version = "0.1.25"
 optional = true
 default-features = false
 
 [dependencies.zeroize]
-version = "1.5"
+version = "1.8"
 features = ["zeroize_derive"]
 optional = true
 default-features = false
