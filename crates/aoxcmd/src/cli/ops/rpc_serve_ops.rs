@@ -320,21 +320,13 @@ fn account_id_from_target(target: &str) -> Option<String> {
 
 struct LedgerLookup {
     ledger: ledger::LedgerState,
-    source: &'static str,
-    degraded: bool,
 }
 
 fn load_ledger_lookup() -> LedgerLookup {
     match ledger::load() {
-        Ok(ledger) => LedgerLookup {
-            ledger,
-            source: "ledger-store",
-            degraded: false,
-        },
+        Ok(ledger) => LedgerLookup { ledger },
         Err(_) => LedgerLookup {
             ledger: ledger::LedgerState::default(),
-            source: "default-fallback",
-            degraded: true,
         },
     }
 }
