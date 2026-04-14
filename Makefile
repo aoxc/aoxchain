@@ -297,7 +297,7 @@ endif
 	ops-help ops-doctor ops-prepare ops-start ops-once ops-stop ops-status ops-restart ops-logs ops-flow \
 	demo localnet devnet testnet testnet-gate testnet-readiness-gate network-identity-gate aoxcvm-phase3-gate aoxcvm-production-closure-gate reset doctor audit-chain logs down restart \
 	network-create network-start network-stop network-status genesis-build chain-status \
-	aoxc-q-up aoxc-q-provision aoxc-q-start aoxc-q-stop aoxc-q-restart aoxc-q-status \
+	aoxc-q-up aoxc-q-provision aoxc-q-start aoxc-q-stop aoxc-q-restart aoxc-q-status aoxc-q-verify aoxc-q-verify-full \
 	chain-help chain-init chain-add-account chain-add-validator chain-start-persistent \
 	ui alpha
 
@@ -349,6 +349,8 @@ help:
 	@printf "  make testnet-readiness-gate\n"
 	@printf "  make aoxc-q-up AOXC_Q_MODE=<local|public> AOXC_Q_NODES=<n> AOXC_Q_FORCE=1\n"
 	@printf "  make aoxc-q-status AOXC_Q_MODE=<local|public> AOXC_Q_NODES=<n>\n"
+	@printf "  make aoxc-q-verify AOXC_Q_MODE=<local|public> AOXC_Q_NODES=<n>\n"
+	@printf "  make aoxc-q-verify-full AOXC_Q_MODE=<local|public> AOXC_Q_NODES=<n>\n"
 	@printf "  make aoxc-q-stop AOXC_Q_MODE=<local|public> AOXC_Q_NODES=<n>\n"
 	@printf "  make doctor\n"
 	@printf "  make audit-chain\n"
@@ -1388,6 +1390,14 @@ aoxc-q-restart:
 aoxc-q-status:
 	$(call print_banner,AOXC-Q status)
 	@$(BASH) "$(AOXC_Q_SCRIPT)" --action status --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
+
+aoxc-q-verify:
+	$(call print_banner,AOXC-Q runtime verify)
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action verify --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
+
+aoxc-q-verify-full:
+	$(call print_banner,AOXC-Q full runtime verify)
+	@$(BASH) "$(AOXC_Q_SCRIPT)" --action verify-full --mode "$(AOXC_Q_MODE)" --home "$(AOXC_Q_HOME)" --env "$(AOXC_Q_ENV)" --nodes "$(AOXC_Q_NODES)"
 
 # --------------------------------------------------------------------
 # UI surfaces

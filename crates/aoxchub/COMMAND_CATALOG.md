@@ -17,8 +17,9 @@ The catalog is immutable at compile time and rendered as both operator-facing la
 ## Network Placeholders and Operational Extensions
 - `make net-mainnet-start`
 - `make net-mainnet-status`
-- `make net-testnet-start`
-- `make net-testnet-status`
+- `make aoxc-q-up`
+- `make aoxc-q-status`
+- `make aoxc-q-verify-full`
 
 ## Policy Notes
 - Command previews are read-only and generated from immutable command specs.
