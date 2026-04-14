@@ -1,20 +1,15 @@
 //! Virtual machine profile selection and quantum-hardening policy.
 
 /// Known VM runtime families exposed by AOXC-VMachine-QX1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum VmFlavor {
     /// Baseline deterministic VM profile.
+    #[default]
     Deterministic,
     /// Advanced deterministic profile with stronger guardrails.
     AdvancedDeterministic,
     /// Quantum-resistant profile requiring post-quantum controls.
     QuantumResistant,
-}
-
-impl Default for VmFlavor {
-    fn default() -> Self {
-        Self::Deterministic
-    }
 }
 
 /// Signature policy required for VM admission.

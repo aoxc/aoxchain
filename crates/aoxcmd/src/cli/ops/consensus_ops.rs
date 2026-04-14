@@ -363,17 +363,16 @@ pub fn cmd_consensus_evidence(args: &[String]) -> Result<(), AppError> {
         ));
     }
 
-    if let Some(required) = require_evidence {
-        if !response
+    if let Some(required) = require_evidence
+        && !response
             .evidence
             .iter()
             .any(|item| item.eq_ignore_ascii_case(&required))
-        {
-            return Err(AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                format!("Consensus evidence item '{required}' not found"),
-            ));
-        }
+    {
+        return Err(AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            format!("Consensus evidence item '{required}' not found"),
+        ));
     }
 
     emit_serialized(&response, output_format(args))
