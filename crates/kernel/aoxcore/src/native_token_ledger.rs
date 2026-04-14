@@ -8,7 +8,6 @@ impl NativeTokenLedger {
             total_supply: 0,
             balances: HashMap::new(),
             locked_balances: HashMap::new(),
-            lock_release_epoch: HashMap::new(),
             latest_nonce: HashMap::new(),
             consumed_quantum_commitments: HashSet::new(),
         })
@@ -141,22 +140,8 @@ impl NativeTokenLedger {
 
     /// Locks spendable balance into a non-transferable bucket.
     pub fn lock(&mut self, owner: Address, amount: u128) -> Result<(), NativeTokenError> {
-        self.lock_with_epoch(owner, amount, 0, 0)
-    }
-
-    /// Locks spendable balance into a non-transferable bucket with maturity epoch.
-    pub fn lock_with_epoch(
-        &mut self,
-        owner: Address,
-        amount: u128,
-        current_epoch: u64,
-        unlock_epoch: u64,
-    ) -> Result<(), NativeTokenError> {
         self.policy.validate()?;
         self.policy.validate_transfer_amount(amount)?;
-        if unlock_epoch > 0 && unlock_epoch <= current_epoch {
-            return Err(NativeTokenError::InvalidUnlockEpoch);
-        }
 
         let spendable = self.balance_of(&owner);
         if spendable < amount {
@@ -175,33 +160,14 @@ impl NativeTokenLedger {
             .checked_add(amount)
             .ok_or(NativeTokenError::BalanceOverflow)?;
         self.locked_balances.insert(owner, updated_locked);
-        if unlock_epoch > 0 {
-            let existing = self.lock_release_epoch.get(&owner).copied().unwrap_or(0);
-            self.lock_release_epoch
-                .insert(owner, existing.max(unlock_epoch));
-        }
 
         Ok(())
     }
 
     /// Unlocks previously locked balance back into spendable balance.
     pub fn unlock(&mut self, owner: Address, amount: u128) -> Result<(), NativeTokenError> {
-        self.unlock_at_epoch(owner, amount, u64::MAX)
-    }
-
-    /// Unlocks previously locked balance if maturity epoch is reached.
-    pub fn unlock_at_epoch(
-        &mut self,
-        owner: Address,
-        amount: u128,
-        current_epoch: u64,
-    ) -> Result<(), NativeTokenError> {
         self.policy.validate()?;
         self.policy.validate_transfer_amount(amount)?;
-        let release_epoch = self.lock_release_epoch.get(&owner).copied().unwrap_or(0);
-        if release_epoch > 0 && current_epoch < release_epoch {
-            return Err(NativeTokenError::LockNotMatured);
-        }
 
         let locked = self.locked_balance_of(&owner);
         if locked < amount {
@@ -211,7 +177,6 @@ impl NativeTokenLedger {
         let remaining_locked = locked - amount;
         if remaining_locked == 0 {
             self.locked_balances.remove(&owner);
-            self.lock_release_epoch.remove(&owner);
         } else {
             self.locked_balances.insert(owner, remaining_locked);
         }

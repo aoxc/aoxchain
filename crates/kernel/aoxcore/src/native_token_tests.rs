@@ -97,29 +97,6 @@ mod tests {
     }
 
     #[test]
-    fn lock_with_epoch_rejects_invalid_unlock_epoch() {
-        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
-        ledger.mint(addr(1), 100).unwrap();
-
-        let error = ledger.lock_with_epoch(addr(1), 10, 10, 10).unwrap_err();
-        assert_eq!(error, NativeTokenError::InvalidUnlockEpoch);
-    }
-
-    #[test]
-    fn unlock_at_epoch_requires_maturity() {
-        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
-        ledger.mint(addr(1), 200).unwrap();
-        ledger.lock_with_epoch(addr(1), 50, 5, 12).unwrap();
-
-        let early = ledger.unlock_at_epoch(addr(1), 10, 11).unwrap_err();
-        assert_eq!(early, NativeTokenError::LockNotMatured);
-
-        ledger.unlock_at_epoch(addr(1), 10, 12).unwrap();
-        assert_eq!(ledger.balance_of(&addr(1)), 160);
-        assert_eq!(ledger.locked_balance_of(&addr(1)), 40);
-    }
-
-    #[test]
     fn transfer_fails_when_balance_is_insufficient() {
         let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
         ledger.mint(addr(1), 10).unwrap();
