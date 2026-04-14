@@ -25,6 +25,7 @@ AOXC_Q_ENV="${AOXC_Q_ENV:-testnet}"
 AOXC_Q_PROFILE="${AOXC_Q_PROFILE:-testnet}"
 AOXC_Q_MODE="${AOXC_Q_MODE:-local}"
 AOXC_Q_NODE_COUNT="${AOXC_Q_NODE_COUNT:-7}"
+AOXC_Q_REAL_TESTNET="${AOXC_Q_REAL_TESTNET:-0}"
 AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
 AOXC_Q_BLOCK_INTERVAL_SECS="${AOXC_Q_BLOCK_INTERVAL_SECS:-6}"
 AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-3}"
@@ -63,6 +64,7 @@ Options:
   --profile <name>     AOXC profile for bootstrap (default: ${AOXC_Q_PROFILE})
   --mode <name>        run mode label: local|public (default: ${AOXC_Q_MODE})
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; minimum: 7)
+  --real-testnet       enforce production-like full testnet sizing/policy defaults
   --rounds <n>         rounds per node-run cycle (default: ${AOXC_Q_ROUNDS})
   --block-interval-secs <n> block production interval in seconds for node-run (default: ${AOXC_Q_BLOCK_INTERVAL_SECS}; range: 2..600)
   --sleep-secs <n>     fixed sleep between daemon cycles
@@ -82,6 +84,7 @@ Options:
 
 Environment overrides:
   AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_MODE, AOXC_Q_NODE_COUNT,
+  AOXC_Q_REAL_TESTNET,
   AOXC_Q_ROUNDS, AOXC_Q_BLOCK_INTERVAL_SECS, AOXC_Q_SLEEP_SECS, AOXC_Q_SLEEP_MIN_SECS,
   AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION, AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE,
   AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE,
@@ -130,6 +133,7 @@ while [[ $# -gt 0 ]]; do
     --mode=*) AOXC_Q_MODE="${1#*=}"; shift ;;
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
     --nodes=*) AOXC_Q_NODE_COUNT="${1#*=}"; shift ;;
+    --real-testnet) AOXC_Q_REAL_TESTNET=1; shift ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
     --rounds=*) AOXC_Q_ROUNDS="${1#*=}"; shift ;;
     --block-interval-secs) AOXC_Q_BLOCK_INTERVAL_SECS="$2"; shift 2 ;;
@@ -179,6 +183,9 @@ require_uint "${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}" "AOXC_Q_VALIDATOR_BOOTSTRAP
 if (( AOXC_Q_NODE_COUNT < 7 )); then
   die "AOXC_Q_NODE_COUNT must be >= 7 for production-like persistent topology." 2
 fi
+if [[ "${AOXC_Q_REAL_TESTNET}" != "0" && "${AOXC_Q_REAL_TESTNET}" != "1" ]]; then
+  die "AOXC_Q_REAL_TESTNET must be 0 or 1." 2
+fi
 if (( AOXC_Q_SLEEP_MIN_SECS < 1 )); then
   die "AOXC_Q_SLEEP_MIN_SECS must be >= 1." 2
 fi
@@ -205,6 +212,17 @@ case "${AOXC_Q_MODE}" in
   local|public) ;;
   *) die "Invalid --mode value: ${AOXC_Q_MODE} (expected: local|public)" 2 ;;
 esac
+
+if [[ "${AOXC_Q_REAL_TESTNET}" == "1" ]]; then
+  if (( AOXC_Q_NODE_COUNT < 21 )); then
+    log_warn "real testnet requested: bumping node count from ${AOXC_Q_NODE_COUNT} to 21"
+    AOXC_Q_NODE_COUNT=21
+  fi
+  if [[ "${AOXC_Q_MODE}" != "public" ]]; then
+    log_warn "real testnet requested: overriding mode=${AOXC_Q_MODE} -> public"
+    AOXC_Q_MODE="public"
+  fi
+fi
 
 TARGET_ROOT="${AOXC_Q_HOME%/}/aoxc-rolling-${AOXC_Q_ENV}-${AOXC_Q_NODE_COUNT}n"
 SOURCE_ROOT="${REPO_ROOT}/configs/environments/${AOXC_Q_ENV}"
@@ -509,6 +527,36 @@ write_topology_checksums() {
     > "${TARGET_ROOT}/system/audit/topology.sha256"
 }
 
+wallet_count_total() {
+  # per node: operator + validator wallets, plus one treasury system wallet
+  echo $((AOXC_Q_NODE_COUNT * 2 + 1))
+}
+
+wallet_count_operator() {
+  echo "${AOXC_Q_NODE_COUNT}"
+}
+
+wallet_count_validator() {
+  echo "${AOXC_Q_NODE_COUNT}"
+}
+
+write_network_sizing_report() {
+  local out_file="${TARGET_ROOT}/system/audit/network-sizing.txt"
+  cat > "${out_file}" <<EOF
+AOXC rolling network sizing
+created_utc=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)
+environment=${AOXC_Q_ENV}
+profile=${AOXC_Q_PROFILE}
+mode=${AOXC_Q_MODE}
+real_testnet=${AOXC_Q_REAL_TESTNET}
+node_count=${AOXC_Q_NODE_COUNT}
+operator_wallet_count=$(wallet_count_operator)
+validator_wallet_count=$(wallet_count_validator)
+treasury_wallet_count=1
+total_wallet_count=$(wallet_count_total)
+EOF
+}
+
 write_node_identity_summary() {
   local node_root="$1"
   local node_name="$2"
@@ -649,14 +697,15 @@ RUNNER
 extract_json_field() {
   local json_payload="$1"
   local field_name="$2"
-  python3 - "$field_name" <<'PYJSON' <<<"${json_payload}"
+  JSON_PAYLOAD="${json_payload}" python3 - "$field_name" <<'PYJSON'
 import json
+import os
 import sys
 
 field_name = sys.argv[1]
 
 try:
-    payload = json.loads(sys.stdin.read())
+    payload = json.loads(os.environ.get("JSON_PAYLOAD", ""))
 except Exception:
     print("-")
     raise SystemExit(0)
@@ -778,6 +827,7 @@ provision_testnet() {
   write_wrapper_script "${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
   write_cluster_monitor
   write_topology_checksums
+  write_network_sizing_report
 
   local accounts_file="${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
   local ports_file="${TARGET_ROOT}/system/audit/node-port-map.tsv"
@@ -1048,6 +1098,11 @@ environment=${AOXC_Q_ENV}
 profile=${AOXC_Q_PROFILE}
 mode=${AOXC_Q_MODE}
 node_count=${AOXC_Q_NODE_COUNT}
+real_testnet=${AOXC_Q_REAL_TESTNET}
+operator_wallet_count=$(wallet_count_operator)
+validator_wallet_count=$(wallet_count_validator)
+treasury_wallet_count=1
+total_wallet_count=$(wallet_count_total)
 rounds=${AOXC_Q_ROUNDS}
 sleep_secs=${AOXC_Q_SLEEP_SECS}
 sleep_min_secs=${AOXC_Q_SLEEP_MIN_SECS}
@@ -1074,6 +1129,7 @@ ports_file=${TARGET_ROOT}/system/audit/node-port-map.tsv
 seed_map_file=${TARGET_ROOT}/system/audit/node-seed-map.tsv
 wallet_balances_file=${TARGET_ROOT}/system/audit/wallet-balances.tsv
 topology_checksums=${TARGET_ROOT}/system/audit/topology.sha256
+network_sizing_file=${TARGET_ROOT}/system/audit/network-sizing.txt
 genesis_checksum_validation=${AOXC_Q_VALIDATE_GENESIS}
 REPORT
 
@@ -1264,6 +1320,8 @@ main() {
     log_info "wallet balances: ${TARGET_ROOT}/system/audit/wallet-balances.tsv"
     log_info "provision report: ${TARGET_ROOT}/system/audit/provision-report.txt"
     log_info "topology checksums: ${TARGET_ROOT}/system/audit/topology.sha256"
+    log_info "network sizing: ${TARGET_ROOT}/system/audit/network-sizing.txt"
+    log_info "capacity summary: nodes=${AOXC_Q_NODE_COUNT} operator_wallets=$(wallet_count_operator) validator_wallets=$(wallet_count_validator) treasury_wallets=1 total_wallets=$(wallet_count_total)"
     log_info "control: $(basename "$0") --action start|stop|status --home ${AOXC_Q_HOME} --env ${AOXC_Q_ENV} --nodes ${AOXC_Q_NODE_COUNT}"
   fi
 }
