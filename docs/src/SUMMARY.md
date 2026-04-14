@@ -12,6 +12,7 @@
 
 - [Architecture](architecture/AOXC_Q_CONSENSUS_SPEC.md)
   - [AOXCHUB Full Spec](architecture/AOXCHUB_FULL_SPEC.md)
+  - [AOXC Native Token: Advanced Architecture Specification](architecture/AOXC_NATIVE_TOKEN_ADVANCED_SPEC.md)
   - [API Kernel Security Blueprint](architecture/API_KERNEL_SECURITY_BLUEPRINT.md)
   - [API Reference](architecture/API_REFERENCE.md)
   - [Client Repository API Integration Spec](architecture/CLIENT_REPOSITORY_API_INTEGRATION_SPEC.md)
