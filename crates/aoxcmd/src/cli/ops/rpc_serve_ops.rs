@@ -403,12 +403,17 @@ fn account_json(target: &str) -> serde_json::Value {
 
 fn balance_json(target: &str) -> serde_json::Value {
     let account_id = account_id_from_target(target).unwrap_or_else(|| "unknown".to_string());
-    let ledger = ledger::load().unwrap_or_default();
-    let known = account_id == "treasury" || ledger.delegations.contains_key(&account_id);
+    let lookup = load_ledger_lookup();
+    let known = account_id == "treasury" || lookup.ledger.delegations.contains_key(&account_id);
     let balance = if account_id == "treasury" {
-        ledger.treasury_balance
+        lookup.ledger.treasury_balance
     } else {
-        ledger.delegations.get(&account_id).copied().unwrap_or(0)
+        lookup
+            .ledger
+            .delegations
+            .get(&account_id)
+            .copied()
+            .unwrap_or(0)
     };
 
     json!({
