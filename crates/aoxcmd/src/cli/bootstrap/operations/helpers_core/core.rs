@@ -600,6 +600,28 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
             "Genesis validation failed: block_time_ms must be non-zero",
         ));
     }
+    if genesis.consensus.validator_quorum_policy.trim().is_empty() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: validator_quorum_policy must not be empty",
+        ));
+    }
+    if matches!(genesis.environment.as_str(), "mainnet" | "testnet")
+        && genesis
+            .consensus
+            .consensus_identity_profile
+            .trim()
+            .to_ascii_lowercase()
+            != "pq-only"
+    {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: {} requires consensus_identity_profile=pq-only",
+                genesis.environment
+            ),
+        ));
+    }
 
     if genesis.consensus.consensus_timing.epoch_length_blocks == 0 {
         return Err(AppError::new(
@@ -672,6 +694,12 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
             "Genesis validation failed: treasury amount must be a non-zero decimal string",
         ));
     }
+    if genesis.economics.initial_treasury.account_id.trim().is_empty() {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: treasury account_id must not be empty",
+        ));
+    }
 
     if genesis.state.accounts.is_empty() {
         return Err(AppError::new(
@@ -681,6 +709,7 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
     }
 
     let mut seen_accounts = BTreeSet::new();
+    let mut treasury_balance = None::<String>;
     for account in &genesis.state.accounts {
         if account.account_id.trim().is_empty()
             || account.role.trim().is_empty()
@@ -708,6 +737,29 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
                 ),
             ));
         }
+
+        let normalized_role = account.role.trim().to_ascii_lowercase();
+        if normalized_role == "treasury"
+            && account.account_id == genesis.economics.initial_treasury.account_id
+        {
+            treasury_balance = Some(account.balance.clone());
+        }
+    }
+
+    let Some(treasury_balance) = treasury_balance else {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            format!(
+                "Genesis validation failed: treasury account {} is missing from state.accounts with role=treasury",
+                genesis.economics.initial_treasury.account_id
+            ),
+        ));
+    };
+    if treasury_balance != genesis.economics.initial_treasury.amount {
+        return Err(AppError::new(
+            ErrorCode::ConfigInvalid,
+            "Genesis validation failed: treasury amount must match treasury account balance",
+        ));
     }
 
     if genesis.bindings.validators_file.trim().is_empty()
