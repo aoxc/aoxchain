@@ -381,14 +381,9 @@ fn account_json(target: &str) -> serde_json::Value {
     };
     let known = account_id == "treasury" || ledger.delegations.contains_key(&account_id);
     let balance = if account_id == "treasury" {
-        lookup.ledger.treasury_balance
+        ledger.treasury_balance
     } else {
-        lookup
-            .ledger
-            .delegations
-            .get(&account_id)
-            .copied()
-            .unwrap_or(0)
+        ledger.delegations.get(&account_id).copied().unwrap_or(0)
     };
 
     json!({
