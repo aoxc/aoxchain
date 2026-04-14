@@ -20,18 +20,31 @@ fn transfer_security_mode(args: &[String]) -> Result<(bool, TransferSecurityMode
     let signature = parse_optional_text_arg(args, "--signature", false);
     let allow_unsigned = has_flag(args, "--allow-unsigned");
 
-    match (signature.is_some(), allow_unsigned) {
-        (true, true) => Err(AppError::new(
+    match (signature, allow_unsigned) {
+        (Some(_), true) => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             "Use either --signature or --allow-unsigned, not both",
         )),
-        (true, false) => Ok((true, TransferSecurityMode::Full)),
-        (false, true) => Ok((false, TransferSecurityMode::DevelopmentUnsigned)),
-        (false, false) => Err(AppError::new(
+        (Some(signature), false) => {
+            validate_signature_hex(&signature)?;
+            Ok((true, TransferSecurityMode::Full))
+        }
+        (None, true) => Ok((false, TransferSecurityMode::DevelopmentUnsigned)),
+        (None, false) => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             "Transfer requires --signature for full security (or --allow-unsigned for local development)",
         )),
     }
+}
+
+fn validate_signature_hex(signature: &str) -> Result<(), AppError> {
+    hex::decode(signature).map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Flag --signature must be valid hex-encoded bytes",
+        )
+    })?;
+    Ok(())
 }
 
 pub fn cmd_economy_init(args: &[String]) -> Result<(), AppError> {
@@ -140,5 +153,12 @@ mod tests {
             .expect("explicit dev override should pass");
         assert!(!signature_provided);
         assert_eq!(mode, TransferSecurityMode::DevelopmentUnsigned);
+    }
+
+    #[test]
+    fn transfer_security_mode_rejects_non_hex_signature() {
+        let error = transfer_security_mode(&args(&["--signature", "not-hex"]))
+            .expect_err("invalid signature");
+        assert_eq!(error.code(), "AOXC-USG-002");
     }
 }
