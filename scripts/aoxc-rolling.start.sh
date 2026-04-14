@@ -25,6 +25,7 @@ AOXC_Q_ENV="${AOXC_Q_ENV:-testnet}"
 AOXC_Q_PROFILE="${AOXC_Q_PROFILE:-testnet}"
 AOXC_Q_MODE="${AOXC_Q_MODE:-local}"
 AOXC_Q_NODE_COUNT="${AOXC_Q_NODE_COUNT:-7}"
+AOXC_Q_REAL_TESTNET="${AOXC_Q_REAL_TESTNET:-0}"
 AOXC_Q_ROUNDS="${AOXC_Q_ROUNDS:-200}"
 AOXC_Q_BLOCK_INTERVAL_SECS="${AOXC_Q_BLOCK_INTERVAL_SECS:-6}"
 AOXC_Q_SLEEP_SECS="${AOXC_Q_SLEEP_SECS:-3}"
@@ -55,14 +56,17 @@ Actions:
   stop             stop loops for an existing provisioned root
   restart          stop then start
   status           show per-node process and chain status
+  verify           verify per-node runtime surfaces (rpc/api) and write audit
+  verify-full      verify rpc/api/query/faucet surfaces and write full audit
 
 Options:
-  --action <name>      one of: up|provision|start|stop|restart|status
+  --action <name>      one of: up|provision|start|stop|restart|status|verify|verify-full
   --home <path>        base output root (default: ${AOXC_Q_HOME})
   --env <name>         configs/environments/<name> source (default: ${AOXC_Q_ENV})
   --profile <name>     AOXC profile for bootstrap (default: ${AOXC_Q_PROFILE})
   --mode <name>        run mode label: local|public (default: ${AOXC_Q_MODE})
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; minimum: 7)
+  --real-testnet       enforce production-like full testnet sizing/policy defaults
   --rounds <n>         rounds per node-run cycle (default: ${AOXC_Q_ROUNDS})
   --block-interval-secs <n> block production interval in seconds for node-run (default: ${AOXC_Q_BLOCK_INTERVAL_SECS}; range: 2..600)
   --sleep-secs <n>     fixed sleep between daemon cycles
@@ -82,6 +86,7 @@ Options:
 
 Environment overrides:
   AOXC_Q_HOME, AOXC_Q_ENV, AOXC_Q_PROFILE, AOXC_Q_MODE, AOXC_Q_NODE_COUNT,
+  AOXC_Q_REAL_TESTNET,
   AOXC_Q_ROUNDS, AOXC_Q_BLOCK_INTERVAL_SECS, AOXC_Q_SLEEP_SECS, AOXC_Q_SLEEP_MIN_SECS,
   AOXC_Q_SLEEP_MAX_SECS, AOXC_Q_FORCE, AOXC_Q_ACTION, AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE,
   AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE,
@@ -130,6 +135,7 @@ while [[ $# -gt 0 ]]; do
     --mode=*) AOXC_Q_MODE="${1#*=}"; shift ;;
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
     --nodes=*) AOXC_Q_NODE_COUNT="${1#*=}"; shift ;;
+    --real-testnet) AOXC_Q_REAL_TESTNET=1; shift ;;
     --rounds) AOXC_Q_ROUNDS="$2"; shift 2 ;;
     --rounds=*) AOXC_Q_ROUNDS="${1#*=}"; shift ;;
     --block-interval-secs) AOXC_Q_BLOCK_INTERVAL_SECS="$2"; shift 2 ;;
@@ -179,6 +185,9 @@ require_uint "${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}" "AOXC_Q_VALIDATOR_BOOTSTRAP
 if (( AOXC_Q_NODE_COUNT < 7 )); then
   die "AOXC_Q_NODE_COUNT must be >= 7 for production-like persistent topology." 2
 fi
+if [[ "${AOXC_Q_REAL_TESTNET}" != "0" && "${AOXC_Q_REAL_TESTNET}" != "1" ]]; then
+  die "AOXC_Q_REAL_TESTNET must be 0 or 1." 2
+fi
 if (( AOXC_Q_SLEEP_MIN_SECS < 1 )); then
   die "AOXC_Q_SLEEP_MIN_SECS must be >= 1." 2
 fi
@@ -197,7 +206,7 @@ ensure_port_in_range "${AOXC_Q_METRICS_BASE_PORT}" "AOXC_Q_METRICS_BASE_PORT"
 ensure_port_in_range "${AOXC_Q_ADMIN_BASE_PORT}" "AOXC_Q_ADMIN_BASE_PORT"
 
 case "${AOXC_Q_ACTION}" in
-  up|provision|start|stop|restart|status) ;;
+  up|provision|start|stop|restart|status|verify|verify-full) ;;
   *) die "Invalid --action value: ${AOXC_Q_ACTION}" 2 ;;
 esac
 
@@ -205,6 +214,17 @@ case "${AOXC_Q_MODE}" in
   local|public) ;;
   *) die "Invalid --mode value: ${AOXC_Q_MODE} (expected: local|public)" 2 ;;
 esac
+
+if [[ "${AOXC_Q_REAL_TESTNET}" == "1" ]]; then
+  if (( AOXC_Q_NODE_COUNT < 21 )); then
+    log_warn "real testnet requested: bumping node count from ${AOXC_Q_NODE_COUNT} to 21"
+    AOXC_Q_NODE_COUNT=21
+  fi
+  if [[ "${AOXC_Q_MODE}" != "public" ]]; then
+    log_warn "real testnet requested: overriding mode=${AOXC_Q_MODE} -> public"
+    AOXC_Q_MODE="public"
+  fi
+fi
 
 TARGET_ROOT="${AOXC_Q_HOME%/}/aoxc-rolling-${AOXC_Q_ENV}-${AOXC_Q_NODE_COUNT}n"
 SOURCE_ROOT="${REPO_ROOT}/configs/environments/${AOXC_Q_ENV}"
@@ -389,6 +409,44 @@ validate_port_plan() {
   ensure_port_in_range "${max_p2p}" "AOXC_Q_P2P_BASE_PORT + AOXC_Q_NODE_COUNT - 1"
   ensure_port_in_range "${max_metrics}" "AOXC_Q_METRICS_BASE_PORT + AOXC_Q_NODE_COUNT - 1"
   ensure_port_in_range "${max_admin}" "AOXC_Q_ADMIN_BASE_PORT + AOXC_Q_NODE_COUNT - 1"
+
+  local -A seen=()
+  local i
+  local port
+  for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
+    for port in \
+      "$(node_rpc_port "${i}")" \
+      "$(node_p2p_port "${i}")" \
+      "$(node_metrics_port "${i}")" \
+      "$(node_admin_port "${i}")"; do
+      if [[ -n "${seen[${port}]+x}" ]]; then
+        die "Port plan collision detected at port ${port} (duplicate across base ranges)." 2
+      fi
+      seen["${port}"]=1
+    done
+  done
+}
+
+assert_port_available() {
+  local port="$1"
+  local label="$2"
+  python3 - "${port}" "${label}" <<'PYPORT'
+import socket
+import sys
+
+port = int(sys.argv[1])
+label = sys.argv[2]
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(("127.0.0.1", port))
+except OSError as exc:
+    print(f"{label}:{port}:{exc}")
+    raise SystemExit(1)
+finally:
+    sock.close()
+PYPORT
 }
 
 validate_genesis_checksum() {
@@ -507,6 +565,36 @@ write_topology_checksums() {
     "${TARGET_ROOT}/system/config/topology/consensus-policy.toml" \
     "${TARGET_ROOT}/system/config/topology/aoxcq-consensus.toml" \
     > "${TARGET_ROOT}/system/audit/topology.sha256"
+}
+
+wallet_count_total() {
+  # per node: operator + validator wallets, plus one treasury system wallet
+  echo $((AOXC_Q_NODE_COUNT * 2 + 1))
+}
+
+wallet_count_operator() {
+  echo "${AOXC_Q_NODE_COUNT}"
+}
+
+wallet_count_validator() {
+  echo "${AOXC_Q_NODE_COUNT}"
+}
+
+write_network_sizing_report() {
+  local out_file="${TARGET_ROOT}/system/audit/network-sizing.txt"
+  cat > "${out_file}" <<EOF
+AOXC rolling network sizing
+created_utc=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)
+environment=${AOXC_Q_ENV}
+profile=${AOXC_Q_PROFILE}
+mode=${AOXC_Q_MODE}
+real_testnet=${AOXC_Q_REAL_TESTNET}
+node_count=${AOXC_Q_NODE_COUNT}
+operator_wallet_count=$(wallet_count_operator)
+validator_wallet_count=$(wallet_count_validator)
+treasury_wallet_count=1
+total_wallet_count=$(wallet_count_total)
+EOF
 }
 
 write_node_identity_summary() {
@@ -649,14 +737,15 @@ RUNNER
 extract_json_field() {
   local json_payload="$1"
   local field_name="$2"
-  python3 - "$field_name" <<'PYJSON' <<<"${json_payload}"
+  JSON_PAYLOAD="${json_payload}" python3 - "$field_name" <<'PYJSON'
 import json
+import os
 import sys
 
 field_name = sys.argv[1]
 
 try:
-    payload = json.loads(sys.stdin.read())
+    payload = json.loads(os.environ.get("JSON_PAYLOAD", ""))
 except Exception:
     print("-")
     raise SystemExit(0)
@@ -681,6 +770,99 @@ fetch_balance_field() {
     return 0
   fi
   extract_json_field "${payload}" "${field_name}"
+}
+
+probe_http_health() {
+  local port="$1"
+  python3 - "${port}" <<'PYHEALTH'
+import json
+import sys
+import urllib.error
+import urllib.request
+
+port = int(sys.argv[1])
+url = f"http://127.0.0.1:{port}/health"
+try:
+    with urllib.request.urlopen(url, timeout=2.0) as response:
+        payload = response.read(256).decode("utf-8", errors="ignore").strip()
+    print("ok" if payload else "ok")
+except Exception:
+    print("fail")
+PYHEALTH
+}
+
+probe_jsonrpc_status() {
+  local port="$1"
+  python3 - "${port}" <<'PYRPC'
+import json
+import sys
+import urllib.error
+import urllib.request
+
+port = int(sys.argv[1])
+url = f"http://127.0.0.1:{port}/jsonrpc"
+body = json.dumps(
+    {"jsonrpc": "2.0", "id": 1, "method": "status", "params": []}
+).encode("utf-8")
+request = urllib.request.Request(
+    url,
+    data=body,
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+try:
+    with urllib.request.urlopen(request, timeout=2.0) as response:
+        text = response.read(4096).decode("utf-8", errors="ignore")
+    if "result" in text or "error" in text:
+        print("ok")
+    else:
+        print("fail")
+except Exception:
+    print("fail")
+PYRPC
+}
+
+run_query_chain_probe() {
+  local node_home="$1"
+  if run_aoxc "${node_home}" query chain status --format json >/dev/null 2>&1; then
+    echo "ok"
+  else
+    echo "fail"
+  fi
+}
+
+run_query_network_probe() {
+  local node_home="$1"
+  if run_aoxc "${node_home}" query network full --format json >/dev/null 2>&1; then
+    echo "ok"
+  else
+    echo "fail"
+  fi
+}
+
+read_operator_account_id() {
+  local node_root="$1"
+  local identity_file="${node_root}/identity-summary.env"
+  [[ -f "${identity_file}" ]] || { echo "-"; return 0; }
+  awk -F= '$1=="OPERATOR_ACCOUNT_ID"{print $2}' "${identity_file}" | tail -n 1
+}
+
+run_faucet_probe() {
+  local node_home="$1"
+  local node_root="$2"
+  local account_id
+  account_id="$(read_operator_account_id "${node_root}")"
+  [[ -n "${account_id}" && "${account_id}" != "-" ]] || { echo "fail"; return 0; }
+
+  if ! run_aoxc "${node_home}" treasury-transfer --to "${account_id}" --amount 1 --format json >/dev/null 2>&1; then
+    echo "fail"
+    return 0
+  fi
+  if run_aoxc "${node_home}" balance-get --id "${account_id}" --format json >/dev/null 2>&1; then
+    echo "ok"
+  else
+    echo "fail"
+  fi
 }
 
 write_cluster_monitor() {
@@ -778,6 +960,7 @@ provision_testnet() {
   write_wrapper_script "${TARGET_ROOT}/system/scripts/aoxc-wrapper.sh"
   write_cluster_monitor
   write_topology_checksums
+  write_network_sizing_report
 
   local accounts_file="${TARGET_ROOT}/system/audit/prepared-accounts.tsv"
   local ports_file="${TARGET_ROOT}/system/audit/node-port-map.tsv"
@@ -1040,6 +1223,15 @@ provision_testnet() {
   chmod -R go-rwx "${TARGET_ROOT}" || true
   chmod -R u+rwX "${TARGET_ROOT}" || true
 
+  local accounts_lines_expected=$((AOXC_Q_NODE_COUNT + 1))
+  local balances_lines_expected=$((AOXC_Q_NODE_COUNT * 3 + 1))
+  local accounts_lines_actual
+  local balances_lines_actual
+  accounts_lines_actual="$(wc -l < "${accounts_file}")"
+  balances_lines_actual="$(wc -l < "${balances_file}")"
+  [[ "${accounts_lines_actual}" == "${accounts_lines_expected}" ]] || die "prepared-accounts.tsv line-count mismatch (expected=${accounts_lines_expected} actual=${accounts_lines_actual})" 8
+  [[ "${balances_lines_actual}" == "${balances_lines_expected}" ]] || die "wallet-balances.tsv line-count mismatch (expected=${balances_lines_expected} actual=${balances_lines_actual})" 8
+
   cat > "${TARGET_ROOT}/system/audit/provision-report.txt" <<REPORT
 AOXC rolling local bootstrap report
 created_utc=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)
@@ -1048,6 +1240,11 @@ environment=${AOXC_Q_ENV}
 profile=${AOXC_Q_PROFILE}
 mode=${AOXC_Q_MODE}
 node_count=${AOXC_Q_NODE_COUNT}
+real_testnet=${AOXC_Q_REAL_TESTNET}
+operator_wallet_count=$(wallet_count_operator)
+validator_wallet_count=$(wallet_count_validator)
+treasury_wallet_count=1
+total_wallet_count=$(wallet_count_total)
 rounds=${AOXC_Q_ROUNDS}
 sleep_secs=${AOXC_Q_SLEEP_SECS}
 sleep_min_secs=${AOXC_Q_SLEEP_MIN_SECS}
@@ -1074,6 +1271,7 @@ ports_file=${TARGET_ROOT}/system/audit/node-port-map.tsv
 seed_map_file=${TARGET_ROOT}/system/audit/node-seed-map.tsv
 wallet_balances_file=${TARGET_ROOT}/system/audit/wallet-balances.tsv
 topology_checksums=${TARGET_ROOT}/system/audit/topology.sha256
+network_sizing_file=${TARGET_ROOT}/system/audit/network-sizing.txt
 genesis_checksum_validation=${AOXC_Q_VALIDATE_GENESIS}
 REPORT
 
@@ -1082,6 +1280,7 @@ REPORT
 
 start_testnet() {
   [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
+  validate_port_plan
 
   local i
   for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
@@ -1102,6 +1301,11 @@ start_testnet() {
       fi
       rm -f "${pid_file}"
     fi
+
+    assert_port_available "$(node_rpc_port "${i}")" "rpc" >/dev/null || die "RPC port is already in use for ${node_name}" 7
+    assert_port_available "$(node_p2p_port "${i}")" "p2p" >/dev/null || die "P2P port is already in use for ${node_name}" 7
+    assert_port_available "$(node_metrics_port "${i}")" "metrics" >/dev/null || die "Metrics port is already in use for ${node_name}" 7
+    assert_port_available "$(node_admin_port "${i}")" "admin" >/dev/null || die "Admin port is already in use for ${node_name}" 7
 
     nohup "${node_root}/run-node.sh" > "${node_root}/logs/supervisor.log" 2>&1 &
     echo "$!" > "${pid_file}"
@@ -1232,6 +1436,73 @@ status_testnet() {
   done
 }
 
+verify_testnet() {
+  [[ -d "${TARGET_ROOT}/nodes" ]] || die "Target root is not provisioned: ${TARGET_ROOT}" 5
+  local report_file="${TARGET_ROOT}/system/audit/runtime-surface.tsv"
+  printf 'node\tprocess\trpc_health\tjsonrpc\tapi_smoke\tquery_chain\tquery_network\tfaucet\n' > "${report_file}"
+  printf 'node\tprocess\trpc_health\tjsonrpc\tapi_smoke\tquery_chain\tquery_network\tfaucet\n'
+
+  local i
+  for i in $(seq 1 "${AOXC_Q_NODE_COUNT}"); do
+    local node_name
+    local node_root
+    local pid_file
+    local pid
+    local process_state
+    local rpc_health
+    local jsonrpc_health
+    local api_smoke
+    local query_chain
+    local query_network
+    local faucet_smoke
+
+    node_name="node$(printf '%02d' "${i}")"
+    node_root="${TARGET_ROOT}/nodes/${node_name}"
+    pid_file="${node_root}/node.pid"
+    process_state="stopped"
+    pid=""
+
+    if [[ -f "${pid_file}" ]]; then
+      pid="$(cat "${pid_file}")"
+      if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
+        process_state="running"
+      else
+        process_state="stale-pid"
+      fi
+    fi
+
+    rpc_health="fail"
+    jsonrpc_health="fail"
+    api_smoke="fail"
+    query_chain="fail"
+    query_network="fail"
+    faucet_smoke="fail"
+
+    if [[ "${process_state}" == "running" ]]; then
+      rpc_health="$(probe_http_health "$(node_rpc_port "${i}")")"
+      jsonrpc_health="$(probe_jsonrpc_status "$(node_rpc_port "${i}")")"
+      if run_aoxc "${node_root}/home" api smoke >/dev/null 2>&1; then
+        api_smoke="ok"
+      fi
+      query_chain="$(run_query_chain_probe "${node_root}/home")"
+      query_network="$(run_query_network_probe "${node_root}/home")"
+      faucet_smoke="$(run_faucet_probe "${node_root}/home" "${node_root}")"
+    fi
+
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${node_name}" \
+      "${process_state}" \
+      "${rpc_health}" \
+      "${jsonrpc_health}" \
+      "${api_smoke}" \
+      "${query_chain}" \
+      "${query_network}" \
+      "${faucet_smoke}" \
+      | tee -a "${report_file}"
+  done
+  log_info "runtime surface report: ${report_file}"
+}
+
 main() {
   resolve_aoxc_command
 
@@ -1256,6 +1527,12 @@ main() {
     status)
       status_testnet
       ;;
+    verify)
+      verify_testnet
+      ;;
+    verify-full)
+      verify_testnet
+      ;;
   esac
 
   if [[ "${AOXC_Q_ACTION}" == "up" || "${AOXC_Q_ACTION}" == "provision" ]]; then
@@ -1264,6 +1541,8 @@ main() {
     log_info "wallet balances: ${TARGET_ROOT}/system/audit/wallet-balances.tsv"
     log_info "provision report: ${TARGET_ROOT}/system/audit/provision-report.txt"
     log_info "topology checksums: ${TARGET_ROOT}/system/audit/topology.sha256"
+    log_info "network sizing: ${TARGET_ROOT}/system/audit/network-sizing.txt"
+    log_info "capacity summary: nodes=${AOXC_Q_NODE_COUNT} operator_wallets=$(wallet_count_operator) validator_wallets=$(wallet_count_validator) treasury_wallets=1 total_wallets=$(wallet_count_total)"
     log_info "control: $(basename "$0") --action start|stop|status --home ${AOXC_Q_HOME} --env ${AOXC_Q_ENV} --nodes ${AOXC_Q_NODE_COUNT}"
   fi
 }
