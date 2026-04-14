@@ -35,10 +35,16 @@ fn transfer_security_mode(
             "Use either --signature or --allow-unsigned, not both",
         )),
         (Some(signature), false) => {
-            validate_signature_hex(&signature)?;
-            Ok((true, TransferSecurityMode::Full))
+            let signer_public_key = public_key.ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::UsageInvalidArguments,
+                    "Transfer requires --public-key when --signature is provided",
+                )
+            })?;
+            validate_transfer_signature(&signature, &signer_public_key, to, amount)?;
+            Ok((true, Some(signer_public_key), TransferSecurityMode::Full))
         }
-        (None, true) => Ok((false, TransferSecurityMode::DevelopmentUnsigned)),
+        (None, true) => Ok((false, None, TransferSecurityMode::DevelopmentUnsigned)),
         (None, false) => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             "Transfer requires --signature and --public-key for full security (or --allow-unsigned for local development)",
@@ -46,13 +52,69 @@ fn transfer_security_mode(
     }
 }
 
-fn validate_signature_hex(signature: &str) -> Result<(), AppError> {
-    hex::decode(signature).map_err(|_| {
+fn transfer_signing_payload(to: &str, amount: u64) -> String {
+    format!("{TRANSFER_SIGNATURE_DOMAIN}:{to}:{amount}")
+}
+
+fn decode_signature_bytes(signature: &str) -> Result<[u8; 64], AppError> {
+    let bytes = hex::decode(signature).map_err(|_| {
         AppError::new(
             ErrorCode::UsageInvalidArguments,
             "Flag --signature must be valid hex-encoded bytes",
         )
     })?;
+    bytes.try_into().map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Flag --signature must decode to 64 bytes",
+        )
+    })
+}
+
+fn decode_public_key_bytes(public_key: &str) -> Result<[u8; 32], AppError> {
+    let bytes = hex::decode(public_key).map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Flag --public-key must be valid hex-encoded bytes",
+        )
+    })?;
+    bytes.try_into().map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Flag --public-key must decode to 32 bytes",
+        )
+    })
+}
+
+fn validate_transfer_signature(
+    signature: &str,
+    public_key: &str,
+    to: &str,
+    amount: u64,
+) -> Result<(), AppError> {
+    let signature = Signature::from_slice(&decode_signature_bytes(signature)?).map_err(|_| {
+        AppError::new(
+            ErrorCode::UsageInvalidArguments,
+            "Flag --signature must decode into an Ed25519 signature",
+        )
+    })?;
+    let verifying_key = VerifyingKey::from_bytes(&decode_public_key_bytes(public_key)?).map_err(
+        |_| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Flag --public-key must decode into an Ed25519 verifying key",
+            )
+        },
+    )?;
+    let payload = transfer_signing_payload(to, amount);
+    verifying_key
+        .verify(payload.as_bytes(), &signature)
+        .map_err(|_| {
+            AppError::new(
+                ErrorCode::UsageInvalidArguments,
+                "Transfer signature verification failed for the provided --to and --amount",
+            )
+        })?;
     Ok(())
 }
 
@@ -219,7 +281,11 @@ mod tests {
 
     #[test]
     fn transfer_security_mode_rejects_non_hex_signature() {
-        let error = transfer_security_mode(&args(&["--signature", "not-hex"]))
+        let error = transfer_security_mode(
+            &args(&["--to", "ops", "--amount", "10", "--signature", "not-hex"]),
+            "ops",
+            10,
+        )
             .expect_err("invalid signature");
         assert_eq!(error.code(), "AOXC-USG-002");
     }
