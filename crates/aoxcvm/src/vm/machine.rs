@@ -1,5 +1,6 @@
 //! Deterministic phase-1 virtual machine core.
 
+use crate::config::vm::{VmConstructionPlan, VmFlavor, VmProfileError};
 use crate::gas::meter::{GasError, GasMeter};
 use crate::memory::heap::{LinearMemory, MemoryError};
 use crate::receipts::outcome::{ExecutionReceipt, ReceiptStatus};
@@ -46,6 +47,7 @@ pub enum VmError {
     InvalidProgramCounter,
     MemoryOutOfBounds,
     InvalidCheckpoint,
+    InvalidVmProfile(VmProfileError),
 }
 
 impl From<GasError> for VmError {
@@ -63,6 +65,12 @@ impl From<MemoryError> for VmError {
 impl From<StateError> for VmError {
     fn from(_: StateError) -> Self {
         Self::InvalidCheckpoint
+    }
+}
+
+impl From<VmProfileError> for VmError {
+    fn from(value: VmProfileError) -> Self {
+        Self::InvalidVmProfile(value)
     }
 }
 
@@ -87,6 +95,7 @@ pub struct ExecutionEnvelope {
 /// Deterministic single-threaded VM.
 #[derive(Debug, Clone)]
 pub struct Machine {
+    profile: VmConstructionPlan,
     program: Program,
     pc: usize,
     stack: Vec<u64>,
@@ -99,7 +108,25 @@ pub struct Machine {
 impl Machine {
     /// Creates a new machine with empty state.
     pub fn new(program: Program, gas_limit: u64, max_memory: usize) -> Self {
-        Self {
+        Self::new_with_profile(
+            program,
+            gas_limit,
+            max_memory,
+            VmConstructionPlan::deterministic(),
+        )
+        .expect("deterministic VM profile must always be valid")
+    }
+
+    /// Creates a VM with an explicit profile plan and empty state.
+    pub fn new_with_profile(
+        program: Program,
+        gas_limit: u64,
+        max_memory: usize,
+        profile: VmConstructionPlan,
+    ) -> Result<Self, VmError> {
+        let profile = profile.validate()?;
+        Ok(Self {
+            profile,
             program,
             pc: 0,
             stack: Vec::new(),
@@ -107,7 +134,7 @@ impl Machine {
             gas: GasMeter::new(gas_limit),
             state: JournaledState::default(),
             logs: Vec::new(),
-        }
+        })
     }
 
     /// Creates a machine with a provided starting state.
@@ -120,6 +147,19 @@ impl Machine {
         let mut vm = Self::new(program, gas_limit, max_memory);
         vm.state = state;
         vm
+    }
+
+    /// Creates a VM with explicit profile and provided state snapshot.
+    pub fn with_state_and_profile(
+        program: Program,
+        gas_limit: u64,
+        max_memory: usize,
+        state: JournaledState,
+        profile: VmConstructionPlan,
+    ) -> Result<Self, VmError> {
+        let mut vm = Self::new_with_profile(program, gas_limit, max_memory, profile)?;
+        vm.state = state;
+        Ok(vm)
     }
 
     /// Executes until `Halt` or error. State writes are reverted on failure.
@@ -142,7 +182,7 @@ impl Machine {
             self.pc += 1;
 
             if let Instruction::Halt = instruction {
-                if let Err(err) = self.gas.charge(Self::gas_cost(&instruction)) {
+                if let Err(err) = self.gas.charge(self.gas_cost(&instruction)) {
                     return self.fail_envelope(err.into(), checkpoint);
                 }
                 if let Err(err) = self.state.commit(checkpoint) {
@@ -190,7 +230,7 @@ impl Machine {
     }
 
     fn step(&mut self, instruction: Instruction) -> Result<(), VmError> {
-        self.gas.charge(Self::gas_cost(&instruction))?;
+        self.gas.charge(self.gas_cost(&instruction))?;
 
         match instruction {
             Instruction::Push(v) => self.stack.push(v),
@@ -261,8 +301,8 @@ impl Machine {
         Ok((a, b))
     }
 
-    fn gas_cost(instruction: &Instruction) -> u64 {
-        match instruction {
+    fn gas_cost(&self, instruction: &Instruction) -> u64 {
+        let base = match instruction {
             Instruction::Push(_) => 1,
             Instruction::Add | Instruction::Sub => 2,
             Instruction::Mul | Instruction::Div => 3,
@@ -271,6 +311,21 @@ impl Machine {
             Instruction::SLoad => 8,
             Instruction::LogTop => 5,
             Instruction::Halt => 0,
+        };
+
+        match self.profile.flavor {
+            VmFlavor::Deterministic => base,
+            VmFlavor::AdvancedDeterministic => match instruction {
+                Instruction::StoreMem { .. } | Instruction::LoadMem { .. } => base + 2,
+                Instruction::SStore | Instruction::SLoad => base + 4,
+                _ => base,
+            },
+            VmFlavor::QuantumResistant => match instruction {
+                Instruction::SStore => base + 10,
+                Instruction::SLoad => base + 6,
+                Instruction::LogTop => base + 2,
+                _ => base + 1,
+            },
         }
     }
 }
@@ -278,6 +333,7 @@ impl Machine {
 #[cfg(test)]
 mod tests {
     use super::{Instruction, Machine, Program, VmError};
+    use crate::config::vm::{VmConstructionPlan, VmFlavor};
     use crate::receipts::outcome::ReceiptStatus;
 
     #[test]
@@ -333,5 +389,38 @@ mod tests {
         let envelope = Machine::new(program, 50, 128).execute_enveloped();
         assert_eq!(envelope.error, Some(VmError::DivisionByZero));
         assert_eq!(envelope.result.receipt.status, ReceiptStatus::Failed);
+    }
+
+    #[test]
+    fn quantum_profile_changes_gas_usage_deterministically() {
+        let program = Program {
+            code: vec![
+                Instruction::Push(1),
+                Instruction::Push(2),
+                Instruction::SStore,
+                Instruction::Push(1),
+                Instruction::SLoad,
+                Instruction::Halt,
+            ],
+        };
+
+        let standard = Machine::new(program.clone(), 200, 128)
+            .execute()
+            .expect("standard");
+        let quantum =
+            Machine::new_with_profile(program, 200, 128, VmConstructionPlan::quantum_resistant())
+                .expect("profile")
+                .execute()
+                .expect("quantum");
+
+        assert_eq!(quantum.stack, standard.stack);
+        assert_eq!(quantum.receipt.state_root, standard.receipt.state_root);
+        assert!(quantum.receipt.gas_used > standard.receipt.gas_used);
+    }
+
+    #[test]
+    fn advanced_profile_builder_is_available() {
+        let plan = VmConstructionPlan::advanced().validate().expect("valid");
+        assert_eq!(plan.flavor, VmFlavor::AdvancedDeterministic);
     }
 }
