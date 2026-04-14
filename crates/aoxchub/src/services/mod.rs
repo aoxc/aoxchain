@@ -339,7 +339,6 @@ fn dashboard_snapshot(
     ];
 
     let mut last_warnings = Vec::new();
-
     let mut selected_binary_path = None;
     let mut selected_binary_allowed = None;
 
@@ -384,15 +383,10 @@ fn dashboard_snapshot(
         ));
     }
 
-    if let Some(selected_id) = selected_binary_id {
-        if let Some(selected_candidate) = bins.iter().find(|candidate| candidate.id == selected_id)
-        {
-            if !is_binary_allowed(env, &selected_candidate.kind) {
-                last_warnings.push(String::from(
-                    "Selected binary source is not allowed in the active environment policy",
-                ));
-            }
-        }
+    if selected_binary_allowed.is_some_and(|allowed| !allowed) {
+        last_warnings.push(String::from(
+            "Selected binary source is not allowed in the active environment policy",
+        ));
     }
 
     let last_txs = vec![String::from(

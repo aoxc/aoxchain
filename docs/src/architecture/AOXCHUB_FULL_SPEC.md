@@ -663,3 +663,79 @@ AOXCHub
 
 `crates/aoxchub/OPERATOR_BLUEPRINT.md` remains the crate-local implementation-oriented blueprint.
 This document is the repository-level full product specification surface for AOXCHub.
+
+## 9) AOXCHub'a full eklenecek profesyonel modüller
+
+Aşağıdaki modüller mevcut zorunlu kapsamı bozmadan AOXCHub'u "full" operator yüzeyine taşımak için eklenebilir.
+
+### A. Runbook Center
+
+- operasyon adımlarını görev bazlı checklist olarak çalıştırma,
+- her adım için önkoşul ve rollback önerisi,
+- incident sonrası otomatik rapor paketi üretimi.
+
+### B. Upgrade Safety Orchestrator
+
+- runtime yükseltme için preflight kontrolleri,
+- canary node ile kontrollü rollout,
+- başarısızlıkta otomatik rollback tetikleme.
+
+### C. Policy Diff & Approval Gate
+
+- policy dosyaları için görsel diff,
+- risk sınıfına göre çok-adımlı onay akışı,
+- değişikliklerin imzalı onay kaydını audit log'a yazma.
+
+### D. Key Rotation Control Plane
+
+- validator/operator anahtar rotasyon sihirbazı,
+- eski-yeni anahtar eşlemesini doğrulama,
+- rotasyon sonrası health ve consensus etkisi kontrolü.
+
+### E. SLO / SLA Telemetry Panel
+
+- block finalization latency,
+- tx başarı oranı,
+- peer stabilitesi,
+- queue saturation ve timeout trendleri,
+- sürüm bazlı regresyon karşılaştırması.
+
+### F. Disaster Recovery Studio
+
+- snapshot envanteri,
+- point-in-time restore akışı,
+- cross-node tutarlılık doğrulaması,
+- kurtarma tatbikatı kanıt çıktıları.
+
+### G. Compliance Evidence Vault
+
+- release kanıt paketi sürümleme,
+- change approval zinciri,
+- immutable checksum kayıtları,
+- denetim için export-ready paketleme.
+
+### H. Multi-Environment Promotion Lane
+
+- `devnet -> testnet -> mainnet` promotion pipeline,
+- environment parity kontrolleri,
+- promotion öncesi zorunlu gate matrisi.
+
+### I. Operator Education Mode
+
+- demo/sandbox execution,
+- riskli komutlarda rehberli adım akışı,
+- hata senaryosu simülasyonları ve öğretici geri bildirim.
+
+### J. Capacity Planning Workspace
+
+- node ve peer kapasite projeksiyonu,
+- disk/CPU/RAM büyüme tahmini,
+- staking ve validator dağılımına göre ölçek önerileri.
+
+### "Full" paket için minimum acceptance gates
+
+- Security: policy bypass olmadan tüm kritik akışlar deny-by-default kalmalı.
+- Reliability: uzun çalışan işlerde timeout ve retry davranışı deterministik olmalı.
+- Operability: incident, rollback ve restore akışları UI üzerinden uçtan uca doğrulanmalı.
+- Auditability: her riskli eylem için kim/ne zaman/ne değişti kaydı üretilebilmeli.
+- Compatibility: mevcut `OPERATOR_BLUEPRINT.md` ve crate sınırlarıyla çelişmemeli.
