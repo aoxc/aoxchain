@@ -70,7 +70,7 @@ if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
   fail "Workspace version '$version' must satisfy SemVer core format MAJOR.MINOR.PATCH[-PRERELEASE]"
 fi
 
-head_tag="$(git tag --points-at HEAD | rg '^v' -N | head -n1 || true)"
+head_tag="$(git tag --points-at HEAD | grep -E '^v' | head -n1 || true)"
 if [[ -n "$head_tag" && "$head_tag" != "v${version}" ]]; then
   fail "HEAD tag '$head_tag' must match workspace version tag 'v${version}'"
 fi
@@ -92,9 +92,9 @@ if [[ -n "$base_ref" ]]; then
   } | awk 'NF' | sort -u)"
 
   if [[ -n "$changed_files" ]]; then
-    relevant_changes="$(printf '%s\n' "$changed_files" | rg -N '^(crates/|contracts/|configs/|scripts/|Cargo.toml|Cargo.lock|Makefile|Dockerfile|tests/)')"
+    relevant_changes="$(printf '%s\n' "$changed_files" | grep -E '^(crates/|contracts/|configs/|scripts/|Cargo.toml|Cargo.lock|Makefile|Dockerfile|tests/)')"
     if [[ -n "$relevant_changes" ]]; then
-      if ! printf '%s\n' "$changed_files" | rg -q '^Cargo.toml$|^configs/version-policy.toml$'; then
+      if ! printf '%s\n' "$changed_files" | grep -Eq '^Cargo.toml$|^configs/version-policy.toml$'; then
         fail "Version-sensitive changes detected since ${base_ref}, but neither Cargo.toml nor configs/version-policy.toml was updated"
       fi
     fi

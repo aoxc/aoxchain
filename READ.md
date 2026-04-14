@@ -24,6 +24,10 @@ AOXChain must preserve all of the following properties:
 8. Wallet, validator, governance, recovery, and transport key domains are strictly non-overlapping.
 9. Readiness claims are invalid without reproducible evidence.
 
+## 2) Core Invariants
+
+This section is intentionally equivalent to **Section 2. Non-Negotiable Invariants** and is kept as a compatibility heading for structural readiness gates.
+
 ## 3. Authority Contract
 
 Validation pipeline (normative order):
@@ -45,6 +49,10 @@ All actor classes must support controlled key rotation, scheme migration, and po
 - unsupported profiles are rejected fail-closed,
 - hybrid windows are explicit, bounded, and evidence-gated,
 - hidden fallback to deprecated classical profiles is prohibited.
+
+## 4) Cryptographic Profile Contract
+
+This section is intentionally equivalent to **Section 4. Cryptographic Profile Contract** and is retained as a compatibility heading for structural readiness gates.
 
 ## 5. Layer Responsibilities
 
@@ -74,6 +82,10 @@ make testnet-readiness-gate
 ```
 
 If any required gate fails (or is skipped without approved exception), readiness state is `NOT_READY`.
+
+## 6) Required Gate Baseline
+
+This section is intentionally equivalent to **Section 6. Mandatory Gate Baseline** and is retained as a compatibility heading for readiness-gate automation.
 
 ## 7. Architecture-Sensitive Change Rule
 
