@@ -1,4 +1,4 @@
-use bitcoin_hashes::{hmac, sha512, Hash, HashEngine};
+use bitcoin_hashes::{sha512, Hash, HashEngine};
 
 const SALT_PREFIX: &'static str = "mnemonic";
 
@@ -33,11 +33,11 @@ where
 /// Create an HMAC engine from the passphrase.
 /// We need a special method because we can't allocate a new byte
 /// vector for the entire serialized mnemonic.
-fn create_hmac_engine<M>(mnemonic: M) -> hmac::HmacEngine<sha512::Hash>
+fn create_hmac_engine<M>(mnemonic: M) -> HmacSha512Engine
 where
     M: Iterator<Item = &'static str> + Clone,
 {
-    // Inner code is borrowed from the bitcoin_hashes::hmac::HmacEngine::new method.
+    // Inner code is borrowed from RFC 2104 HMAC construction.
     let mut ipad = [0x36u8; 128];
     let mut opad = [0x5cu8; 128];
     let mut iengine = sha512::Hash::engine();
@@ -47,13 +47,13 @@ where
         let hash = {
             let mut engine = sha512::Hash::engine();
             mnemonic_write_into(mnemonic, &mut engine);
-            sha512::Hash::from_engine(engine)
+            sha512::Hash::from_engine(engine).to_byte_array()
         };
 
-        for (b_i, b_h) in ipad.iter_mut().zip(&hash[..]) {
+        for (b_i, b_h) in ipad.iter_mut().zip(hash.iter()) {
             *b_i ^= *b_h;
         }
-        for (b_o, b_h) in opad.iter_mut().zip(&hash[..]) {
+        for (b_o, b_h) in opad.iter_mut().zip(hash.iter()) {
             *b_o ^= *b_h;
         }
     } else {
@@ -81,7 +81,26 @@ where
 
     iengine.input(&ipad[..sha512::HashEngine::BLOCK_SIZE]);
     oengine.input(&opad[..sha512::HashEngine::BLOCK_SIZE]);
-    hmac::HmacEngine::from_inner_engines(iengine, oengine)
+    HmacSha512Engine { iengine, oengine }
+}
+
+#[derive(Clone)]
+struct HmacSha512Engine {
+    iengine: sha512::HashEngine,
+    oengine: sha512::HashEngine,
+}
+
+impl HmacSha512Engine {
+    fn input(&mut self, data: &[u8]) {
+        self.iengine.input(data);
+    }
+
+    fn finalize(self) -> [u8; sha512::Hash::LEN] {
+        let inner = sha512::Hash::from_engine(self.iengine).to_byte_array();
+        let mut outer = self.oengine;
+        outer.input(&inner);
+        sha512::Hash::from_engine(outer).to_byte_array()
+    }
 }
 
 // Method borrowed from rust-bitcoin's endian module.
@@ -119,7 +138,7 @@ where
             prfc.input(unprefixed_salt);
             prfc.input(&u32_to_array_be((i + 1) as u32));
 
-            let salt = hmac::Hmac::from_engine(prfc).to_byte_array();
+            let salt = prfc.finalize();
             xor(chunk, &salt);
             salt
         };
@@ -127,7 +146,7 @@ where
         for _ in 1..c {
             let mut prfc = prf.clone();
             prfc.input(&salt);
-            salt = hmac::Hmac::from_engine(prfc).to_byte_array();
+            salt = prfc.finalize();
 
             xor(chunk, &salt);
         }
