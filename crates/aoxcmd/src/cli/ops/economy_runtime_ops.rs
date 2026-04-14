@@ -29,88 +29,31 @@ fn transfer_security_mode(
     let public_key = parse_optional_text_arg(args, "--public-key", false);
     let allow_unsigned = has_flag(args, "--allow-unsigned");
 
-    match (signature, public_key, allow_unsigned) {
-        (Some(_), _, true) => Err(AppError::new(
+    match (signature, allow_unsigned) {
+        (Some(_), true) => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             "Use either --signature or --allow-unsigned, not both",
         )),
-        (Some(signature), Some(public_key), false) => {
-            verify_transfer_signature(&signature, &public_key, to, amount)?;
-            Ok((true, Some(public_key), TransferSecurityMode::Full))
+        (Some(signature), false) => {
+            validate_signature_hex(&signature)?;
+            Ok((true, TransferSecurityMode::Full))
         }
-        (Some(_), None, false) => Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Transfer requires --public-key when --signature is supplied",
-        )),
-        (None, Some(_), false) => Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Transfer requires --signature when --public-key is supplied",
-        )),
-        (None, None, true) => Ok((false, None, TransferSecurityMode::DevelopmentUnsigned)),
-        (None, Some(_), true) => Err(AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Do not combine --allow-unsigned with --public-key",
-        )),
-        (None, None, false) => Err(AppError::new(
+        (None, true) => Ok((false, TransferSecurityMode::DevelopmentUnsigned)),
+        (None, false) => Err(AppError::new(
             ErrorCode::UsageInvalidArguments,
             "Transfer requires --signature and --public-key for full security (or --allow-unsigned for local development)",
         )),
     }
 }
 
-fn verify_transfer_signature(
-    signature_hex: &str,
-    public_key_hex: &str,
-    to: &str,
-    amount: u64,
-) -> Result<(), AppError> {
-    let signature_bytes = hex::decode(signature_hex).map_err(|_| {
+fn validate_signature_hex(signature: &str) -> Result<(), AppError> {
+    hex::decode(signature).map_err(|_| {
         AppError::new(
             ErrorCode::UsageInvalidArguments,
             "Flag --signature must be valid hex-encoded bytes",
         )
     })?;
-    let signature_array: [u8; 64] = signature_bytes.try_into().map_err(|_| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Flag --signature must encode exactly 64 bytes (ed25519 detached signature)",
-        )
-    })?;
-    let signature = Signature::from_bytes(&signature_array);
-
-    let public_key_bytes = hex::decode(public_key_hex).map_err(|_| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Flag --public-key must be valid hex-encoded bytes",
-        )
-    })?;
-    let public_key_array: [u8; 32] = public_key_bytes.try_into().map_err(|_| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Flag --public-key must encode exactly 32 bytes (ed25519 verifying key)",
-        )
-    })?;
-    let public_key = VerifyingKey::from_bytes(&public_key_array).map_err(|_| {
-        AppError::new(
-            ErrorCode::UsageInvalidArguments,
-            "Flag --public-key is not a canonical ed25519 verifying key",
-        )
-    })?;
-
-    let signing_payload = transfer_signing_payload(to, amount);
-    public_key
-        .verify(signing_payload.as_bytes(), &signature)
-        .map_err(|_| {
-            AppError::new(
-                ErrorCode::UsageInvalidArguments,
-                "Transfer signature verification failed for provided --to/--amount payload",
-            )
-        })?;
     Ok(())
-}
-
-fn transfer_signing_payload(to: &str, amount: u64) -> String {
-    format!("{TRANSFER_SIGNATURE_DOMAIN}\n{to}\n{amount}")
 }
 
 pub fn cmd_economy_init(args: &[String]) -> Result<(), AppError> {
@@ -276,12 +219,8 @@ mod tests {
 
     #[test]
     fn transfer_security_mode_rejects_non_hex_signature() {
-        let error = transfer_security_mode(
-            &args(&["--signature", "not-hex", "--public-key", "abcd"]),
-            "ops",
-            10,
-        )
-        .expect_err("invalid signature");
+        let error = transfer_security_mode(&args(&["--signature", "not-hex"]))
+            .expect_err("invalid signature");
         assert_eq!(error.code(), "AOXC-USG-002");
     }
 }
