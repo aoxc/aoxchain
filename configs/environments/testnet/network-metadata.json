@@ -15,14 +15,14 @@
     "native_symbol": "AOXC"
   },
   "rpc": {
-    "primary": "https://rpc1.testnet.aoxchain.org",
-    "secondary": "https://rpc2.testnet.aoxchain.org",
-    "ws": "wss://rpc1.testnet.aoxchain.org/ws"
+    "primary": "https://127.0.0.1:8545",
+    "secondary": "https://127.0.0.1:8546",
+    "ws": "wss://127.0.0.1:8545/ws"
   },
   "public_endpoints": {
-    "faucet": "https://faucet.testnet.aoxchain.org",
-    "explorer": "https://explorer.testnet.aoxchain.org",
-    "status": "https://status.testnet.aoxchain.org"
+    "faucet": "http://127.0.0.1:18080",
+    "explorer": "http://127.0.0.1:18081",
+    "status": "http://127.0.0.1:18082"
   },
   "genesis": {
     "file": "genesis.v1.json",
