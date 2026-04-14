@@ -62,7 +62,7 @@ use rand_core::{CryptoRng, RngCore};
 #[cfg(feature = "std")]
 use std::error;
 
-use bitcoin_hashes::{sha256, Hash};
+use bitcoin_hashes::sha256;
 
 #[cfg(feature = "unicode-normalization")]
 use unicode_normalization::UnicodeNormalization;
@@ -224,7 +224,7 @@ impl Mnemonic {
             return Err(Error::BadEntropyBitCount(nb_bits));
         }
 
-        let check = sha256::Hash::hash(&entropy);
+        let check = sha256::Hash::hash(&entropy).to_byte_array();
         let mut bits = [false; MAX_ENTROPY_BITS + MAX_CHECKSUM_BITS];
         for i in 0..nb_bytes {
             for j in 0..8 {
@@ -480,7 +480,7 @@ impl Mnemonic {
                 }
             }
         }
-        let check = sha256::Hash::hash(&entropy[0..nb_bytes_entropy]);
+        let check = sha256::Hash::hash(&entropy[0..nb_bytes_entropy]).to_byte_array();
         for i in 0..nb_bytes_entropy / 4 {
             if bits[8 * nb_bytes_entropy + i] != ((check[i / 8] & (1 << (7 - (i % 8)))) > 0) {
                 return Err(Error::InvalidChecksum);
