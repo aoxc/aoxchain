@@ -297,7 +297,7 @@ fn read_network_id(metadata: &Value) -> Option<&str> {
         })
 }
 
-fn read_validator_role<'a>(entry: &'a Value) -> Option<&'a str> {
+fn read_validator_role(entry: &Value) -> Option<&str> {
     let explicit = entry.get("role").and_then(Value::as_str);
     let operational = entry.get("operational_role").and_then(Value::as_str);
 
