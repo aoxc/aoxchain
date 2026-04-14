@@ -318,6 +318,27 @@ fn account_id_from_target(target: &str) -> Option<String> {
         .and_then(|value| normalize_text(&value, false))
 }
 
+struct LedgerLookup {
+    ledger: ledger::LedgerState,
+    source: &'static str,
+    degraded: bool,
+}
+
+fn load_ledger_lookup() -> LedgerLookup {
+    match ledger::load() {
+        Ok(ledger) => LedgerLookup {
+            ledger,
+            source: "ledger-store",
+            degraded: false,
+        },
+        Err(_) => LedgerLookup {
+            ledger: ledger::LedgerState::default(),
+            source: "default-fallback",
+            degraded: true,
+        },
+    }
+}
+
 fn block_view_json(target: &str) -> serde_json::Value {
     let requested_height = query_value(target, "height").unwrap_or_else(|| "latest".to_string());
 
@@ -360,9 +381,14 @@ fn account_json(target: &str) -> serde_json::Value {
     };
     let known = account_id == "treasury" || ledger.delegations.contains_key(&account_id);
     let balance = if account_id == "treasury" {
-        ledger.treasury_balance
+        lookup.ledger.treasury_balance
     } else {
-        ledger.delegations.get(&account_id).copied().unwrap_or(0)
+        lookup
+            .ledger
+            .delegations
+            .get(&account_id)
+            .copied()
+            .unwrap_or(0)
     };
 
     json!({
