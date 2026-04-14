@@ -1,0 +1,6 @@
+{
+  "generated_at_utc": "2026-04-14T15:21:30Z",
+  "git_sha": "6730e25fa921092749dd1f115a9d37ea07b3365b",
+  "statement": "AOXCVM phase3 closure artifacts are generated with deterministic debug/release parity checks and fail-closed verification.",
+  "profiles": ["linux-x86_64-required", "linux-aarch64-required", "macos-aarch64-required", "windows-x86_64-required"]
+}

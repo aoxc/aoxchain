@@ -1,0 +1,14 @@
+{
+  "generated_at_utc": "2026-04-14T15:21:30Z",
+  "git_sha": "6730e25fa921092749dd1f115a9d37ea07b3365b",
+  "mode": "deterministic-adversarial-closure",
+  "coverage": [
+    "receipt/proof tamper loops",
+    "nonce monotonicity property checks",
+    "call-depth and rollback edge cases"
+  ],
+  "corpus_retention": {
+    "status": "pending-ci-nightly-integration",
+    "required_for_full_claim": true
+  }
+}

@@ -10,7 +10,7 @@
 # See Cargo.toml.orig for the original contents.
 
 [package]
-edition = "2018"
+edition = "2024"
 name = "bip39"
 version = "2.2.2"
 authors = ["Steven Roose <steven@stevenroose.org>"]
@@ -80,23 +80,23 @@ name = "bip39"
 path = "src/lib.rs"
 
 [dependencies.bitcoin_hashes]
-version = ">=0.12,<0.15"
+version = "0.20.0"
 default-features = false
 
 
 [dependencies.crate_rand]
 package = "rand"
-version = "0.6"
+version = "0.10.1"
 optional = true
 default-features = false
 
 [dependencies.rand_core]
-version = "0.4"
+version = "0.10.1"
 optional = true
 default-features = false
 
 [dependencies.serde]
-version = "1.0"
+version = "1.0.228"
 features = ["alloc"]
 optional = true
 default-features = false
@@ -107,10 +107,10 @@ optional = true
 default-features = false
 
 [dependencies.zeroize]
-version = "1.8"
+version = "1.8.2"
 features = ["zeroize_derive"]
 optional = true
 default-features = false
 
 [dev-dependencies.bitcoin_hashes]
-version = ">=0.12,<0.15"
+version = "0.20.0"

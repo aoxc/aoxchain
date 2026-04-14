@@ -1,0 +1,13 @@
+{
+  "generated_at_utc": "2026-04-14T15:21:30Z",
+  "git_sha": "6730e25fa921092749dd1f115a9d37ea07b3365b",
+  "artifacts": [
+    {"path": "determinism-matrix.json", "sha256": "aa94df967f7eebb6396f64d3b3940227ebf3da7c33e75f5eb48eebc696d99e90"},
+    {"path": "gas-benchmark-envelope.json", "sha256": "6937c40025d87cb892035bf2faa08e9e2f55fbb8234ba9ccef8bc7d83b201e72"},
+    {"path": "evidence-bundle/test-summary.json", "sha256": "6fc4a4eaf4a9c8f9cac2e4bcfda6f6a2cff9a053af3f2f7e24e39099f96c8f2f"},
+    {"path": "evidence-bundle/fuzz-summary.json", "sha256": "ae7861bc8d9d7acdced93e345e108aea87c754457a7af69ea23bce4a3dde3c8d"},
+    {"path": "evidence-bundle/verifier-coverage-report.json", "sha256": "e666ecd26e78d260e21cd4181b089561660146ded6a5e18a1108a88b254c2b17"},
+    {"path": "evidence-bundle/compatibility-statement.json", "sha256": "487f1fd3cdc85910db6c547c5d4c81284bfd3cce0122df016d85c783f26bebbb"},
+    {"path": "evidence-bundle/residual-risk-statement.json", "sha256": "7e91b808f63c0ebdfeda7ded426292dea55342c9d3d6801282355c49d079930a"}
+  ]
+}

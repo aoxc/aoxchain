@@ -1,0 +1,12 @@
+{
+  "generated_at_utc": "2026-04-14T15:21:30Z",
+  "git_sha": "6730e25fa921092749dd1f115a9d37ea07b3365b",
+  "scope": "phase3 release closure baseline",
+  "coverage_surfaces": [
+    "bytecode validation",
+    "determinism verifier",
+    "invariant verifier",
+    "receipt commitment/proof checks"
+  ],
+  "status": "baseline"
+}

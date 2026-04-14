@@ -1,0 +1,12 @@
+{
+  "suite": "os-compat-gate",
+  "strict_mode": 0,
+  "timestamp_utc": "2026-04-14T15:21:32Z",
+  "host": {
+    "uname": "Linux"
+  },
+  "status": {
+    "missing_required_surfaces": 1,
+    "warnings_present": 1
+  }
+}

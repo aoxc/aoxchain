@@ -1,0 +1,11 @@
+{
+  "generated_at_utc": "2026-04-14T15:21:30Z",
+  "git_sha": "6730e25fa921092749dd1f115a9d37ea07b3365b",
+  "suite": "aoxcvm-phase3-gate",
+  "commands": [
+    {"cmd": "cargo test -p aoxcvm --test phase3_release_closure", "status": "passed"},
+    {"cmd": "cargo test -p aoxcvm --test phase3_release_closure --release", "status": "passed"},
+    {"cmd": "cargo run -p aoxcvm --example determinism_probe", "status": "passed"},
+    {"cmd": "cargo run -p aoxcvm --example determinism_probe --release", "status": "passed"}
+  ]
+}

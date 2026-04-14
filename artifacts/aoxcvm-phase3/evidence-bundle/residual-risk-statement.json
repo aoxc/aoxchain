@@ -1,0 +1,9 @@
+{
+  "generated_at_utc": "2026-04-14T15:21:30Z",
+  "git_sha": "6730e25fa921092749dd1f115a9d37ea07b3365b",
+  "open_items": [
+    "cross-platform matrix must be executed in CI runners for every release candidate",
+    "continuous fuzzing corpus retention must be enforced in nightly and release pipelines"
+  ],
+  "policy": "if any P0/P1 gate lacks machine-verifiable evidence, release is not full"
+}

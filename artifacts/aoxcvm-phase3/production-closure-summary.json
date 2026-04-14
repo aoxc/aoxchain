@@ -1,0 +1,13 @@
+{
+  "generated_at_utc": "2026-04-14T15:21:29Z",
+  "git_sha": "6730e25fa921092749dd1f115a9d37ea07b3365b",
+  "suite": "aoxcvm-production-closure-gate",
+  "gates": {
+    "test": "passed",
+    "audit": "passed",
+    "rehearsal": "failed",
+    "evidence": "passed"
+  },
+  "overall": "failed",
+  "policy": "full closure requires test/audit/rehearsal/evidence to all be PASS"
+}
