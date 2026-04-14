@@ -1,4 +1,11 @@
-//! traps scaffold module.
+//! Canonical VM trap categories.
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ModuleMarker;
+/// Deterministic trap taxonomy for VM execution errors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VmTrap {
+    StackUnderflow,
+    StackOverflow,
+    InvalidJump,
+    OutOfGas,
+    ArithmeticOverflow,
+}
