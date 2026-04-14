@@ -279,7 +279,7 @@ endif
 # Phony targets
 # --------------------------------------------------------------------
 .PHONY: \
-	help paths env-check bootstrap-paths bootstrap-desktop-paths \
+	help paths env-check vm-check vm-advanced-check bootstrap-paths bootstrap-desktop-paths \
 	clean-root clean-logs clean-runtime clean-bin clean-audit \
 	build build-release build-release-all build-release-matrix \
 	package-bin package-all-bin package-versioned-bin package-versioned-archive publish-release \
@@ -372,6 +372,8 @@ help:
 
 	@printf "Runtime lifecycle\n"
 	@printf "  make runtime-print\n"
+	@printf "  make vm-check\n"
+	@printf "  make vm-advanced-check\n"
 	@printf "  make runtime-source-check\n"
 	@printf "  make runtime-bundle-compat-check\n"
 	@printf "  make runtime-install\n"
@@ -471,6 +473,39 @@ env-check:
 		echo "Container runtime check: skipped (docker/podman not installed; required only for container workflows)."; \
 	fi
 	@echo "Environment check passed."
+
+vm-check: env-check
+
+vm-advanced-check: env-check
+	$(call print_banner,VM advanced diagnostics)
+	@printf "OS: "
+	@uname -srmo
+	@printf "CPU cores: "
+	@getconf _NPROCESSORS_ONLN
+	@printf "Total memory: "
+	@awk '/MemTotal/ { printf "%.2f GiB\n", $$2 / 1024 / 1024 }' /proc/meminfo
+	@printf "Disk free (workspace): "
+	@df -h . | awk 'NR==2 { print $$4 " available of " $$2 }'
+	@printf "Rust toolchain: "
+	@rustc --version
+	@printf "Cargo: "
+	@cargo --version
+	@if command -v clippy-driver >/dev/null 2>&1; then \
+		echo "Clippy: available"; \
+	else \
+		echo "Clippy: missing (install with rustup component add clippy)"; \
+	fi
+	@if command -v rustfmt >/dev/null 2>&1; then \
+		echo "Rustfmt: available"; \
+	else \
+		echo "Rustfmt: missing (install with rustup component add rustfmt)"; \
+	fi
+	@if command -v docker >/dev/null 2>&1 || command -v podman >/dev/null 2>&1; then \
+		echo "Container engine: available"; \
+	else \
+		echo "Container engine: missing (required for containerized workflows)"; \
+	fi
+	@echo "VM advanced diagnostics completed."
 
 # --------------------------------------------------------------------
 # Path bootstrap and cleanup
