@@ -45,7 +45,7 @@ serde_yaml   = "0.9.34"
 chrono       = { version = "0.4.44", features = ["serde"] }
 
 # --- Networking & API ---
-axum         = { version = "0.8.8", features = ["json", "macros"] }
+axum         = { version = "0.8.9", features = ["json", "macros"] }
 tower        = { version = "0.5.3", features = ["limit", "timeout", "util"] }
 tower-http   = { version = "0.6.8", features = ["trace"] }
 
