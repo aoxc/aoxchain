@@ -519,6 +519,36 @@ EOF
   chmod 600 "${node_home}/config/runtime-overlay.toml"
 }
 
+write_node_settings_ports() {
+  local node_home="$1"
+  local index="$2"
+  local settings_file="${node_home}/config/settings.json"
+  [[ -f "${settings_file}" ]] || die "Missing settings file after config-init: ${settings_file}" 6
+
+  python3 - "${settings_file}" "$(node_p2p_port "${index}")" "$(node_rpc_port "${index}")" "$(node_metrics_port "${index}")" <<'PYSETTINGS'
+import json
+import pathlib
+import sys
+
+settings_path = pathlib.Path(sys.argv[1])
+p2p_port = int(sys.argv[2])
+rpc_port = int(sys.argv[3])
+metrics_port = int(sys.argv[4])
+
+raw = settings_path.read_text(encoding="utf-8")
+doc = json.loads(raw)
+
+network = doc.setdefault("network", {})
+telemetry = doc.setdefault("telemetry", {})
+
+network["p2p_port"] = p2p_port
+network["rpc_port"] = rpc_port
+telemetry["prometheus_port"] = metrics_port
+
+settings_path.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PYSETTINGS
+}
+
 write_node_static_config() {
   local out_file="$1"
   local node_name="$2"
@@ -1063,6 +1093,7 @@ provision_testnet() {
     write_node_runtime_overlay "${node_home}" "${node_name}" "${i}"
 
     run_aoxc "${node_home}" config-init --profile "${AOXC_Q_PROFILE}" --json-logs > "${run_dir}/config-init.json"
+    write_node_settings_ports "${node_home}" "${i}"
 
     run_aoxc "${node_home}" address-create \
       --name "${operator_name}" \
