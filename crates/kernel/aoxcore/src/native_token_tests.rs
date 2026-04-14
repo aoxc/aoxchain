@@ -306,4 +306,90 @@ mod tests {
                 + HASH_SIZE
         );
     }
+
+    fn treasury_witness() -> TreasuryTransferConsensusWitness {
+        TreasuryTransferConsensusWitness {
+            epoch: 42,
+            intent_nonce: 7,
+            min_approvals: 2,
+            min_total_stake: 300,
+            approvals: vec![
+                TreasuryStakeApprovalV1 {
+                    validator: addr(11),
+                    stake_weight: 120,
+                    proof_tag: b"ml-dsa-proof-a".to_vec(),
+                },
+                TreasuryStakeApprovalV1 {
+                    validator: addr(22),
+                    stake_weight: 210,
+                    proof_tag: b"ml-dsa-proof-b".to_vec(),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn treasury_consensus_quantum_transfer_requires_quorum() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        ledger.mint(addr(1), 500).unwrap();
+
+        let mut witness = treasury_witness();
+        witness.min_total_stake = 1_000;
+
+        let error = ledger
+            .transfer_treasury_consensus_quantum(addr(1), addr(2), 100, &witness)
+            .unwrap_err();
+        assert_eq!(error, NativeTokenError::TreasuryConsensusNotReached);
+    }
+
+    #[test]
+    fn treasury_consensus_quantum_transfer_rejects_duplicate_validator() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        ledger.mint(addr(1), 500).unwrap();
+
+        let mut witness = treasury_witness();
+        witness.approvals[1].validator = witness.approvals[0].validator;
+
+        let error = ledger
+            .transfer_treasury_consensus_quantum(addr(1), addr(2), 100, &witness)
+            .unwrap_err();
+        assert_eq!(error, NativeTokenError::InvalidTreasuryWitness);
+    }
+
+    #[test]
+    fn treasury_consensus_quantum_transfer_updates_balances_and_replay_state() {
+        let mut ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        ledger.mint(addr(1), 500).unwrap();
+
+        let witness = treasury_witness();
+        let commitment = ledger
+            .transfer_treasury_consensus_quantum(addr(1), addr(2), 100, &witness)
+            .unwrap();
+
+        assert_eq!(ledger.balance_of(&addr(1)), 400);
+        assert_eq!(ledger.balance_of(&addr(2)), 100);
+        assert_eq!(ledger.latest_treasury_intent_nonce.get(&addr(1)), Some(&7));
+        assert!(ledger.consumed_treasury_commitments.contains(&commitment));
+
+        let replay = ledger
+            .transfer_treasury_consensus_quantum(addr(1), addr(2), 100, &witness)
+            .unwrap_err();
+        assert_eq!(replay, NativeTokenError::ReplayDetected);
+    }
+
+    #[test]
+    fn treasury_transfer_receipt_contains_commitment_event() {
+        let ledger = NativeTokenLedger::new_for_network(NativeTokenNetwork::Mainnet).unwrap();
+        let receipt = ledger
+            .transfer_treasury_quantum_receipt([7; HASH_SIZE], [1u8; 32], 33)
+            .unwrap();
+
+        assert!(receipt.success);
+        assert_eq!(receipt.events.len(), 1);
+        assert_eq!(
+            receipt.events[0].event_type,
+            EVENT_NATIVE_TRANSFER_TREASURY_QUANTUM_V1
+        );
+        assert_eq!(receipt.events[0].data, vec![1u8; 32]);
+    }
 }

@@ -9,7 +9,9 @@ impl NativeTokenLedger {
             balances: HashMap::new(),
             locked_balances: HashMap::new(),
             latest_nonce: HashMap::new(),
+            latest_treasury_intent_nonce: HashMap::new(),
             consumed_quantum_commitments: HashSet::new(),
+            consumed_treasury_commitments: HashSet::new(),
         })
     }
 
@@ -236,6 +238,45 @@ impl NativeTokenLedger {
         Ok(())
     }
 
+    /// Executes a stake-attested treasury transfer under a replay-hardened
+    /// quantum commitment model.
+    ///
+    /// Validation steps:
+    /// - witness structural validation,
+    /// - distinct validator approvals with non-zero stake,
+    /// - minimum approval-count and minimum-total-stake thresholds,
+    /// - intent nonce monotonicity for the source treasury address,
+    /// - deterministic commitment uniqueness.
+    pub fn transfer_treasury_consensus_quantum(
+        &mut self,
+        from: Address,
+        to: Address,
+        amount: u128,
+        witness: &TreasuryTransferConsensusWitness,
+    ) -> Result<[u8; NATIVE_TOKEN_COMMITMENT_SIZE], NativeTokenError> {
+        self.policy.validate()?;
+        self.policy.validate_transfer_amount(amount)?;
+        self.validate_treasury_witness(witness)?;
+
+        if let Some(last_nonce) = self.latest_treasury_intent_nonce.get(&from).copied() {
+            if witness.intent_nonce <= last_nonce {
+                return Err(NativeTokenError::ReplayDetected);
+            }
+        }
+
+        let commitment = self.compute_treasury_transfer_digest(from, to, amount, witness);
+        if self.consumed_treasury_commitments.contains(&commitment) {
+            return Err(NativeTokenError::ReplayDetected);
+        }
+
+        self.transfer(from, to, amount)?;
+        self.latest_treasury_intent_nonce
+            .insert(from, witness.intent_nonce);
+        self.consumed_treasury_commitments.insert(commitment);
+
+        Ok(commitment)
+    }
+
     /// Computes the canonical quantum transfer digest under the active policy domain.
     #[must_use]
     pub fn quantum_transfer_digest(
@@ -257,6 +298,95 @@ impl NativeTokenLedger {
                 proof_tag,
             ),
         }
+    }
+
+    fn validate_treasury_witness(
+        &self,
+        witness: &TreasuryTransferConsensusWitness,
+    ) -> Result<(), NativeTokenError> {
+        if witness.min_approvals == 0
+            || witness.min_total_stake == 0
+            || witness.approvals.is_empty()
+            || witness.approvals.len() < witness.min_approvals as usize
+        {
+            return Err(NativeTokenError::InvalidTreasuryWitness);
+        }
+
+        let mut unique_validators: HashSet<Address> = HashSet::new();
+        let mut total_stake = 0u128;
+
+        for approval in &witness.approvals {
+            if approval.stake_weight == 0 {
+                return Err(NativeTokenError::InvalidTreasuryWitness);
+            }
+
+            self.policy.validate_proof_tag(&approval.proof_tag)?;
+
+            if !unique_validators.insert(approval.validator) {
+                return Err(NativeTokenError::InvalidTreasuryWitness);
+            }
+
+            total_stake = total_stake
+                .checked_add(approval.stake_weight)
+                .ok_or(NativeTokenError::InvalidTreasuryWitness)?;
+        }
+
+        if unique_validators.len() < witness.min_approvals as usize
+            || total_stake < witness.min_total_stake
+        {
+            return Err(NativeTokenError::TreasuryConsensusNotReached);
+        }
+
+        Ok(())
+    }
+
+    fn compute_treasury_transfer_digest(
+        &self,
+        from: Address,
+        to: Address,
+        amount: u128,
+        witness: &TreasuryTransferConsensusWitness,
+    ) -> [u8; NATIVE_TOKEN_COMMITMENT_SIZE] {
+        let mut normalized = witness.approvals.clone();
+        normalized.sort_by(|a, b| a.validator.cmp(&b.validator));
+
+        let mut hasher = Sha3_256::new();
+        hasher.update(
+            self.policy
+                .quantum_policy
+                .anti_replay_domain
+                .as_bytes(),
+        );
+        hasher.update([0x01]);
+        hasher.update(from);
+        hasher.update([0x00]);
+        hasher.update(to);
+        hasher.update([0x00]);
+        hasher.update(amount.to_le_bytes());
+        hasher.update([0x00]);
+        hasher.update(witness.epoch.to_le_bytes());
+        hasher.update([0x00]);
+        hasher.update(witness.intent_nonce.to_le_bytes());
+        hasher.update([0x00]);
+        hasher.update(witness.min_approvals.to_le_bytes());
+        hasher.update([0x00]);
+        hasher.update(witness.min_total_stake.to_le_bytes());
+
+        for approval in normalized {
+            hasher.update([0x00]);
+            hasher.update(approval.validator);
+            hasher.update([0x00]);
+            hasher.update(approval.stake_weight.to_le_bytes());
+            hasher.update([0x00]);
+
+            let proof_digest = Sha3_256::digest(approval.proof_tag);
+            hasher.update(&proof_digest[..NATIVE_TOKEN_COMMITMENT_SIZE]);
+        }
+
+        let digest = hasher.finalize();
+        let mut out = [0u8; NATIVE_TOKEN_COMMITMENT_SIZE];
+        out.copy_from_slice(&digest[..NATIVE_TOKEN_COMMITMENT_SIZE]);
+        out
     }
 
     /// Builds a receipt for a successful mint operation.
@@ -389,6 +519,19 @@ impl NativeTokenLedger {
         )?;
         receipt.push_event(event)?;
 
+        Ok(receipt)
+    }
+
+    /// Builds a receipt for a successful treasury consensus quantum transfer.
+    pub fn transfer_treasury_quantum_receipt(
+        &self,
+        tx_hash: [u8; HASH_SIZE],
+        commitment: [u8; NATIVE_TOKEN_COMMITMENT_SIZE],
+        energy_used: u64,
+    ) -> Result<Receipt, ReceiptError> {
+        let mut receipt = Receipt::success(tx_hash, energy_used)?;
+        let event = Event::new(EVENT_NATIVE_TRANSFER_TREASURY_QUANTUM_V1, commitment.to_vec())?;
+        receipt.push_event(event)?;
         Ok(receipt)
     }
 }
