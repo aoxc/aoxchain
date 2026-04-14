@@ -1405,7 +1405,7 @@ aoxc-q-verify-full:
 
 ui: build-release-all bootstrap-desktop-paths
 	$(call print_banner,Running AOXCHub UI)
-	@AOXC_HOME="$(AOXC_DESKTOP_HOME)" "$(PWD)/target/release/aoxchub$(AOXC_EXE_SUFFIX)"
+	@AOXC_HOME="$(AOXC_DESKTOP_HOME)" AOXCHUB_WORKSPACE_ROOT="$(PWD)" "$(PWD)/target/release/aoxchub$(AOXC_EXE_SUFFIX)"
 
 alpha:
 	$(call print_banner,AOXC alpha target)
