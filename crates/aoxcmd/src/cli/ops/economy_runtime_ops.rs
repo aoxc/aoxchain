@@ -261,8 +261,8 @@ pub fn cmd_runtime_status(args: &[String]) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        stake_signing_payload, transfer_security_mode, transfer_signing_payload,
-        validate_signature_for_payload, TransferSecurityMode, STAKE_DELEGATE_SIGNATURE_DOMAIN,
+        STAKE_DELEGATE_SIGNATURE_DOMAIN, TransferSecurityMode, stake_signing_payload,
+        transfer_security_mode, transfer_signing_payload, validate_signature_for_payload,
     };
     use ed25519_dalek::{Signer, SigningKey};
 
