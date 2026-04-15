@@ -606,13 +606,9 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
             "Genesis validation failed: validator_quorum_policy must not be empty",
         ));
     }
+    let consensus_identity_profile = genesis.consensus.consensus_identity_profile.trim();
     if matches!(genesis.environment.as_str(), "mainnet" | "testnet")
-        && genesis
-            .consensus
-            .consensus_identity_profile
-            .trim()
-            .to_ascii_lowercase()
-            != "pq-only"
+        && !consensus_identity_profile.eq_ignore_ascii_case("pq-only")
     {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
@@ -694,7 +690,13 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
             "Genesis validation failed: treasury amount must be a non-zero decimal string",
         ));
     }
-    if genesis.economics.initial_treasury.account_id.trim().is_empty() {
+    if genesis
+        .economics
+        .initial_treasury
+        .account_id
+        .trim()
+        .is_empty()
+    {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
             "Genesis validation failed: treasury account_id must not be empty",
@@ -896,7 +898,10 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
                 ),
             ));
         }
-        if !matches!(validator.consensus_key_algorithm.trim(), "ed25519" | "ml-dsa-65") {
+        if !matches!(
+            validator.consensus_key_algorithm.trim(),
+            "ed25519" | "ml-dsa-65"
+        ) {
             return Err(AppError::new(
                 ErrorCode::ConfigInvalid,
                 format!(
@@ -1106,7 +1111,9 @@ pub(in crate::cli::bootstrap::operations) fn validate_binding_files(
 }
 
 fn is_hex_key(value: &str) -> bool {
-    !value.is_empty() && value.len() % 2 == 0 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    !value.is_empty()
+        && value.len().is_multiple_of(2)
+        && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 pub(in crate::cli::bootstrap::operations) fn validate_identity_against_repo_policy(
