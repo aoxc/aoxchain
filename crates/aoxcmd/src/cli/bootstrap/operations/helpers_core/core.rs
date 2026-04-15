@@ -606,6 +606,7 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
             "Genesis validation failed: validator_quorum_policy must not be empty",
         ));
     }
+    let consensus_identity_profile = genesis.consensus.consensus_identity_profile.trim();
     if matches!(genesis.environment.as_str(), "mainnet" | "testnet")
         && !genesis
             .consensus
