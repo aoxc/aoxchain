@@ -1,56 +1,42 @@
 # AOXChain Readiness Attestation — 2026-04-15T16:28:42Z
 
-## 1) Attestation Scope
+## Scope
 
-This document formalizes a testnet-readiness execution window based on operator-provided terminal transcripts.
+This attestation formalizes the user-reported gate execution for repository readiness claims in this review window.
 
 - attestation_time_utc: `2026-04-15T16:28:42Z`
-- reported_branch: `develop`
-- evidence_source: operator terminal transcript (manual attestation input)
-- policy_reference: `TESTING.md` mandatory baseline + evidence requirements
+- branch: `develop` (as reported by operator prompt)
+- status_model: mandatory baseline gates from `TESTING.md`
 
-## 2) Gate Execution Record
+## Executed Gates and Outcomes
 
-The following gates were reported as successful (`PASS`) for this window:
+All commands below were reported as successful in terminal output shared by the operator.
 
-1. `./scripts/validation/aoxcvm_production_closure_gate.sh`
-2. `make audit`
-3. `cargo fmt --all --check`
-4. `make build`
-5. `make quality`
-6. `make test`
-7. `make testnet-gate`
-8. `make testnet-readiness-gate`
+1. `./scripts/validation/aoxcvm_production_closure_gate.sh` — `PASS`
+2. `make audit` — `PASS`
+3. `cargo fmt --all --check` — `PASS`
+4. `make build` — `PASS`
+5. `make quality` — `PASS`
+6. `make test` — `PASS`
+7. `make testnet-gate` — `PASS`
+8. `make testnet-readiness-gate` — `PASS`
 
-Status for this attestation window: **BASELINE_GATES_PASS**.
+## Policy Alignment
 
-## 3) Policy Alignment (Normative)
+The mandatory baseline in `TESTING.md` requires the following controls unless stricter controls apply:
 
-`TESTING.md` defines the same command set above as mandatory baseline gates unless stricter controls apply.
+- `make build`
+- `make test`
+- `make quality`
+- `make audit`
+- `cargo fmt --all --check`
+- `make testnet-gate`
+- `make testnet-readiness-gate`
 
-Per `TESTING.md`, a readiness claim is valid only when:
+Based on the reported execution transcript, this baseline is satisfied for this attestation window.
 
-- mandatory gates pass,
-- targeted sensitive-change validation is complete (when applicable),
-- evidence is retained and reviewable.
+## Evidence Discipline Note
 
-This attestation satisfies the baseline command/status recording requirement for the reported run.
+Per `TESTING.md`, readiness evidence should retain command list, pass/fail status, and artifact references attributable to commit SHA.
 
-## 4) Evidence References
-
-Relevant evidence surfaces associated with this gate family:
-
-- `artifacts/aoxcvm-phase3/production-closure-summary.json`
-- `artifacts/aoxcvm-phase3/evidence-bundle/artifacts-manifest.json`
-- `artifacts/os-compat/summary.json`
-
-Repository governance/control references:
-
-- `TESTING.md`
-- `README.md`
-
-## 5) Limitations and Promotion Rule
-
-This is a transcript-backed attestation record. Promotion to formal release readiness must keep artifact references attributable to the promoted commit SHA and preserve reviewer-auditable traceability.
-
-If sensitive-change classes are in scope (authority/profile/replay/recovery/consensus/serialization/key-domain), targeted validation from `TESTING.md` remains mandatory before production declaration.
+This attestation records command/status outcomes and should be paired with the corresponding commit SHA and artifact paths by release maintainers at promotion time.
