@@ -9,7 +9,7 @@ use std::{
     sync::{OnceLock, RwLock},
 };
 
-const LEGACY_HOME_CANDIDATES: [&str; 2] = [".aoxc", ".AOXC"];
+const LEGACY_HOME_CANDIDATES: [&str; 3] = [".AOXCData/home/default", ".AOXCData", ".AOXC"];
 const MAIN_LAYOUT_DIRS: [&str; 14] = [
     "config",
     "identity",
@@ -96,11 +96,10 @@ pub fn active_home_override() -> Option<PathBuf> {
 /// Returns the canonical AOXC data root for the current user.
 ///
 /// Canonical data root policy:
-/// - Linux/macOS style environments resolve to `$HOME/.AOXCData`.
+/// - Linux/macOS style environments resolve to `$HOME/.aoxc`.
 ///
-/// This directory is the top-level AOXC-owned namespace. It is not, by itself,
-/// the effective runtime home used by commands. The effective AOXC home is
-/// derived beneath this root unless explicitly overridden.
+/// This directory is the top-level AOXC-owned namespace and also the default
+/// AOXC home unless explicitly overridden.
 pub fn default_data_root() -> Result<PathBuf, AppError> {
     let home = env::var("HOME").map(PathBuf::from).map_err(|_| {
         AppError::new(
@@ -109,20 +108,15 @@ pub fn default_data_root() -> Result<PathBuf, AppError> {
         )
     })?;
 
-    Ok(home.join(".AOXCData"))
+    Ok(home.join(".aoxc"))
 }
 
 /// Returns the canonical default AOXC home directory.
 ///
 /// Canonical home policy:
-/// - `$HOME/.AOXCData/home/default`
-///
-/// Design intent:
-/// - Preserve a stable AOXC-owned root at `$HOME/.AOXCData`.
-/// - Keep operator-specific runtime state under `home/<name>`.
-/// - Align runtime defaults with packaging and Makefile conventions.
+/// - `$HOME/.aoxc`
 pub fn default_home_dir() -> Result<PathBuf, AppError> {
-    Ok(default_data_root()?.join("home").join("default"))
+    default_data_root()
 }
 
 /// Resolves the effective AOXC operator home.
@@ -155,8 +149,9 @@ pub fn resolve_home() -> Result<PathBuf, AppError> {
 /// - `telemetry/`, `reports/`, `support/`, `backups/`
 ///
 /// Compatibility and safety policy:
-/// - Migrates legacy `$HOME/.aoxc` and `$HOME/.AOXC` content into the canonical
-///   default home on first initialization.
+/// - Migrates legacy `$HOME/.AOXCData/home/default`, `$HOME/.AOXCData`,
+///   and `$HOME/.AOXC` content into the canonical default home on first
+///   initialization.
 /// - Writes a deletion guard marker in `support/delete-protection.md`.
 pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
     maybe_migrate_legacy_home(home)?;
@@ -393,11 +388,11 @@ mod tests {
     use std::env;
 
     #[test]
-    fn default_data_root_resolves_to_hidden_aoxcdata_root() {
+    fn default_data_root_resolves_to_hidden_aoxc_root() {
         let home = env::var("HOME").expect("HOME must be set for tests");
         assert_eq!(
             default_data_root().expect("data root should resolve"),
-            std::path::PathBuf::from(home).join(".AOXCData")
+            std::path::PathBuf::from(home).join(".aoxc")
         );
     }
 
@@ -406,10 +401,7 @@ mod tests {
         let home = env::var("HOME").expect("HOME must be set for tests");
         assert_eq!(
             default_home_dir().expect("default home should resolve"),
-            std::path::PathBuf::from(home)
-                .join(".AOXCData")
-                .join("home")
-                .join("default")
+            std::path::PathBuf::from(home).join(".aoxc")
         );
     }
 

@@ -35,13 +35,6 @@ pub fn discover() -> Vec<BinaryCandidate> {
     };
 
     let home = env::var("HOME").unwrap_or_else(|_| String::from("/tmp"));
-    let installed_legacy = format!("{home}/.AOXCData/bin/aoxc");
-    push_candidate(
-        "installed-release-legacy",
-        BinarySourceKind::InstalledRelease,
-        installed_legacy,
-        TrustLevel::Trusted,
-    );
     let installed_current = format!("{home}/.aoxc/bin/current/aoxc");
     push_candidate(
         "installed-release-current",
@@ -55,30 +48,6 @@ pub fn discover() -> Vec<BinaryCandidate> {
         String::from("/mnt/xdbx/aoxc/bin/current/aoxc"),
         TrustLevel::Trusted,
     );
-
-    let releases_root = PathBuf::from(format!("{home}/.AOXCData/releases"));
-    if releases_root.is_dir()
-        && let Ok(entries) = fs::read_dir(&releases_root)
-    {
-        let mut dirs: Vec<PathBuf> = entries
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| p.is_dir())
-            .collect();
-        dirs.sort();
-        if let Some(bundle) = dirs.last() {
-            let path = bundle.join("bin/aoxc");
-            if path.is_file() {
-                let p = path.display().to_string();
-                push_candidate(
-                    "versioned-bundle-legacy",
-                    BinarySourceKind::VersionedBundle,
-                    p,
-                    TrustLevel::Trusted,
-                );
-            }
-        }
-    }
 
     let releases_root_current = PathBuf::from(format!("{home}/.aoxc/releases"));
     if releases_root_current.is_dir()
@@ -96,6 +65,30 @@ pub fn discover() -> Vec<BinaryCandidate> {
                 let p = path.display().to_string();
                 push_candidate(
                     "versioned-bundle-current",
+                    BinarySourceKind::VersionedBundle,
+                    p,
+                    TrustLevel::Trusted,
+                );
+            }
+        }
+    }
+
+    let releases_root_legacy = PathBuf::from(format!("{home}/.AOXCData/releases"));
+    if releases_root_legacy.is_dir()
+        && let Ok(entries) = fs::read_dir(&releases_root_legacy)
+    {
+        let mut dirs: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect();
+        dirs.sort();
+        if let Some(bundle) = dirs.last() {
+            let path = bundle.join("bin/aoxc");
+            if path.is_file() {
+                let p = path.display().to_string();
+                push_candidate(
+                    "versioned-bundle-legacy",
                     BinarySourceKind::VersionedBundle,
                     p,
                     TrustLevel::Trusted,
