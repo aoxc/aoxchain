@@ -73,6 +73,30 @@ pub fn discover() -> Vec<BinaryCandidate> {
         }
     }
 
+    let releases_root_legacy = PathBuf::from(format!("{home}/.AOXCData/releases"));
+    if releases_root_legacy.is_dir()
+        && let Ok(entries) = fs::read_dir(&releases_root_legacy)
+    {
+        let mut dirs: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect();
+        dirs.sort();
+        if let Some(bundle) = dirs.last() {
+            let path = bundle.join("bin/aoxc");
+            if path.is_file() {
+                let p = path.display().to_string();
+                push_candidate(
+                    "versioned-bundle-legacy",
+                    BinarySourceKind::VersionedBundle,
+                    p,
+                    TrustLevel::Trusted,
+                );
+            }
+        }
+    }
+
     let local_release = "/workspace/aoxchain/target/release/aoxc".to_string();
     push_candidate(
         "local-release-build",
