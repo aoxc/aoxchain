@@ -9,7 +9,7 @@ use std::{
     sync::{OnceLock, RwLock},
 };
 
-const LEGACY_HOME_CANDIDATES: [&str; 1] = [".AOXC"];
+const LEGACY_HOME_CANDIDATES: [&str; 3] = [".AOXCData/home/default", ".AOXCData", ".AOXC"];
 const MAIN_LAYOUT_DIRS: [&str; 14] = [
     "config",
     "identity",
@@ -149,8 +149,9 @@ pub fn resolve_home() -> Result<PathBuf, AppError> {
 /// - `telemetry/`, `reports/`, `support/`, `backups/`
 ///
 /// Compatibility and safety policy:
-/// - Migrates legacy `$HOME/.AOXC` content into the canonical default home on
-///   first initialization.
+/// - Migrates legacy `$HOME/.AOXCData/home/default`, `$HOME/.AOXCData`,
+///   and `$HOME/.AOXC` content into the canonical default home on first
+///   initialization.
 /// - Writes a deletion guard marker in `support/delete-protection.md`.
 pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
     maybe_migrate_legacy_home(home)?;

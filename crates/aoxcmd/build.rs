@@ -13,9 +13,20 @@ const UNAVAILABLE_DIGEST: &str = "unavailable";
 
 /// Resolves the canonical AOXC home root for build-time metadata derivation.
 ///
-/// Default:
-/// - `$HOME/.aoxc`
-fn resolve_default_home() -> Result<PathBuf, String> {
+/// Resolution order:
+/// 1. `AOXC_DATA_ROOT`, when present and non-empty
+/// 2. `$HOME/.aoxc`
+///
+/// This mirrors the canonical AOXC path contract used by the workspace
+/// Makefile and operator tooling.
+fn resolve_data_root() -> Result<PathBuf, String> {
+    if let Ok(value) = env::var("AOXC_DATA_ROOT") {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            return Ok(PathBuf::from(trimmed));
+        }
+    }
+
     let home = env::var("HOME").map_err(|_| "HOME environment variable is not set".to_string())?;
     Ok(Path::new(&home).join(".aoxc"))
 }
@@ -24,7 +35,7 @@ fn resolve_default_home() -> Result<PathBuf, String> {
 ///
 /// Resolution order:
 /// 1. `AOXC_HOME`, when present and non-empty
-/// 2. `$HOME/.aoxc`
+/// 2. `<AOXC_DATA_ROOT>`
 ///
 /// Rationale:
 /// - This aligns build metadata derivation with the canonical AOXC runtime
@@ -39,7 +50,7 @@ fn resolve_home() -> Result<PathBuf, String> {
         }
     }
 
-    resolve_default_home()
+    resolve_data_root()
 }
 
 /// Computes the SHA-256 digest for the supplied file.
