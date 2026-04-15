@@ -608,7 +608,11 @@ pub(in crate::cli::bootstrap::operations) fn validate_genesis(
     }
     let consensus_identity_profile = genesis.consensus.consensus_identity_profile.trim();
     if matches!(genesis.environment.as_str(), "mainnet" | "testnet")
-        && !consensus_identity_profile.eq_ignore_ascii_case("pq-only")
+        && !genesis
+            .consensus
+            .consensus_identity_profile
+            .trim()
+            .eq_ignore_ascii_case("pq-only")
     {
         return Err(AppError::new(
             ErrorCode::ConfigInvalid,
