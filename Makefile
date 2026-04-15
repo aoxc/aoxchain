@@ -1122,9 +1122,9 @@ production-full:
 dev-full:
 	$(call print_banner,Running full dev runtime closure flow)
 	@$(MAKE) --no-print-directory quality
-	@$(MAKE) --no-print-directory runtime-source-check AOXC_NETWORK_KIND=dev
-	@$(MAKE) --no-print-directory runtime-activate AOXC_NETWORK_KIND=dev
-	@$(MAKE) --no-print-directory runtime-doctor
+	@$(MAKE) --no-print-directory runtime-source-check AOXC_NETWORK_KIND=devnet
+	@$(MAKE) --no-print-directory runtime-activate AOXC_NETWORK_KIND=devnet
+	@$(MAKE) --no-print-directory runtime-doctor AOXC_NETWORK_KIND=devnet
 	@$(MAKE) --no-print-directory phase1-full
 	@echo "Dev runtime closure flow completed."
 
