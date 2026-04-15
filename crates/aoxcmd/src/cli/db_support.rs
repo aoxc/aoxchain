@@ -62,8 +62,8 @@ fn parse_backend(args: &[String]) -> Result<IndexBackend, AppError> {
 /// - The database surface is anchored under `runtime/db`.
 ///
 /// Examples:
-/// - `/home/<user>/.AOXCData/home/default/runtime/db`
-/// - `/home/<user>/.AOXCData/.test/<label>/runtime/db`
+/// - `/home/<user>/.aoxc/runtime/db`
+/// - `/home/<user>/.aoxc/.test/<label>/runtime/db`
 ///
 /// Operational guarantee:
 /// - The required AOXC layout is materialized before the root is returned so

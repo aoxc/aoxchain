@@ -56,30 +56,6 @@ pub fn discover() -> Vec<BinaryCandidate> {
         TrustLevel::Trusted,
     );
 
-    let releases_root = PathBuf::from(format!("{home}/.AOXCData/releases"));
-    if releases_root.is_dir()
-        && let Ok(entries) = fs::read_dir(&releases_root)
-    {
-        let mut dirs: Vec<PathBuf> = entries
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| p.is_dir())
-            .collect();
-        dirs.sort();
-        if let Some(bundle) = dirs.last() {
-            let path = bundle.join("bin/aoxc");
-            if path.is_file() {
-                let p = path.display().to_string();
-                push_candidate(
-                    "versioned-bundle-legacy",
-                    BinarySourceKind::VersionedBundle,
-                    p,
-                    TrustLevel::Trusted,
-                );
-            }
-        }
-    }
-
     let releases_root_current = PathBuf::from(format!("{home}/.aoxc/releases"));
     if releases_root_current.is_dir()
         && let Ok(entries) = fs::read_dir(&releases_root_current)
@@ -96,6 +72,30 @@ pub fn discover() -> Vec<BinaryCandidate> {
                 let p = path.display().to_string();
                 push_candidate(
                     "versioned-bundle-current",
+                    BinarySourceKind::VersionedBundle,
+                    p,
+                    TrustLevel::Trusted,
+                );
+            }
+        }
+    }
+
+    let releases_root_legacy = PathBuf::from(format!("{home}/.AOXCData/releases"));
+    if releases_root_legacy.is_dir()
+        && let Ok(entries) = fs::read_dir(&releases_root_legacy)
+    {
+        let mut dirs: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect();
+        dirs.sort();
+        if let Some(bundle) = dirs.last() {
+            let path = bundle.join("bin/aoxc");
+            if path.is_file() {
+                let p = path.display().to_string();
+                push_candidate(
+                    "versioned-bundle-legacy",
                     BinarySourceKind::VersionedBundle,
                     p,
                     TrustLevel::Trusted,
