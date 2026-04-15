@@ -131,9 +131,33 @@ pub fn resolve_home() -> Result<PathBuf, AppError> {
     }
 
     match env::var("AOXC_HOME") {
-        Ok(value) if !value.trim().is_empty() => Ok(PathBuf::from(value)),
+        Ok(value) if !value.trim().is_empty() => Ok(normalize_home_candidate(PathBuf::from(value))),
         _ => default_home_dir(),
     }
+}
+
+fn normalize_home_candidate(candidate: PathBuf) -> PathBuf {
+    let runtime_like = candidate
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.eq_ignore_ascii_case("runtime"))
+        .unwrap_or(false);
+
+    if !runtime_like {
+        return candidate;
+    }
+
+    let has_runtime_materialized_layout = candidate.join("identity").is_dir()
+        || candidate.join("config").is_dir()
+        || candidate.join("db").is_dir();
+
+    if has_runtime_materialized_layout
+        && let Some(parent) = candidate.parent()
+    {
+        return parent.to_path_buf();
+    }
+
+    candidate
 }
 
 /// Ensures the canonical AOXC directory layout exists under the supplied home.
@@ -383,7 +407,8 @@ fn harden_directory_permissions(path: &Path) -> Result<(), AppError> {
 mod tests {
     use super::{
         ScopedHomeOverride, active_home_override, default_data_root, default_home_dir,
-        ensure_layout, file_permissions_are_hardened, read_file, resolve_home, write_file,
+        ensure_layout, file_permissions_are_hardened, normalize_home_candidate, read_file,
+        resolve_home, write_file,
     };
     use std::env;
 
@@ -416,6 +441,24 @@ mod tests {
         }
 
         assert_eq!(active_home_override(), previous);
+    }
+
+    #[test]
+    fn resolve_home_normalizes_runtime_root_override_to_aoxc_root() {
+        let root = default_data_root()
+            .expect("data root should resolve")
+            .join(".test")
+            .join("runtime-home-normalization");
+        let runtime = root.join("runtime");
+
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(runtime.join("identity")).expect("runtime identity dir should exist");
+
+        let _override_guard = ScopedHomeOverride::install(&runtime);
+        assert_eq!(resolve_home().expect("home should resolve"), runtime);
+        assert_eq!(normalize_home_candidate(runtime.clone()), root);
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
