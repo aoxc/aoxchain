@@ -1124,7 +1124,7 @@ dev-full:
 	@$(MAKE) --no-print-directory quality
 	@$(MAKE) --no-print-directory runtime-source-check AOXC_NETWORK_KIND=devnet
 	@$(MAKE) --no-print-directory runtime-activate AOXC_NETWORK_KIND=devnet
-	@$(MAKE) --no-print-directory runtime-doctor
+	@$(MAKE) --no-print-directory runtime-doctor AOXC_NETWORK_KIND=devnet
 	@$(MAKE) --no-print-directory phase1-full
 	@echo "Dev runtime closure flow completed."
 

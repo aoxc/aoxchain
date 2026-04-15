@@ -9,7 +9,7 @@ use std::{
     sync::{OnceLock, RwLock},
 };
 
-const LEGACY_HOME_CANDIDATES: [&str; 2] = [".aoxc", ".AOXC"];
+const LEGACY_HOME_CANDIDATES: [&str; 1] = [".AOXC"];
 const MAIN_LAYOUT_DIRS: [&str; 14] = [
     "config",
     "identity",
@@ -96,11 +96,10 @@ pub fn active_home_override() -> Option<PathBuf> {
 /// Returns the canonical AOXC data root for the current user.
 ///
 /// Canonical data root policy:
-/// - Linux/macOS style environments resolve to `$HOME/.AOXCData`.
+/// - Linux/macOS style environments resolve to `$HOME/.aoxc`.
 ///
-/// This directory is the top-level AOXC-owned namespace. It is not, by itself,
-/// the effective runtime home used by commands. The effective AOXC home is
-/// derived beneath this root unless explicitly overridden.
+/// This directory is the top-level AOXC-owned namespace and also the default
+/// AOXC home unless explicitly overridden.
 pub fn default_data_root() -> Result<PathBuf, AppError> {
     let home = env::var("HOME").map(PathBuf::from).map_err(|_| {
         AppError::new(
@@ -109,20 +108,15 @@ pub fn default_data_root() -> Result<PathBuf, AppError> {
         )
     })?;
 
-    Ok(home.join(".AOXCData"))
+    Ok(home.join(".aoxc"))
 }
 
 /// Returns the canonical default AOXC home directory.
 ///
 /// Canonical home policy:
-/// - `$HOME/.AOXCData/home/default`
-///
-/// Design intent:
-/// - Preserve a stable AOXC-owned root at `$HOME/.AOXCData`.
-/// - Keep operator-specific runtime state under `home/<name>`.
-/// - Align runtime defaults with packaging and Makefile conventions.
+/// - `$HOME/.aoxc`
 pub fn default_home_dir() -> Result<PathBuf, AppError> {
-    Ok(default_data_root()?.join("home").join("default"))
+    default_data_root()
 }
 
 /// Resolves the effective AOXC operator home.
@@ -137,9 +131,33 @@ pub fn resolve_home() -> Result<PathBuf, AppError> {
     }
 
     match env::var("AOXC_HOME") {
-        Ok(value) if !value.trim().is_empty() => Ok(PathBuf::from(value)),
+        Ok(value) if !value.trim().is_empty() => Ok(normalize_home_candidate(PathBuf::from(value))),
         _ => default_home_dir(),
     }
+}
+
+fn normalize_home_candidate(candidate: PathBuf) -> PathBuf {
+    let runtime_like = candidate
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.eq_ignore_ascii_case("runtime"))
+        .unwrap_or(false);
+
+    if !runtime_like {
+        return candidate;
+    }
+
+    let has_runtime_materialized_layout = candidate.join("identity").is_dir()
+        || candidate.join("config").is_dir()
+        || candidate.join("db").is_dir();
+
+    if has_runtime_materialized_layout
+        && let Some(parent) = candidate.parent()
+    {
+        return parent.to_path_buf();
+    }
+
+    candidate
 }
 
 /// Ensures the canonical AOXC directory layout exists under the supplied home.
@@ -155,8 +173,8 @@ pub fn resolve_home() -> Result<PathBuf, AppError> {
 /// - `telemetry/`, `reports/`, `support/`, `backups/`
 ///
 /// Compatibility and safety policy:
-/// - Migrates legacy `$HOME/.aoxc` and `$HOME/.AOXC` content into the canonical
-///   default home on first initialization.
+/// - Migrates legacy `$HOME/.AOXC` content into the canonical default home on
+///   first initialization.
 /// - Writes a deletion guard marker in `support/delete-protection.md`.
 pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
     maybe_migrate_legacy_home(home)?;
@@ -388,16 +406,17 @@ fn harden_directory_permissions(path: &Path) -> Result<(), AppError> {
 mod tests {
     use super::{
         ScopedHomeOverride, active_home_override, default_data_root, default_home_dir,
-        ensure_layout, file_permissions_are_hardened, read_file, resolve_home, write_file,
+        ensure_layout, file_permissions_are_hardened, normalize_home_candidate, read_file,
+        resolve_home, write_file,
     };
     use std::env;
 
     #[test]
-    fn default_data_root_resolves_to_hidden_aoxcdata_root() {
+    fn default_data_root_resolves_to_hidden_aoxc_root() {
         let home = env::var("HOME").expect("HOME must be set for tests");
         assert_eq!(
             default_data_root().expect("data root should resolve"),
-            std::path::PathBuf::from(home).join(".AOXCData")
+            std::path::PathBuf::from(home).join(".aoxc")
         );
     }
 
@@ -406,10 +425,7 @@ mod tests {
         let home = env::var("HOME").expect("HOME must be set for tests");
         assert_eq!(
             default_home_dir().expect("default home should resolve"),
-            std::path::PathBuf::from(home)
-                .join(".AOXCData")
-                .join("home")
-                .join("default")
+            std::path::PathBuf::from(home).join(".aoxc")
         );
     }
 
@@ -424,6 +440,24 @@ mod tests {
         }
 
         assert_eq!(active_home_override(), previous);
+    }
+
+    #[test]
+    fn resolve_home_normalizes_runtime_root_override_to_aoxc_root() {
+        let root = default_data_root()
+            .expect("data root should resolve")
+            .join(".test")
+            .join("runtime-home-normalization");
+        let runtime = root.join("runtime");
+
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(runtime.join("identity")).expect("runtime identity dir should exist");
+
+        let _override_guard = ScopedHomeOverride::install(&runtime);
+        assert_eq!(resolve_home().expect("home should resolve"), runtime);
+        assert_eq!(normalize_home_candidate(runtime.clone()), root);
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
