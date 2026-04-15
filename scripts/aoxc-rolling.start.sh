@@ -43,6 +43,9 @@ AOXC_Q_P2P_BASE_PORT="${AOXC_Q_P2P_BASE_PORT:-19540}"
 AOXC_Q_METRICS_BASE_PORT="${AOXC_Q_METRICS_BASE_PORT:-20540}"
 AOXC_Q_ADMIN_BASE_PORT="${AOXC_Q_ADMIN_BASE_PORT:-21540}"
 AOXC_Q_VALIDATE_GENESIS="${AOXC_Q_VALIDATE_GENESIS:-1}"
+AOXC_Q_BIN_ROOT="${AOXC_Q_BIN_ROOT:-}"
+AOXC_CMD_SOURCE="unresolved"
+AOXC_FALLBACK_CMD_SOURCE="none"
 
 usage() {
   cat <<USAGE
@@ -82,6 +85,7 @@ Options:
   --p2p-base-port <n>      base P2P port
   --metrics-base-port <n>  base metrics port
   --admin-base-port <n>    base admin port
+  --bin-root <path>        external release root containing manifest.json + binaries/*/aoxc
   --skip-genesis-validate  skip sha256/genesis consistency gate (not recommended)
   --no-start           alias for --action provision
   --force              recreate target root during provision
@@ -96,7 +100,7 @@ Environment overrides:
   AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE,
   AOXC_Q_HEALTH_INTERVAL_SECS,
   AOXC_Q_RPC_BASE_PORT, AOXC_Q_P2P_BASE_PORT, AOXC_Q_METRICS_BASE_PORT,
-  AOXC_Q_ADMIN_BASE_PORT, AOXC_Q_VALIDATE_GENESIS
+  AOXC_Q_ADMIN_BASE_PORT, AOXC_Q_VALIDATE_GENESIS, AOXC_Q_BIN_ROOT
 USAGE
 }
 
@@ -166,6 +170,8 @@ while [[ $# -gt 0 ]]; do
     --metrics-base-port=*) AOXC_Q_METRICS_BASE_PORT="${1#*=}"; shift ;;
     --admin-base-port) AOXC_Q_ADMIN_BASE_PORT="$2"; shift 2 ;;
     --admin-base-port=*) AOXC_Q_ADMIN_BASE_PORT="${1#*=}"; shift ;;
+    --bin-root) AOXC_Q_BIN_ROOT="$2"; shift 2 ;;
+    --bin-root=*) AOXC_Q_BIN_ROOT="${1#*=}"; shift ;;
     --skip-genesis-validate) AOXC_Q_VALIDATE_GENESIS=0; shift ;;
     --no-start) AOXC_Q_ACTION="provision"; shift ;;
     --force) AOXC_Q_FORCE=1; shift ;;
@@ -276,31 +282,137 @@ required_source_files=(
   topology/aoxcq-consensus.toml
 )
 
+resolve_external_release_binary() {
+  local root="$1"
+  [[ -n "${root}" ]] || return 1
+  [[ -d "${root}" ]] || return 1
+
+  local direct="${root%/}/aoxc"
+  if [[ -x "${direct}" ]]; then
+    printf '%s\n' "${direct}"
+    return 0
+  fi
+
+  local manifest="${root%/}/manifest.json"
+  if [[ -f "${manifest}" ]]; then
+    local from_manifest
+    from_manifest="$(
+      python3 - "${manifest}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest_path = Path(sys.argv[1])
+try:
+    obj = json.loads(manifest_path.read_text(encoding="utf-8"))
+except Exception:
+    print("")
+    raise SystemExit(0)
+
+for item in obj.get("artifacts", []):
+    path = item.get("path", "")
+    if path.endswith("/aoxc") or path == "aoxc":
+        resolved = (manifest_path.parent / path).resolve()
+        if resolved.is_file():
+            print(str(resolved))
+            raise SystemExit(0)
+print("")
+PY
+    )"
+    if [[ -n "${from_manifest}" && -x "${from_manifest}" ]]; then
+      printf '%s\n' "${from_manifest}"
+      return 0
+    fi
+  fi
+
+  local first_match
+  first_match="$(find "${root%/}/binaries" -type f -name aoxc 2>/dev/null | sort | head -n 1 || true)"
+  if [[ -n "${first_match}" && -x "${first_match}" ]]; then
+    printf '%s\n' "${first_match}"
+    return 0
+  fi
+  return 1
+}
+
 resolve_aoxc_command() {
+  local external_bin=""
+  if [[ -n "${AOXC_Q_BIN_ROOT}" ]]; then
+    external_bin="$(resolve_external_release_binary "${AOXC_Q_BIN_ROOT}" || true)"
+  fi
+  AOXC_FALLBACK_CMD=()
   if [[ -x "${REPO_ROOT}/target/release/aoxc" ]]; then
+    AOXC_FALLBACK_CMD=("${REPO_ROOT}/target/release/aoxc")
+    AOXC_FALLBACK_CMD_SOURCE="repo-release-binary"
+  else
+    AOXC_FALLBACK_CMD=(cargo run -q -p aoxcmd --)
+    AOXC_FALLBACK_CMD_SOURCE="cargo-run-fallback"
+  fi
+
+  if [[ -n "${external_bin}" ]]; then
+    AOXC_CMD=("${external_bin}")
+    AOXC_CMD_SOURCE="external-bin-root:${AOXC_Q_BIN_ROOT}"
+  elif [[ -x "${REPO_ROOT}/target/release/aoxc" ]]; then
     AOXC_CMD=("${REPO_ROOT}/target/release/aoxc")
+    AOXC_CMD_SOURCE="repo-release-binary"
   else
     AOXC_CMD=(cargo run -q -p aoxcmd --)
+    AOXC_CMD_SOURCE="cargo-run-fallback"
+  fi
+}
+
+run_cmd_with_home() {
+  local home="$1"
+  shift
+  if [[ -n "${home}" ]]; then
+    AOXC_HOME="${home}" "$@"
+  else
+    "$@"
   fi
 }
 
 run_aoxc() {
   local home="$1"
   shift
-  if [[ -n "${home}" ]]; then
-    AOXC_HOME="${home}" "${AOXC_CMD[@]}" "$@"
-  else
-    "${AOXC_CMD[@]}" "$@"
+  run_cmd_with_home "${home}" "${AOXC_CMD[@]}" "$@"
+}
+
+run_aoxc_fallback() {
+  local home="$1"
+  shift
+  run_cmd_with_home "${home}" "${AOXC_FALLBACK_CMD[@]}" "$@"
+}
+
+bootstrap_treasury_transfer() {
+  local node_home="$1"
+  local to_account="$2"
+  local amount="$3"
+  local out_file="$4"
+  local err_file="${out_file}.err"
+
+  if run_aoxc "${node_home}" treasury-transfer --to "${to_account}" --amount "${amount}" --format json > "${out_file}" 2> "${err_file}"; then
+    rm -f "${err_file}"
+    return 0
   fi
+
+  if grep -Fq "AOXC-USG-002" "${err_file}" && grep -Fq "requires --signature and --public-key" "${err_file}"; then
+    log_warn "treasury-transfer requires signature in ${AOXC_CMD_SOURCE}; retrying with ${AOXC_FALLBACK_CMD_SOURCE}"
+    if run_aoxc_fallback "${node_home}" treasury-transfer --to "${to_account}" --amount "${amount}" --format json > "${out_file}" 2> "${err_file}"; then
+      rm -f "${err_file}"
+      return 0
+    fi
+  fi
+
+  cat "${err_file}" >&2
+  return 1
 }
 
 write_wrapper_script() {
   local wrapper_path="$1"
-  if [[ -x "${REPO_ROOT}/target/release/aoxc" ]]; then
+  if [[ "${AOXC_CMD_SOURCE}" == external-bin-root:* || "${AOXC_CMD_SOURCE}" == "repo-release-binary" ]]; then
     cat > "${wrapper_path}" <<WRAPPER
 #!/usr/bin/env bash
 set -Eeuo pipefail
-exec "${REPO_ROOT}/target/release/aoxc" "\$@"
+exec "${AOXC_CMD[0]}" "\$@"
 WRAPPER
   else
     cat > "${wrapper_path}" <<WRAPPER
@@ -1496,16 +1608,16 @@ provision_testnet() {
     validator_transport_public_key="$(extract_kv_field "${validator_create_json}" "transport_public_key")"
 
     run_aoxc "${node_home}" economy-init --format json > "${run_dir}/economy-init.json"
-    run_aoxc "${node_home}" treasury-transfer \
-      --to "${operator_account_id}" \
-      --amount "${AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE}" \
-      --format json \
-      > "${run_dir}/treasury-transfer-operator.json"
-    run_aoxc "${node_home}" treasury-transfer \
-      --to "${validator_account_id}" \
-      --amount "${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}" \
-      --format json \
-      > "${run_dir}/treasury-transfer-validator.json"
+    bootstrap_treasury_transfer \
+      "${node_home}" \
+      "${operator_account_id}" \
+      "${AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE}" \
+      "${run_dir}/treasury-transfer-operator.json"
+    bootstrap_treasury_transfer \
+      "${node_home}" \
+      "${validator_account_id}" \
+      "${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}" \
+      "${run_dir}/treasury-transfer-validator.json"
 
     operator_known="$(fetch_balance_field "${node_home}" "${operator_account_id}" "known")"
     operator_balance="$(fetch_balance_field "${node_home}" "${operator_account_id}" "balance")"
@@ -1900,6 +2012,9 @@ verify_testnet() {
 
 main() {
   resolve_aoxc_command
+  log_info "aoxc command source: ${AOXC_CMD_SOURCE}"
+  log_info "aoxc executable: ${AOXC_CMD[0]}"
+  log_info "aoxc fallback source: ${AOXC_FALLBACK_CMD_SOURCE}"
 
   case "${AOXC_Q_ACTION}" in
     up)

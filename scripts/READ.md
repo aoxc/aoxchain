@@ -438,7 +438,11 @@ for isolated node services.
 The `aoxc-rolling.start.sh` flow provisions a seven-node rolling devnet style
 local testnet layout (no Docker/Podman requirement), prepares per-node account
 material, and can run persistent local node loops from generated `start-all.sh`
-and `stop-all.sh` control scripts.
+and `stop-all.sh` control scripts. It can also consume an external release root
+(`--bin-root <path>`) that exposes `manifest.json` + `binaries/*/aoxc` so
+operators can force rolling flows to use an explicitly published binary. During
+bootstrap treasury-funding, if the external binary enforces signed transfers,
+the script retries transfer steps with the local fallback command path.
 
 ### Quality
 - `make fmt`
