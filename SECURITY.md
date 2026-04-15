@@ -67,7 +67,7 @@ Highest-priority classes include:
 Security-sensitive changes must include synchronized updates where applicable:
 
 - `ARCHITECTURE.md` (trust-boundary impact),
-- `ROADMAP.md` (phase/checklist impact),
+- `READ.md` (normative technical contract impact),
 - `TESTING.md` (validation/evidence impact).
 
 Readiness claims are non-authoritative without retained evidence tied to the tested commit.
