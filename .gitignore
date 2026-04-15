@@ -41,6 +41,8 @@
 # =============================================================================
 **/target/
 **/cargo-incremental/
+**/.cargo-home/
+**/.rust-analyzer/
 **/*.rs.bk
 **/*.rlib
 **/*.rmeta
@@ -60,6 +62,15 @@
 **/coverage/
 **/grcov/
 **/target/criterion/
+**/*.sqlite
+**/*.sqlite3
+**/*.sqlite-journal
+**/*.sqlite-wal
+**/*.sqlite-shm
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.redb
 
 # =============================================================================
 # Environment / Secrets
@@ -170,6 +181,10 @@ artifacts/**/tmp/
 # Logs
 # =============================================================================
 **/*.log
+**/*.out
+**/*.err
+**/*.pid
+**/*.pid.lock
 **/logs/
 **/log/
 
@@ -264,6 +279,7 @@ desktop.ini
 /releases/v*/provenance.intoto.jsonl
 /releases/v*/binaries/
 /releases/v*/signatures/
+/releases/v*/certificates/
 
 # Keep governance documents tracked
 !releases/README.md
