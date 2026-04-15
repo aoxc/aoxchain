@@ -1,0 +1,33 @@
+{
+  "certificate_schema": 1,
+  "certificate_type": "release-artifact-certificate",
+  "issued_at_utc": "2026-04-15T00:48:33Z",
+  "issuer": "repository-release-automation",
+  "release": {
+    "version": "0.2.0-alpha.2",
+    "tag": "v0.2.0-alpha.2",
+    "commit": "35146b2fb96803bd33aaaee75b1c8e2b5699e5de",
+    "network": "mainnet",
+    "network_id": "aoxc-mainnet-2626-001",
+    "chain_id": "2626000001",
+    "target": "linux-amd64"
+  },
+  "artifacts": [
+    {
+      "name": "aoxc-linux-amd64",
+      "path": "binaries/linux-amd64/aoxc",
+      "sha256": "3c7c9c533b6d2474b520bdd10476c1d22b5762819d3432625b171805270340c1"
+    },
+    {
+      "name": "aoxchub-linux-amd64",
+      "path": "binaries/linux-amd64/aoxchub",
+      "sha256": "76a4cc1af8970e33bf7c967fa4971767d1ddbe628b1487f0822e29b408225c42"
+    },
+    {
+      "name": "aoxckit-linux-amd64",
+      "path": "binaries/linux-amd64/aoxckit",
+      "sha256": "84b508b5cbf79257406ffb7c244398efd198755c113a80d51190726daa786588"
+    }
+  ],
+  "signature_status": "unsigned"
+}
