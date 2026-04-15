@@ -307,8 +307,7 @@ mod tests {
         let mut genesis = EnvironmentProfile::Validation.genesis_document();
         genesis.state.accounts[0].balance = "42".to_string();
 
-        let error =
-            validate_genesis(&genesis).expect_err("mismatched treasury balance must fail");
+        let error = validate_genesis(&genesis).expect_err("mismatched treasury balance must fail");
         assert!(
             error
                 .to_string()

@@ -380,7 +380,12 @@ fn account_json(target: &str) -> serde_json::Value {
     let balance = if account_id == "treasury" {
         lookup.ledger.treasury_balance
     } else {
-        lookup.ledger.delegations.get(&account_id).copied().unwrap_or(0)
+        lookup
+            .ledger
+            .delegations
+            .get(&account_id)
+            .copied()
+            .unwrap_or(0)
     };
 
     json!({
