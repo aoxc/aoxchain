@@ -16,7 +16,6 @@
   - [API Kernel Security Blueprint](architecture/API_KERNEL_SECURITY_BLUEPRINT.md)
   - [API Reference](architecture/API_REFERENCE.md)
   - [Client Repository API Integration Spec](architecture/CLIENT_REPOSITORY_API_INTEGRATION_SPEC.md)
-  - [PQ Authority Implementation Checklist](architecture/PQ_AUTHORITY_IMPLEMENTATION_CHECKLIST.md)
   - [PQ Compatibility Gap and Implementation Plan](architecture/PQ_COMPATIBILITY_GAP_AND_IMPLEMENTATION_PLAN.md)
   - [Production Implementation Blueprint](architecture/PRODUCTION_IMPLEMENTATION_BLUEPRINT.md)
   - [Quantum Account Management Blueprint](architecture/QUANTUM_ACCOUNT_MANAGEMENT_BLUEPRINT.md)
@@ -24,7 +23,6 @@
 
 - [Operations](operations/FULL_NODE_GUIDE.md)
   - [Advanced Node Role Blueprint](operations/ADVANCED_NODE_ROLE_BLUEPRINT.md)
-  - [Genesis Identity Checklist](operations/GENESIS_IDENTITY_CHECKLIST.md)
   - [Operator Surface](operations/OPERATOR_SURFACE.md)
   - [OS Compatibility](operations/OS_COMPATIBILITY.md)
   - [Testnet Release Runbook](operations/TESTNET_RELEASE_RUNBOOK.md)

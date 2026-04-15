@@ -29,7 +29,7 @@ For repository-level policy and system boundaries, use root files as the final s
 - `ARCHITECTURE.md` — component boundaries and dependency direction.
 - `SECURITY.md` — disclosure handling and security posture.
 - `TESTING.md` — validation criteria and go/no-go expectations.
-- `ROADMAP.md` — staged execution roadmap.
+- `VERSIONING.md` — compatibility governance and release discipline.
 
 ## mdBook Integrity Notes
 

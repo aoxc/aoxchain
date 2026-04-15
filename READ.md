@@ -92,9 +92,8 @@ This section is intentionally equivalent to **Section 6. Mandatory Gate Baseline
 Any architecture-sensitive change must update, in the same change set:
 
 1. `ARCHITECTURE.md` (boundary and responsibility impact),
-2. `ROADMAP.md` (phase/checklist impact),
-3. `TESTING.md` (validation/evidence impact),
-4. `KEY_MANAGEMENT.md` (key lifecycle/domain impact, if applicable).
+2. `TESTING.md` (validation/evidence impact),
+3. `KEY_MANAGEMENT.md` (key lifecycle/domain impact, if applicable).
 
 Implementation-only architectural drift is disallowed.
 

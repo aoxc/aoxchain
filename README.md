@@ -50,9 +50,8 @@ For engineering and review decisions, read these in order:
 3. `ARCHITECTURE.md` — Component topology, trust boundaries, and dependency direction.
 4. `TESTING.md` — Validation obligations and readiness expectations.
 5. `SECURITY.md` — Security posture and disclosure handling.
-6. `ROADMAP.md` — Delivery phases and closure criteria.
-7. `VERSIONING.md` — Compatibility and release governance.
-8. `CONTRIBUTING.md` — Contribution and review protocol.
+6. `VERSIONING.md` — Compatibility and release governance.
+7. `CONTRIBUTING.md` — Contribution and review protocol.
 
 `README.md` is the operational entrypoint; `READ.md` is the normative contract.
 

@@ -4,7 +4,7 @@ AOXCVM is the AOXChain L1-native virtual machine redesign baseline.
 
 ## Status
 - Architecture status: **Phase 1 kernel baseline implemented**
-- Delivery model: **Three-phase kernel-to-quantum roadmap**
+- Delivery model: **Three-phase kernel-to-quantum execution program**
 - Current priority: **Phase 2 — Runtime Expansion (capability hardening + canonical receipts)**
 
 ## Design posture
@@ -15,7 +15,7 @@ AOXCVM is the AOXChain L1-native virtual machine redesign baseline.
 - Auditability through canonical receipts and replay discipline.
 
 ## Canonical specification surfaces
-- `ROADMAP.md`: AOXC-VMachine-QX1 three-phase architecture and delivery specification.
+- `docs/PHASE3_RELEASE_CLOSURE.md`: release closure requirements and operational evidence posture.
 - `docs/PHASE1_KERNEL_SPEC.md`: normative Phase 1 kernel completion criteria.
 - `docs/PHASE1_COMPLETION_REPORT.md`: implemented Phase 1 coverage and validation evidence matrix.
 - `docs/VM_OVERVIEW.md`: component scope and high-level execution model.
