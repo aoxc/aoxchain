@@ -9,7 +9,7 @@ use std::{
     sync::{OnceLock, RwLock},
 };
 
-const LEGACY_HOME_CANDIDATES: [&str; 1] = [".AOXC"];
+const LEGACY_HOME_CANDIDATES: [&str; 3] = [".AOXCData/home/default", ".AOXCData", ".AOXC"];
 const MAIN_LAYOUT_DIRS: [&str; 14] = [
     "config",
     "identity",
@@ -151,7 +151,9 @@ fn normalize_home_candidate(candidate: PathBuf) -> PathBuf {
         || candidate.join("config").is_dir()
         || candidate.join("db").is_dir();
 
-    if has_runtime_materialized_layout && let Some(parent) = candidate.parent() {
+    if has_runtime_materialized_layout
+        && let Some(parent) = candidate.parent()
+    {
         return parent.to_path_buf();
     }
 
@@ -171,8 +173,9 @@ fn normalize_home_candidate(candidate: PathBuf) -> PathBuf {
 /// - `telemetry/`, `reports/`, `support/`, `backups/`
 ///
 /// Compatibility and safety policy:
-/// - Migrates legacy `$HOME/.AOXC` content into the canonical default home on
-///   first initialization.
+/// - Migrates legacy `$HOME/.AOXCData/home/default`, `$HOME/.AOXCData`,
+///   and `$HOME/.AOXC` content into the canonical default home on first
+///   initialization.
 /// - Writes a deletion guard marker in `support/delete-protection.md`.
 pub fn ensure_layout(home: &Path) -> Result<(), AppError> {
     maybe_migrate_legacy_home(home)?;
@@ -449,8 +452,7 @@ mod tests {
         let runtime = root.join("runtime");
 
         let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(runtime.join("identity"))
-            .expect("runtime identity dir should exist");
+        std::fs::create_dir_all(runtime.join("identity")).expect("runtime identity dir should exist");
 
         let _override_guard = ScopedHomeOverride::install(&runtime);
         assert_eq!(resolve_home().expect("home should resolve"), runtime);
