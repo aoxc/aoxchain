@@ -258,11 +258,8 @@ impl NativeTokenLedger {
         self.policy.validate_transfer_amount(amount)?;
         self.validate_treasury_witness(witness)?;
 
-        if self
-            .latest_treasury_intent_nonce
-            .get(&from)
-            .copied()
-            .is_some_and(|last_nonce| witness.intent_nonce <= last_nonce)
+        if let Some(last_nonce) = self.latest_treasury_intent_nonce.get(&from).copied()
+            && witness.intent_nonce <= last_nonce
         {
             return Err(NativeTokenError::ReplayDetected);
         }
