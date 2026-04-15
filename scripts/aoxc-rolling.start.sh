@@ -45,7 +45,6 @@ AOXC_Q_ADMIN_BASE_PORT="${AOXC_Q_ADMIN_BASE_PORT:-21540}"
 AOXC_Q_VALIDATE_GENESIS="${AOXC_Q_VALIDATE_GENESIS:-1}"
 AOXC_Q_BIN_ROOT="${AOXC_Q_BIN_ROOT:-}"
 AOXC_CMD_SOURCE="unresolved"
-AOXC_FALLBACK_CMD_SOURCE="none"
 
 usage() {
   cat <<USAGE
@@ -339,15 +338,6 @@ resolve_aoxc_command() {
   if [[ -n "${AOXC_Q_BIN_ROOT}" ]]; then
     external_bin="$(resolve_external_release_binary "${AOXC_Q_BIN_ROOT}" || true)"
   fi
-  AOXC_FALLBACK_CMD=()
-  if [[ -x "${REPO_ROOT}/target/release/aoxc" ]]; then
-    AOXC_FALLBACK_CMD=("${REPO_ROOT}/target/release/aoxc")
-    AOXC_FALLBACK_CMD_SOURCE="repo-release-binary"
-  else
-    AOXC_FALLBACK_CMD=(cargo run -q -p aoxcmd --)
-    AOXC_FALLBACK_CMD_SOURCE="cargo-run-fallback"
-  fi
-
   if [[ -n "${external_bin}" ]]; then
     AOXC_CMD=("${external_bin}")
     AOXC_CMD_SOURCE="external-bin-root:${AOXC_Q_BIN_ROOT}"
@@ -2014,7 +2004,6 @@ main() {
   resolve_aoxc_command
   log_info "aoxc command source: ${AOXC_CMD_SOURCE}"
   log_info "aoxc executable: ${AOXC_CMD[0]}"
-  log_info "aoxc fallback source: ${AOXC_FALLBACK_CMD_SOURCE}"
 
   case "${AOXC_Q_ACTION}" in
     up)
