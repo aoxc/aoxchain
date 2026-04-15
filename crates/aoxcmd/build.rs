@@ -11,31 +11,20 @@ use std::{
 
 const UNAVAILABLE_DIGEST: &str = "unavailable";
 
-/// Resolves the effective AOXC data root for build-time metadata derivation.
+/// Resolves the canonical AOXC home root for build-time metadata derivation.
 ///
-/// Resolution order:
-/// 1. `AOXC_DATA_ROOT`, when present and non-empty
-/// 2. `$HOME/.AOXCData`
-///
-/// This mirrors the canonical AOXC path contract used by the workspace
-/// Makefile and operator tooling.
-fn resolve_data_root() -> Result<PathBuf, String> {
-    if let Ok(value) = env::var("AOXC_DATA_ROOT") {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Ok(PathBuf::from(trimmed));
-        }
-    }
-
+/// Default:
+/// - `$HOME/.aoxc`
+fn resolve_default_home() -> Result<PathBuf, String> {
     let home = env::var("HOME").map_err(|_| "HOME environment variable is not set".to_string())?;
-    Ok(Path::new(&home).join(".AOXCData"))
+    Ok(Path::new(&home).join(".aoxc"))
 }
 
 /// Resolves the effective AOXC home used for build-time genesis fingerprinting.
 ///
 /// Resolution order:
 /// 1. `AOXC_HOME`, when present and non-empty
-/// 2. `<AOXC_DATA_ROOT>/home/default`
+/// 2. `$HOME/.aoxc`
 ///
 /// Rationale:
 /// - This aligns build metadata derivation with the canonical AOXC runtime
@@ -50,7 +39,7 @@ fn resolve_home() -> Result<PathBuf, String> {
         }
     }
 
-    Ok(resolve_data_root()?.join("home").join("default"))
+    resolve_default_home()
 }
 
 /// Computes the SHA-256 digest for the supplied file.
@@ -89,7 +78,6 @@ fn try_resolve_genesis_digest(path: &Path) -> Result<Option<String>, String> {
 
 fn main() {
     println!("cargo:rerun-if-env-changed=AOXC_HOME");
-    println!("cargo:rerun-if-env-changed=AOXC_DATA_ROOT");
     println!("cargo:rerun-if-env-changed=HOME");
 
     let genesis_path = match resolve_home() {
