@@ -233,6 +233,9 @@ RELEASE_BUNDLE_CHECKSUMS ?= $(RELEASE_BUNDLE_DIR)/SHA256SUMS
 RELEASE_ARCHIVE_BASENAME ?= $(RELEASE_BUNDLE_NAME)-portable
 RELEASE_ARCHIVE_PATH ?= $(AOXC_RELEASES_DIR)/$(RELEASE_ARCHIVE_BASENAME).tar.gz
 RELEASE_BINARIES ?= aoxc aoxchub aoxckit
+REPO_RELEASE_NETWORK ?= mainnet
+REPO_RELEASE_TARGET_LABEL ?=
+REPO_RELEASE_BINARY_ARGS := $(foreach bin,$(RELEASE_BINARIES),--binary target/release/$(bin)$(AOXC_EXE_SUFFIX))
 RELEASE_SIGNING_DIR ?= releases/signing
 RELEASE_SIGNING_KEY_PATH ?= $(RELEASE_SIGNING_DIR)/release_signing_key.pem
 RELEASE_SIGNING_CERT_PATH ?= $(RELEASE_SIGNING_DIR)/release_signing_cert.pem
@@ -367,6 +370,7 @@ help:
 	@printf "  make repo-release-signed-verify\n"
 	@printf "  make repo-release-prepare\n"
 	@printf "  make repo-release-validate\n\n"
+	@printf "  make repo-release-full\n\n"
 	@printf "  make repo-secure-bundle RELEASE_SIGNING_KEY=<key.pem> RELEASE_SIGNING_CERT=<cert.pem>\n"
 	@printf "  make repo-secure-bundle-verify RELEASE_SIGNING_CERT=<cert.pem>\n"
 	@printf "  make install-binaries-root\n"
@@ -661,11 +665,22 @@ repo-release-signed-verify:
 
 repo-release-prepare: build-release-all
 	$(call print_banner,Preparing repository release directory under ./releases)
-	@python3 scripts/release/prepare_repo_release.py --network mainnet --allow-existing
+	@python3 scripts/release/prepare_repo_release.py --network "$(REPO_RELEASE_NETWORK)" $(REPO_RELEASE_BINARY_ARGS) $(if $(strip $(REPO_RELEASE_TARGET_LABEL)),--target-label "$(REPO_RELEASE_TARGET_LABEL)",) --allow-existing
 
 repo-release-validate:
 	$(call print_banner,Validating repository release directory under ./releases)
 	@python3 scripts/release/validate_repo_release.py "releases/v$(RELEASE_VERSION)"
+
+repo-release-full: repo-release-prepare repo-release-validate
+	$(call print_banner,Repository release summary)
+	@echo "release_version=v$(RELEASE_VERSION)"
+	@echo "release_network=$(REPO_RELEASE_NETWORK)"
+	@echo "release_dir=releases/v$(RELEASE_VERSION)"
+	@echo "release_binaries=$(RELEASE_BINARIES)"
+	@echo "tree:"
+	@find "releases/v$(RELEASE_VERSION)" -maxdepth 3 -type f | sort
+	@echo "manifest preview:"
+	@python3 -c 'import json, pathlib; p = pathlib.Path("releases") / "v$(RELEASE_VERSION)" / "manifest.json"; obj = json.loads(p.read_text(encoding="utf-8")); print(json.dumps({"release_version": obj.get("release_version"), "published_at_utc": obj.get("published_at_utc"), "git": obj.get("git"), "artifact_count": len(obj.get("artifacts", [])), "artifacts": [a.get("path") for a in obj.get("artifacts", [])]}, indent=2))'
 
 repo-secure-bundle: build-release-all
 	$(call print_banner,Creating secure multi-hash signed binary bundle)
