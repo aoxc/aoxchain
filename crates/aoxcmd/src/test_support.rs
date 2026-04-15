@@ -44,21 +44,21 @@ fn validated_home_dir() -> PathBuf {
 /// Returns the canonical AOXC data root for the current user.
 ///
 /// Canonical data root policy:
-/// - `$HOME/.AOXCData`
+/// - `$HOME/.aoxc`
 ///
 /// Important distinction:
 /// - This is the top-level AOXC-owned namespace.
 /// - It is not necessarily the effective runtime home used by commands.
 /// - Test homes are created beneath this root under `.test/`.
 fn canonical_data_root() -> PathBuf {
-    validated_home_dir().join(".AOXCData")
+    validated_home_dir().join(".aoxc")
 }
 
 /// Returns the canonical AOXC test root beneath the AOXC-owned namespace.
 ///
 /// Test path policy:
 /// - Tests must never write into the production default AOXC home.
-/// - Disposable test homes are grouped under `$HOME/.AOXCData/.test/`.
+/// - Disposable test homes are grouped under `$HOME/.aoxc/.test/`.
 fn canonical_test_root() -> PathBuf {
     canonical_data_root().join(".test")
 }
