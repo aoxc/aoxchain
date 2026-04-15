@@ -54,6 +54,10 @@ A prepared version directory contains:
 
 - Prepare with `make repo-release-prepare`.
 - Validate with `make repo-release-validate`.
+- For one-command preparation + validation + summary output, use `make repo-release-full`.
+- You may scope release artifacts by binary and network:
+  - `make repo-release-full RELEASE_BINARIES="aoxc" REPO_RELEASE_NETWORK=testnet`
+  - `make repo-release-full RELEASE_BINARIES="aoxc aoxchub aoxckit" REPO_RELEASE_NETWORK=mainnet`
 - Do not mutate a published version after release finalization.
 - If fixes are required after publication, publish a new version directory.
 - Always verify:
