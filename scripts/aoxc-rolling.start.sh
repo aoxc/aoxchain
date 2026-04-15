@@ -350,14 +350,50 @@ resolve_aoxc_command() {
   fi
 }
 
-run_aoxc() {
+run_cmd_with_home() {
   local home="$1"
   shift
   if [[ -n "${home}" ]]; then
-    AOXC_HOME="${home}" "${AOXC_CMD[@]}" "$@"
+    AOXC_HOME="${home}" "$@"
   else
-    "${AOXC_CMD[@]}" "$@"
+    "$@"
   fi
+}
+
+run_aoxc() {
+  local home="$1"
+  shift
+  run_cmd_with_home "${home}" "${AOXC_CMD[@]}" "$@"
+}
+
+run_aoxc_fallback() {
+  local home="$1"
+  shift
+  run_cmd_with_home "${home}" "${AOXC_FALLBACK_CMD[@]}" "$@"
+}
+
+bootstrap_treasury_transfer() {
+  local node_home="$1"
+  local to_account="$2"
+  local amount="$3"
+  local out_file="$4"
+  local err_file="${out_file}.err"
+
+  if run_aoxc "${node_home}" treasury-transfer --to "${to_account}" --amount "${amount}" --format json > "${out_file}" 2> "${err_file}"; then
+    rm -f "${err_file}"
+    return 0
+  fi
+
+  if grep -Fq "AOXC-USG-002" "${err_file}" && grep -Fq "requires --signature and --public-key" "${err_file}"; then
+    log_warn "treasury-transfer requires signature in ${AOXC_CMD_SOURCE}; retrying with ${AOXC_FALLBACK_CMD_SOURCE}"
+    if run_aoxc_fallback "${node_home}" treasury-transfer --to "${to_account}" --amount "${amount}" --format json > "${out_file}" 2> "${err_file}"; then
+      rm -f "${err_file}"
+      return 0
+    fi
+  fi
+
+  cat "${err_file}" >&2
+  return 1
 }
 
 write_wrapper_script() {
@@ -1562,16 +1598,16 @@ provision_testnet() {
     validator_transport_public_key="$(extract_kv_field "${validator_create_json}" "transport_public_key")"
 
     run_aoxc "${node_home}" economy-init --format json > "${run_dir}/economy-init.json"
-    run_aoxc "${node_home}" treasury-transfer \
-      --to "${operator_account_id}" \
-      --amount "${AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE}" \
-      --format json \
-      > "${run_dir}/treasury-transfer-operator.json"
-    run_aoxc "${node_home}" treasury-transfer \
-      --to "${validator_account_id}" \
-      --amount "${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}" \
-      --format json \
-      > "${run_dir}/treasury-transfer-validator.json"
+    bootstrap_treasury_transfer \
+      "${node_home}" \
+      "${operator_account_id}" \
+      "${AOXC_Q_OPERATOR_BOOTSTRAP_BALANCE}" \
+      "${run_dir}/treasury-transfer-operator.json"
+    bootstrap_treasury_transfer \
+      "${node_home}" \
+      "${validator_account_id}" \
+      "${AOXC_Q_VALIDATOR_BOOTSTRAP_BALANCE}" \
+      "${run_dir}/treasury-transfer-validator.json"
 
     operator_known="$(fetch_balance_field "${node_home}" "${operator_account_id}" "known")"
     operator_balance="$(fetch_balance_field "${node_home}" "${operator_account_id}" "balance")"
