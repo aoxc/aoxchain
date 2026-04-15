@@ -11,7 +11,7 @@ use std::{
 
 const UNAVAILABLE_DIGEST: &str = "unavailable";
 
-/// Resolves the effective AOXC data root for build-time metadata derivation.
+/// Resolves the canonical AOXC home root for build-time metadata derivation.
 ///
 /// Resolution order:
 /// 1. `AOXC_DATA_ROOT`, when present and non-empty
@@ -89,7 +89,6 @@ fn try_resolve_genesis_digest(path: &Path) -> Result<Option<String>, String> {
 
 fn main() {
     println!("cargo:rerun-if-env-changed=AOXC_HOME");
-    println!("cargo:rerun-if-env-changed=AOXC_DATA_ROOT");
     println!("cargo:rerun-if-env-changed=HOME");
 
     let genesis_path = match resolve_home() {

@@ -35,13 +35,6 @@ pub fn discover() -> Vec<BinaryCandidate> {
     };
 
     let home = env::var("HOME").unwrap_or_else(|_| String::from("/tmp"));
-    let installed_legacy = format!("{home}/.AOXCData/bin/aoxc");
-    push_candidate(
-        "installed-release-legacy",
-        BinarySourceKind::InstalledRelease,
-        installed_legacy,
-        TrustLevel::Trusted,
-    );
     let installed_current = format!("{home}/.aoxc/bin/current/aoxc");
     push_candidate(
         "installed-release-current",
