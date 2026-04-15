@@ -549,7 +549,7 @@ mod tests {
 
     #[test]
     fn redact_path_hides_directory_components() {
-        let redacted = redact_path(Path::new("/home/orcun/.AOXCData/keys/operator_key.json"));
+        let redacted = redact_path(Path::new("/home/orcun/.aoxc/keys/operator_key.json"));
         assert_eq!(redacted, "[REDACTED_PATH]/operator_key.json");
     }
 
