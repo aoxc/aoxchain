@@ -73,8 +73,6 @@ Options:
   --mode <name>        run mode label: local|staging|public (default: ${AOXC_Q_MODE})
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; mode dependent minimum)
   --full-7             convenience preset: mode=public, nodes=7, auto-scale disabled
-  --real-full          convenience preset: /mnt/xdbx/.aoxc-testnet + env/profile=testnet + mode=public + real-testnet policy + release auto-discovery
-  --releases-root <path> release catalog root for auto-discovery (default for --real-full: /aoxchain/releases)
   --auto-scale         auto-raise node count to mode minimums (default)
   --no-auto-scale      keep --nodes value exactly if it passes minimum checks
   --real-testnet       enforce production-like full testnet sizing/policy defaults
@@ -135,31 +133,6 @@ ensure_port_in_range() {
   fi
 }
 
-release_root_has_binary_surface() {
-  local root="$1"
-  [[ -d "${root}" ]] || return 1
-  [[ -x "${root%/}/aoxc" ]] && return 0
-  [[ -f "${root%/}/manifest.json" ]] && return 0
-  local match
-  match="$(find "${root%/}/binaries" -type f -name aoxc 2>/dev/null | head -n 1 || true)"
-  [[ -n "${match}" ]]
-}
-
-resolve_latest_release_root() {
-  local release_catalog="$1"
-  [[ -d "${release_catalog}" ]] || return 1
-
-  local candidate
-  while IFS= read -r candidate; do
-    if release_root_has_binary_surface "${candidate}"; then
-      printf '%s\n' "${candidate}"
-      return 0
-    fi
-  done < <(find "${release_catalog}" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | awk '{print $2}')
-
-  return 1
-}
-
 POSITIONAL_NODE_COUNT=""
 
 while [[ $# -gt 0 ]]; do
@@ -182,21 +155,6 @@ while [[ $# -gt 0 ]]; do
       AOXC_Q_AUTO_SCALE=0
       shift
       ;;
-    --real-full)
-      AOXC_Q_HOME="/mnt/xdbx/.aoxc-testnet"
-      AOXC_Q_ENV="testnet"
-      AOXC_Q_PROFILE="testnet"
-      AOXC_Q_MODE="public"
-      AOXC_Q_REAL_TESTNET=1
-      AOXC_Q_AUTO_SCALE=1
-      AOXC_Q_RELEASE_AUTO=1
-      if [[ -z "${AOXC_Q_RELEASES_ROOT}" ]]; then
-        AOXC_Q_RELEASES_ROOT="/aoxchain/releases"
-      fi
-      shift
-      ;;
-    --releases-root) AOXC_Q_RELEASES_ROOT="$2"; shift 2 ;;
-    --releases-root=*) AOXC_Q_RELEASES_ROOT="${1#*=}"; shift ;;
     --real-testnet) AOXC_Q_REAL_TESTNET=1; shift ;;
     --auto-scale) AOXC_Q_AUTO_SCALE=1; shift ;;
     --no-auto-scale) AOXC_Q_AUTO_SCALE=0; shift ;;
@@ -246,19 +204,6 @@ done
 
 if [[ -n "${POSITIONAL_NODE_COUNT}" ]]; then
   AOXC_Q_NODE_COUNT="${POSITIONAL_NODE_COUNT}"
-fi
-
-if [[ "${AOXC_Q_RELEASE_AUTO}" == "1" && -z "${AOXC_Q_BIN_ROOT}" ]]; then
-  latest_release_root=""
-  if [[ -n "${AOXC_Q_RELEASES_ROOT}" ]]; then
-    latest_release_root="$(resolve_latest_release_root "${AOXC_Q_RELEASES_ROOT}" || true)"
-  fi
-  if [[ -z "${latest_release_root}" ]]; then
-    latest_release_root="$(resolve_latest_release_root "${REPO_ROOT}/releases" || true)"
-  fi
-  [[ -n "${latest_release_root}" ]] || die "real-full preset requires a release binary surface; provide --bin-root or ensure a release exists under ${AOXC_Q_RELEASES_ROOT:-/aoxchain/releases} or ${REPO_ROOT}/releases" 2
-  AOXC_Q_BIN_ROOT="${latest_release_root}"
-  log_info "real-full preset selected release root: ${AOXC_Q_BIN_ROOT}"
 fi
 
 require_uint "${AOXC_Q_NODE_COUNT}" "AOXC_Q_NODE_COUNT"
