@@ -49,6 +49,7 @@ AOXC_CMD_SOURCE="unresolved"
 usage() {
   cat <<USAGE
 Usage: $(basename "$0") [options]
+Usage: $(basename "$0") <node-count> [options]
 
 AOXC rolling local supervisor.
 
@@ -69,6 +70,7 @@ Options:
   --profile <name>     AOXC profile for bootstrap (default: ${AOXC_Q_PROFILE})
   --mode <name>        run mode label: local|staging|public (default: ${AOXC_Q_MODE})
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; mode dependent minimum)
+  --full-7             convenience preset: mode=public, nodes=7, auto-scale disabled
   --auto-scale         auto-raise node count to mode minimums (default)
   --no-auto-scale      keep --nodes value exactly if it passes minimum checks
   --real-testnet       enforce production-like full testnet sizing/policy defaults
@@ -128,6 +130,8 @@ ensure_port_in_range() {
   fi
 }
 
+POSITIONAL_NODE_COUNT=""
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --action) AOXC_Q_ACTION="$2"; shift 2 ;;
@@ -142,6 +146,12 @@ while [[ $# -gt 0 ]]; do
     --mode=*) AOXC_Q_MODE="${1#*=}"; shift ;;
     --nodes) AOXC_Q_NODE_COUNT="$2"; shift 2 ;;
     --nodes=*) AOXC_Q_NODE_COUNT="${1#*=}"; shift ;;
+    --full-7)
+      AOXC_Q_MODE="public"
+      AOXC_Q_NODE_COUNT=7
+      AOXC_Q_AUTO_SCALE=0
+      shift
+      ;;
     --real-testnet) AOXC_Q_REAL_TESTNET=1; shift ;;
     --auto-scale) AOXC_Q_AUTO_SCALE=1; shift ;;
     --no-auto-scale) AOXC_Q_AUTO_SCALE=0; shift ;;
@@ -175,9 +185,23 @@ while [[ $# -gt 0 ]]; do
     --no-start) AOXC_Q_ACTION="provision"; shift ;;
     --force) AOXC_Q_FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
-    *) die "Unknown argument: $1" 2 ;;
+    *)
+      if [[ "$1" =~ ^[0-9]+$ ]]; then
+        if [[ -n "${POSITIONAL_NODE_COUNT}" ]]; then
+          die "Only one positional node-count argument is supported (got: ${POSITIONAL_NODE_COUNT} and $1)." 2
+        fi
+        POSITIONAL_NODE_COUNT="$1"
+        shift
+      else
+        die "Unknown argument: $1" 2
+      fi
+      ;;
   esac
 done
+
+if [[ -n "${POSITIONAL_NODE_COUNT}" ]]; then
+  AOXC_Q_NODE_COUNT="${POSITIONAL_NODE_COUNT}"
+fi
 
 require_uint "${AOXC_Q_NODE_COUNT}" "AOXC_Q_NODE_COUNT"
 require_uint "${AOXC_Q_ROUNDS}" "AOXC_Q_ROUNDS"
