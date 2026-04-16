@@ -71,7 +71,6 @@ Options:
   --mode <name>        run mode label: local|staging|public (default: ${AOXC_Q_MODE})
   --nodes <n>          node count (default: ${AOXC_Q_NODE_COUNT}; mode dependent minimum)
   --full-7             convenience preset: mode=public, nodes=7, auto-scale disabled
-  --real-full          convenience preset: /mnt/xdbx/.aoxc-testnet + env/profile=testnet + mode=public + real-testnet policy
   --auto-scale         auto-raise node count to mode minimums (default)
   --no-auto-scale      keep --nodes value exactly if it passes minimum checks
   --real-testnet       enforce production-like full testnet sizing/policy defaults
@@ -151,15 +150,6 @@ while [[ $# -gt 0 ]]; do
       AOXC_Q_MODE="public"
       AOXC_Q_NODE_COUNT=7
       AOXC_Q_AUTO_SCALE=0
-      shift
-      ;;
-    --real-full)
-      AOXC_Q_HOME="/mnt/xdbx/.aoxc-testnet"
-      AOXC_Q_ENV="testnet"
-      AOXC_Q_PROFILE="testnet"
-      AOXC_Q_MODE="public"
-      AOXC_Q_REAL_TESTNET=1
-      AOXC_Q_AUTO_SCALE=1
       shift
       ;;
     --real-testnet) AOXC_Q_REAL_TESTNET=1; shift ;;
