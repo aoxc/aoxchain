@@ -1,32 +1,32 @@
 {
   "certificate_schema": 1,
   "certificate_type": "release-artifact-certificate",
-  "issued_at_utc": "2026-04-15T00:48:33Z",
+  "issued_at_utc": "2026-04-16T22:59:49Z",
   "issuer": "repository-release-automation",
   "release": {
     "version": "0.2.0-alpha.2",
     "tag": "v0.2.0-alpha.2",
-    "commit": "35146b2fb96803bd33aaaee75b1c8e2b5699e5de",
-    "network": "mainnet",
-    "network_id": "aoxc-mainnet-2626-001",
-    "chain_id": "2626000001",
+    "commit": "66486216261b947c6c2e6d1d4cb4c67d53a88603",
+    "network": "testnet",
+    "network_id": "aoxc-testnet-2626-002",
+    "chain_id": "2626010001",
     "target": "linux-amd64"
   },
   "artifacts": [
     {
       "name": "aoxc-linux-amd64",
       "path": "binaries/linux-amd64/aoxc",
-      "sha256": "3c7c9c533b6d2474b520bdd10476c1d22b5762819d3432625b171805270340c1"
+      "sha256": "0425c146c1b5ec04a8dcdae88f0ac7aa007297507f0967985b934741713d75c2"
     },
     {
       "name": "aoxchub-linux-amd64",
       "path": "binaries/linux-amd64/aoxchub",
-      "sha256": "76a4cc1af8970e33bf7c967fa4971767d1ddbe628b1487f0822e29b408225c42"
+      "sha256": "6ce19c98e8f532d22d30118abbcd981e2a2977f3f5777549f189e47b7c2e6819"
     },
     {
       "name": "aoxckit-linux-amd64",
       "path": "binaries/linux-amd64/aoxckit",
-      "sha256": "84b508b5cbf79257406ffb7c244398efd198755c113a80d51190726daa786588"
+      "sha256": "c42a75f10f89f6eddc6a87be2f5641322f5d0b382c4656438a86cba0a30adf39"
     }
   ],
   "signature_status": "unsigned"
