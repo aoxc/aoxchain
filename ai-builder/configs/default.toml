@@ -1,0 +1,11 @@
+project_name = "aoxc-ai-lab"
+model_name = "aoxcan-QT01"
+seed = 42
+epochs = 300
+learning_rate = 0.08
+checkpoint_every = 25
+train_split = 0.8
+dataset_size = 1200
+class_threshold = 0.65
+l2_regularization = 0.0005
+feature_count = 4
