@@ -7,9 +7,9 @@ pub mod registry;
 pub mod training;
 
 pub use config::TrainingConfig;
-pub use dataset::{Dataset, RiskSample};
+pub use dataset::Dataset;
 pub use error::AiBuilderError;
-pub use model::{AoxcanQt01Model, Recommendation};
-pub use pipeline::{TrainingOutcome, run_training_pipeline};
-pub use registry::{ExportManifest, ModelRegistry, TrainingCheckpoint};
-pub use training::{EvalMetrics, Trainer};
+pub use model::LinearMiniModel;
+pub use pipeline::run_training_pipeline;
+pub use registry::ModelRegistry;
+pub use training::Trainer;

@@ -1,55 +1,40 @@
 # AOXC AI Builder
 
-`ai-builder/` is a Rust-native mini AI lab focused on **chain-safe advisory models**.
+`ai-builder/` is a professional, extensible mini-AI development surface designed for Rust-first experimentation.
 
-Current reference model: **`aoxcan-QT01`**
+## Goals
 
-- Purpose: classify transaction-context risk and return advisory actions.
-- Scope: training + checkpointing + export manifests.
-- Safety: model is non-consensus and cannot mutate chain state.
-
-## Why this model does not hurt the chain
-
-`aoxcan-QT01` only outputs recommendations (`Allow`, `Observe`, `Throttle`, `Reject`).
-It is designed as an off-chain decision-support component and does **not** change validator or kernel execution logic by itself.
+- Keep AI training and model artifacts in one predictable root layout.
+- Provide a maintainable baseline for future model types beyond a linear starter model.
+- Support repeatable training runs, checkpointing, and future export/serving workflows.
 
 ## Directory Layout
 
-- `src/` — model, training, registry, pipeline, CLI.
-- `tests/` — integration tests for training and recommendation behavior.
-- `configs/` — default training profile templates.
-- `data/` — raw and processed dataset spaces.
-- `models/` — checkpoints and exported model+manifest files.
-- `artifacts/` — logs and metric reports.
+- `src/` — core Rust modules (`config`, `dataset`, `model`, `training`, `registry`, `pipeline`).
+- `tests/` — integration tests for pipeline behavior.
+- `configs/` — training profiles and future hyperparameter packs.
+- `data/raw/` — external or generated source datasets.
+- `data/processed/` — normalized datasets ready for training.
+- `models/checkpoints/` — epoch-based checkpoint artifacts.
+- `models/export/` — stable exported models for inference.
+- `artifacts/logs/` — training run logs.
+- `artifacts/metrics/` — evaluation metrics and comparison outputs.
 
 ## Quick Start
 
 ```bash
 cargo run --manifest-path ai-builder/Cargo.toml -- \
-  --project-name aoxc-risk-lab \
-  --model-name aoxcan-QT01 \
-  --epochs 300 \
-  --learning-rate 0.08 \
-  --dataset-size 1200 \
-  --class-threshold 0.65 \
-  --output-dir ai-builder/models/checkpoints
+  --project-name mini-ai-v1 \
+  --epochs 200 \
+  --learning-rate 0.02 \
+  --checkpoint-every 20 \
+  --checkpoints-dir ai-builder/models/checkpoints
 ```
 
-## Model Contract (QT01)
+## Next Expansion Points
 
-Inputs (4 normalized features):
-1. transaction frequency
-2. gas spike level
-3. address entropy
-4. policy mismatch signal
-
-Outputs:
-- risk probability (0..1)
-- advisory class (`Allow`, `Observe`, `Throttle`, `Reject`)
-
-## Extension Path
-
-- Add real dataset adapters (CSV/Parquet/indexer streams).
-- Add calibration and drift monitors.
-- Add signed lineage manifest and model promotion gates.
-- Add ensemble variants (`QT02`, `QT03`) with the same chain-safe contract.
+- Add richer dataset connectors (CSV/Parquet/stream ingestion).
+- Replace the starter linear model with tensor-backed model types.
+- Add experiment tracking metadata and model versioning policies.
+- Add deterministic seed control at the full pipeline level.
+- Integrate with `crates/aoxcai` for unified runtime strategy.

@@ -1,40 +1,30 @@
 # AI Builder Architecture
 
-## Objective
+## Component Graph
 
-Provide a professional Rust training surface for `aoxcan-QT01`, a chain-safe advisory risk model.
+`config -> dataset -> training -> registry -> artifacts`
 
-## Component Flow
+Supporting modules:
 
-`config -> dataset -> trainer -> registry -> exported model + manifest`
+- `model`: forward pass and loss implementation.
+- `pipeline`: orchestration entrypoint for end-to-end training.
+- `main`: CLI surface for local operators.
 
-### Module Roles
+## Trust and Validation Boundaries
 
-- `config`: run parameters and validation gates.
-- `dataset`: deterministic synthetic risk data generator and train/eval splitting.
-- `model`: logistic-risk model + advisory class mapping.
-- `training`: gradient descent, regularization, evaluation metrics.
-- `registry`: checkpoint and model export manifest persistence.
-- `pipeline`: end-to-end orchestration.
-- `main`: CLI entrypoint.
+- CLI input is untrusted until `TrainingConfig::validate` succeeds.
+- Dataset generation/loading must enforce minimum viability constraints.
+- Checkpoint serialization is append-only per epoch artifact file.
 
-## Trust and Safety Boundaries
+## Operational Contract
 
-- All CLI and config values are untrusted until validated.
-- Model outputs are advisory only.
-- No consensus mutation path exists in this crate.
-- Export manifest includes explicit chain-safe statement to avoid misuse.
+- No training run starts with invalid hyperparameters.
+- A failed training run exits non-zero and emits explicit error class.
+- Checkpoints are versionable JSON artifacts to simplify audit and diff workflows.
 
-## Operational Guarantees
+## Future Hardening Roadmap
 
-- Invalid hyperparameters fail fast.
-- Every checkpoint is versionable JSON.
-- Exported model includes threshold and policy note.
-- Training returns explicit accuracy and loss metrics.
-
-## Roadmap
-
-- Real historical dataset loader.
-- Data quality checks and schema versioning.
-- Model drift detection and automatic rollback recommendation.
-- Signed export manifests for audit traceability.
+- Add schema version to checkpoint artifacts.
+- Add signed artifact manifests for model lineage verification.
+- Add deterministic run manifest (`seed`, config hash, dataset hash).
+- Add benchmark gates for regression detection before export promotion.
