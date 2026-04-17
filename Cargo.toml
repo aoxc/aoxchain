@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members  = [
+    "ai-builder",
     "crates/aoxcai",
     "crates/aoxcdata",
     "crates/aoxcenergy",

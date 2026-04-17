@@ -31,6 +31,7 @@ AOXChain is an experimental Layer-1 blockchain program built around a strict pri
 Primary top-level surfaces:
 
 - `crates/` — Rust workspace crates (protocol, consensus, execution, networking, CLI, tooling).
+- `ai-builder/` — Rust-first mini-AI training scaffold, model checkpoints, and experiment artifacts.
 - `configs/` — Runtime profiles, policy inputs, and environment configuration.
 - `docs/` — Architecture, operations, and implementation references.
 - `scripts/` — Automation and evidence-generation helpers.
