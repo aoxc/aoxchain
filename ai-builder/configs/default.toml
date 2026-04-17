@@ -1,0 +1,6 @@
+project_name = "aoxc-mini-ai"
+seed = 42
+epochs = 250
+learning_rate = 0.01
+checkpoint_every = 25
+train_split = 0.8

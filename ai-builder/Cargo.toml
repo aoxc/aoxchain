@@ -1,0 +1,18 @@
+[package]
+name = "aoxc-ai-builder"
+version = "0.1.0"
+edition = "2024"
+authors = ["AOXChain Team <aoxchain@gmail.com>"]
+license = "MIT"
+description = "Professional, extensible mini-AI builder scaffold in Rust."
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+clap = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tempfile = "3.23.0"
